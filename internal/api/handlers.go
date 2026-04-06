@@ -524,6 +524,16 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 				writeError(w, msg, http.StatusBadRequest)
 				return
 			}
+			if len(req.Toggles.LoadBalancing.Upstreams) == 0 {
+				writeError(w, "load balancing requires at least one additional upstream", http.StatusBadRequest)
+				return
+			}
+			for _, u := range req.Toggles.LoadBalancing.Upstreams {
+				if msg := validateUpstream(u); msg != "" {
+					writeError(w, "additional upstream: "+msg, http.StatusBadRequest)
+					return
+				}
+			}
 		}
 
 		if req.Toggles.BasicAuth.Enabled {
@@ -638,6 +648,16 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			if msg := validateLBStrategy(req.Toggles.LoadBalancing.Strategy); msg != "" {
 				writeError(w, msg, http.StatusBadRequest)
 				return
+			}
+			if len(req.Toggles.LoadBalancing.Upstreams) == 0 {
+				writeError(w, "load balancing requires at least one additional upstream", http.StatusBadRequest)
+				return
+			}
+			for _, u := range req.Toggles.LoadBalancing.Upstreams {
+				if msg := validateUpstream(u); msg != "" {
+					writeError(w, "additional upstream: "+msg, http.StatusBadRequest)
+					return
+				}
 			}
 		}
 

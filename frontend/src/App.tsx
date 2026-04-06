@@ -263,9 +263,7 @@ function App() {
 				<main id="main-content" className="app-content">
 					{view === "routes" && <Routes caddyRunning={running} />}
 					{view === "logs" && <Logs caddyRunning={running} />}
-					{view === "settings" && (
-						<Settings onAuthChange={setAuthEnabled} caddyRunning={running} />
-					)}
+					{view === "settings" && <Settings onAuthChange={setAuthEnabled} caddyRunning={running} />}
 				</main>
 
 				<nav className="app-nav app-nav-mobile" aria-label="Main navigation, mobile">

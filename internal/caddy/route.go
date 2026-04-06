@@ -28,8 +28,9 @@ type RouteToggles struct {
 }
 
 type LoadBalancing struct {
-	Enabled  bool   `json:"enabled"`
-	Strategy string `json:"strategy"`
+	Enabled   bool     `json:"enabled"`
+	Strategy  string   `json:"strategy"`
+	Upstreams []string `json:"upstreams,omitempty"`
 }
 
 type CORSOpts struct {
@@ -128,7 +129,7 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 			}
 			corsHeaders["Access-Control-Allow-Origin"] = []string{origin}
 			handlers = append(handlers, map[string]any{
-				"handler": "headers",
+				"handler":  "headers",
 				"response": map[string]any{"set": corsHeaders},
 			})
 		} else {
@@ -182,9 +183,15 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 	}
 
 	// Reverse proxy (always last in handler chain)
+	upstreams := []map[string]string{{"dial": p.Upstream}}
+	if p.Toggles.LoadBalancing.Enabled {
+		for _, u := range p.Toggles.LoadBalancing.Upstreams {
+			upstreams = append(upstreams, map[string]string{"dial": u})
+		}
+	}
 	rp := map[string]any{
 		"handler":   "reverse_proxy",
-		"upstreams": []map[string]string{{"dial": p.Upstream}},
+		"upstreams": upstreams,
 	}
 
 	if p.Toggles.TLSSkipVerify {
@@ -388,6 +395,9 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 		case "reverse_proxy":
 			if len(handler.Upstreams) > 0 {
 				p.Upstream = handler.Upstreams[0].Dial
+				for _, u := range handler.Upstreams[1:] {
+					p.Toggles.LoadBalancing.Upstreams = append(p.Toggles.LoadBalancing.Upstreams, u.Dial)
+				}
 			}
 			if handler.Transport != nil {
 				var t struct {

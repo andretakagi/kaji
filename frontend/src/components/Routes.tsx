@@ -26,7 +26,7 @@ const defaultToggles: RouteToggles = {
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
 	access_log: false,
 	websocket_passthrough: false,
-	load_balancing: { enabled: false, strategy: "round_robin" },
+	load_balancing: { enabled: false, strategy: "round_robin", upstreams: [] },
 };
 
 // Caddyfile-adapted routes wrap all handlers in a top-level subroute.
@@ -129,9 +129,11 @@ function parseRoute(route: CaddyRoute, server: string, loggedDomains?: Set<strin
 		toggles.websocket_passthrough = true;
 	}
 	if (rpHandler?.load_balancing?.selection_policy?.policy) {
+		const additionalUpstreams = (rpHandler.upstreams ?? []).slice(1).map((u) => u.dial);
 		toggles.load_balancing = {
 			enabled: true,
 			strategy: rpHandler.load_balancing.selection_policy.policy,
+			upstreams: additionalUpstreams,
 		};
 	}
 	if (loggedDomains?.has(domain)) {
@@ -231,6 +233,20 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 		if (upstreamErr) {
 			setError(upstreamErr);
 			return;
+		}
+
+		if (formToggles.load_balancing.enabled) {
+			if (formToggles.load_balancing.upstreams.length === 0) {
+				setError("Load balancing requires at least one additional upstream");
+				return;
+			}
+			for (const u of formToggles.load_balancing.upstreams) {
+				const err = validateUpstream(u);
+				if (err) {
+					setError(`Additional upstream: ${err}`);
+					return;
+				}
+			}
 		}
 
 		if (formToggles.basic_auth.enabled) {

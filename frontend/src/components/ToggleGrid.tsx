@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import type { RouteToggles } from "../types/api";
 
 interface ToggleGridProps {
@@ -136,6 +137,27 @@ export default function ToggleGrid({ toggles, onUpdate, idPrefix, isNew }: Toggl
 							<option value="random">Random</option>
 							<option value="ip_hash">IP Hash</option>
 						</select>
+						{toggles.load_balancing.strategy === "first" ? (
+							<div className="lb-failover-info">
+								<span className="lb-primary-badge">Primary</span>
+								<span>The upstream above is the primary server</span>
+							</div>
+						) : (
+							<span className="lb-pool-hint">The upstream above is included in the pool</span>
+						)}
+						<span className="toggle-detail-heading">
+							{toggles.load_balancing.strategy === "first"
+								? "Fallback Servers"
+								: "Additional Upstreams"}
+						</span>
+						<UpstreamList
+							upstreams={toggles.load_balancing.upstreams}
+							idPrefix={idPrefix}
+							isFailover={toggles.load_balancing.strategy === "first"}
+							onChange={(upstreams) =>
+								onUpdate("load_balancing", { ...toggles.load_balancing, upstreams })
+							}
+						/>
 					</div>
 				)}
 			</div>
@@ -165,5 +187,92 @@ function ToggleItem({
 				<span className="toggle-slider" />
 			</div>
 		</label>
+	);
+}
+
+interface UpstreamEntry {
+	id: number;
+	value: string;
+}
+
+function UpstreamList({
+	upstreams,
+	idPrefix,
+	isFailover,
+	onChange,
+}: {
+	upstreams: string[];
+	idPrefix: string;
+	isFailover?: boolean;
+	onChange: (upstreams: string[]) => void;
+}) {
+	const nextId = useRef(upstreams.length);
+	const [entries, setEntries] = useState<UpstreamEntry[]>(() =>
+		upstreams.map((v, i) => ({ id: i, value: v })),
+	);
+
+	function sync(next: UpstreamEntry[]) {
+		setEntries(next);
+		onChange(next.map((e) => e.value));
+	}
+
+	// Keep entries in sync when upstreams change externally (e.g. reset)
+	const prevUpstreams = useRef(upstreams);
+	if (
+		upstreams.length !== prevUpstreams.current.length ||
+		upstreams.some((v, i) => v !== prevUpstreams.current[i])
+	) {
+		// Only reset entries if the values actually differ from what we have
+		const currentValues = entries.map((e) => e.value);
+		if (
+			upstreams.length !== currentValues.length ||
+			upstreams.some((v, i) => v !== currentValues[i])
+		) {
+			const newEntries = upstreams.map((v, i) => ({ id: nextId.current + i, value: v }));
+			nextId.current += upstreams.length;
+			setEntries(newEntries);
+		}
+		prevUpstreams.current = upstreams;
+	}
+
+	return (
+		<>
+			{entries.map((entry, i) => (
+				<div
+					className={`lb-upstream-row${isFailover ? " lb-upstream-fallback" : ""}`}
+					key={`${idPrefix}-lbu-${entry.id}`}
+				>
+					{isFailover && <span className="lb-fallback-badge">#{i + 1}</span>}
+					<input
+						type="text"
+						placeholder="localhost:3001"
+						value={entry.value}
+						onChange={(e) => {
+							const next = [...entries];
+							next[i] = { ...entry, value: e.target.value };
+							sync(next);
+						}}
+					/>
+					<button
+						type="button"
+						className="btn btn-ghost lb-upstream-remove"
+						onClick={() => sync(entries.filter((_, j) => j !== i))}
+						aria-label="Remove upstream"
+					>
+						&times;
+					</button>
+				</div>
+			))}
+			<button
+				type="button"
+				className="btn btn-ghost lb-add-upstream"
+				onClick={() => {
+					nextId.current += 1;
+					sync([...entries, { id: nextId.current, value: "" }]);
+				}}
+			>
+				+ Add {isFailover ? "Fallback" : "Upstream"}
+			</button>
+		</>
 	);
 }

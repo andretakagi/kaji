@@ -88,6 +88,7 @@ export interface RouteToggles {
 	load_balancing: {
 		enabled: boolean;
 		strategy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
+		upstreams: string[];
 	};
 }
 

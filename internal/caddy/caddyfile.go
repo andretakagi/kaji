@@ -410,7 +410,13 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 		p.Toggles.LoadBalancing.Enabled
 
 	if needsBlock {
-		b.WriteString("\treverse_proxy " + p.Upstream + " {\n")
+		allUpstreams := p.Upstream
+		if p.Toggles.LoadBalancing.Enabled {
+			for _, u := range p.Toggles.LoadBalancing.Upstreams {
+				allUpstreams += " " + u
+			}
+		}
+		b.WriteString("\treverse_proxy " + allUpstreams + " {\n")
 		if p.Toggles.TLSSkipVerify {
 			b.WriteString("\t\ttransport http {\n")
 			b.WriteString("\t\t\ttls_insecure_skip_verify\n")
