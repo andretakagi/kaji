@@ -22,7 +22,7 @@ Kaji is the **Nginx Proxy Manager of Caddy**: a simple, self-hosted dashboard fo
 
 ```bash
 # Download the latest release for your platform
-wget https://github.com/andretakagi/kaji/releases/download/v1/kaji-linux-amd64
+wget https://github.com/andretakagi/kaji/releases/download/v1.0.0/kaji-linux-amd64
 chmod +x kaji-linux-amd64
 ./kaji-linux-amd64
 ```
