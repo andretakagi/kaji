@@ -1,0 +1,38 @@
+# Go
+kaji
+kaji-*
+*.exe
+vendor/
+
+# Frontend
+frontend/node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+config.json
+
+# Docs (internal reference only)
+docs/
+
+# Claude Code
+.claude/
+CLAUDE.md
+.clauderc
+.claude.*
+
+# Build artifacts
+*.out
+coverage/

@@ -1,0 +1,25 @@
+# Git
+.git/
+.gitignore
+
+# Frontend dev dependencies (rebuilt in container)
+frontend/node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs and meta
+docs/
+README.md
+LICENSE
+CLAUDE.md
+.dockerignore
+
+# Environment / secrets
+.env
+.env.*
