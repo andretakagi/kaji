@@ -92,6 +92,9 @@ function App() {
 			.then((res) => {
 				if (res.is_first_run) {
 					setAppState("setup");
+					if (window.location.pathname !== "/") {
+						window.history.replaceState(null, "", "/");
+					}
 				} else {
 					return checkAuth();
 				}
@@ -147,7 +150,13 @@ function App() {
 	if (appState === "setup") {
 		return (
 			<main>
-				<Setup onComplete={() => checkAuth()} />
+				<Setup
+					onComplete={() => {
+						window.history.replaceState(null, "", "/");
+						setView("routes");
+						checkAuth();
+					}}
+				/>
 			</main>
 		);
 	}
