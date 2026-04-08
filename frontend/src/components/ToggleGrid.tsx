@@ -259,7 +259,7 @@ function UpstreamList({
 						onClick={() => sync(entries.filter((_, j) => j !== i))}
 						aria-label="Remove upstream"
 					>
-						&times;
+						&#x2715;
 					</button>
 				</div>
 			))}
@@ -271,7 +271,7 @@ function UpstreamList({
 					sync([...entries, { id: nextId.current, value: "" }]);
 				}}
 			>
-				+ Add {isFailover ? "Fallback" : "Upstream"}
+				+ Add Upstream
 			</button>
 		</>
 	);
