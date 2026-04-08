@@ -105,6 +105,7 @@ export default memo(
 					onUpdate={updateToggle}
 					idPrefix={route.id}
 					isNew={!route.id || !route.toggles.basic_auth.enabled}
+					domain={route.domain}
 				/>
 
 				{stale && (

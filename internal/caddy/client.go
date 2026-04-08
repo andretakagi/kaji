@@ -281,14 +281,9 @@ func (c *Client) ReplaceRouteByID(id string, newRoute json.RawMessage) (string, 
 	return "", fmt.Errorf("route %q not found", id)
 }
 
-// SetRouteAccessLog adds or removes a domain from the server's access log
-// configuration. When enabled, the domain is mapped to the "kaji_access"
-// logger in the server's logs.logger_names. When disabled, the mapping is
-// removed.
-func (c *Client) SetRouteAccessLog(server, domain string, enabled bool) error {
-	if enabled {
-		// Create the kaji_access logger only if it doesn't already exist.
-		if _, err := c.GetConfigPath("logging/logs/kaji_access"); err != nil {
+func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
+	if sinkName != "" {
+		if _, err := c.GetConfigPath("logging/logs/" + sinkName); err != nil {
 			if err := c.ensureLoggingLogs(); err != nil {
 				return fmt.Errorf("bootstrapping logging config: %w", err)
 			}
@@ -300,19 +295,17 @@ func (c *Client) SetRouteAccessLog(server, domain string, enabled bool) error {
 			if err != nil {
 				return fmt.Errorf("marshaling logger config: %w", err)
 			}
-			if err := c.SetConfigPath("logging/logs/kaji_access", data); err != nil {
-				return fmt.Errorf("creating kaji_access logger: %w", err)
+			if err := c.SetConfigPath("logging/logs/"+sinkName, data); err != nil {
+				return fmt.Errorf("creating %s logger: %w", sinkName, err)
 			}
 		}
 
-		// On a fresh server this structure won't exist yet.
 		logNamesPath := "apps/http/servers/" + server + "/logs/logger_names"
 		if err := c.EnsureConfigPath(logNamesPath); err != nil {
 			return fmt.Errorf("bootstrapping server logs config: %w", err)
 		}
 
-		// Map this domain to the logger
-		name, err := json.Marshal("kaji_access")
+		name, err := json.Marshal(sinkName)
 		if err != nil {
 			return fmt.Errorf("marshaling logger name: %w", err)
 		}
@@ -322,35 +315,25 @@ func (c *Client) SetRouteAccessLog(server, domain string, enabled bool) error {
 		)
 	}
 
-	// Disabled: remove the domain mapping (ignore errors if it doesn't exist)
 	_ = c.DeleteConfigPath(
 		"apps/http/servers/" + server + "/logs/logger_names/" + domain,
 	)
 	return nil
 }
 
-// GetAccessLogDomains returns the set of domains that have per-route access
-// logging enabled on the given server.
-func (c *Client) GetAccessLogDomains(server string) (map[string]bool, error) {
+func (c *Client) GetAccessLogDomains(server string) (map[string]string, error) {
 	raw, err := c.GetConfigPath("apps/http/servers/" + server + "/logs/logger_names")
 	if err != nil {
-		// No logger_names configured yet
 		return nil, nil
 	}
 	var names map[string]string
 	if err := json.Unmarshal(raw, &names); err != nil {
 		return nil, fmt.Errorf("parsing logger_names: %w", err)
 	}
-	result := make(map[string]bool, len(names))
-	for domain := range names {
-		result[domain] = true
-	}
-	return result, nil
+	return names, nil
 }
 
-// GetAllAccessLogDomains returns domains with access logging enabled across
-// all servers, keyed by server name.
-func (c *Client) GetAllAccessLogDomains() (map[string][]string, error) {
+func (c *Client) GetAllAccessLogDomains() (map[string]map[string]string, error) {
 	raw, err := c.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("fetching config: %w", err)
@@ -359,35 +342,51 @@ func (c *Client) GetAllAccessLogDomains() (map[string][]string, error) {
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
-	result := make(map[string][]string)
+	result := make(map[string]map[string]string)
 	for name, srv := range cfg.Apps.HTTP.Servers {
 		if srv.Logs == nil {
 			continue
 		}
 		for domain, logger := range srv.Logs.LoggerNames {
-			if logger == "kaji_access" {
-				result[name] = append(result[name], domain)
+			if result[name] == nil {
+				result[name] = make(map[string]string)
 			}
+			result[name][domain] = logger
 		}
 	}
 	return result, nil
 }
 
-// ClearAllAccessLogDomains removes all domain mappings to the kaji_access
-// logger across every server. Called when the kaji_access sink is deleted.
-func (c *Client) ClearAllAccessLogDomains() error {
+func (c *Client) ClearDomainsForSink(sinkName string) error {
 	domains, err := c.GetAllAccessLogDomains()
 	if err != nil {
 		return err
 	}
 	for server, serverDomains := range domains {
-		for _, domain := range serverDomains {
-			_ = c.DeleteConfigPath(
-				"apps/http/servers/" + server + "/logs/logger_names/" + domain,
-			)
+		for domain, logger := range serverDomains {
+			if logger == sinkName {
+				_ = c.DeleteConfigPath(
+					"apps/http/servers/" + server + "/logs/logger_names/" + domain,
+				)
+			}
 		}
 	}
 	return nil
+}
+
+func (c *Client) IsSinkReferenced(sinkName string) (bool, error) {
+	domains, err := c.GetAllAccessLogDomains()
+	if err != nil {
+		return false, err
+	}
+	for _, serverDomains := range domains {
+		for _, logger := range serverDomains {
+			if logger == sinkName {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // AdaptCaddyfile sends Caddyfile text to Caddy's /adapt endpoint and returns

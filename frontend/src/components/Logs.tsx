@@ -352,6 +352,19 @@ const LogConfigCard = memo(function LogConfigCard({
 	);
 });
 
+function domainsForSink(
+	accessDomains: Record<string, Record<string, string>>,
+	sinkName: string,
+): string[] {
+	const result: string[] = [];
+	for (const serverDomains of Object.values(accessDomains)) {
+		for (const [domain, logger] of Object.entries(serverDomains)) {
+			if (logger === sinkName) result.push(domain);
+		}
+	}
+	return result;
+}
+
 function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 	const [editConfig, setEditConfig] = useState<CaddyLoggingConfig>({ logs: {} });
 	const [savedConfig, setSavedConfig] = useState<CaddyLoggingConfig>({ logs: {} });
@@ -368,7 +381,7 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 	const [showNewForm, setShowNewForm] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const [createError, setCreateError] = useState("");
-	const [accessDomains, setAccessDomains] = useState<Record<string, string[]>>({});
+	const [accessDomains, setAccessDomains] = useState<Record<string, Record<string, string>>>({});
 	const newNameInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
@@ -401,6 +414,9 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		};
 		await updateLogConfig(fullConfig);
 		setSavedConfig(structuredClone(fullConfig));
+		fetchAccessDomains()
+			.then(setAccessDomains)
+			.catch(() => setAccessDomains({}));
 	}, []);
 
 	const removeSink = useCallback(async (name: string) => {
@@ -410,21 +426,14 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		await updateLogConfig(fullConfig);
 		setEditConfig(fullConfig);
 		setSavedConfig(structuredClone(fullConfig));
-		if (name === "kaji_access") {
-			fetchAccessDomains()
-				.then(setAccessDomains)
-				.catch(() => setAccessDomains({}));
-		}
+		fetchAccessDomains()
+			.then(setAccessDomains)
+			.catch(() => setAccessDomains({}));
 	}, []);
 
 	async function addSink() {
 		const trimmed = newSinkName.trim().replace(/\s+/g, "_");
 		if (!trimmed || editConfig.logs?.[trimmed]) return;
-
-		if (trimmed === "kaji_access") {
-			setCreateError("This name is reserved for per-route access logging.");
-			return;
-		}
 
 		if (newSink.writer?.output === "file") {
 			const filename = newSink.writer?.filename?.trim() ?? "";
@@ -565,9 +574,7 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 							onSave={saveSink}
 							onChange={updateSink}
 							onRemove={removeSink}
-							accessDomains={
-								name === "kaji_access" ? Object.values(accessDomains).flat() : undefined
-							}
+							accessDomains={domainsForSink(accessDomains, name)}
 						/>
 					))}
 				</div>

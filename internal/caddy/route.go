@@ -22,7 +22,7 @@ type RouteToggles struct {
 	CORS              CORSOpts      `json:"cors"`
 	TLSSkipVerify     bool          `json:"tls_skip_verify"`
 	BasicAuth         BasicAuth     `json:"basic_auth"`
-	AccessLog         bool          `json:"access_log"`
+	AccessLog         string        `json:"access_log"`
 	WebSocketPassthru bool          `json:"websocket_passthrough"`
 	LoadBalancing     LoadBalancing `json:"load_balancing"`
 }

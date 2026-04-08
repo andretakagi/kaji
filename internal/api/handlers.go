@@ -591,9 +591,7 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			return
 		}
 
-		// Resolve the domain and server before deleting so we can clean up
-		// access log config.
-		var domain, server string
+		var domain, server, oldSink string
 		if raw, err := cc.GetRouteByID(routeID); err == nil {
 			var route struct {
 				Match []struct {
@@ -604,6 +602,11 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 				domain = route.Match[0].Host[0]
 			}
 			server, _ = cc.FindRouteServer(routeID)
+			if domain != "" && server != "" {
+				if domainSinks, err := cc.GetAccessLogDomains(server); err == nil {
+					oldSink = domainSinks[domain]
+				}
+			}
 		}
 
 		if err := cc.DeleteByID(routeID); err != nil {
@@ -612,7 +615,12 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 		}
 
 		if domain != "" && server != "" {
-			_ = cc.SetRouteAccessLog(server, domain, false)
+			_ = cc.SetRouteAccessLog(server, domain, "")
+			if oldSink != "" {
+				if referenced, err := cc.IsSinkReferenced(oldSink); err == nil && !referenced {
+					_ = cc.DeleteConfigPath("logging/logs/" + oldSink)
+				}
+			}
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
@@ -693,6 +701,19 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			return
 		}
 
+		// Capture old sink before replacing
+		var oldSink string
+		if raw, err := cc.GetRouteByID(routeID); err == nil {
+			oldParams, _ := caddy.ParseRouteParams(raw)
+			oldDomain := oldParams.Domain
+			oldServer, _ := cc.FindRouteServer(routeID)
+			if oldDomain != "" && oldServer != "" {
+				if domainSinks, err := cc.GetAccessLogDomains(oldServer); err == nil {
+					oldSink = domainSinks[oldDomain]
+				}
+			}
+		}
+
 		server, err := cc.ReplaceRouteByID(routeID, route)
 		if err != nil {
 			caddyError(w, "handleUpdateRoute", err)
@@ -701,6 +722,11 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 
 		if err := cc.SetRouteAccessLog(server, req.Domain, req.Toggles.AccessLog); err != nil {
 			log.Printf("handleUpdateRoute: set access log: %v", err)
+		}
+		if oldSink != "" && oldSink != req.Toggles.AccessLog {
+			if referenced, err := cc.IsSinkReferenced(oldSink); err == nil && !referenced {
+				_ = cc.DeleteConfigPath("logging/logs/" + oldSink)
+			}
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
@@ -999,20 +1025,19 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client) http.Han
 				return
 			}
 		}
-		// If kaji_access is being removed, cascade: clear all domain mappings.
+		// If any existing sink is being removed, cascade: clear domain mappings.
 		var incoming struct {
 			Logs map[string]json.RawMessage `json:"logs"`
 		}
-		if json.Unmarshal(body, &incoming) == nil {
-			if _, exists := incoming.Logs["kaji_access"]; !exists {
-				if existing, _ := cc.GetLoggingConfig(); existing != nil {
-					var current struct {
-						Logs map[string]json.RawMessage `json:"logs"`
-					}
-					if json.Unmarshal(existing, &current) == nil {
-						if _, had := current.Logs["kaji_access"]; had {
-							_ = cc.ClearAllAccessLogDomains()
-						}
+		if existing, _ := cc.GetLoggingConfig(); existing != nil {
+			var current struct {
+				Logs map[string]json.RawMessage `json:"logs"`
+			}
+			if json.Unmarshal(existing, &current) == nil {
+				json.Unmarshal(body, &incoming)
+				for name := range current.Logs {
+					if _, exists := incoming.Logs[name]; !exists {
+						_ = cc.ClearDomainsForSink(name)
 					}
 				}
 			}
@@ -1031,7 +1056,7 @@ func handleAccessDomains(cc *caddy.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		domains, err := cc.GetAllAccessLogDomains()
 		if err != nil {
-			writeJSON(w, map[string][]string{})
+			writeJSON(w, map[string]map[string]string{})
 			return
 		}
 		writeJSON(w, domains)

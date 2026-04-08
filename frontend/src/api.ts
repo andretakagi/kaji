@@ -317,7 +317,7 @@ export function updateLogConfig(config: CaddyLoggingConfig): Promise<{ status: s
 	);
 }
 
-export function fetchAccessDomains(): Promise<Record<string, string[]>> {
+export function fetchAccessDomains(): Promise<Record<string, Record<string, string>>> {
 	return request("/api/logs/access-domains", undefined, validateAccessDomains);
 }
 

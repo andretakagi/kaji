@@ -6,9 +6,16 @@ interface ToggleGridProps {
 	onUpdate: <K extends keyof RouteToggles>(key: K, value: RouteToggles[K]) => void;
 	idPrefix: string;
 	isNew?: boolean;
+	domain?: string;
 }
 
-export default function ToggleGrid({ toggles, onUpdate, idPrefix, isNew }: ToggleGridProps) {
+export default function ToggleGrid({
+	toggles,
+	onUpdate,
+	idPrefix,
+	isNew,
+	domain,
+}: ToggleGridProps) {
 	return (
 		<div className="toggle-grid">
 			<ToggleItem
@@ -99,12 +106,51 @@ export default function ToggleGrid({ toggles, onUpdate, idPrefix, isNew }: Toggl
 					</div>
 				)}
 			</div>
-			<ToggleItem
-				label="Access Log"
-				description="Log requests to this route"
-				checked={toggles.access_log}
-				onChange={(v) => onUpdate("access_log", v)}
-			/>
+			<div className={`toggle-group${toggles.access_log ? " toggle-group-open" : ""}`}>
+				<ToggleItem
+					label="Access Log"
+					description="Log requests to this route"
+					checked={toggles.access_log !== ""}
+					onChange={(v) => onUpdate("access_log", v ? "kaji_access" : "")}
+				/>
+				{toggles.access_log !== "" && (
+					<div className="toggle-detail">
+						<label className="toggle-radio-option">
+							<input
+								type="radio"
+								name={`${idPrefix}-access-log-type`}
+								checked={toggles.access_log === "kaji_access"}
+								onChange={() => onUpdate("access_log", "kaji_access")}
+							/>
+							<span>Shared (kaji_access)</span>
+						</label>
+						<label className="toggle-radio-option">
+							<input
+								type="radio"
+								name={`${idPrefix}-access-log-type`}
+								checked={toggles.access_log !== "" && toggles.access_log !== "kaji_access"}
+								onChange={() => {
+									const defaultName = (domain ?? "").replace(/[^a-zA-Z0-9_-]/g, "_") || "custom";
+									onUpdate("access_log", defaultName);
+								}}
+							/>
+							<span>Dedicated</span>
+						</label>
+						{toggles.access_log !== "" && toggles.access_log !== "kaji_access" && (
+							<input
+								id={`access-log-name-${idPrefix}`}
+								type="text"
+								placeholder="sink name"
+								value={toggles.access_log}
+								onChange={(e) => {
+									const sanitized = e.target.value.replace(/\s+/g, "_");
+									onUpdate("access_log", sanitized);
+								}}
+							/>
+						)}
+					</div>
+				)}
+			</div>
 			<ToggleItem
 				label="WebSocket"
 				description="Enable WebSocket passthrough"

@@ -154,11 +154,14 @@ export function validateAdaptCaddyfileResponse(data: unknown): AdaptCaddyfileRes
 	);
 }
 
-export function validateAccessDomains(data: unknown): Record<string, string[]> {
+export function validateAccessDomains(data: unknown): Record<string, Record<string, string>> {
 	return assertValid("AccessDomains", data, (d) => {
 		if (!is.object(d)) return false;
 		for (const v of Object.values(d)) {
-			if (!is.array(v) || !v.every(is.string)) return false;
+			if (!is.object(v)) return false;
+			for (const sink of Object.values(v)) {
+				if (!is.string(sink)) return false;
+			}
 		}
 		return true;
 	});

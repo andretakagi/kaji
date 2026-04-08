@@ -78,7 +78,7 @@ type caddyfileConfig struct {
 
 type caddyfileServer struct {
 	Routes     []RouteParams
-	LogDomains map[string]bool // domains with access logging enabled
+	LogDomains map[string]string // domain -> sink name
 }
 
 func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfileConfig, error) {
@@ -141,11 +141,11 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 	// Routes and access log domains per server
 	for name, srv := range full.Apps.HTTP.Servers {
 		cs := caddyfileServer{
-			LogDomains: make(map[string]bool),
+			LogDomains: make(map[string]string),
 		}
 		if srv.Logs != nil {
-			for domain := range srv.Logs.LoggerNames {
-				cs.LogDomains[domain] = true
+			for domain, logger := range srv.Logs.LoggerNames {
+				cs.LogDomains[domain] = logger
 			}
 		}
 		for _, raw := range srv.Routes {
@@ -437,7 +437,7 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 		b.WriteString("\treverse_proxy " + p.Upstream + "\n")
 	}
 
-	if p.Toggles.AccessLog && logWriter != nil {
+	if p.Toggles.AccessLog != "" && logWriter != nil {
 		b.WriteString("\tlog {\n")
 		writeLogWriter(b, logWriter)
 		b.WriteString("\t\tformat json\n")

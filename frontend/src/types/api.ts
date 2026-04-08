@@ -83,7 +83,7 @@ export interface RouteToggles {
 		password_hash: string;
 		password: string;
 	};
-	access_log: boolean;
+	access_log: string;
 	websocket_passthrough: boolean;
 	load_balancing: {
 		enabled: boolean;

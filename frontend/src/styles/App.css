@@ -1304,6 +1304,25 @@ input:disabled + .toggle-slider {
 	font-size: 0.8125rem;
 }
 
+.toggle-radio-option {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	cursor: pointer;
+	padding: 0.25rem 0;
+	color: var(--text-secondary);
+	font-size: 0.85rem;
+}
+
+.toggle-radio-option input[type="radio"] {
+	accent-color: var(--accent);
+	margin: 0;
+}
+
+.toggle-radio-option span {
+	user-select: none;
+}
+
 .toggle-detail-heading {
 	font-size: 0.7rem;
 	font-weight: 600;

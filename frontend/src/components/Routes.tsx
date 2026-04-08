@@ -24,7 +24,7 @@ const defaultToggles: RouteToggles = {
 	cors: { enabled: false, allowed_origins: [] },
 	tls_skip_verify: false,
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
-	access_log: false,
+	access_log: "",
 	websocket_passthrough: false,
 	load_balancing: { enabled: false, strategy: "round_robin", upstreams: [] },
 };
@@ -78,7 +78,11 @@ function flattenHandlers(topLevel: CaddyHandler[]): {
 	return { handlers, forceHTTPS };
 }
 
-function parseRoute(route: CaddyRoute, server: string, loggedDomains?: Set<string>): ParsedRoute {
+function parseRoute(
+	route: CaddyRoute,
+	server: string,
+	domainSinks?: Map<string, string>,
+): ParsedRoute {
 	const domain = route.match?.[0]?.host?.[0] ?? "";
 	const { handlers, forceHTTPS } = flattenHandlers(route.handle ?? []);
 	const rpHandler = handlers.find((h: CaddyHandler) => h.handler === "reverse_proxy");
@@ -136,8 +140,9 @@ function parseRoute(route: CaddyRoute, server: string, loggedDomains?: Set<strin
 			upstreams: additionalUpstreams,
 		};
 	}
-	if (loggedDomains?.has(domain)) {
-		toggles.access_log = true;
+	const sinkName = domainSinks?.get(domain);
+	if (sinkName) {
+		toggles.access_log = sinkName;
 	}
 	toggles.enabled = true;
 
@@ -181,9 +186,11 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				const servers = (config as CaddyConfig).apps?.http?.servers;
 				if (servers) {
 					for (const [name, server] of Object.entries(servers)) {
-						const loggedDomains = new Set<string>(Object.keys(server.logs?.logger_names ?? {}));
+						const domainSinks = new Map<string, string>(
+							Object.entries(server.logs?.logger_names ?? {}),
+						);
 						for (const route of server.routes ?? []) {
-							parsed.push(parseRoute(route, name, loggedDomains));
+							parsed.push(parseRoute(route, name, domainSinks));
 						}
 					}
 				}
@@ -401,6 +408,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 						onUpdate={updateFormToggle}
 						idPrefix="new-route"
 						isNew
+						domain={domain}
 					/>
 					<button type="submit" className="btn btn-primary submit-btn" disabled={submitting}>
 						{submitting ? "Adding..." : "Add"}
