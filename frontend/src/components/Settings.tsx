@@ -67,18 +67,12 @@ function ACMEEmailSection({ initial }: { initial: string }) {
 	);
 }
 
-function AuthSection({
-	enabled,
-	hasPassword,
-	onChange,
-}: {
-	enabled: boolean;
-	hasPassword: boolean;
-	onChange: (v: boolean, nowHasPassword: boolean) => void;
-}) {
+function AuthSection({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+	const [toggleValue, setToggleValue] = useState(enabled);
+	useEffect(() => setToggleValue(enabled), [enabled]);
+
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState("");
-	const [showPasswordForm, setShowPasswordForm] = useState(false);
 	const [newPw, setNewPw] = useState("");
 	const [confirmPw, setConfirmPw] = useState("");
 
@@ -86,25 +80,31 @@ function AuthSection({
 	const [cpConfirm, setCpConfirm] = useState("");
 	const cp = useAsyncAction();
 
-	const handleToggle = async () => {
-		if (!enabled && !hasPassword) {
-			setShowPasswordForm(true);
-			return;
-		}
+	const pendingDisable = enabled && !toggleValue;
+	const pendingEnable = !enabled && toggleValue;
+	const stayingOn = enabled && toggleValue;
 
+	const handleToggle = () => {
+		setToggleValue((v) => !v);
+		setError("");
+		setNewPw("");
+		setConfirmPw("");
+	};
+
+	const handleDisable = async () => {
 		setSaving(true);
 		setError("");
 		try {
-			await updateAuthEnabled(!enabled);
-			onChange(!enabled, hasPassword);
+			await updateAuthEnabled(false);
+			onChange(false);
 		} catch (err) {
-			setError(getErrorMessage(err, "Failed to update"));
+			setError(getErrorMessage(err, "Failed to disable auth"));
 		} finally {
 			setSaving(false);
 		}
 	};
 
-	const handleSetPassword = async (e: React.FormEvent) => {
+	const handleEnable = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
 
@@ -120,22 +120,14 @@ function AuthSection({
 		setSaving(true);
 		try {
 			await updateAuthEnabled(true, newPw);
-			setShowPasswordForm(false);
 			setNewPw("");
 			setConfirmPw("");
-			onChange(true, true);
+			onChange(true);
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to enable auth"));
 		} finally {
 			setSaving(false);
 		}
-	};
-
-	const handleCancel = () => {
-		setShowPasswordForm(false);
-		setNewPw("");
-		setConfirmPw("");
-		setError("");
 	};
 
 	const handleChangePassword = (e: React.FormEvent) => {
@@ -164,12 +156,41 @@ function AuthSection({
 			<div className="settings-toggle-row">
 				<span>Require password to access Kaji</span>
 				<label className="toggle-switch">
-					<input type="checkbox" checked={enabled} onChange={handleToggle} disabled={saving} />
+					<input type="checkbox" checked={toggleValue} onChange={handleToggle} disabled={saving} />
 					<span className="toggle-slider" />
 				</label>
 			</div>
-			{showPasswordForm && (
-				<form className="auth-password-form" onSubmit={handleSetPassword}>
+			{pendingDisable && (
+				<div className="auth-password-form">
+					<p className="settings-description">
+						Authentication will be disabled. Anyone with access to this server will be able to use
+						Kaji without a password.
+					</p>
+					<div className="auth-password-actions">
+						<button
+							type="button"
+							className="btn btn-primary settings-save-btn"
+							disabled={saving}
+							onClick={handleDisable}
+						>
+							{saving ? "Saving..." : "Save"}
+						</button>
+						<button
+							type="button"
+							className="btn btn-ghost settings-cancel-btn"
+							disabled={saving}
+							onClick={() => {
+								setToggleValue(true);
+								setError("");
+							}}
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			)}
+			{pendingEnable && (
+				<form className="auth-password-form" onSubmit={handleEnable}>
 					<p className="settings-description">Set a password to enable authentication.</p>
 					<div className="settings-field">
 						<label htmlFor="auth-pw">Password</label>
@@ -200,7 +221,12 @@ function AuthSection({
 						<button
 							type="button"
 							className="btn btn-ghost settings-cancel-btn"
-							onClick={handleCancel}
+							onClick={() => {
+								setToggleValue(false);
+								setNewPw("");
+								setConfirmPw("");
+								setError("");
+							}}
 							disabled={saving}
 						>
 							Cancel
@@ -209,7 +235,7 @@ function AuthSection({
 				</form>
 			)}
 			{error && <Feedback msg={error} type="error" className="settings-feedback" />}
-			{enabled && (
+			{stayingOn && (
 				<form className="auth-password-form" onSubmit={handleChangePassword}>
 					<h4 className="settings-subsection-title">Change Password</h4>
 					<div className="settings-field">
@@ -360,7 +386,7 @@ function ExportCaddyfileSection() {
 	const handleExport = () =>
 		run(async () => {
 			const content = await exportCaddyfile();
-			const blob = new Blob([content], { type: "text/plain" });
+			const blob = new Blob([content], { type: "application/octet-stream" });
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement("a");
 			a.href = url;
@@ -442,7 +468,6 @@ export default function Settings({
 	const [globalToggles, setGlobalToggles] = useState<GlobalToggles>(DEFAULT_GLOBAL_TOGGLES);
 	const [acmeEmail, setAcmeEmail] = useState("");
 	const [authEnabled, setAuthEnabled] = useState(false);
-	const [hasPassword, setHasPassword] = useState(false);
 	const [advanced, setAdvanced] = useState({
 		caddy_admin_url: "http://localhost:2019",
 	});
@@ -477,7 +502,6 @@ export default function Settings({
 				if (authResult.status === "fulfilled") {
 					const auth = authResult.value as { auth_enabled: boolean; has_password: boolean };
 					setAuthEnabled(auth.auth_enabled);
-					setHasPassword(auth.has_password);
 				} else {
 					failed.add("auth");
 				}
@@ -547,10 +571,8 @@ export default function Settings({
 				<>
 					<AuthSection
 						enabled={authEnabled}
-						hasPassword={hasPassword}
-						onChange={(enabled, nowHasPassword) => {
+						onChange={(enabled) => {
 							setAuthEnabled(enabled);
-							setHasPassword(nowHasPassword);
 							onAuthChange(enabled);
 						}}
 					/>
