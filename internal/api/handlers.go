@@ -61,6 +61,7 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/logs/stream", handleLogStream(store))
 	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(cc))
 	mux.HandleFunc("PUT /api/logs/config", handleLogConfigUpdate(store, cc))
+	mux.HandleFunc("GET /api/logs/access-domains", handleAccessDomains(cc))
 	mux.HandleFunc("GET /api/caddyfile", handleCaddyfileExport(cc, store))
 	mux.HandleFunc("GET /api/settings/global-toggles", handleGlobalTogglesGet(cc))
 	mux.HandleFunc("PUT /api/settings/global-toggles", handleGlobalTogglesUpdate(store, cc))
@@ -998,12 +999,42 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client) http.Han
 				return
 			}
 		}
+		// If kaji_access is being removed, cascade: clear all domain mappings.
+		var incoming struct {
+			Logs map[string]json.RawMessage `json:"logs"`
+		}
+		if json.Unmarshal(body, &incoming) == nil {
+			if _, exists := incoming.Logs["kaji_access"]; !exists {
+				if existing, _ := cc.GetLoggingConfig(); existing != nil {
+					var current struct {
+						Logs map[string]json.RawMessage `json:"logs"`
+					}
+					if json.Unmarshal(existing, &current) == nil {
+						if _, had := current.Logs["kaji_access"]; had {
+							_ = cc.ClearAllAccessLogDomains()
+						}
+					}
+				}
+			}
+		}
+
 		if err := cc.SetLoggingConfig(body); err != nil {
 			caddyError(w, "handleLogConfigUpdate", err)
 			return
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
+	}
+}
+
+func handleAccessDomains(cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		domains, err := cc.GetAllAccessLogDomains()
+		if err != nil {
+			writeJSON(w, map[string][]string{})
+			return
+		}
+		writeJSON(w, domains)
 	}
 }
 

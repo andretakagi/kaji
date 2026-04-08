@@ -1,5 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchConfig, fetchLogConfig, fetchLogs, POLL_INTERVAL, updateLogConfig } from "../api";
+import {
+	fetchAccessDomains,
+	fetchConfig,
+	fetchLogConfig,
+	fetchLogs,
+	POLL_INTERVAL,
+	updateLogConfig,
+} from "../api";
 import { deepEqual } from "../deepEqual";
 import type {
 	CaddyLogEntry,
@@ -277,6 +284,7 @@ const LogConfigCard = memo(function LogConfigCard({
 	onSave,
 	onChange,
 	onRemove,
+	accessDomains,
 }: {
 	name: string;
 	sink: CaddyLogSink;
@@ -284,8 +292,10 @@ const LogConfigCard = memo(function LogConfigCard({
 	onSave: (name: string) => Promise<void>;
 	onChange: (name: string, sink: CaddyLogSink) => void;
 	onRemove: (name: string) => Promise<void>;
+	accessDomains?: string[];
 }) {
 	const [removeError, setRemoveError] = useState("");
+	const isAccessLog = name === "kaji_access";
 
 	const actions = (
 		<ConfirmDeleteButton
@@ -297,12 +307,24 @@ const LogConfigCard = memo(function LogConfigCard({
 					throw err;
 				}
 			}}
-			label="Remove log sink"
+			label={
+				isAccessLog && accessDomains && accessDomains.length > 0
+					? "This will disable access logging on all routes using it"
+					: "Remove log sink"
+			}
 		/>
 	);
 
+	const title = isAccessLog ? (
+		<>
+			{name} <span className="access-log-badge">Access Log</span>
+		</>
+	) : (
+		name
+	);
+
 	return (
-		<CollapsibleCard title={name} actions={actions} ariaLabel={name}>
+		<CollapsibleCard title={title} actions={actions} ariaLabel={name}>
 			{removeError && <div className="feedback error">{removeError}</div>}
 			<LogSinkEditor
 				name={name}
@@ -311,6 +333,21 @@ const LogConfigCard = memo(function LogConfigCard({
 				onSave={() => onSave(name)}
 				onChange={(s) => onChange(name, s)}
 			/>
+			{isAccessLog && (
+				<div className="access-log-domains">
+					{accessDomains && accessDomains.length > 0 ? (
+						<div className="access-log-domain-list">
+							{accessDomains.map((domain) => (
+								<span key={domain} className="access-log-domain-chip">
+									{domain}
+								</span>
+							))}
+						</div>
+					) : (
+						<p className="access-log-domains-empty">No routes using this sink.</p>
+					)}
+				</div>
+			)}
 		</CollapsibleCard>
 	);
 });
@@ -331,15 +368,17 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 	const [showNewForm, setShowNewForm] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const [createError, setCreateError] = useState("");
+	const [accessDomains, setAccessDomains] = useState<Record<string, string[]>>({});
 	const newNameInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (!caddyRunning) return;
-		fetchLogConfig()
-			.then((data) => {
-				const normalized = data?.logs ? data : { logs: {} };
+		Promise.all([fetchLogConfig(), fetchAccessDomains()])
+			.then(([logData, domainData]) => {
+				const normalized = logData?.logs ? logData : { logs: {} };
 				setEditConfig(structuredClone(normalized));
 				setSavedConfig(structuredClone(normalized));
+				setAccessDomains(domainData);
 				setLoaded(true);
 			})
 			.catch((err) => {
@@ -371,11 +410,21 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		await updateLogConfig(fullConfig);
 		setEditConfig(fullConfig);
 		setSavedConfig(structuredClone(fullConfig));
+		if (name === "kaji_access") {
+			fetchAccessDomains()
+				.then(setAccessDomains)
+				.catch(() => setAccessDomains({}));
+		}
 	}, []);
 
 	async function addSink() {
 		const trimmed = newSinkName.trim().replace(/\s+/g, "_");
 		if (!trimmed || editConfig.logs?.[trimmed]) return;
+
+		if (trimmed === "kaji_access") {
+			setCreateError("This name is reserved for per-route access logging.");
+			return;
+		}
 
 		if (newSink.writer?.output === "file") {
 			const filename = newSink.writer?.filename?.trim() ?? "";
@@ -516,6 +565,9 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 							onSave={saveSink}
 							onChange={updateSink}
 							onRemove={removeSink}
+							accessDomains={
+								name === "kaji_access" ? Object.values(accessDomains).flat() : undefined
+							}
 						/>
 					))}
 				</div>

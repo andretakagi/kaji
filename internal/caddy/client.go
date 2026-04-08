@@ -59,14 +59,10 @@ func (c *Client) url() string {
 	return strings.TrimRight(u, "/")
 }
 
-func (c *Client) GetConfig() (json.RawMessage, error) {
-	return c.GetConfigPath("")
-}
-
-func (c *Client) GetConfigPath(path string) (json.RawMessage, error) {
+func (c *Client) getConfigRaw(path string) (json.RawMessage, error) {
 	target := c.url() + "/config/"
 	if path != "" {
-		target = c.url() + "/config/" + path
+		target += path
 	}
 	resp, err := c.httpClient.Get(target)
 	if err != nil {
@@ -81,6 +77,26 @@ func (c *Client) GetConfigPath(path string) (json.RawMessage, error) {
 		return nil, fmt.Errorf("failed to get config (status %d): %s", resp.StatusCode, body)
 	}
 	return json.RawMessage(body), nil
+}
+
+// GetConfig returns the full Caddy config. A null response is valid here
+// since a fresh Caddy instance has no config loaded.
+func (c *Client) GetConfig() (json.RawMessage, error) {
+	return c.getConfigRaw("")
+}
+
+// GetConfigPath returns the value at a specific config path. Caddy returns
+// null with 200 for missing keys inside existing objects, so this treats
+// null as "not found" to avoid silent failures.
+func (c *Client) GetConfigPath(path string) (json.RawMessage, error) {
+	body, err := c.getConfigRaw(path)
+	if err != nil {
+		return nil, err
+	}
+	if trimmed := bytes.TrimSpace(body); len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil, fmt.Errorf("config path %q does not exist", path)
+	}
+	return body, nil
 }
 
 func (c *Client) LoadConfig(configJSON []byte) error {
@@ -330,6 +346,48 @@ func (c *Client) GetAccessLogDomains(server string) (map[string]bool, error) {
 		result[domain] = true
 	}
 	return result, nil
+}
+
+// GetAllAccessLogDomains returns domains with access logging enabled across
+// all servers, keyed by server name.
+func (c *Client) GetAllAccessLogDomains() (map[string][]string, error) {
+	raw, err := c.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("fetching config: %w", err)
+	}
+	var cfg caddyConfigPartial
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+	result := make(map[string][]string)
+	for name, srv := range cfg.Apps.HTTP.Servers {
+		if srv.Logs == nil {
+			continue
+		}
+		for domain, logger := range srv.Logs.LoggerNames {
+			if logger == "kaji_access" {
+				result[name] = append(result[name], domain)
+			}
+		}
+	}
+	return result, nil
+}
+
+// ClearAllAccessLogDomains removes all domain mappings to the kaji_access
+// logger across every server. Called when the kaji_access sink is deleted.
+func (c *Client) ClearAllAccessLogDomains() error {
+	domains, err := c.GetAllAccessLogDomains()
+	if err != nil {
+		return err
+	}
+	for server, serverDomains := range domains {
+		for _, domain := range serverDomains {
+			_ = c.DeleteConfigPath(
+				"apps/http/servers/" + server + "/logs/logger_names/" + domain,
+			)
+		}
+	}
+	return nil
 }
 
 // AdaptCaddyfile sends Caddyfile text to Caddy's /adapt endpoint and returns

@@ -23,6 +23,7 @@ import type {
 } from "./types/logs";
 import {
 	validateACMEEmail,
+	validateAccessDomains,
 	validateAdaptCaddyfileResponse,
 	validateAdvancedSettings,
 	validateAdvancedUpdateResponse,
@@ -314,6 +315,10 @@ export function updateLogConfig(config: CaddyLoggingConfig): Promise<{ status: s
 		{ method: "PUT", ...jsonBody(sanitized) },
 		validateStatusResponse,
 	);
+}
+
+export function fetchAccessDomains(): Promise<Record<string, string[]>> {
+	return request("/api/logs/access-domains", undefined, validateAccessDomains);
 }
 
 export function fetchLogs(params: LogQueryParams): Promise<LogQueryResponse> {

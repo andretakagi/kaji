@@ -154,6 +154,16 @@ export function validateAdaptCaddyfileResponse(data: unknown): AdaptCaddyfileRes
 	);
 }
 
+export function validateAccessDomains(data: unknown): Record<string, string[]> {
+	return assertValid("AccessDomains", data, (d) => {
+		if (!is.object(d)) return false;
+		for (const v of Object.values(d)) {
+			if (!is.array(v) || !v.every(is.string)) return false;
+		}
+		return true;
+	});
+}
+
 export function validateLoggingConfig(data: unknown): CaddyLoggingConfig {
 	return assertValid("CaddyLoggingConfig", data, (d) => is.object(d));
 }
