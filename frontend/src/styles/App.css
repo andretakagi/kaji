@@ -2081,8 +2081,13 @@ input:disabled + .toggle-slider {
 
 .auth-password-actions {
 	display: flex;
+	align-items: center;
 	gap: 0.5rem;
 	margin-top: 0.625rem;
+}
+
+.auth-password-actions .settings-save-btn {
+	margin-top: 0;
 }
 
 .settings-subsection-title {

@@ -1196,6 +1196,7 @@ func handleAuthToggle(store *config.ConfigStore) http.HandlerFunc {
 		} else {
 			if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
 				c.AuthEnabled = false
+				c.PasswordHash = ""
 				return &c, nil
 			}); err != nil {
 				log.Printf("handleAuthToggle: save config: %v", err)
