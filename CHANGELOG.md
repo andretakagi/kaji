@@ -2,6 +2,16 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [1.2.3] - 2026-04-09
+
+### Added
+- GitHub Actions CI workflow for lint and build checks on push/PR
+- Docker image build and push workflow for GHCR on version tags
+- Release workflow for cross-compiled binaries on version tags
+
+### Changed
+- Refactored handlers.go and Logs.tsx into smaller domain-focused files
+
 ## [1.2.0] - 2026-04-09
 
 ### Added
