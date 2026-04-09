@@ -182,7 +182,7 @@ function LogSinkEditor({
 				{isFile && (
 					<div className="log-config-field">
 						<label htmlFor={`${name}-filepath`}>File name</label>
-						<div className="log-config-filepath">
+						<label className="log-config-filepath" htmlFor={`${name}-filepath`}>
 							<span className="log-config-filepath-prefix">/var/log/caddy/</span>
 							<input
 								id={`${name}-filepath`}
@@ -191,7 +191,7 @@ function LogSinkEditor({
 								value={sink.writer?.filename ?? ""}
 								onChange={(e) => updateWriter({ filename: e.target.value })}
 							/>
-						</div>
+						</label>
 					</div>
 				)}
 				{isFile && (

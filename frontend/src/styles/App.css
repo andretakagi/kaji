@@ -1882,6 +1882,7 @@ input:disabled + .toggle-slider {
 	border: 1px solid var(--border-strong);
 	border-radius: var(--radius-sm);
 	transition: border-color 0.15s;
+	cursor: text;
 }
 
 .log-config-filepath:focus-within {
@@ -2614,75 +2615,22 @@ input:disabled + .toggle-slider {
 	align-items: center;
 }
 
-.snapshot-timeline {
+.snapshot-list {
 	display: flex;
 	flex-direction: column;
+	gap: 0.5rem;
 }
 
-.snapshot-row {
-	display: flex;
-	flex-direction: row;
-	min-height: 60px;
-}
-
-.snapshot-graph {
-	position: relative;
-	flex-shrink: 0;
-}
-
-.graph-col {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	width: 2px;
-}
-
-.graph-line {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	left: 0;
-	width: 2px;
-	background: var(--border-strong);
-}
-
-.graph-dot {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	width: 10px;
-	height: 10px;
-	border-radius: 50%;
-	transform: translate(-50%, -50%);
-	border: 2px solid var(--text-muted);
-	background: var(--bg);
-	z-index: 1;
-}
-
-.graph-dot.current {
-	border-color: var(--accent);
-	background: var(--accent);
-	box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.5);
-}
-
-.graph-fork {
-	position: absolute;
-	top: 50%;
-	height: 2px;
-	background: var(--border-strong);
-	transform: translateY(-50%);
-}
-
-.snapshot-content {
-	flex: 1;
-	padding: 0.625rem 0.75rem;
-	border-bottom: 1px solid var(--border);
-	min-width: 0;
-}
-
-.snapshot-current {
-	background: rgba(var(--accent-rgb), 0.06);
+.snapshot-card {
+	padding: 0.75rem 1rem;
+	background: var(--surface);
 	border-radius: var(--radius-sm);
+	border: 1px solid var(--border);
+}
+
+.snapshot-card.snapshot-current {
+	border-color: var(--accent);
+	background: rgba(var(--accent-rgb), 0.06);
 }
 
 .snapshot-header {
