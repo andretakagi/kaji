@@ -233,7 +233,7 @@ function RouteSettingsSection({
 					Email for Let's Encrypt certificate notifications
 				</span>
 				{httpsOn && !acmeEmail && !acmeDirty && (
-					<span className="settings-toggle-desc" style={{ color: "var(--warning, #d4a054)" }}>
+					<span className="settings-toggle-desc" style={{ color: "var(--yellow)" }}>
 						No ACME email set - you won't receive certificate expiry warnings
 					</span>
 				)}
@@ -284,6 +284,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	const [deleting, setDeleting] = useState<string | null>(null);
 	const deletingRef = useRef(deleting);
 	deletingRef.current = deleting;
+	const [toggling, setToggling] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!caddyRunning) return;
@@ -345,7 +346,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 		setFormToggles((prev) => ({ ...prev, [key]: value }));
 	}
 
-	async function handleAdd(e: React.FormEvent) {
+	async function handleAdd(e: React.SubmitEvent) {
 		e.preventDefault();
 		setError("");
 
@@ -427,6 +428,8 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 
 	const handleToggleEnabled = useCallback(
 		async (route: ParsedRoute) => {
+			if (toggling) return;
+			setToggling(route.id);
 			try {
 				if (route.disabled) {
 					await enableRoute(route.id);
@@ -436,9 +439,11 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				await loadRoutes().catch(() => {});
 			} catch (err) {
 				setError(getErrorMessage(err, "Failed to toggle route"));
+			} finally {
+				setToggling(null);
 			}
 		},
-		[loadRoutes],
+		[loadRoutes, toggling],
 	);
 
 	const handleUpdateToggles = useCallback(
@@ -560,6 +565,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 							key={route.id || `${route.domain}-${route.upstream}-${i}`}
 							route={route}
 							deleting={deleting === route.id}
+							toggling={toggling === route.id}
 							onDelete={handleDelete}
 							onToggleEnabled={handleToggleEnabled}
 							onUpdateToggles={handleUpdateToggles}

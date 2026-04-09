@@ -61,7 +61,7 @@ function AuthSection({ enabled, onChange }: { enabled: boolean; onChange: (v: bo
 		}
 	};
 
-	const handleEnable = async (e: React.FormEvent) => {
+	const handleEnable = async (e: React.SubmitEvent) => {
 		e.preventDefault();
 		setError("");
 
@@ -87,7 +87,7 @@ function AuthSection({ enabled, onChange }: { enabled: boolean; onChange: (v: bo
 		}
 	};
 
-	const handleChangePassword = (e: React.FormEvent) => {
+	const handleChangePassword = (e: React.SubmitEvent) => {
 		e.preventDefault();
 
 		if (cpNew.length < 8) {

@@ -7,7 +7,7 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
 	const [error, setError] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 
-	const handleSubmit = async (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.SubmitEvent) => {
 		e.preventDefault();
 		setError("");
 		setSubmitting(true);
