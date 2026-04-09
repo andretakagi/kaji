@@ -15,6 +15,7 @@ import Logs from "./components/Logs";
 import Routes from "./components/Routes";
 import Settings from "./components/Settings";
 import Setup from "./components/Setup";
+import Snapshots from "./components/Snapshots";
 import { getErrorMessage } from "./utils/getErrorMessage";
 import "./styles/App.css";
 
@@ -52,12 +53,12 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 	}
 }
 
-type View = "routes" | "logs" | "settings";
+type View = "routes" | "logs" | "snapshots" | "settings";
 type AppState = "loading" | "setup" | "login" | "ready";
 
 function pathToView(pathname: string): View {
 	const segment = pathname.replace(/^\//, "").split("/")[0];
-	if (segment === "logs" || segment === "settings") return segment;
+	if (segment === "logs" || segment === "snapshots" || segment === "settings") return segment;
 	return "routes";
 }
 
@@ -181,6 +182,7 @@ function App() {
 	const navItems: { key: View; label: string }[] = [
 		{ key: "routes", label: "Routes" },
 		{ key: "logs", label: "Logs" },
+		{ key: "snapshots", label: "Snapshots" },
 		{ key: "settings", label: "Settings" },
 	];
 
@@ -272,6 +274,7 @@ function App() {
 				<main id="main-content" className="app-content">
 					{view === "routes" && <Routes caddyRunning={running} />}
 					{view === "logs" && <Logs caddyRunning={running} />}
+					{view === "snapshots" && <Snapshots />}
 					{view === "settings" && <Settings onAuthChange={setAuthEnabled} caddyRunning={running} />}
 				</main>
 

@@ -10,12 +10,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/andretakagi/kaji/internal/api"
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/snapshot"
 	"github.com/andretakagi/kaji/internal/system"
 )
 
@@ -72,6 +74,12 @@ func main() {
 		return store.Get().CaddyAdminURL
 	})
 
+	snapshotDir := filepath.Join(filepath.Dir(config.Path()), "snapshots")
+	snapStore := snapshot.NewStore(snapshotDir)
+	if err := snapStore.Load(); err != nil {
+		log.Printf("Failed to load snapshot index: %v", err)
+	}
+
 	if configExists {
 		cfg := store.Get()
 		saved, err := os.ReadFile(cfg.CaddyConfigPath)
@@ -93,7 +101,7 @@ func main() {
 	}
 	mux.Handle("/", spaHandler(http.FS(distFS)))
 
-	handler := api.RegisterRoutes(mux, store, mgr, caddyClient, version)
+	handler := api.RegisterRoutes(mux, store, mgr, caddyClient, snapStore, version)
 
 	addr := os.Getenv("KAJI_LISTEN_ADDR")
 	if addr == "" {

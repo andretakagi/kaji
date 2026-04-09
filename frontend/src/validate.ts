@@ -45,6 +45,7 @@ import type {
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
 import type { CaddyLogEntry, CaddyLoggingConfig } from "./types/logs";
+import type { Snapshot, SnapshotIndex } from "./types/snapshots";
 
 export function validateAuthStatus(data: unknown): AuthStatus {
 	return assertValid("AuthStatus", data, (d) =>
@@ -185,6 +186,23 @@ export function validateLogs(data: unknown): { entries: CaddyLogEntry[]; has_mor
 		hasFields(d, {
 			entries: (v) => is.array(v) && v.every(isLogEntry),
 			has_more: is.boolean,
+		}),
+	);
+}
+
+export function validateSnapshot(data: unknown): Snapshot {
+	return assertValid("Snapshot", data, (d) =>
+		hasFields(d, { id: is.string, name: is.string, type: is.string, created_at: is.string }),
+	);
+}
+
+export function validateSnapshotIndex(data: unknown): SnapshotIndex {
+	return assertValid("SnapshotIndex", data, (d) =>
+		hasFields(d, {
+			current_id: is.string,
+			auto_snapshot_enabled: is.boolean,
+			auto_snapshot_limit: is.number,
+			snapshots: is.array,
 		}),
 	);
 }

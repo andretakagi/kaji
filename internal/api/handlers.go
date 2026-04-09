@@ -25,10 +25,11 @@ import (
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
 	"github.com/andretakagi/kaji/internal/logging"
+	"github.com/andretakagi/kaji/internal/snapshot"
 	"github.com/andretakagi/kaji/internal/system"
 )
 
-func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.CaddyManager, cc *caddy.Client, version string) http.Handler {
+func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.CaddyManager, cc *caddy.Client, ss *snapshot.Store, version string) http.Handler {
 	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"version": version})
 	})
@@ -51,22 +52,22 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/caddy/config/{path...}", handleConfigProxy(cc))
 	mux.HandleFunc("POST /api/caddy/load", handleConfigLoad(store, cc))
 	mux.HandleFunc("GET /api/caddy/upstreams", handleUpstreams(cc))
-	mux.HandleFunc("POST /api/routes", handleCreateRoute(store, cc))
-	mux.HandleFunc("DELETE /api/routes/{id}", handleDeleteRoute(store, cc))
-	mux.HandleFunc("PUT /api/routes/{id}", handleUpdateRoute(store, cc))
-	mux.HandleFunc("POST /api/routes/disable", handleDisableRoute(store, cc))
-	mux.HandleFunc("POST /api/routes/enable", handleEnableRoute(store, cc))
+	mux.HandleFunc("POST /api/routes", handleCreateRoute(store, cc, ss))
+	mux.HandleFunc("DELETE /api/routes/{id}", handleDeleteRoute(store, cc, ss))
+	mux.HandleFunc("PUT /api/routes/{id}", handleUpdateRoute(store, cc, ss))
+	mux.HandleFunc("POST /api/routes/disable", handleDisableRoute(store, cc, ss))
+	mux.HandleFunc("POST /api/routes/enable", handleEnableRoute(store, cc, ss))
 	mux.HandleFunc("GET /api/routes/disabled", handleDisabledRoutes(store))
 	mux.HandleFunc("GET /api/logs", handleLogs(store))
 	mux.HandleFunc("GET /api/logs/stream", handleLogStream(store))
 	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(cc))
-	mux.HandleFunc("PUT /api/logs/config", handleLogConfigUpdate(store, cc))
+	mux.HandleFunc("PUT /api/logs/config", handleLogConfigUpdate(store, cc, ss))
 	mux.HandleFunc("GET /api/logs/access-domains", handleAccessDomains(cc))
 	mux.HandleFunc("GET /api/caddyfile", handleCaddyfileExport(cc, store))
 	mux.HandleFunc("GET /api/settings/global-toggles", handleGlobalTogglesGet(cc))
-	mux.HandleFunc("PUT /api/settings/global-toggles", handleGlobalTogglesUpdate(store, cc))
+	mux.HandleFunc("PUT /api/settings/global-toggles", handleGlobalTogglesUpdate(store, cc, ss))
 	mux.HandleFunc("GET /api/settings/acme-email", handleACMEEmailGet(cc))
-	mux.HandleFunc("PUT /api/settings/acme-email", handleACMEEmailUpdate(store, cc))
+	mux.HandleFunc("PUT /api/settings/acme-email", handleACMEEmailUpdate(store, cc, ss))
 	mux.HandleFunc("PUT /api/settings/auth", handleAuthToggle(store))
 	mux.HandleFunc("GET /api/settings/api-key", handleAPIKeyStatus(store))
 	mux.HandleFunc("POST /api/settings/api-key", handleAPIKeyGenerate(store))
@@ -74,7 +75,29 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/settings/advanced", handleAdvancedGet(store))
 	mux.HandleFunc("PUT /api/settings/advanced", handleAdvancedUpdate(store))
 
+	mux.HandleFunc("GET /api/snapshots", handleSnapshotList(ss))
+	mux.HandleFunc("POST /api/snapshots", handleSnapshotCreate(ss, cc))
+	mux.HandleFunc("POST /api/snapshots/{id}/restore", handleSnapshotRestore(ss, cc, store))
+	mux.HandleFunc("PUT /api/snapshots/{id}", handleSnapshotUpdate(ss))
+	mux.HandleFunc("DELETE /api/snapshots/{id}", handleSnapshotDelete(ss))
+	mux.HandleFunc("PUT /api/snapshots/settings", handleSnapshotSettings(ss))
+
 	return accessLog(limitRequestBody(requireAuth(store, mux)))
+}
+
+func maybeAutoSnapshot(cc *caddy.Client, ss *snapshot.Store, description string) {
+	if !ss.IsAutoEnabled() {
+		return
+	}
+	configData, err := cc.GetConfig()
+	if err != nil {
+		log.Printf("auto-snapshot: failed to get config: %v", err)
+		return
+	}
+	name := "auto-" + time.Now().UTC().Format("2006-01-02T15:04:05")
+	if _, err := ss.Create(name, description, "auto", configData); err != nil {
+		log.Printf("auto-snapshot: failed to create: %v", err)
+	}
 }
 
 func handleSetupStatus() http.HandlerFunc {
@@ -493,7 +516,7 @@ func handleCaddyfileExport(cc *caddy.Client, store *config.ConfigStore) http.Han
 	}
 }
 
-func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Server   string             `json:"server"`
@@ -570,6 +593,8 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			return
 		}
 
+		maybeAutoSnapshot(cc, ss, "Route created: "+req.Domain)
+
 		if err := cc.AddRoute(req.Server, route); err != nil {
 			caddyError(w, "handleCreateRoute", err)
 			return
@@ -583,7 +608,7 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 	}
 }
 
-func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		routeID := r.PathValue("id")
 		if routeID == "" {
@@ -609,6 +634,12 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			}
 		}
 
+		desc := "Route deleted: " + routeID
+		if domain != "" {
+			desc = "Route deleted: " + domain
+		}
+		maybeAutoSnapshot(cc, ss, desc)
+
 		if err := cc.DeleteByID(routeID); err != nil {
 			caddyError(w, "handleDeleteRoute", err)
 			return
@@ -627,7 +658,7 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 	}
 }
 
-func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		routeID := r.PathValue("id")
 		if routeID == "" {
@@ -714,6 +745,8 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			}
 		}
 
+		maybeAutoSnapshot(cc, ss, "Route updated: "+req.Domain)
+
 		server, err := cc.ReplaceRouteByID(routeID, route)
 		if err != nil {
 			caddyError(w, "handleUpdateRoute", err)
@@ -733,7 +766,7 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 	}
 }
 
-func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ID string `json:"@id"`
@@ -776,6 +809,8 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client) http.Handle
 			return
 		}
 
+		maybeAutoSnapshot(cc, ss, "Route disabled: "+req.ID)
+
 		if err := cc.DeleteByID(req.ID); err != nil {
 			// Roll back: remove the entry we just saved
 			if rbErr := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
@@ -799,7 +834,7 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client) http.Handle
 	}
 }
 
-func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ID string `json:"@id"`
@@ -840,6 +875,8 @@ func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			writeError(w, "failed to remove route from disabled list", http.StatusInternalServerError)
 			return
 		}
+
+		maybeAutoSnapshot(cc, ss, "Route enabled: "+req.ID)
 
 		if err := cc.AddRoute(disabled.Server, disabled.Route); err != nil {
 			// Roll back: re-add the entry to the disabled list
@@ -1007,7 +1044,7 @@ func handleLogConfigGet(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	dockerMode := os.Getenv("CADDY_GUI_MODE") == "docker"
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -1042,6 +1079,8 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client) http.Han
 				}
 			}
 		}
+
+		maybeAutoSnapshot(cc, ss, "Log config updated")
 
 		if err := cc.SetLoggingConfig(body); err != nil {
 			caddyError(w, "handleLogConfigUpdate", err)
@@ -1103,7 +1142,7 @@ func handleGlobalTogglesGet(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleGlobalTogglesUpdate(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleGlobalTogglesUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var toggles caddy.GlobalToggles
 		if err := json.NewDecoder(r.Body).Decode(&toggles); err != nil {
@@ -1114,6 +1153,8 @@ func handleGlobalTogglesUpdate(store *config.ConfigStore, cc *caddy.Client) http
 			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
+		maybeAutoSnapshot(cc, ss, "Global toggles updated")
+
 		if err := cc.SetGlobalToggles(&toggles); err != nil {
 			caddyError(w, "handleGlobalTogglesUpdate", err)
 			return
@@ -1134,7 +1175,7 @@ func handleACMEEmailGet(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleACMEEmailUpdate(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+func handleACMEEmailUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Email string `json:"email"`
@@ -1147,6 +1188,8 @@ func handleACMEEmailUpdate(store *config.ConfigStore, cc *caddy.Client) http.Han
 			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
+		maybeAutoSnapshot(cc, ss, "ACME email updated")
+
 		if err := cc.SetACMEEmail(req.Email); err != nil {
 			caddyError(w, "handleACMEEmailUpdate", err)
 			return
@@ -1483,5 +1526,135 @@ func writeRawJSON(w http.ResponseWriter, raw []byte) {
 	setAPIHeaders(w)
 	if _, err := w.Write(raw); err != nil {
 		log.Printf("writeRawJSON: write error: %v", err)
+	}
+}
+
+func handleSnapshotList(ss *snapshot.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, ss.GetIndex())
+	}
+}
+
+func handleSnapshotCreate(ss *snapshot.Store, cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" {
+			req.Name = "manual-" + time.Now().UTC().Format("2006-01-02T15:04:05")
+		}
+
+		configData, err := cc.GetConfig()
+		if err != nil {
+			caddyError(w, "handleSnapshotCreate", err)
+			return
+		}
+
+		snap, err := ss.Create(req.Name, req.Description, "manual", configData)
+		if err != nil {
+			log.Printf("handleSnapshotCreate: %v", err)
+			writeError(w, "failed to create snapshot", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, snap)
+	}
+}
+
+func handleSnapshotRestore(ss *snapshot.Store, cc *caddy.Client, store *config.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			writeError(w, "snapshot id is required", http.StatusBadRequest)
+			return
+		}
+
+		configData, err := ss.ReadConfig(id)
+		if err != nil {
+			writeError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		if err := cc.LoadConfig(configData); err != nil {
+			caddyError(w, "handleSnapshotRestore", err)
+			return
+		}
+
+		if err := ss.SetCurrent(id); err != nil {
+			log.Printf("handleSnapshotRestore: set current: %v", err)
+			writeError(w, "restored config but failed to update snapshot index", http.StatusInternalServerError)
+			return
+		}
+
+		persistCaddyConfig(cc, store)
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
+func handleSnapshotUpdate(ss *snapshot.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			writeError(w, "snapshot id is required", http.StatusBadRequest)
+			return
+		}
+
+		var req struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if err := ss.Update(id, req.Name, req.Description); err != nil {
+			writeError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
+func handleSnapshotDelete(ss *snapshot.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			writeError(w, "snapshot id is required", http.StatusBadRequest)
+			return
+		}
+
+		if err := ss.Delete(id); err != nil {
+			writeError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
+func handleSnapshotSettings(ss *snapshot.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			AutoSnapshotEnabled bool `json:"auto_snapshot_enabled"`
+			AutoSnapshotLimit   int  `json:"auto_snapshot_limit"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.AutoSnapshotLimit < 1 {
+			req.AutoSnapshotLimit = 50
+		}
+
+		if err := ss.UpdateSettings(req.AutoSnapshotEnabled, req.AutoSnapshotLimit); err != nil {
+			log.Printf("handleSnapshotSettings: %v", err)
+			writeError(w, "failed to update snapshot settings", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }

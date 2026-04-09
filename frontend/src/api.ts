@@ -21,6 +21,7 @@ import type {
 	LogQueryParams,
 	LogQueryResponse,
 } from "./types/logs";
+import type { Snapshot, SnapshotIndex, SnapshotSettings } from "./types/snapshots";
 import {
 	validateACMEEmail,
 	validateAccessDomains,
@@ -40,6 +41,8 @@ import {
 	validateLogs,
 	validateSetupResponse,
 	validateSetupStatus,
+	validateSnapshot,
+	validateSnapshotIndex,
 	validateStatusResponse,
 	validateUpstreams,
 } from "./validate";
@@ -333,4 +336,52 @@ export function fetchLogs(params: LogQueryParams): Promise<LogQueryResponse> {
 	if (params.until) qs.set("until", params.until);
 	const query = qs.toString();
 	return request(`/api/logs${query ? `?${query}` : ""}`, undefined, validateLogs);
+}
+
+export function fetchSnapshots(): Promise<SnapshotIndex> {
+	return request("/api/snapshots", undefined, validateSnapshotIndex);
+}
+
+export function createSnapshot(name: string, description: string): Promise<Snapshot> {
+	return request(
+		"/api/snapshots",
+		{ method: "POST", ...jsonBody({ name, description }) },
+		validateSnapshot,
+	);
+}
+
+export function restoreSnapshot(id: string): Promise<{ status: string }> {
+	return request(
+		`/api/snapshots/${encodeURIComponent(id)}/restore`,
+		{ method: "POST" },
+		validateStatusResponse,
+	);
+}
+
+export function updateSnapshot(
+	id: string,
+	name: string,
+	description: string,
+): Promise<{ status: string }> {
+	return request(
+		`/api/snapshots/${encodeURIComponent(id)}`,
+		{ method: "PUT", ...jsonBody({ name, description }) },
+		validateStatusResponse,
+	);
+}
+
+export function deleteSnapshot(id: string): Promise<{ status: string }> {
+	return request(
+		`/api/snapshots/${encodeURIComponent(id)}`,
+		{ method: "DELETE" },
+		validateStatusResponse,
+	);
+}
+
+export function updateSnapshotSettings(settings: SnapshotSettings): Promise<{ status: string }> {
+	return request(
+		"/api/snapshots/settings",
+		{ method: "PUT", ...jsonBody(settings) },
+		validateStatusResponse,
+	);
 }
