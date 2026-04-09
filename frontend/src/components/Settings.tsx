@@ -15,6 +15,47 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import Feedback from "./Feedback";
 
+function AppearanceSection() {
+	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+
+	const applyTheme = (t: "dark" | "light") => {
+		setTheme(t);
+		document.documentElement.setAttribute("data-theme", t);
+		localStorage.setItem("theme", t);
+		const cs = document.querySelector('meta[name="color-scheme"]');
+		if (cs) cs.setAttribute("content", t);
+		const tc = document.querySelector('meta[name="theme-color"]');
+		if (tc) tc.setAttribute("content", t === "light" ? "#f0edf4" : "#1a1d28");
+	};
+
+	return (
+		<section className="settings-section">
+			<h3>Appearance</h3>
+			<div className="settings-toggle-row">
+				<span>Theme</span>
+				<div className="theme-switcher">
+					<button
+						type="button"
+						className={`theme-pill${theme === "dark" ? " active" : ""}`}
+						onClick={() => applyTheme("dark")}
+						aria-pressed={theme === "dark"}
+					>
+						Dark
+					</button>
+					<button
+						type="button"
+						className={`theme-pill${theme === "light" ? " active" : ""}`}
+						onClick={() => applyTheme("light")}
+						aria-pressed={theme === "light"}
+					>
+						Light
+					</button>
+				</div>
+			</div>
+		</section>
+	);
+}
+
 function CaddyOffSection({ title }: { title: string }) {
 	return (
 		<section className="settings-section settings-section-failed">
@@ -469,6 +510,8 @@ export default function Settings({
 					</button>
 				</div>
 			)}
+
+			<AppearanceSection />
 
 			{failedSections.has("auth") ? (
 				<section className="settings-section settings-section-failed">
