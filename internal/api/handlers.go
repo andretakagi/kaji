@@ -185,6 +185,11 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
 			}
 		}
 
+		if err := cc.EnsureDefaultLogger(); err != nil {
+			log.Printf("handleSetup: ensure default logger: %v", err)
+			warnings = append(warnings, "failed to initialize default logger: "+err.Error())
+		}
+
 		persistCaddyConfig(cc, store)
 
 		if newCfg.AuthEnabled {

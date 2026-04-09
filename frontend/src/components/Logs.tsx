@@ -284,7 +284,9 @@ const LogConfigCard = memo(function LogConfigCard({
 	onSave,
 	onChange,
 	onRemove,
+	onToggle,
 	accessDomains,
+	isDefault,
 }: {
 	name: string;
 	sink: CaddyLogSink;
@@ -292,12 +294,24 @@ const LogConfigCard = memo(function LogConfigCard({
 	onSave: (name: string) => Promise<void>;
 	onChange: (name: string, sink: CaddyLogSink) => void;
 	onRemove: (name: string) => Promise<void>;
+	onToggle?: (enabled: boolean) => void;
 	accessDomains?: string[];
+	isDefault?: boolean;
 }) {
 	const [removeError, setRemoveError] = useState("");
 	const isAccessLog = name === "kaji_access";
+	const isDiscard = sink.writer?.output === "discard";
 
-	const actions = (
+	const actions = isDefault ? (
+		<label
+			className="toggle-switch small"
+			onClick={(e) => e.stopPropagation()}
+			onKeyDown={(e) => e.stopPropagation()}
+		>
+			<input type="checkbox" checked={!isDiscard} onChange={(e) => onToggle?.(e.target.checked)} />
+			<span className="toggle-slider" />
+		</label>
+	) : (
 		<ConfirmDeleteButton
 			onConfirm={async () => {
 				try {
@@ -315,7 +329,9 @@ const LogConfigCard = memo(function LogConfigCard({
 		/>
 	);
 
-	const title = isAccessLog ? (
+	const title = isDefault ? (
+		"Caddy System Log"
+	) : isAccessLog ? (
 		<>
 			{name} <span className="access-log-badge">Access Log</span>
 		</>
@@ -324,7 +340,12 @@ const LogConfigCard = memo(function LogConfigCard({
 	);
 
 	return (
-		<CollapsibleCard title={title} actions={actions} ariaLabel={name}>
+		<CollapsibleCard
+			title={title}
+			actions={actions}
+			ariaLabel={name}
+			disabled={isDefault && isDiscard}
+		>
 			{removeError && <div className="feedback error">{removeError}</div>}
 			<LogSinkEditor
 				name={name}
@@ -483,7 +504,40 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		setTimeout(() => newNameInputRef.current?.focus(), 0);
 	}
 
+	const toggleDefaultLogger = useCallback(async (enabled: boolean) => {
+		const current = editConfigRef.current.logs?.default;
+		let updated: CaddyLogSink;
+		if (enabled) {
+			updated = {
+				...current,
+				writer: { output: "stderr" },
+				encoder: current?.encoder ?? { format: "console" },
+			};
+		} else {
+			updated = {
+				...current,
+				writer: { output: "discard" },
+			};
+		}
+		const nextConfig: CaddyLoggingConfig = {
+			...editConfigRef.current,
+			logs: { ...editConfigRef.current.logs, default: updated },
+		};
+		try {
+			await updateLogConfig(nextConfig);
+			setEditConfig(nextConfig);
+			setSavedConfig(structuredClone(nextConfig));
+		} catch {
+			// revert on failure - state remains unchanged
+		}
+	}, []);
+
 	const sinkEntries = Object.entries(editConfig.logs ?? {});
+	const sortedEntries = [...sinkEntries].sort(([a], [b]) => {
+		if (a === "default") return -1;
+		if (b === "default") return 1;
+		return a.localeCompare(b);
+	});
 	const canAddSink =
 		newSinkName.trim() !== "" && !editConfig.logs?.[newSinkName.trim().replace(/\s+/g, "_")];
 	const nameConflict =
@@ -565,7 +619,7 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 				</div>
 			) : (
 				<div className="log-config-list">
-					{sinkEntries.map(([name, sink]) => (
+					{sortedEntries.map(([name, sink]) => (
 						<LogConfigCard
 							key={name}
 							name={name}
@@ -574,7 +628,9 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 							onSave={saveSink}
 							onChange={updateSink}
 							onRemove={removeSink}
+							onToggle={name === "default" ? toggleDefaultLogger : undefined}
 							accessDomains={domainsForSink(accessDomains, name)}
+							isDefault={name === "default"}
 						/>
 					))}
 				</div>

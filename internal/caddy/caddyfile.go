@@ -21,8 +21,7 @@ func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, 
 	}
 
 	toggles := GlobalToggles{
-		AutoHTTPS:    cfg.AutoHTTPS,
-		DebugLogging: cfg.DebugLogging,
+		AutoHTTPS: cfg.AutoHTTPS,
 	}
 	if toggles.AutoHTTPS == "" {
 		toggles.AutoHTTPS = "on"
@@ -67,7 +66,6 @@ type caddyfileLogger struct {
 // caddyfileConfig is the subset of Caddy's JSON config we need for Caddyfile generation.
 type caddyfileConfig struct {
 	ACMEEmail      string
-	DebugLogging   bool
 	AutoHTTPS      string // "on" (default/omit), "off", "disable_redirects"
 	Metrics        bool
 	PerHostMetrics bool
@@ -113,9 +111,6 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 	if full.Logging != nil {
 		for name, logger := range full.Logging.Logs {
 			cfg.Loggers[name] = logger
-		}
-		if def, ok := cfg.Loggers["default"]; ok && def.Level == "DEBUG" {
-			cfg.DebugLogging = true
 		}
 		if kajiLog, ok := cfg.Loggers["kaji_access"]; ok && kajiLog.Writer != nil && kajiLog.Writer.Filename != "" {
 			cfg.LogFile = kajiLog.Writer.Filename
@@ -201,7 +196,7 @@ func writeGlobalOptions(b *strings.Builder, cfg *caddyfileConfig) {
 	if cfg.ACMEEmail != "" {
 		lines = append(lines, "email "+cfg.ACMEEmail)
 	}
-	if cfg.DebugLogging && !defaultLoggerHasExtras(cfg) {
+	if def, ok := cfg.Loggers["default"]; ok && def.Level == "DEBUG" && !loggerHasExtras(def) {
 		lines = append(lines, "debug")
 	}
 	if cfg.AutoHTTPS == "off" {
@@ -237,14 +232,6 @@ func writeGlobalOptions(b *strings.Builder, cfg *caddyfileConfig) {
 func loggerHasExtras(l caddyfileLogger) bool {
 	return l.Writer != nil || l.Encoder != nil ||
 		len(l.Include) > 0 || len(l.Exclude) > 0
-}
-
-func defaultLoggerHasExtras(cfg *caddyfileConfig) bool {
-	def, ok := cfg.Loggers["default"]
-	if !ok {
-		return false
-	}
-	return loggerHasExtras(def)
 }
 
 func hasNonTrivialLoggers(cfg *caddyfileConfig) bool {

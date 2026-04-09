@@ -110,7 +110,6 @@ export function validateGlobalToggles(data: unknown): GlobalToggles {
 			http_to_https_redirect: is.boolean,
 			prometheus_metrics: is.boolean,
 			per_host_metrics: is.boolean,
-			debug_logging: is.boolean,
 		}),
 	);
 }

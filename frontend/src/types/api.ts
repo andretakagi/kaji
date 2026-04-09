@@ -128,7 +128,6 @@ export interface GlobalToggles {
 	http_to_https_redirect: boolean;
 	prometheus_metrics: boolean;
 	per_host_metrics: boolean;
-	debug_logging: boolean;
 }
 
 export const DEFAULT_GLOBAL_TOGGLES: GlobalToggles = {
@@ -136,5 +135,4 @@ export const DEFAULT_GLOBAL_TOGGLES: GlobalToggles = {
 	http_to_https_redirect: true,
 	prometheus_metrics: false,
 	per_host_metrics: false,
-	debug_logging: false,
 };

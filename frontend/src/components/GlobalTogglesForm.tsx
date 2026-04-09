@@ -43,17 +43,6 @@ export function GlobalTogglesForm({
 					</span>
 				</label>
 				<label className="settings-toggle-item">
-					<span>Debug logging</span>
-					<span className="toggle-switch small">
-						<input
-							type="checkbox"
-							checked={toggles.debug_logging}
-							onChange={(e) => onChange("debug_logging", e.target.checked)}
-						/>
-						<span className="toggle-slider" />
-					</span>
-				</label>
-				<label className="settings-toggle-item">
 					<span>Prometheus metrics</span>
 					<span className="toggle-switch small">
 						<input

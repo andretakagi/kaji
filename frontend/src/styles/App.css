@@ -1046,10 +1046,6 @@ input:disabled + .toggle-slider {
 	overflow: hidden;
 }
 
-.card-disabled {
-	opacity: 0.55;
-}
-
 .card-header {
 	display: flex;
 	align-items: center;
@@ -1110,6 +1106,11 @@ input:disabled + .toggle-slider {
 	display: flex;
 	flex-direction: column;
 	gap: 0.875rem;
+}
+
+.card-disabled .card-body {
+	opacity: 0.4;
+	pointer-events: none;
 }
 
 .chevron {

@@ -1,4 +1,4 @@
-// Global settings: auto-HTTPS, metrics, debug logging, ACME email.
+// Global settings: auto-HTTPS, metrics, ACME email.
 package caddy
 
 import (
@@ -16,7 +16,6 @@ type GlobalToggles struct {
 	HTTPToHTTPSRedirect bool   `json:"http_to_https_redirect"`
 	PrometheusMetrics   bool   `json:"prometheus_metrics"`
 	PerHostMetrics      bool   `json:"per_host_metrics"`
-	DebugLogging        bool   `json:"debug_logging"`
 }
 
 func (c *Client) SetConfigPath(path string, data []byte) error {
@@ -123,11 +122,6 @@ func (c *Client) GetGlobalToggles() (*GlobalToggles, error) {
 
 	var cfg struct {
 		caddyConfigPartial
-		Logging *struct {
-			Logs map[string]struct {
-				Level string `json:"level"`
-			} `json:"logs"`
-		} `json:"logging"`
 	}
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse caddy config: %w", err)
@@ -138,7 +132,6 @@ func (c *Client) GetGlobalToggles() (*GlobalToggles, error) {
 		HTTPToHTTPSRedirect: true,
 	}
 
-	// Use first server's values as representative
 	for _, srv := range cfg.Apps.HTTP.Servers {
 		if srv.AutoHTTPS != nil {
 			if srv.AutoHTTPS.Disable {
@@ -156,20 +149,12 @@ func (c *Client) GetGlobalToggles() (*GlobalToggles, error) {
 		break
 	}
 
-	if cfg.Logging != nil {
-		if def, ok := cfg.Logging.Logs["default"]; ok {
-			t.DebugLogging = def.Level == "DEBUG"
-		}
-	}
-
 	return t, nil
 }
 
 func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 	raw, err := c.GetConfigPath("apps/http/servers")
 	if err != nil {
-		// No servers configured yet - nothing to toggle for HTTP settings.
-		// Fall through to handle logging below.
 		raw = nil
 	}
 
@@ -221,31 +206,7 @@ func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 		}
 	}
 
-	level := "INFO"
-	if t.DebugLogging {
-		level = "DEBUG"
-	}
-	if err := c.ensureLoggingLogs(); err != nil {
-		return fmt.Errorf("bootstrapping logging for debug toggle: %w", err)
-	}
-
-	// Read the existing default logger (if any) and merge the level into it
-	// rather than trying to set the level sub-path directly. Caddy doesn't
-	// allow sub-path traversal on loggers that haven't been fully initialized.
-	defaultLog := map[string]any{}
-	if existing, err := c.GetConfigPath("logging/logs/default"); err == nil {
-		_ = json.Unmarshal(existing, &defaultLog)
-	}
-	if defaultLog == nil {
-		defaultLog = map[string]any{}
-	}
-	defaultLog["level"] = level
-
-	data, err3 := json.Marshal(defaultLog)
-	if err3 != nil {
-		return fmt.Errorf("failed to marshal default log config: %w", err3)
-	}
-	return c.SetConfigPath("logging/logs/default", data)
+	return nil
 }
 
 // tlsPolicy mirrors the subset of a Caddy TLS automation policy we need for
@@ -353,6 +314,25 @@ func (c *Client) SetACMEEmail(email string) error {
 		return fmt.Errorf("failed to marshal TLS policy: %w", err)
 	}
 	return c.SetConfigPath("apps/tls/automation/policies/", data)
+}
+
+func (c *Client) EnsureDefaultLogger() error {
+	if existing, err := c.GetConfigPath("logging/logs/default"); err == nil && len(existing) > 0 {
+		return nil
+	}
+	if err := c.ensureLoggingLogs(); err != nil {
+		return fmt.Errorf("bootstrapping logging for default logger: %w", err)
+	}
+	defaultLog := map[string]any{
+		"level":   "INFO",
+		"encoder": map[string]any{"format": "console"},
+		"writer":  map[string]any{"output": "discard"},
+	}
+	data, err := json.Marshal(defaultLog)
+	if err != nil {
+		return fmt.Errorf("failed to marshal default logger config: %w", err)
+	}
+	return c.SetConfigPath("logging/logs/default", data)
 }
 
 func (c *Client) ensureLoggingLogs() error {
