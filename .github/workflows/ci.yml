@@ -18,7 +18,17 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      # Backend checks
+      # Frontend checks
+      - name: Install frontend dependencies
+        run: cd frontend && bun install --frozen-lockfile
+
+      - name: Lint frontend
+        run: cd frontend && bunx @biomejs/biome check .
+
+      - name: Build frontend
+        run: cd frontend && bun run build
+
+      # Backend checks (frontend must build first so dist/ exists for go:embed)
       - name: Check Go formatting
         run: |
           diff=$(gofmt -d .)
@@ -32,13 +42,3 @@ jobs:
 
       - name: Build Go binary
         run: go build -o kaji .
-
-      # Frontend checks
-      - name: Install frontend dependencies
-        run: cd frontend && bun install --frozen-lockfile
-
-      - name: Lint frontend
-        run: cd frontend && bunx @biomejs/biome check .
-
-      - name: Build frontend
-        run: cd frontend && bun run build
