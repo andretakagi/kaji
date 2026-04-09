@@ -2,6 +2,32 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [1.2.0] - 2026-04-09
+
+### Added
+- Config snapshots with auto-snapshot on changes
+- Flexible named log sinks (replaces hardcoded kaji_access)
+- Prometheus metrics toggles moved to logs page with descriptions
+
+### Changed
+- Simplified snapshots UI from branching timeline to flat card list
+- Reworked snapshot store to linear history model
+- Made kaji_access log permanent and toggleable instead of deleteable
+- Consolidated HTTPS and ACME settings into route settings section
+- Moved default logger from global toggles to log config UI
+- Removed standalone log config creation from logs page
+- Removed settings step from first-time setup wizard
+- Snapshot settings Save button only appears when values changed
+- Updated README to reflect current feature set
+- Polished frontend accessibility, input validation, overflow handling, and mobile layout
+
+### Fixed
+- Deleting disabled routes now uses correct ConfigStore method
+- Access log no longer shows disabled routes
+- Confirm dialog no longer hidden when route card is collapsed
+- Access log timestamps now use local time
+- Replaced deprecated React.FormEvent with React.SubmitEvent
+
 ## [1.1.0] - 2026-04-08
 
 ### Added
