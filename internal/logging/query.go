@@ -256,8 +256,6 @@ func (rs *reverseScanner) readChunk() error {
 		rs.carry = nil
 	}
 
-	// Split into lines. The first segment may be a partial line if we're
-	// not at the start of the file, so stash it as carry.
 	var lines [][]byte
 	start := 0
 	for i := 0; i < len(buf); i++ {
@@ -267,15 +265,28 @@ func (rs *reverseScanner) readChunk() error {
 		}
 	}
 
-	// Anything after the last newline
+	// Anything after the last newline is not part of any complete line yet.
+	// If we're not at the start of the file it will be joined with content
+	// from the next chunk; if we are at the start it is a complete line.
 	if start < len(buf) {
 		if rs.offset == 0 {
-			// We're at the beginning of the file, so this is a complete line.
 			lines = append(lines, buf[start:])
 		} else {
 			rs.carry = make([]byte, len(buf)-start)
 			copy(rs.carry, buf[start:])
 		}
+	}
+
+	// If this chunk does not start at byte 0, the first segment is the right
+	// half of a line whose left half is in an earlier chunk. Stash it as carry
+	// so the next readChunk can append it and reconstruct the full line.
+	if rs.offset > 0 && len(lines) > 0 {
+		first := lines[0]
+		lines = lines[1:]
+		newCarry := make([]byte, len(first)+len(rs.carry))
+		copy(newCarry, first)
+		copy(newCarry[len(first):], rs.carry)
+		rs.carry = newCarry
 	}
 
 	rs.lines = lines
