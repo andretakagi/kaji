@@ -1,5 +1,7 @@
 # 舵 Kaji
 
+[![CI](https://github.com/andretakagi/kaji/actions/workflows/ci.yml/badge.svg)](https://github.com/andretakagi/kaji/actions/workflows/ci.yml)
+
 A lightweight web GUI for [Caddy](https://caddyserver.com). Point subdomains at ports. No YAML, no Caddyfile editing, no CLI.
 
 Kaji is the **Nginx Proxy Manager of Caddy**: a simple, self-hosted dashboard for homelabbers who want automatic HTTPS reverse proxying without the config file gymnastics.
@@ -23,9 +25,10 @@ Kaji is the **Nginx Proxy Manager of Caddy**: a simple, self-hosted dashboard fo
 
 ### Binary
 
+Download a pre-built binary from the [latest release](https://github.com/andretakagi/kaji/releases/latest), or:
+
 ```bash
-# Download the latest release for your platform
-wget https://github.com/andretakagi/kaji/releases/download/v1.0.0/kaji-linux-amd64
+wget https://github.com/andretakagi/kaji/releases/latest/download/kaji-linux-amd64
 chmod +x kaji-linux-amd64
 ./kaji-linux-amd64
 ```
@@ -37,7 +40,7 @@ Open `http://localhost:8080` and follow the first-run setup.
 ```yaml
 services:
   kaji:
-    image: andretakagi/kaji:latest
+    image: ghcr.io/andretakagi/kaji:latest
     restart: unless-stopped
     ports:
       - "8880:80"
