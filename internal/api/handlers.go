@@ -94,7 +94,7 @@ func maybeAutoSnapshot(cc *caddy.Client, ss *snapshot.Store, description string)
 		log.Printf("auto-snapshot: failed to get config: %v", err)
 		return
 	}
-	name := "auto-" + time.Now().UTC().Format("2006-01-02T15:04:05")
+	name := "auto-" + time.Now().Format("2006-01-02T15:04:05")
 	if _, err := ss.Create(name, description, "auto", configData); err != nil {
 		log.Printf("auto-snapshot: failed to create: %v", err)
 	}
@@ -1546,7 +1546,7 @@ func handleSnapshotCreate(ss *snapshot.Store, cc *caddy.Client) http.HandlerFunc
 			return
 		}
 		if req.Name == "" {
-			req.Name = "manual-" + time.Now().UTC().Format("2006-01-02T15:04:05")
+			req.Name = "manual-" + time.Now().Format("2006-01-02T15:04:05")
 		}
 
 		configData, err := cc.GetConfig()

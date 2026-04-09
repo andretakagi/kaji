@@ -91,7 +91,7 @@ func (s *Store) Create(name, description, snapType string, configData json.RawMe
 		Description: description,
 		Type:        snapType,
 		ParentID:    s.idx.CurrentID,
-		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 
 	if err := os.MkdirAll(s.dir, 0755); err != nil {
@@ -102,8 +102,13 @@ func (s *Store) Create(name, description, snapType string, configData json.RawMe
 		return nil, fmt.Errorf("writing snapshot config: %w", err)
 	}
 
-	prevLen := len(s.idx.Snapshots)
+	prevSnapshots := make([]Snapshot, len(s.idx.Snapshots))
+	copy(prevSnapshots, s.idx.Snapshots)
 	prevCurrentID := s.idx.CurrentID
+
+	// Remove any snapshots that descend from the current one (the old
+	// forward path). This keeps history as a flat linear chain.
+	s.removeDescendants(s.idx.CurrentID)
 
 	s.idx.Snapshots = append(s.idx.Snapshots, snap)
 	s.idx.CurrentID = id
@@ -113,7 +118,7 @@ func (s *Store) Create(name, description, snapType string, configData json.RawMe
 	}
 
 	if err := s.saveIndex(); err != nil {
-		s.idx.Snapshots = s.idx.Snapshots[:prevLen]
+		s.idx.Snapshots = prevSnapshots
 		s.idx.CurrentID = prevCurrentID
 		os.Remove(s.configPath(id))
 		return nil, err
@@ -177,6 +182,9 @@ func (s *Store) Delete(id string) error {
 	if snapIdx == -1 {
 		return fmt.Errorf("snapshot %s not found", id)
 	}
+	if s.idx.CurrentID == id {
+		return fmt.Errorf("cannot delete the current snapshot")
+	}
 
 	parentID := s.idx.Snapshots[snapIdx].ParentID
 
@@ -185,11 +193,6 @@ func (s *Store) Delete(id string) error {
 		if s.idx.Snapshots[i].ParentID == id {
 			s.idx.Snapshots[i].ParentID = parentID
 		}
-	}
-
-	// If deleting the current snapshot, move current to the parent.
-	if s.idx.CurrentID == id {
-		s.idx.CurrentID = parentID
 	}
 
 	s.idx.Snapshots = append(s.idx.Snapshots[:snapIdx], s.idx.Snapshots[snapIdx+1:]...)
@@ -269,6 +272,41 @@ func (s *Store) prune() {
 	filtered := s.idx.Snapshots[:0]
 	for i, snap := range s.idx.Snapshots {
 		if !toRemove[i] {
+			filtered = append(filtered, snap)
+		}
+	}
+	s.idx.Snapshots = filtered
+}
+
+// removeDescendants removes all snapshots that descend from the given id.
+// Must be called with mu held.
+func (s *Store) removeDescendants(id string) {
+	if id == "" {
+		return
+	}
+	descendants := make(map[string]bool)
+	// Iteratively find all descendants.
+	changed := true
+	for changed {
+		changed = false
+		for _, snap := range s.idx.Snapshots {
+			if descendants[snap.ID] {
+				continue
+			}
+			if snap.ParentID == id || descendants[snap.ParentID] {
+				descendants[snap.ID] = true
+				changed = true
+			}
+		}
+	}
+	if len(descendants) == 0 {
+		return
+	}
+	filtered := s.idx.Snapshots[:0]
+	for _, snap := range s.idx.Snapshots {
+		if descendants[snap.ID] {
+			os.Remove(s.configPath(snap.ID))
+		} else {
 			filtered = append(filtered, snap)
 		}
 	}
