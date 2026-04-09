@@ -627,7 +627,7 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 
 		// If the route is disabled, it lives in Kaji's config, not Caddy
-		cfg := store.Current()
+		cfg := store.Get()
 		for _, dr := range cfg.DisabledRoutes {
 			if dr.ID == routeID {
 				if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
