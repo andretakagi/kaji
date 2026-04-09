@@ -7,6 +7,7 @@ All notable changes to Kaji are documented in this file.
 ### Added
 - Cloudflare DNS module (`caddy-dns/cloudflare`) for DNS-01 ACME challenges and wildcard certs
 - Custom Caddy binaries with cloudflare module included in GitHub releases
+- Cloudflare DNS challenge configuration in Route Settings (toggle + API token)
 
 ### Changed
 - Upgraded Caddy from 2.9.1 to 2.11.2

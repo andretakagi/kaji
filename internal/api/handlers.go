@@ -64,6 +64,8 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("PUT /api/settings/global-toggles", handleGlobalTogglesUpdate(store, cc, ss))
 	mux.HandleFunc("GET /api/settings/acme-email", handleACMEEmailGet(cc))
 	mux.HandleFunc("PUT /api/settings/acme-email", handleACMEEmailUpdate(store, cc, ss))
+	mux.HandleFunc("GET /api/settings/dns-provider", handleDNSProviderGet(cc))
+	mux.HandleFunc("PUT /api/settings/dns-provider", handleDNSProviderUpdate(store, cc, ss))
 	mux.HandleFunc("PUT /api/settings/auth", handleAuthToggle(store))
 	mux.HandleFunc("GET /api/settings/api-key", handleAPIKeyStatus(store))
 	mux.HandleFunc("POST /api/settings/api-key", handleAPIKeyGenerate(store))

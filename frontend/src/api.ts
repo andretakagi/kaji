@@ -6,6 +6,7 @@ import type {
 	ChangePasswordRequest,
 	CreateRouteRequest,
 	DisabledRoute,
+	DNSProviderSettings,
 	GlobalToggles,
 	LoginRequest,
 	SetupRequest,
@@ -35,6 +36,7 @@ import {
 	validateCaddyStatus,
 	validateCreateRouteResponse,
 	validateDisabledRoutes,
+	validateDNSProvider,
 	validateGenerateAPIKey,
 	validateGlobalToggles,
 	validateLoggingConfig,
@@ -213,6 +215,21 @@ export function updateACMEEmail(email: string): Promise<{ status: string }> {
 	return request(
 		"/api/settings/acme-email",
 		{ method: "PUT", ...jsonBody({ email }) },
+		validateStatusResponse,
+	);
+}
+
+export function fetchDNSProvider(): Promise<DNSProviderSettings> {
+	return request("/api/settings/dns-provider", undefined, validateDNSProvider);
+}
+
+export function updateDNSProvider(settings: {
+	enabled: boolean;
+	api_token?: string;
+}): Promise<{ status: string }> {
+	return request(
+		"/api/settings/dns-provider",
+		{ method: "PUT", ...jsonBody(settings) },
 		validateStatusResponse,
 	);
 }

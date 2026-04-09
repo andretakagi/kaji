@@ -213,8 +213,33 @@ type tlsPolicy struct {
 }
 
 type tlsIssuer struct {
-	Module string `json:"module"`
-	Email  string `json:"email"`
+	Module     string         `json:"module"`
+	Email      string         `json:"email,omitempty"`
+	Challenges *dnsChallenges `json:"challenges,omitempty"`
+}
+
+type dnsChallenges struct {
+	DNS struct {
+		Provider dnsProvider `json:"provider"`
+	} `json:"dns"`
+}
+
+type dnsProvider struct {
+	Name     string `json:"name"`
+	APIToken string `json:"api_token"`
+}
+
+type DNSProviderResult struct {
+	Enabled  bool   `json:"enabled"`
+	Provider string `json:"provider,omitempty"`
+	APIToken string `json:"api_token,omitempty"`
+}
+
+func maskToken(token string) string {
+	if len(token) <= 4 {
+		return "****"
+	}
+	return strings.Repeat("*", len(token)-4) + token[len(token)-4:]
 }
 
 // acmeEmailFromPolicies returns the ACME email from a set of TLS automation
@@ -303,6 +328,148 @@ func (c *Client) SetACMEEmail(email string) error {
 	newPolicy := map[string]any{
 		"issuers": []map[string]any{
 			{"module": "acme", "email": email},
+		},
+	}
+	data, err := json.Marshal(newPolicy)
+	if err != nil {
+		return fmt.Errorf("failed to marshal TLS policy: %w", err)
+	}
+	return c.SetConfigPath("apps/tls/automation/policies/", data)
+}
+
+func (c *Client) GetDNSProvider() (*DNSProviderResult, error) {
+	raw, err := c.GetConfigPath("apps/tls/automation/policies")
+	if err != nil {
+		if strings.Contains(err.Error(), "unreachable") {
+			return nil, err
+		}
+		return &DNSProviderResult{Enabled: false}, nil
+	}
+
+	var policies []tlsPolicy
+	if err := json.Unmarshal(raw, &policies); err != nil {
+		return &DNSProviderResult{Enabled: false}, nil
+	}
+
+	for _, p := range policies {
+		if len(p.Subjects) > 0 {
+			continue
+		}
+		for _, iss := range p.Issuers {
+			if iss.Module == "acme" && iss.Challenges != nil && iss.Challenges.DNS.Provider.Name != "" {
+				return &DNSProviderResult{
+					Enabled:  true,
+					Provider: iss.Challenges.DNS.Provider.Name,
+					APIToken: maskToken(iss.Challenges.DNS.Provider.APIToken),
+				}, nil
+			}
+		}
+	}
+
+	return &DNSProviderResult{Enabled: false}, nil
+}
+
+func (c *Client) SetDNSProvider(apiToken string, enabled bool) error {
+	raw, err := c.GetConfigPath("apps/tls/automation/policies")
+	if err != nil {
+		if !enabled {
+			return nil
+		}
+		automation := map[string]any{
+			"policies": []map[string]any{
+				{
+					"issuers": []map[string]any{
+						{
+							"module": "acme",
+							"challenges": map[string]any{
+								"dns": map[string]any{
+									"provider": map[string]any{
+										"name":      "cloudflare",
+										"api_token": apiToken,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		return c.SetConfigCascade("apps/tls/automation", automation)
+	}
+
+	var policies []json.RawMessage
+	if err := json.Unmarshal(raw, &policies); err != nil {
+		return fmt.Errorf("failed to parse TLS policies: %w", err)
+	}
+
+	for i, rawPolicy := range policies {
+		var p struct {
+			Subjects []string `json:"subjects"`
+		}
+		if json.Unmarshal(rawPolicy, &p) != nil {
+			continue
+		}
+		if len(p.Subjects) > 0 {
+			continue
+		}
+
+		var policy tlsPolicy
+		if err := json.Unmarshal(rawPolicy, &policy); err != nil {
+			return fmt.Errorf("failed to parse catch-all policy: %w", err)
+		}
+
+		acmeIdx := -1
+		for j, iss := range policy.Issuers {
+			if iss.Module == "acme" {
+				acmeIdx = j
+				break
+			}
+		}
+		if acmeIdx == -1 {
+			policy.Issuers = append(policy.Issuers, tlsIssuer{Module: "acme"})
+			acmeIdx = len(policy.Issuers) - 1
+		}
+
+		if enabled {
+			if apiToken == "" && policy.Issuers[acmeIdx].Challenges != nil {
+				apiToken = policy.Issuers[acmeIdx].Challenges.DNS.Provider.APIToken
+			}
+			if apiToken == "" {
+				return fmt.Errorf("API token is required to enable DNS challenge")
+			}
+			policy.Issuers[acmeIdx].Challenges = &dnsChallenges{}
+			policy.Issuers[acmeIdx].Challenges.DNS.Provider = dnsProvider{
+				Name:     "cloudflare",
+				APIToken: apiToken,
+			}
+		} else {
+			policy.Issuers[acmeIdx].Challenges = nil
+		}
+
+		data, err := json.Marshal(policy.Issuers)
+		if err != nil {
+			return fmt.Errorf("failed to marshal issuers: %w", err)
+		}
+		return c.PatchConfigPath("apps/tls/automation/policies/"+strconv.Itoa(i)+"/issuers", data)
+	}
+
+	if !enabled {
+		return nil
+	}
+
+	newPolicy := map[string]any{
+		"issuers": []map[string]any{
+			{
+				"module": "acme",
+				"challenges": map[string]any{
+					"dns": map[string]any{
+						"provider": map[string]any{
+							"name":      "cloudflare",
+							"api_token": apiToken,
+						},
+					},
+				},
+			},
 		},
 	}
 	data, err := json.Marshal(newPolicy)

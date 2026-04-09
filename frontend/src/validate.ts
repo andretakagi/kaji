@@ -38,6 +38,7 @@ import type {
 	CaddyfileResponse,
 	CaddyStatus,
 	DisabledRoute,
+	DNSProviderSettings,
 	GlobalToggles,
 	SetupResponse,
 	SetupStatus,
@@ -115,6 +116,10 @@ export function validateGlobalToggles(data: unknown): GlobalToggles {
 
 export function validateACMEEmail(data: unknown): { email: string } {
 	return assertValid("ACMEEmail", data, (d) => hasFields(d, { email: is.string }));
+}
+
+export function validateDNSProvider(data: unknown): DNSProviderSettings {
+	return assertValid("DNSProvider", data, (d) => hasFields(d, { enabled: is.boolean }));
 }
 
 export function validateAPIKeyStatus(data: unknown): { has_api_key: boolean } {

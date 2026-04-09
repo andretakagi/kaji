@@ -134,3 +134,9 @@ export const DEFAULT_GLOBAL_TOGGLES: GlobalToggles = {
 	prometheus_metrics: false,
 	per_host_metrics: false,
 };
+
+export interface DNSProviderSettings {
+	enabled: boolean;
+	provider?: string;
+	api_token?: string;
+}

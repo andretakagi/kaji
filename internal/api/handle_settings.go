@@ -115,3 +115,35 @@ func handleAdvancedUpdate(store *config.ConfigStore) http.HandlerFunc {
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }
+
+func handleDNSProviderGet(cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := cc.GetDNSProvider()
+		if err != nil {
+			caddyError(w, "handleDNSProviderGet", err)
+			return
+		}
+		writeJSON(w, result)
+	}
+}
+
+func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Enabled  bool   `json:"enabled"`
+			APIToken string `json:"api_token"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		maybeAutoSnapshot(cc, ss, "DNS provider updated")
+
+		if err := cc.SetDNSProvider(req.APIToken, req.Enabled); err != nil {
+			caddyError(w, "handleDNSProviderUpdate", err)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+		persistCaddyConfig(cc, store)
+	}
+}
