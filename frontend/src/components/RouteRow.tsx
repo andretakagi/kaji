@@ -9,6 +9,7 @@ import ToggleGrid from "./ToggleGrid";
 interface Props {
 	route: ParsedRoute;
 	deleting: boolean;
+	toggling: boolean;
 	onDelete: (id: string) => void;
 	onToggleEnabled: (route: ParsedRoute) => void;
 	onUpdateToggles: (route: ParsedRoute, toggles: RouteToggles) => Promise<void>;
@@ -19,6 +20,7 @@ export default memo(
 	function RouteRow({
 		route,
 		deleting,
+		toggling,
 		onDelete,
 		onToggleEnabled,
 		onUpdateToggles,
@@ -85,7 +87,7 @@ export default memo(
 						type="checkbox"
 						checked={!route.disabled}
 						onChange={() => onToggleEnabled(route)}
-						disabled={!route.id}
+						disabled={!route.id || toggling}
 						aria-label={route.disabled ? "Enable route" : "Disable route"}
 					/>
 					<span className="toggle-slider" />
@@ -158,6 +160,7 @@ export default memo(
 	(prev, next) => {
 		return (
 			prev.deleting === next.deleting &&
+			prev.toggling === next.toggling &&
 			prev.onDelete === next.onDelete &&
 			prev.onToggleEnabled === next.onToggleEnabled &&
 			prev.onUpdateToggles === next.onUpdateToggles &&

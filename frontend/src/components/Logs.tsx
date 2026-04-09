@@ -228,7 +228,9 @@ function LogSinkEditor({
 										type="number"
 										min={1}
 										value={sink.writer?.roll_size_mb ?? 100}
-										onChange={(e) => updateWriter({ roll_size_mb: Number(e.target.value) })}
+										onChange={(e) =>
+											updateWriter({ roll_size_mb: Math.max(1, Number(e.target.value) || 1) })
+										}
 									/>
 								</div>
 								<div className="log-config-field">
@@ -238,7 +240,9 @@ function LogSinkEditor({
 										type="number"
 										min={1}
 										value={sink.writer?.roll_keep ?? 5}
-										onChange={(e) => updateWriter({ roll_keep: Number(e.target.value) })}
+										onChange={(e) =>
+											updateWriter({ roll_keep: Math.max(1, Number(e.target.value) || 1) })
+										}
 									/>
 								</div>
 								<div className="log-config-field">
@@ -249,7 +253,9 @@ function LogSinkEditor({
 										min={1}
 										value={Math.round((sink.writer?.roll_keep_for ?? 30 * NS_PER_DAY) / NS_PER_DAY)}
 										onChange={(e) =>
-											updateWriter({ roll_keep_for: Number(e.target.value) * NS_PER_DAY })
+											updateWriter({
+												roll_keep_for: Math.max(1, Number(e.target.value) || 1) * NS_PER_DAY,
+											})
 										}
 									/>
 								</div>

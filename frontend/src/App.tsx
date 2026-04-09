@@ -196,6 +196,7 @@ function App() {
 					Skip to content
 				</a>
 				<header className="app-header">
+					<h1 className="sr-only">Kaji</h1>
 					{statusKnown && (
 						<div className="status-widget">
 							<span className="status-widget-caddy">Caddy</span>
