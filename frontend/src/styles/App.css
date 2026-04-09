@@ -1992,6 +1992,25 @@ input:disabled + .toggle-slider {
 	margin: 0;
 }
 
+.access-log-disable-confirm {
+	padding: 0.75rem;
+	margin-bottom: 0.5rem;
+	background: rgba(var(--red-rgb), 0.08);
+	border: 1px solid rgba(var(--red-rgb), 0.25);
+	border-radius: var(--radius-sm);
+}
+
+.access-log-disable-confirm p {
+	font-size: 0.8rem;
+	margin: 0 0 0.5rem;
+	color: var(--text-primary);
+}
+
+.access-log-disable-actions {
+	display: flex;
+	gap: 0.5rem;
+}
+
 /* ========================================================================
    Settings
    ======================================================================== */

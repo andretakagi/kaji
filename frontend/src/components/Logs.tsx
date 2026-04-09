@@ -304,32 +304,46 @@ const LogConfigCard = memo(function LogConfigCard({
 	const isAccessLog = name === "kaji_access";
 	const isDiscard = sink.writer?.output === "discard";
 
-	const actions = isDefault ? (
-		<label
-			className="toggle-switch small"
-			onClick={(e) => e.stopPropagation()}
-			onKeyDown={(e) => e.stopPropagation()}
-		>
-			<input type="checkbox" checked={!isDiscard} onChange={(e) => onToggle?.(e.target.checked)} />
-			<span className="toggle-slider" />
-		</label>
-	) : (
-		<ConfirmDeleteButton
-			onConfirm={async () => {
-				try {
-					await onRemove(name);
-				} catch (err) {
-					setRemoveError(getErrorMessage(err, "Failed to remove"));
-					throw err;
-				}
-			}}
-			label={
-				isAccessLog && accessDomains && accessDomains.length > 0
-					? "This will disable access logging on all routes using it"
-					: "Remove log sink"
-			}
-		/>
-	);
+	const [confirmDisable, setConfirmDisable] = useState(false);
+	const hasRoutes = isAccessLog && accessDomains && accessDomains.length > 0;
+
+	const handleAccessToggle = (checked: boolean) => {
+		if (!checked && hasRoutes) {
+			setConfirmDisable(true);
+			return;
+		}
+		onToggle?.(checked);
+	};
+
+	const actions =
+		isDefault || isAccessLog ? (
+			<label
+				className="toggle-switch small"
+				onClick={(e) => e.stopPropagation()}
+				onKeyDown={(e) => e.stopPropagation()}
+			>
+				<input
+					type="checkbox"
+					checked={!isDiscard}
+					onChange={(e) =>
+						isAccessLog ? handleAccessToggle(e.target.checked) : onToggle?.(e.target.checked)
+					}
+				/>
+				<span className="toggle-slider" />
+			</label>
+		) : (
+			<ConfirmDeleteButton
+				onConfirm={async () => {
+					try {
+						await onRemove(name);
+					} catch (err) {
+						setRemoveError(getErrorMessage(err, "Failed to remove"));
+						throw err;
+					}
+				}}
+				label="Remove log sink"
+			/>
+		);
 
 	const title = isDefault ? (
 		"Caddy System Log"
@@ -346,9 +360,41 @@ const LogConfigCard = memo(function LogConfigCard({
 			title={title}
 			actions={actions}
 			ariaLabel={name}
-			disabled={isDefault && isDiscard}
+			disabled={(isDefault || isAccessLog) && isDiscard}
 		>
 			{removeError && <div className="feedback error">{removeError}</div>}
+			{confirmDisable && (
+				<div className="access-log-disable-confirm">
+					<p>
+						This will disable access logging on{" "}
+						{accessDomains?.map((d, i) => (
+							<span key={d}>
+								{i > 0 && ", "}
+								<strong>{d}</strong>
+							</span>
+						))}
+					</p>
+					<div className="access-log-disable-actions">
+						<button
+							type="button"
+							className="btn btn-danger btn-sm"
+							onClick={() => {
+								setConfirmDisable(false);
+								onToggle?.(false);
+							}}
+						>
+							Disable
+						</button>
+						<button
+							type="button"
+							className="btn btn-ghost btn-sm"
+							onClick={() => setConfirmDisable(false)}
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			)}
 			<LogSinkEditor
 				name={name}
 				sink={sink}
@@ -356,7 +402,7 @@ const LogConfigCard = memo(function LogConfigCard({
 				onSave={() => onSave(name)}
 				onChange={(s) => onChange(name, s)}
 			/>
-			{isAccessLog && (
+			{isAccessLog && !isDiscard && (
 				<div className="access-log-domains">
 					{accessDomains && accessDomains.length > 0 ? (
 						<div className="access-log-domain-list">
@@ -584,10 +630,43 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		}
 	}, []);
 
+	const toggleAccessLogger = useCallback(async (enabled: boolean) => {
+		const current = editConfigRef.current.logs?.kaji_access;
+		let updated: CaddyLogSink;
+		if (enabled) {
+			updated = {
+				...current,
+				writer: { output: "stdout" },
+				include: current?.include ?? ["http.log.access.*"],
+			};
+		} else {
+			updated = {
+				...current,
+				writer: { output: "discard" },
+			};
+		}
+		const nextConfig: CaddyLoggingConfig = {
+			...editConfigRef.current,
+			logs: { ...editConfigRef.current.logs, kaji_access: updated },
+		};
+		try {
+			await updateLogConfig(nextConfig);
+			setEditConfig(nextConfig);
+			setSavedConfig(structuredClone(nextConfig));
+			fetchAccessDomains()
+				.then(setAccessDomains)
+				.catch(() => setAccessDomains({}));
+		} catch {
+			// revert on failure - state remains unchanged
+		}
+	}, []);
+
 	const sinkEntries = Object.entries(editConfig.logs ?? {});
 	const sortedEntries = [...sinkEntries].sort(([a], [b]) => {
 		if (a === "default") return -1;
 		if (b === "default") return 1;
+		if (a === "kaji_access") return -1;
+		if (b === "kaji_access") return 1;
 		return a.localeCompare(b);
 	});
 	if (!loaded) {
@@ -619,7 +698,13 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 							onSave={saveSink}
 							onChange={updateSink}
 							onRemove={removeSink}
-							onToggle={name === "default" ? toggleDefaultLogger : undefined}
+							onToggle={
+								name === "default"
+									? toggleDefaultLogger
+									: name === "kaji_access"
+										? toggleAccessLogger
+										: undefined
+							}
 							accessDomains={domainsForSink(accessDomains, name)}
 							isDefault={name === "default"}
 						/>

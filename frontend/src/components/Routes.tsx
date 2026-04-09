@@ -300,10 +300,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 			const parsed: ParsedRoute[] = [];
 
 			if (caddyRunning) {
-				const [config, disabled] = await Promise.all([
-					fetchConfig(),
-					fetchDisabledRoutes(),
-				]);
+				const [config, disabled] = await Promise.all([fetchConfig(), fetchDisabledRoutes()]);
 				const servers = (config as CaddyConfig).apps?.http?.servers;
 				if (servers) {
 					for (const [name, server] of Object.entries(servers)) {

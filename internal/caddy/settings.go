@@ -312,6 +312,24 @@ func (c *Client) SetACMEEmail(email string) error {
 	return c.SetConfigPath("apps/tls/automation/policies/", data)
 }
 
+func (c *Client) EnsureAccessLogger() error {
+	if existing, err := c.GetConfigPath("logging/logs/kaji_access"); err == nil && len(existing) > 0 {
+		return nil
+	}
+	if err := c.ensureLoggingLogs(); err != nil {
+		return fmt.Errorf("bootstrapping logging for access logger: %w", err)
+	}
+	accessLog := map[string]any{
+		"writer":  map[string]any{"output": "discard"},
+		"include": []string{"http.log.access.*"},
+	}
+	data, err := json.Marshal(accessLog)
+	if err != nil {
+		return fmt.Errorf("failed to marshal access logger config: %w", err)
+	}
+	return c.SetConfigPath("logging/logs/kaji_access", data)
+}
+
 func (c *Client) EnsureDefaultLogger() error {
 	if existing, err := c.GetConfigPath("logging/logs/default"); err == nil && len(existing) > 0 {
 		return nil

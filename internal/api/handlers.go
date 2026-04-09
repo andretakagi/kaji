@@ -190,6 +190,11 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
 			warnings = append(warnings, "failed to initialize default logger: "+err.Error())
 		}
 
+		if err := cc.EnsureAccessLogger(); err != nil {
+			log.Printf("handleSetup: ensure access logger: %v", err)
+			warnings = append(warnings, "failed to initialize access logger: "+err.Error())
+		}
+
 		persistCaddyConfig(cc, store)
 
 		if newCfg.AuthEnabled {
@@ -1085,12 +1090,26 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			}
 		}
 
+		// When kaji_access writer is set to discard, clear all route mappings.
+		if kajiRaw, ok := incoming.Logs["kaji_access"]; ok {
+			var sink struct {
+				Writer struct {
+					Output string `json:"output"`
+				} `json:"writer"`
+			}
+			if json.Unmarshal(kajiRaw, &sink) == nil && sink.Writer.Output == "discard" {
+				_ = cc.ClearDomainsForSink("kaji_access")
+			}
+		}
+
 		maybeAutoSnapshot(cc, ss, "Log config updated")
 
 		if err := cc.SetLoggingConfig(body); err != nil {
 			caddyError(w, "handleLogConfigUpdate", err)
 			return
 		}
+		// Protected loggers must always exist
+		_ = cc.EnsureAccessLogger()
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
 	}

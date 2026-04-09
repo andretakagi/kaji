@@ -283,7 +283,8 @@ func (c *Client) ReplaceRouteByID(id string, newRoute json.RawMessage) (string, 
 
 func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 	if sinkName != "" {
-		if _, err := c.GetConfigPath("logging/logs/" + sinkName); err != nil {
+		raw, getErr := c.GetConfigPath("logging/logs/" + sinkName)
+		if getErr != nil {
 			if err := c.ensureLoggingLogs(); err != nil {
 				return fmt.Errorf("bootstrapping logging config: %w", err)
 			}
@@ -297,6 +298,22 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 			}
 			if err := c.SetConfigPath("logging/logs/"+sinkName, data); err != nil {
 				return fmt.Errorf("creating %s logger: %w", sinkName, err)
+			}
+		} else if sinkName == "kaji_access" {
+			// Re-enable kaji_access if it was toggled off
+			var sink struct {
+				Writer struct {
+					Output string `json:"output"`
+				} `json:"writer"`
+			}
+			if json.Unmarshal(raw, &sink) == nil && sink.Writer.Output == "discard" {
+				var current map[string]any
+				if json.Unmarshal(raw, &current) == nil {
+					current["writer"] = map[string]string{"output": "stdout"}
+					if data, err := json.Marshal(current); err == nil {
+						_ = c.SetConfigPath("logging/logs/kaji_access", data)
+					}
+				}
 			}
 		}
 
