@@ -157,7 +157,10 @@ export default function Snapshots() {
 	// Settings
 	const [autoEnabled, setAutoEnabled] = useState(false);
 	const [pruneLimit, setPruneLimit] = useState(10);
+	const [savedAutoEnabled, setSavedAutoEnabled] = useState(false);
+	const [savedPruneLimit, setSavedPruneLimit] = useState(10);
 	const settingsAction = useAsyncAction();
+	const settingsDirty = autoEnabled !== savedAutoEnabled || pruneLimit !== savedPruneLimit;
 
 	// Create form
 	const [showCreate, setShowCreate] = useState(false);
@@ -187,6 +190,8 @@ export default function Snapshots() {
 			setIndex(data);
 			setAutoEnabled(data.auto_snapshot_enabled);
 			setPruneLimit(data.auto_snapshot_limit);
+			setSavedAutoEnabled(data.auto_snapshot_enabled);
+			setSavedPruneLimit(data.auto_snapshot_limit);
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to load snapshots"));
 		} finally {
@@ -313,14 +318,16 @@ export default function Snapshots() {
 							<span>auto snapshots</span>
 						</div>
 					)}
-					<button
-						type="button"
-						className="btn btn-primary settings-save-btn"
-						disabled={settingsAction.saving}
-						onClick={handleSaveSettings}
-					>
-						{settingsAction.saving ? "Saving..." : "Save"}
-					</button>
+					{settingsDirty && (
+						<button
+							type="button"
+							className="btn btn-primary settings-save-btn"
+							disabled={settingsAction.saving}
+							onClick={handleSaveSettings}
+						>
+							{settingsAction.saving ? "Saving..." : "Save"}
+						</button>
+					)}
 					<Feedback msg={settingsAction.feedback.msg} type={settingsAction.feedback.type} />
 				</div>
 			</CollapsibleCard>
