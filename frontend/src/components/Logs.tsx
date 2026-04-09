@@ -367,6 +367,7 @@ const LogConfigCard = memo(function LogConfigCard({
 			actions={actions}
 			ariaLabel={name}
 			disabled={(isDefault || isAccessLog) && isDiscard}
+			forceExpanded={confirmDisable}
 		>
 			{removeError && <div className="feedback error">{removeError}</div>}
 			{confirmDisable && (

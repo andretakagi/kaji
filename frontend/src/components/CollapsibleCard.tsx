@@ -6,6 +6,7 @@ interface Props {
 	children: ReactNode;
 	disabled?: boolean;
 	defaultExpanded?: boolean;
+	forceExpanded?: boolean;
 	ariaLabel?: string;
 }
 
@@ -15,9 +16,11 @@ export default function CollapsibleCard({
 	children,
 	disabled,
 	defaultExpanded = false,
+	forceExpanded,
 	ariaLabel,
 }: Props) {
 	const [expanded, setExpanded] = useState(defaultExpanded);
+	const isExpanded = expanded || !!forceExpanded;
 
 	return (
 		<div className={`card ${disabled ? "card-disabled" : ""}`}>
@@ -25,16 +28,16 @@ export default function CollapsibleCard({
 				<button
 					type="button"
 					className="card-toggle"
-					aria-expanded={expanded}
-					aria-label={ariaLabel ?? (expanded ? "Collapse" : "Expand")}
-					onClick={() => setExpanded(!expanded)}
+					aria-expanded={isExpanded}
+					aria-label={ariaLabel ?? (isExpanded ? "Collapse" : "Expand")}
+					onClick={() => setExpanded(!isExpanded)}
 				>
-					<span className={`chevron ${expanded ? "open" : ""}`} />
+					<span className={`chevron ${isExpanded ? "open" : ""}`} />
 					<div className="card-title">{title}</div>
 				</button>
 				{actions && <div className="card-actions">{actions}</div>}
 			</div>
-			{expanded && <div className="card-body">{children}</div>}
+			{isExpanded && <div className="card-body">{children}</div>}
 		</div>
 	);
 }

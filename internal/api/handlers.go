@@ -626,6 +626,29 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
+		// If the route is disabled, it lives in Kaji's config, not Caddy
+		cfg := store.Current()
+		for _, dr := range cfg.DisabledRoutes {
+			if dr.ID == routeID {
+				if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+					fresh := make([]config.DisabledRoute, 0, len(c.DisabledRoutes))
+					for _, d := range c.DisabledRoutes {
+						if d.ID != routeID {
+							fresh = append(fresh, d)
+						}
+					}
+					c.DisabledRoutes = fresh
+					return &c, nil
+				}); err != nil {
+					log.Printf("handleDeleteRoute: remove disabled route: %v", err)
+					writeError(w, "failed to remove disabled route", http.StatusInternalServerError)
+					return
+				}
+				writeJSON(w, map[string]string{"status": "ok"})
+				return
+			}
+		}
+
 		var domain, server, oldSink string
 		if raw, err := cc.GetRouteByID(routeID); err == nil {
 			var route struct {
@@ -839,6 +862,12 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
+		// Remove the domain from logger_names so the logs page
+		// no longer lists it under the access log sink.
+		if parsed, err := caddy.ParseRouteParams(route); err == nil && parsed.Domain != "" {
+			_ = cc.SetRouteAccessLog(server, parsed.Domain, "")
+		}
+
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
 	}
@@ -900,6 +929,12 @@ func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			}
 			caddyError(w, "handleEnableRoute", err)
 			return
+		}
+
+		// Restore the domain's logger_names entry if the route
+		// had an access log sink configured before it was disabled.
+		if parsed, err := caddy.ParseRouteParams(disabled.Route); err == nil && parsed.Toggles.AccessLog != "" {
+			_ = cc.SetRouteAccessLog(disabled.Server, parsed.Domain, parsed.Toggles.AccessLog)
 		}
 
 		writeJSON(w, map[string]string{"status": "ok"})
