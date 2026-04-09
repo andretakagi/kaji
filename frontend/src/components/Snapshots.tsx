@@ -9,7 +9,6 @@ import {
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { SnapshotIndex } from "../types/snapshots";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import CollapsibleCard from "./CollapsibleCard";
 import Feedback from "./Feedback";
 
 function formatSnapshotTime(iso: string): string {
@@ -158,50 +157,49 @@ export default function Snapshots() {
 
 	return (
 		<div className="snapshots">
-			<CollapsibleCard title="Snapshot Settings">
-				<div className="snapshot-settings">
-					<div className="settings-toggle-row">
-						<span>Take snapshot before each config change</span>
-						<label className="toggle-switch">
-							<input
-								type="checkbox"
-								checked={autoEnabled}
-								onChange={() => setAutoEnabled((v) => !v)}
-								disabled={settingsAction.saving}
-							/>
-							<span className="toggle-slider" />
-						</label>
-					</div>
-					{autoEnabled && (
-						<div className="snapshot-settings-limit">
-							<span>Keep last</span>
-							<input
-								type="number"
-								min={1}
-								max={100}
-								value={pruneLimit}
-								onChange={(e) =>
-									setPruneLimit(Math.max(1, Number.parseInt(e.target.value, 10) || 1))
-								}
-								className="snapshot-limit-input"
-								disabled={settingsAction.saving}
-							/>
-							<span>auto snapshots</span>
-						</div>
-					)}
-					{settingsDirty && (
-						<button
-							type="button"
-							className="btn btn-primary settings-save-btn"
+			<section className="settings-section">
+				<h3>Snapshot Settings</h3>
+				<div className="settings-toggle-row">
+					<span>Take snapshot before each config change</span>
+					<label className="toggle-switch">
+						<input
+							type="checkbox"
+							checked={autoEnabled}
+							onChange={() => setAutoEnabled((v) => !v)}
 							disabled={settingsAction.saving}
-							onClick={handleSaveSettings}
-						>
-							{settingsAction.saving ? "Saving..." : "Save"}
-						</button>
-					)}
-					<Feedback msg={settingsAction.feedback.msg} type={settingsAction.feedback.type} />
+						/>
+						<span className="toggle-slider" />
+					</label>
 				</div>
-			</CollapsibleCard>
+				{autoEnabled && (
+					<div className="snapshot-settings-limit">
+						<span>Keep last</span>
+						<input
+							type="number"
+							min={1}
+							max={100}
+							value={pruneLimit}
+							onChange={(e) =>
+								setPruneLimit(Math.max(1, Number.parseInt(e.target.value, 10) || 1))
+							}
+							className="snapshot-limit-input"
+							disabled={settingsAction.saving}
+						/>
+						<span>auto snapshots</span>
+					</div>
+				)}
+				{settingsDirty && (
+					<button
+						type="button"
+						className="btn btn-primary settings-save-btn"
+						disabled={settingsAction.saving}
+						onClick={handleSaveSettings}
+					>
+						{settingsAction.saving ? "Saving..." : "Save"}
+					</button>
+				)}
+				<Feedback msg={settingsAction.feedback.msg} type={settingsAction.feedback.type} />
+			</section>
 
 			<div className="snapshot-action-bar">
 				{showCreate ? (
