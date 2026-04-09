@@ -6,9 +6,8 @@ import {
 	type GlobalToggles,
 } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import { validateCaddyAdminUrl } from "../utils/validate";
 
-const STEP_LABELS = ["Auth", "Import", "ACME Email", "Settings"];
+const STEP_LABELS = ["Auth", "Import", "ACME Email"];
 
 interface WizardData {
 	authEnabled: boolean;
@@ -19,7 +18,6 @@ interface WizardData {
 	importedSettings: AdaptCaddyfileResponse | null;
 	acmeEmail: string;
 	globalToggles: GlobalToggles;
-	caddyAdminUrl: string;
 }
 
 function Setup({ onComplete }: { onComplete: () => void }) {
@@ -36,7 +34,6 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		importedSettings: null,
 		acmeEmail: "",
 		globalToggles: { ...DEFAULT_GLOBAL_TOGGLES },
-		caddyAdminUrl: "",
 	});
 
 	const update = <K extends keyof WizardData>(key: K, value: WizardData[K]) => {
@@ -53,15 +50,6 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 			if (data.password !== data.confirmPassword) {
 				setError("Passwords do not match.");
 				return false;
-			}
-		}
-		if (step === 3) {
-			if (data.caddyAdminUrl) {
-				const msg = validateCaddyAdminUrl(data.caddyAdminUrl);
-				if (msg) {
-					setError(msg);
-					return false;
-				}
 			}
 		}
 		return true;
@@ -85,7 +73,6 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		try {
 			const res = await submitSetup({
 				password: data.authEnabled ? data.password : undefined,
-				caddy_admin_url: data.caddyAdminUrl || undefined,
 				acme_email: data.acmeEmail || undefined,
 				global_toggles: data.globalToggles,
 				caddyfile_json: data.adaptedConfig || undefined,
@@ -111,7 +98,6 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		<StepAuth key="auth" data={data} update={update} />,
 		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
 		<StepACME key="acme" data={data} update={update} />,
-		<StepSettings key="settings" data={data} update={update} />,
 	];
 
 	if (setupWarnings.length > 0) {
@@ -155,7 +141,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 						</button>
 					)}
 					{step === 0 && <span />}
-					{step < 3 ? (
+					{step < 2 ? (
 						<button type="button" className="btn btn-primary" onClick={handleNext}>
 							Next
 						</button>
@@ -439,50 +425,6 @@ function StepACME({
 				<div className="field-hint">
 					Used by Let's Encrypt for certificate expiry notices and account recovery.
 				</div>
-			</div>
-		</>
-	);
-}
-
-function StepSettings({
-	data,
-	update,
-}: {
-	data: WizardData;
-	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
-}) {
-	return (
-		<>
-			<p className="setup-step-description">Configure Caddy and Kaji settings.</p>
-
-			<div className="auth-field">
-				<label htmlFor="setup-auto-https">Auto HTTPS</label>
-				<select
-					id="setup-auto-https"
-					value={data.globalToggles.auto_https}
-					onChange={(e) =>
-						update("globalToggles", {
-							...data.globalToggles,
-							auto_https: e.target.value as GlobalToggles["auto_https"],
-						})
-					}
-				>
-					<option value="on">On</option>
-					<option value="off">Off</option>
-					<option value="disable_redirects">On (no redirects)</option>
-				</select>
-			</div>
-
-			<div className="auth-field">
-				<label htmlFor="setup-caddy-url">Caddy Admin URL</label>
-				<input
-					id="setup-caddy-url"
-					type="text"
-					value={data.caddyAdminUrl}
-					onChange={(e) => update("caddyAdminUrl", e.target.value)}
-					placeholder="http://localhost:2019"
-				/>
-				<div className="field-hint">Leave blank for default (http://localhost:2019)</div>
 			</div>
 		</>
 	);
