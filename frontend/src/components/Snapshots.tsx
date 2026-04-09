@@ -179,9 +179,7 @@ export default function Snapshots() {
 							min={1}
 							max={100}
 							value={pruneLimit}
-							onChange={(e) =>
-								setPruneLimit(Math.max(1, Number.parseInt(e.target.value, 10) || 1))
-							}
+							onChange={(e) => setPruneLimit(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
 							className="snapshot-limit-input"
 							disabled={settingsAction.saving}
 						/>

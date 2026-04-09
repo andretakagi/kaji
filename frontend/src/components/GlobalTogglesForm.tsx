@@ -42,29 +42,6 @@ export function GlobalTogglesForm({
 						<span className="toggle-slider" />
 					</span>
 				</label>
-				<label className="settings-toggle-item">
-					<span>Prometheus metrics</span>
-					<span className="toggle-switch small">
-						<input
-							type="checkbox"
-							checked={toggles.prometheus_metrics}
-							onChange={(e) => onChange("prometheus_metrics", e.target.checked)}
-						/>
-						<span className="toggle-slider" />
-					</span>
-				</label>
-				<label className="settings-toggle-item">
-					<span>Per-host metrics</span>
-					<span className="toggle-switch small">
-						<input
-							type="checkbox"
-							checked={toggles.per_host_metrics}
-							onChange={(e) => onChange("per_host_metrics", e.target.checked)}
-							disabled={!toggles.prometheus_metrics}
-						/>
-						<span className="toggle-slider" />
-					</span>
-				</label>
 			</div>
 		</>
 	);
