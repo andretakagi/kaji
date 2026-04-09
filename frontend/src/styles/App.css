@@ -1930,35 +1930,6 @@ input:disabled + .toggle-slider {
 	border-top: 1px solid var(--border);
 }
 
-.log-config-new-form {
-	display: flex;
-	flex-direction: column;
-	gap: 0.75rem;
-	background: var(--surface);
-	border-radius: var(--radius);
-	border: 1px solid var(--border);
-	box-shadow: var(--shadow);
-	padding: 1rem;
-}
-
-.log-config-new-form .log-config-sink {
-	padding: 0;
-}
-
-.log-config-new-form-actions {
-	display: flex;
-	gap: 0.4rem;
-	align-items: center;
-	padding-top: 0.25rem;
-}
-
-.log-config-name-error {
-	font-size: 0.75rem;
-	color: var(--red);
-}
-
-.log-config-add-btn,
-.log-config-cancel-btn,
 .log-config-save-btn {
 	padding: 0.4rem 0.85rem;
 }
@@ -2497,21 +2468,12 @@ input:disabled + .toggle-slider {
 		grid-template-columns: 1fr;
 	}
 
-	.log-config-add-btn,
-	.log-config-cancel-btn {
-		min-height: 44px;
-	}
-
 	.log-config-save-btn {
 		min-height: 44px;
 	}
 
 	.log-config-field input,
 	.log-config-field select {
-		min-height: 44px;
-	}
-
-	.log-config-new-form input {
 		min-height: 44px;
 	}
 

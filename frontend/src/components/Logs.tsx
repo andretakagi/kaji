@@ -79,14 +79,12 @@ function LogSinkEditor({
 	savedSink,
 	onSave,
 	onChange,
-	hideActions,
 }: {
 	name: string;
 	sink: CaddyLogSink;
 	savedSink: CaddyLogSink | undefined;
 	onSave: () => Promise<void>;
 	onChange: (sink: CaddyLogSink) => void;
-	hideActions?: boolean;
 }) {
 	const output = sink.writer?.output ?? "stdout";
 	const isFile = output === "file";
@@ -260,7 +258,7 @@ function LogSinkEditor({
 					</>
 				)}
 			</div>
-			{!hideActions && (dirty || feedback) && (
+			{(dirty || feedback) && (
 				<div className="log-config-sink-footer">
 					{dirty && (
 						<button
@@ -509,17 +507,7 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 	editConfigRef.current = editConfig;
 	const [loaded, setLoaded] = useState(false);
 	const [loadError, setLoadError] = useState("");
-	const [newSinkName, setNewSinkName] = useState("");
-	const [newSink, setNewSink] = useState<CaddyLogSink>({
-		level: "INFO",
-		writer: { output: "stdout" },
-		encoder: { format: "console" },
-	});
-	const [showNewForm, setShowNewForm] = useState(false);
-	const [creating, setCreating] = useState(false);
-	const [createError, setCreateError] = useState("");
 	const [accessDomains, setAccessDomains] = useState<Record<string, Record<string, string>>>({});
-	const newNameInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		if (!caddyRunning) return;
@@ -568,58 +556,6 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 			.catch(() => setAccessDomains({}));
 	}, []);
 
-	async function addSink() {
-		const trimmed = newSinkName.trim().replace(/\s+/g, "_");
-		if (!trimmed || editConfig.logs?.[trimmed]) return;
-
-		if (newSink.writer?.output === "file") {
-			const filename = newSink.writer?.filename?.trim() ?? "";
-			if (!filename) {
-				setCreateError("File name is required");
-				return;
-			}
-			if (filename.includes("/")) {
-				setCreateError("Enter a file name only, not a path");
-				return;
-			}
-			const ext = filename.split(".").pop()?.toLowerCase();
-			const logExtensions = ["log", "txt", "json", "jsonl"];
-			if (ext && !logExtensions.includes(ext)) {
-				setCreateError(
-					`Unexpected file extension ".${ext}" - expected .log, .txt, .json, or .jsonl`,
-				);
-				return;
-			}
-		}
-
-		setCreating(true);
-		setCreateError("");
-		const nextConfig: CaddyLoggingConfig = {
-			...editConfigRef.current,
-			logs: { ...editConfigRef.current.logs, [trimmed]: newSink },
-		};
-		try {
-			await updateLogConfig(nextConfig);
-			setEditConfig(nextConfig);
-			setSavedConfig(structuredClone(nextConfig));
-			setNewSinkName("");
-			setNewSink({ level: "INFO", writer: { output: "stdout" }, encoder: { format: "console" } });
-			setShowNewForm(false);
-		} catch (err) {
-			setCreateError(getErrorMessage(err, "Failed to create log"));
-		} finally {
-			setCreating(false);
-		}
-	}
-
-	function openNewForm() {
-		setShowNewForm(true);
-		setNewSinkName("");
-		setNewSink({ level: "INFO", writer: { output: "stdout" }, encoder: { format: "console" } });
-		setCreateError("");
-		setTimeout(() => newNameInputRef.current?.focus(), 0);
-	}
-
 	const toggleDefaultLogger = useCallback(async (enabled: boolean) => {
 		const current = editConfigRef.current.logs?.default;
 		let updated: CaddyLogSink;
@@ -654,11 +590,6 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		if (b === "default") return 1;
 		return a.localeCompare(b);
 	});
-	const canAddSink =
-		newSinkName.trim() !== "" && !editConfig.logs?.[newSinkName.trim().replace(/\s+/g, "_")];
-	const nameConflict =
-		newSinkName.trim() !== "" && !!editConfig.logs?.[newSinkName.trim().replace(/\s+/g, "_")];
-
 	if (!loaded) {
 		return <div className="empty-state">Loading log config...</div>;
 	}
@@ -671,67 +602,11 @@ function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		<>
 			<div className="section-header">
 				<h2>Log Configuration</h2>
-				<button
-					type="button"
-					className="btn btn-primary add-route-btn"
-					disabled={!caddyRunning}
-					onClick={() => (showNewForm ? setShowNewForm(false) : openNewForm())}
-				>
-					{showNewForm ? "Cancel" : "New Log"}
-				</button>
 			</div>
 
-			{showNewForm && (
-				<div className="log-config-new-form">
-					<div className="log-config-field">
-						<label htmlFor="new-log-name">Log name</label>
-						<input
-							ref={newNameInputRef}
-							id="new-log-name"
-							type="text"
-							placeholder="e.g. access_log"
-							value={newSinkName}
-							onChange={(e) => setNewSinkName(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Escape") setShowNewForm(false);
-							}}
-						/>
-					</div>
-					{nameConflict && (
-						<span className="log-config-name-error">A log with that name already exists.</span>
-					)}
-					<LogSinkEditor
-						name="new-log"
-						sink={newSink}
-						savedSink={undefined}
-						onSave={async () => {}}
-						onChange={(s) => setNewSink(s)}
-						hideActions
-					/>
-					{createError && <span className="feedback error">{createError}</span>}
-					<div className="log-config-new-form-actions">
-						<button
-							type="button"
-							className="btn btn-primary log-config-add-btn"
-							disabled={!canAddSink || creating}
-							onClick={addSink}
-						>
-							{creating ? "Creating..." : "Create"}
-						</button>
-						<button
-							type="button"
-							className="btn btn-ghost log-config-cancel-btn"
-							onClick={() => setShowNewForm(false)}
-						>
-							Cancel
-						</button>
-					</div>
-				</div>
-			)}
-
-			{sinkEntries.length === 0 && !showNewForm ? (
+			{sinkEntries.length === 0 ? (
 				<div className="empty-state">
-					No log outputs configured{caddyRunning ? " - add one to get started." : "."}
+					No log outputs configured. Enable access logging on a route to create one.
 				</div>
 			) : (
 				<div className="log-config-list">
