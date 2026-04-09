@@ -26,7 +26,7 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Cross-compile binaries
+      - name: Cross-compile Kaji binaries
         env:
           VERSION: ${{ steps.version.outputs.version }}
           LDFLAGS: -X main.version=${{ steps.version.outputs.version }}
@@ -46,6 +46,28 @@ jobs:
               go build -ldflags "${LDFLAGS}" -o "${output}" .
           done
 
+      - name: Install xcaddy
+        run: go install github.com/caddyserver/xcaddy/cmd/xcaddy@v0.4.5
+
+      - name: Cross-compile Caddy binaries
+        run: |
+          set -e
+          platforms=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+          )
+          for platform in "${platforms[@]}"; do
+            os="${platform%/*}"
+            arch="${platform#*/}"
+            output="caddy-${os}-${arch}"
+            echo "Building ${output}..."
+            GOOS="${os}" GOARCH="${arch}" xcaddy build v2.11.2 \
+              --with github.com/caddy-dns/cloudflare \
+              --output "${output}"
+          done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -55,3 +77,7 @@ jobs:
             kaji-linux-arm64
             kaji-darwin-amd64
             kaji-darwin-arm64
+            caddy-linux-amd64
+            caddy-linux-arm64
+            caddy-darwin-amd64
+            caddy-darwin-arm64

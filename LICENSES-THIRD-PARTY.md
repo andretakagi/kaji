@@ -9,6 +9,12 @@ listed here for attribution.
 |---------|---------|
 | golang.org/x/crypto | BSD-3-Clause |
 
+## Bundled Caddy Modules
+
+| Package | License |
+|---------|---------|
+| github.com/caddy-dns/cloudflare | MIT |
+
 ## Frontend Dependencies
 
 | Package | License |

@@ -22,6 +22,7 @@ Kaji is the **Nginx Proxy Manager of Caddy**: a simple, self-hosted dashboard fo
 - **Setup wizard** - First-run flow to set an admin password and Caddy admin URL.
 - **Caddyfile import/export** - Import existing Caddyfile configs or export current config as a Caddyfile.
 - **Single binary** - Go backend with the React frontend embedded at build time. No runtime dependencies. Fully offline, no external CDN or network calls.
+- **Cloudflare DNS** - Built-in `caddy-dns/cloudflare` module for DNS-01 ACME challenges. Supports wildcard certs and domains where HTTP-01 isn't viable.
 - **Docker ready** - Multi-arch images for amd64 and arm64. Auto-detects Docker mode or set `CADDY_GUI_MODE=docker`.
 
 ## Quick Start

@@ -2,6 +2,16 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [Unreleased]
+
+### Added
+- Cloudflare DNS module (`caddy-dns/cloudflare`) for DNS-01 ACME challenges and wildcard certs
+- Custom Caddy binaries with cloudflare module included in GitHub releases
+
+### Changed
+- Upgraded Caddy from 2.9.1 to 2.11.2
+- Dockerfile now builds Caddy from source via xcaddy instead of pulling stock image
+
 ## [1.2.3] - 2026-04-09
 
 ### Added
