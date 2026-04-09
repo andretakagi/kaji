@@ -53,7 +53,7 @@ services:
       - "443:443/udp" # Caddy HTTP/3
       - "8080:8080"   # Kaji dashboard
     volumes:
-      - kaji_caddy_data:/data             # TLS certs and Caddy state
+      - kaji_caddy_data:/data              # TLS certs and Caddy state
       - kaji_caddy_config:/etc/caddy       # Caddy configuration
       - kaji_gui_config:/etc/caddy-gui     # Kaji config and snapshots
       - kaji_caddy_logs:/var/log/caddy     # Access and error logs
