@@ -1,6 +1,9 @@
 # 舵 Kaji
 
 [![CI](https://github.com/andretakagi/kaji/actions/workflows/ci.yml/badge.svg)](https://github.com/andretakagi/kaji/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/andretakagi/kaji)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/andretakagi/kaji)](https://github.com/andretakagi/kaji/releases/latest)
+[![GHCR](https://img.shields.io/badge/GHCR-ghcr.io%2Fandretakagi%2Fkaji-blue)](https://github.com/andretakagi/kaji/pkgs/container/kaji)
 
 A lightweight web GUI for [Caddy](https://caddyserver.com). Point subdomains at ports. No YAML, no Caddyfile editing, no CLI.
 
@@ -37,21 +40,23 @@ Open `http://localhost:8080` and follow the first-run setup.
 
 ### Docker
 
+Save this as `docker-compose.yml` and run `docker compose up -d`:
+
 ```yaml
 services:
   kaji:
     image: ghcr.io/andretakagi/kaji:latest
     restart: unless-stopped
     ports:
-      - "8880:80"
-      - "8443:443"
-      - "8443:443/udp"
-      - "8080:8080"
+      - "80:80"       # Caddy HTTP (your proxied sites)
+      - "443:443"     # Caddy HTTPS (your proxied sites)
+      - "443:443/udp" # Caddy HTTP/3
+      - "8080:8080"   # Kaji dashboard
     volumes:
-      - kaji_caddy_data:/data
-      - kaji_caddy_config:/etc/caddy
-      - kaji_gui_config:/etc/caddy-gui
-      - kaji_caddy_logs:/var/log/caddy
+      - kaji_caddy_data:/data             # TLS certs and Caddy state
+      - kaji_caddy_config:/etc/caddy       # Caddy configuration
+      - kaji_gui_config:/etc/caddy-gui     # Kaji config and snapshots
+      - kaji_caddy_logs:/var/log/caddy     # Access and error logs
     environment:
       - CADDY_GUI_MODE=docker
 
@@ -61,6 +66,20 @@ volumes:
   kaji_gui_config:
   kaji_caddy_logs:
 ```
+
+Open `http://localhost:8080` and follow the first-run setup.
+
+## Configuration
+
+Most settings (auth, Caddy admin URL, log sinks) are configured through the dashboard itself. The setup wizard handles initial configuration on first run.
+
+These environment variables control runtime behavior:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CADDY_GUI_MODE` | auto-detect | Set to `docker` to use the built-in process manager instead of systemd. Auto-detected when running in Docker. |
+| `KAJI_LISTEN_ADDR` | `:8080` | Address and port for the Kaji dashboard (e.g. `:9090` or `127.0.0.1:8080`). |
+| `KAJI_CONFIG_PATH` | `/etc/caddy-gui/config.json` | Path to the Kaji config file. Useful for non-standard installs or development. |
 
 ## Development
 
