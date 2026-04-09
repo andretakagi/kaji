@@ -1,0 +1,139 @@
+// Caddy service control, config proxy, upstreams, and Caddyfile export.
+package api
+
+import (
+	"encoding/json"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"path"
+
+	"github.com/andretakagi/kaji/internal/caddy"
+	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/system"
+)
+
+func handleStatus(mgr system.CaddyManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		running, err := mgr.Status()
+		if err != nil {
+			log.Printf("handleStatus: %v", err)
+			writeError(w, "failed to check caddy status", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]bool{"running": running})
+	}
+}
+
+func handleStart(mgr system.CaddyManager, cc *caddy.Client, store *config.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := mgr.Start(); err != nil {
+			log.Printf("handleStart: %v", err)
+			writeError(w, "failed to start caddy", http.StatusInternalServerError)
+			return
+		}
+		loadSavedCaddyConfig(cc, store)
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
+func handleStop(mgr system.CaddyManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := mgr.Stop(); err != nil {
+			log.Printf("handleStop: %v", err)
+			writeError(w, "failed to stop caddy", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
+func handleRestart(mgr system.CaddyManager, cc *caddy.Client, store *config.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := mgr.Restart(); err != nil {
+			log.Printf("handleRestart: %v", err)
+			writeError(w, "failed to restart caddy", http.StatusInternalServerError)
+			return
+		}
+		loadSavedCaddyConfig(cc, store)
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
+func handleConfigProxy(cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p, err := url.PathUnescape(r.PathValue("path"))
+		if err != nil {
+			writeError(w, "invalid config path", http.StatusBadRequest)
+			return
+		}
+		cleaned := path.Clean("/" + p)
+		if cleaned != "/"+p {
+			writeError(w, "invalid config path", http.StatusBadRequest)
+			return
+		}
+
+		cfg, err := cc.GetConfigPath(p)
+		if err != nil {
+			caddyError(w, "handleConfigProxy", err)
+			return
+		}
+		if len(cfg) == 0 || !json.Valid(cfg) {
+			log.Printf("handleConfigProxy: caddy returned invalid JSON for path %q (len=%d)", p, len(cfg))
+			writeError(w, "caddy returned an invalid config response", http.StatusBadGateway)
+			return
+		}
+		writeRawJSON(w, cfg)
+	}
+}
+
+func handleConfigLoad(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeError(w, "failed to read request body", http.StatusBadRequest)
+			return
+		}
+		if !json.Valid(body) {
+			writeError(w, "request body is not valid JSON", http.StatusBadRequest)
+			return
+		}
+		if err := cc.LoadConfig(body); err != nil {
+			caddyError(w, "handleConfigLoad", err)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+		persistCaddyConfig(cc, store)
+	}
+}
+
+func handleUpstreams(cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		upstreams, err := cc.GetUpstreams()
+		if err != nil {
+			// On a fresh Caddy with no reverse proxies, this endpoint
+			// may not exist. Return an empty array instead of an error.
+			upstreams = []byte(`[]`)
+		}
+		writeRawJSON(w, upstreams)
+	}
+}
+
+func handleCaddyfileExport(cc *caddy.Client, store *config.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw, err := cc.GetConfig()
+		if err != nil {
+			caddyError(w, "handleCaddyfileExport", err)
+			return
+		}
+		cfg := store.Get()
+		content, err := caddy.GenerateCaddyfile(raw, cfg.LogFile)
+		if err != nil {
+			log.Printf("handleCaddyfileExport: %v", err)
+			writeError(w, "failed to generate Caddyfile", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, map[string]string{"content": content})
+	}
+}
