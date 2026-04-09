@@ -7,7 +7,6 @@ import {
 } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateCaddyAdminUrl } from "../utils/validate";
-import { GlobalTogglesForm } from "./GlobalTogglesForm";
 
 const STEP_LABELS = ["Auth", "Import", "ACME Email", "Settings"];
 
@@ -452,15 +451,27 @@ function StepSettings({
 	data: WizardData;
 	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
 }) {
-	const setToggle = <K extends keyof GlobalToggles>(key: K, value: GlobalToggles[K]) => {
-		update("globalToggles", { ...data.globalToggles, [key]: value });
-	};
-
 	return (
 		<>
 			<p className="setup-step-description">Configure Caddy and Kaji settings.</p>
 
-			<GlobalTogglesForm toggles={data.globalToggles} onChange={setToggle} idPrefix="setup-" />
+			<div className="auth-field">
+				<label htmlFor="setup-auto-https">Auto HTTPS</label>
+				<select
+					id="setup-auto-https"
+					value={data.globalToggles.auto_https}
+					onChange={(e) =>
+						update("globalToggles", {
+							...data.globalToggles,
+							auto_https: e.target.value as GlobalToggles["auto_https"],
+						})
+					}
+				>
+					<option value="on">On</option>
+					<option value="off">Off</option>
+					<option value="disable_redirects">On (no redirects)</option>
+				</select>
+			</div>
 
 			<div className="auth-field">
 				<label htmlFor="setup-caddy-url">Caddy Admin URL</label>

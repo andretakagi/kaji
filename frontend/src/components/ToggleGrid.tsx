@@ -7,6 +7,7 @@ interface ToggleGridProps {
 	idPrefix: string;
 	isNew?: boolean;
 	domain?: string;
+	globalAutoHttps?: "on" | "off" | "disable_redirects";
 }
 
 export default function ToggleGrid({
@@ -15,15 +16,26 @@ export default function ToggleGrid({
 	idPrefix,
 	isNew,
 	domain,
+	globalAutoHttps,
 }: ToggleGridProps) {
 	return (
 		<div className="toggle-grid">
-			<ToggleItem
-				label="Force HTTPS"
-				description="Redirect HTTP requests to HTTPS"
-				checked={toggles.force_https}
-				onChange={(v) => onUpdate("force_https", v)}
-			/>
+			{globalAutoHttps && globalAutoHttps !== "off" ? (
+				<ToggleItem
+					label="Force HTTPS"
+					description="Managed by global HTTPS setting"
+					checked={globalAutoHttps === "on"}
+					onChange={() => {}}
+					disabled
+				/>
+			) : (
+				<ToggleItem
+					label="Force HTTPS"
+					description="Redirect HTTP requests to HTTPS"
+					checked={toggles.force_https}
+					onChange={(v) => onUpdate("force_https", v)}
+				/>
+			)}
 			<ToggleItem
 				label="Compression"
 				description="gzip + zstd encoding"
@@ -216,20 +228,27 @@ function ToggleItem({
 	description,
 	checked,
 	onChange,
+	disabled,
 }: {
 	label: string;
 	description: string;
 	checked: boolean;
 	onChange: (v: boolean) => void;
+	disabled?: boolean;
 }) {
 	return (
-		<label className="toggle-item">
+		<label className={`toggle-item${disabled ? " toggle-item-disabled" : ""}`}>
 			<div className="toggle-item-text">
 				<span className="toggle-item-label">{label}</span>
 				<span className="toggle-item-desc">{description}</span>
 			</div>
 			<div className="toggle-switch small">
-				<input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+				<input
+					type="checkbox"
+					checked={checked}
+					onChange={(e) => onChange(e.target.checked)}
+					disabled={disabled}
+				/>
 				<span className="toggle-slider" />
 			</div>
 		</label>

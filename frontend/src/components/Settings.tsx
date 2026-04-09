@@ -2,67 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import {
 	changePassword,
 	exportCaddyfile,
-	fetchACMEEmail,
 	fetchAdvancedSettings,
 	fetchAPIKeyStatus,
 	fetchAuthStatus,
-	fetchGlobalToggles,
 	generateAPIKey,
 	revokeAPIKey,
-	updateACMEEmail,
 	updateAdvancedSettings,
 	updateAuthEnabled,
-	updateGlobalToggles,
 } from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
-import { DEFAULT_GLOBAL_TOGGLES, type GlobalToggles } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import Feedback from "./Feedback";
-import { GlobalTogglesForm } from "./GlobalTogglesForm";
 
 function CaddyOffSection({ title }: { title: string }) {
 	return (
 		<section className="settings-section settings-section-failed">
 			<h3>{title}</h3>
 			<p className="settings-section-error">Caddy is not running</p>
-		</section>
-	);
-}
-
-function ACMEEmailSection({ initial }: { initial: string }) {
-	const [email, setEmail] = useState(initial);
-	useEffect(() => setEmail(initial), [initial]);
-	const { saving, feedback, run } = useAsyncAction();
-
-	const handleSave = () =>
-		run(async () => {
-			await updateACMEEmail(email);
-			return "Saved";
-		});
-
-	return (
-		<section className="settings-section">
-			<h3>ACME Email</h3>
-			<div className="settings-field">
-				<label htmlFor="acme-email">Email for Let's Encrypt certificates</label>
-				<input
-					id="acme-email"
-					type="email"
-					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-					placeholder="you@example.com"
-				/>
-			</div>
-			<button
-				type="button"
-				className="btn btn-primary settings-save-btn"
-				disabled={saving || !email}
-				onClick={handleSave}
-			>
-				{saving ? "Saving..." : "Save"}
-			</button>
-			<Feedback msg={feedback.msg} type={feedback.type} className="settings-feedback" />
 		</section>
 	);
 }
@@ -348,38 +305,6 @@ function APIKeySection() {
 	);
 }
 
-function GlobalTogglesSection({ initial }: { initial: GlobalToggles }) {
-	const [toggles, setToggles] = useState<GlobalToggles>(initial);
-	useEffect(() => setToggles(initial), [initial]);
-	const { saving, feedback, run } = useAsyncAction();
-
-	const set = <K extends keyof GlobalToggles>(key: K, value: GlobalToggles[K]) => {
-		setToggles((prev) => ({ ...prev, [key]: value }));
-	};
-
-	const handleSave = () =>
-		run(async () => {
-			await updateGlobalToggles(toggles);
-			return "Saved";
-		});
-
-	return (
-		<section className="settings-section">
-			<h3>Global Toggles</h3>
-			<GlobalTogglesForm toggles={toggles} onChange={set} selectClassName="settings-field" />
-			<button
-				type="button"
-				className="btn btn-primary settings-save-btn"
-				disabled={saving}
-				onClick={handleSave}
-			>
-				{saving ? "Saving..." : "Save"}
-			</button>
-			<Feedback msg={feedback.msg} type={feedback.type} className="settings-feedback" />
-		</section>
-	);
-}
-
 function ExportCaddyfileSection() {
 	const { saving, feedback, run } = useAsyncAction();
 
@@ -465,8 +390,6 @@ export default function Settings({
 	onAuthChange: (enabled: boolean) => void;
 	caddyRunning: boolean;
 }) {
-	const [globalToggles, setGlobalToggles] = useState<GlobalToggles>(DEFAULT_GLOBAL_TOGGLES);
-	const [acmeEmail, setAcmeEmail] = useState("");
 	const [authEnabled, setAuthEnabled] = useState(false);
 	const [advanced, setAdvanced] = useState({
 		caddy_admin_url: "http://localhost:2019",
@@ -480,25 +403,10 @@ export default function Settings({
 		setError("");
 		setFailedSections(new Set());
 
-		Promise.allSettled([
-			fetchGlobalToggles(),
-			fetchACMEEmail(),
-			fetchAuthStatus(),
-			fetchAdvancedSettings(),
-		])
-			.then(([togglesResult, emailResult, authResult, advancedResult]) => {
+		Promise.allSettled([fetchAuthStatus(), fetchAdvancedSettings()])
+			.then(([authResult, advancedResult]) => {
 				const failed = new Set<string>();
 
-				if (togglesResult.status === "fulfilled") {
-					setGlobalToggles(togglesResult.value as GlobalToggles);
-				} else {
-					failed.add("toggles");
-				}
-				if (emailResult.status === "fulfilled") {
-					setAcmeEmail((emailResult.value as { email: string }).email);
-				} else {
-					failed.add("acme");
-				}
 				if (authResult.status === "fulfilled") {
 					const auth = authResult.value as { auth_enabled: boolean; has_password: boolean };
 					setAuthEnabled(auth.auth_enabled);
@@ -511,7 +419,7 @@ export default function Settings({
 					failed.add("advanced");
 				}
 
-				if (failed.has("auth") && failed.has("toggles") && failed.has("acme")) {
+				if (failed.has("auth")) {
 					setError("critical");
 					return;
 				}
@@ -578,28 +486,6 @@ export default function Settings({
 					/>
 					<APIKeySection />
 				</>
-			)}
-
-			{!caddyRunning ? (
-				<CaddyOffSection title="ACME Email" />
-			) : failedSections.has("acme") ? (
-				<section className="settings-section settings-section-failed">
-					<h3>ACME Email</h3>
-					<p className="settings-section-error">Failed to load</p>
-				</section>
-			) : (
-				<ACMEEmailSection initial={acmeEmail} />
-			)}
-
-			{!caddyRunning ? (
-				<CaddyOffSection title="Global Toggles" />
-			) : failedSections.has("toggles") ? (
-				<section className="settings-section settings-section-failed">
-					<h3>Global Toggles</h3>
-					<p className="settings-section-error">Failed to load</p>
-				</section>
-			) : (
-				<GlobalTogglesSection initial={globalToggles} />
 			)}
 
 			{!caddyRunning ? <CaddyOffSection title="Export Caddyfile" /> : <ExportCaddyfileSection />}

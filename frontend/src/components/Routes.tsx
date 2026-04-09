@@ -4,15 +4,21 @@ import {
 	deleteRoute,
 	disableRoute,
 	enableRoute,
+	fetchACMEEmail,
 	fetchConfig,
 	fetchDisabledRoutes,
+	fetchGlobalToggles,
 	POLL_INTERVAL,
+	updateACMEEmail,
+	updateGlobalToggles,
 	updateRoute,
 } from "../api";
-import type { DisabledRoute, ParsedRoute, RouteToggles } from "../types/api";
+import { useAsyncAction } from "../hooks/useAsyncAction";
+import type { DisabledRoute, GlobalToggles, ParsedRoute, RouteToggles } from "../types/api";
 import type { CaddyConfig, CaddyHandler, CaddyRoute } from "../types/caddy";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateDomain, validateUpstream } from "../utils/validate";
+import Feedback from "./Feedback";
 import RouteRow from "./RouteRow";
 import ToggleGrid from "./ToggleGrid";
 
@@ -164,11 +170,113 @@ function parseDisabledRoute(dr: DisabledRoute): ParsedRoute {
 	return parsed;
 }
 
+function RouteSettingsSection({
+	globalToggles,
+	httpsValue,
+	setHttpsValue,
+	acmeEmail,
+	setAcmeEmail,
+	initialAcmeEmail,
+	onTogglesSaved,
+	onAcmeSaved,
+}: {
+	globalToggles: GlobalToggles;
+	httpsValue: GlobalToggles["auto_https"];
+	setHttpsValue: (v: GlobalToggles["auto_https"]) => void;
+	acmeEmail: string;
+	setAcmeEmail: (v: string) => void;
+	initialAcmeEmail: string;
+	onTogglesSaved: (toggles: GlobalToggles) => void;
+	onAcmeSaved: () => void;
+}) {
+	const { saving, feedback, run } = useAsyncAction();
+
+	const httpsDirty = httpsValue !== globalToggles.auto_https;
+	const acmeDirty = acmeEmail !== initialAcmeEmail;
+	const dirty = httpsDirty || acmeDirty;
+	const httpsOn = httpsValue !== "off";
+
+	const descriptions: Record<GlobalToggles["auto_https"], string> = {
+		on: "Automatic certificates and HTTP-to-HTTPS redirects for all routes",
+		disable_redirects: "Automatic certificates, but no HTTP-to-HTTPS redirects",
+		off: "No automatic HTTPS",
+	};
+
+	const handleSave = () =>
+		run(async () => {
+			if (httpsDirty) {
+				const updated = { ...globalToggles, auto_https: httpsValue };
+				await updateGlobalToggles(updated);
+				onTogglesSaved(updated);
+			}
+			if (acmeDirty) {
+				await updateACMEEmail(acmeEmail);
+				onAcmeSaved();
+			}
+			return "Saved";
+		});
+
+	return (
+		<section className="settings-section">
+			<h3>Route Settings</h3>
+			<div className="settings-field">
+				<label htmlFor="acme-email">ACME email</label>
+				<input
+					id="acme-email"
+					type="email"
+					value={acmeEmail}
+					onChange={(e) => setAcmeEmail(e.target.value)}
+					placeholder="you@example.com"
+					disabled={saving}
+				/>
+				<span className="settings-toggle-desc">
+					Email for Let's Encrypt certificate notifications
+				</span>
+				{httpsOn && !acmeEmail && !acmeDirty && (
+					<span className="settings-toggle-desc" style={{ color: "var(--warning, #d4a054)" }}>
+						No ACME email set - you won't receive certificate expiry warnings
+					</span>
+				)}
+			</div>
+
+			<div className="settings-field" style={{ marginTop: "0.75rem" }}>
+				<label htmlFor="global-https">Auto HTTPS</label>
+				<select
+					id="global-https"
+					value={httpsValue}
+					onChange={(e) => setHttpsValue(e.target.value as GlobalToggles["auto_https"])}
+					disabled={saving}
+				>
+					<option value="on">On</option>
+					<option value="off">Off</option>
+					<option value="disable_redirects">On without redirects</option>
+				</select>
+				<span className="settings-toggle-desc">{descriptions[httpsValue]}</span>
+			</div>
+			{dirty && (
+				<button
+					type="button"
+					className="btn btn-primary settings-save-btn"
+					disabled={saving || (acmeDirty && !acmeEmail)}
+					onClick={handleSave}
+				>
+					{saving ? "Saving..." : "Save"}
+				</button>
+			)}
+			<Feedback msg={feedback.msg} type={feedback.type} />
+		</section>
+	);
+}
+
 export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	const [routes, setRoutes] = useState<ParsedRoute[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [showForm, setShowForm] = useState(false);
+	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
+	const [httpsValue, setHttpsValue] = useState<GlobalToggles["auto_https"]>("on");
+	const [acmeEmail, setAcmeEmail] = useState("");
+	const [initialAcmeEmail, setInitialAcmeEmail] = useState("");
 	const [domain, setDomain] = useState("");
 	const [upstream, setUpstream] = useState("");
 	const [formToggles, setFormToggles] = useState<RouteToggles>({ ...defaultToggles });
@@ -177,12 +285,25 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	const deletingRef = useRef(deleting);
 	deletingRef.current = deleting;
 
+	useEffect(() => {
+		if (!caddyRunning) return;
+		Promise.all([fetchGlobalToggles(), fetchACMEEmail()]).then(([toggles, acmeResult]) => {
+			setGlobalToggles(toggles);
+			setHttpsValue(toggles.auto_https);
+			setAcmeEmail(acmeResult.email);
+			setInitialAcmeEmail(acmeResult.email);
+		});
+	}, [caddyRunning]);
+
 	const loadRoutes = useCallback(async () => {
 		try {
 			const parsed: ParsedRoute[] = [];
 
 			if (caddyRunning) {
-				const [config, disabled] = await Promise.all([fetchConfig(), fetchDisabledRoutes()]);
+				const [config, disabled] = await Promise.all([
+					fetchConfig(),
+					fetchDisabledRoutes(),
+				]);
 				const servers = (config as CaddyConfig).apps?.http?.servers;
 				if (servers) {
 					for (const [name, server] of Object.entries(servers)) {
@@ -347,6 +468,19 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 
 	return (
 		<div className="routes">
+			{caddyRunning && globalToggles && (
+				<RouteSettingsSection
+					globalToggles={globalToggles}
+					httpsValue={httpsValue}
+					setHttpsValue={setHttpsValue}
+					acmeEmail={acmeEmail}
+					setAcmeEmail={setAcmeEmail}
+					initialAcmeEmail={initialAcmeEmail}
+					onTogglesSaved={(toggles) => setGlobalToggles(toggles)}
+					onAcmeSaved={() => setInitialAcmeEmail(acmeEmail)}
+				/>
+			)}
+
 			<div className="section-header">
 				<h2>Routes</h2>
 				<button
@@ -409,6 +543,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 						idPrefix="new-route"
 						isNew
 						domain={domain}
+						globalAutoHttps={globalToggles?.auto_https}
 					/>
 					<button type="submit" className="btn btn-primary submit-btn" disabled={submitting}>
 						{submitting ? "Adding..." : "Add"}
@@ -431,6 +566,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 							onDelete={handleDelete}
 							onToggleEnabled={handleToggleEnabled}
 							onUpdateToggles={handleUpdateToggles}
+							globalAutoHttps={globalToggles?.auto_https}
 						/>
 					))}
 				</div>

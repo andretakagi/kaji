@@ -12,10 +12,18 @@ interface Props {
 	onDelete: (id: string) => void;
 	onToggleEnabled: (route: ParsedRoute) => void;
 	onUpdateToggles: (route: ParsedRoute, toggles: RouteToggles) => Promise<void>;
+	globalAutoHttps?: "on" | "off" | "disable_redirects";
 }
 
 export default memo(
-	function RouteRow({ route, deleting, onDelete, onToggleEnabled, onUpdateToggles }: Props) {
+	function RouteRow({
+		route,
+		deleting,
+		onDelete,
+		onToggleEnabled,
+		onUpdateToggles,
+		globalAutoHttps,
+	}: Props) {
 		const [toggles, setToggles] = useState<RouteToggles>(route.toggles);
 		const [dirty, setDirty] = useState(false);
 		const [saving, setSaving] = useState(false);
@@ -106,6 +114,7 @@ export default memo(
 					idPrefix={route.id}
 					isNew={!route.id || !route.toggles.basic_auth.enabled}
 					domain={route.domain}
+					globalAutoHttps={globalAutoHttps}
 				/>
 
 				{stale && (
@@ -152,6 +161,7 @@ export default memo(
 			prev.onDelete === next.onDelete &&
 			prev.onToggleEnabled === next.onToggleEnabled &&
 			prev.onUpdateToggles === next.onUpdateToggles &&
+			prev.globalAutoHttps === next.globalAutoHttps &&
 			prev.route.id === next.route.id &&
 			prev.route.domain === next.route.domain &&
 			prev.route.upstream === next.route.upstream &&

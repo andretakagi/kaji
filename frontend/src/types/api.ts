@@ -125,14 +125,12 @@ export interface AuthToggleRequest {
 
 export interface GlobalToggles {
 	auto_https: "on" | "off" | "disable_redirects";
-	http_to_https_redirect: boolean;
 	prometheus_metrics: boolean;
 	per_host_metrics: boolean;
 }
 
 export const DEFAULT_GLOBAL_TOGGLES: GlobalToggles = {
 	auto_https: "on",
-	http_to_https_redirect: true,
 	prometheus_metrics: false,
 	per_host_metrics: false,
 };

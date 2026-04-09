@@ -107,7 +107,6 @@ export function validateGlobalToggles(data: unknown): GlobalToggles {
 	return assertValid("GlobalToggles", data, (d) =>
 		hasFields(d, {
 			auto_https: is.string,
-			http_to_https_redirect: is.boolean,
 			prometheus_metrics: is.boolean,
 			per_host_metrics: is.boolean,
 		}),

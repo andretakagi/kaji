@@ -1238,6 +1238,11 @@ input:disabled + .toggle-slider {
 	border-color: var(--border);
 }
 
+.toggle-item-disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
 .toggle-item-text {
 	display: flex;
 	flex-direction: column;

@@ -12,10 +12,9 @@ import (
 )
 
 type GlobalToggles struct {
-	AutoHTTPS           string `json:"auto_https"`
-	HTTPToHTTPSRedirect bool   `json:"http_to_https_redirect"`
-	PrometheusMetrics   bool   `json:"prometheus_metrics"`
-	PerHostMetrics      bool   `json:"per_host_metrics"`
+	AutoHTTPS         string `json:"auto_https"`
+	PrometheusMetrics bool   `json:"prometheus_metrics"`
+	PerHostMetrics    bool   `json:"per_host_metrics"`
 }
 
 func (c *Client) SetConfigPath(path string, data []byte) error {
@@ -128,18 +127,15 @@ func (c *Client) GetGlobalToggles() (*GlobalToggles, error) {
 	}
 
 	t := &GlobalToggles{
-		AutoHTTPS:           "on",
-		HTTPToHTTPSRedirect: true,
+		AutoHTTPS: "on",
 	}
 
 	for _, srv := range cfg.Apps.HTTP.Servers {
 		if srv.AutoHTTPS != nil {
 			if srv.AutoHTTPS.Disable {
 				t.AutoHTTPS = "off"
-				t.HTTPToHTTPSRedirect = false
 			} else if srv.AutoHTTPS.DisableRedirects {
 				t.AutoHTTPS = "disable_redirects"
-				t.HTTPToHTTPSRedirect = false
 			}
 		}
 		if srv.Metrics != nil {
