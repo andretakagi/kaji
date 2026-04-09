@@ -62,7 +62,7 @@ func accessLog(next http.Handler) http.Handler {
 		dur := time.Since(start)
 
 		entry := accessLogEntry{
-			Ts:         start.UTC().Format(time.RFC3339Nano),
+			Ts:         start.Format(time.RFC3339Nano),
 			Level:      "info",
 			Logger:     "kaji.access",
 			Msg:        "handled request",
