@@ -81,8 +81,6 @@ export function validateCreateRouteResponse(data: unknown): { status: string; "@
 function isUpstreamStatus(d: unknown): boolean {
 	return hasFields(d, {
 		address: is.string,
-		healthy: is.boolean,
-		num_requests: is.number,
 	});
 }
 

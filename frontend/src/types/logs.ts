@@ -68,10 +68,3 @@ export interface LokiConfig {
 	batch_size: number;
 	flush_interval_seconds: number;
 }
-
-export interface LokiStatus {
-	connected: boolean;
-	last_push?: string;
-	entries_pushed: number;
-	errors: number;
-}

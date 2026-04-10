@@ -1,9 +1,7 @@
 import type { CaddyRoute } from "./caddy";
-import type { LokiConfig } from "./logs";
 
 export interface CaddyStatus {
 	running: boolean;
-	uptime?: number;
 }
 
 export interface CaddyfileResponse {
@@ -13,8 +11,6 @@ export interface CaddyfileResponse {
 
 export interface UpstreamStatus {
 	address: string;
-	healthy: boolean;
-	num_requests: number;
 }
 
 export interface SetupStatus {
@@ -26,7 +22,7 @@ export interface SetupRequest {
 	caddy_admin_url?: string;
 	acme_email?: string;
 	global_toggles?: GlobalToggles;
-	caddyfile_json?: unknown;
+	caddyfile_json?: Record<string, unknown>;
 }
 
 export interface SetupResponse {
@@ -38,7 +34,7 @@ export interface AdaptCaddyfileResponse {
 	acme_email: string;
 	global_toggles: GlobalToggles;
 	route_count: number;
-	adapted_config: unknown;
+	adapted_config: Record<string, unknown>;
 }
 
 export interface LoginRequest {
@@ -49,15 +45,6 @@ export interface AuthStatus {
 	authenticated: boolean;
 	auth_enabled: boolean;
 	has_password: boolean;
-}
-
-export interface AppConfig {
-	auth_enabled: boolean;
-	caddy_admin_url: string;
-	caddy_config_path: string;
-	log_file: string;
-	loki: LokiConfig;
-	disabled_routes: DisabledRoute[];
 }
 
 export interface DisabledRoute {
@@ -122,10 +109,6 @@ export interface ParsedRoute {
 
 export interface ChangePasswordRequest {
 	new_password: string;
-}
-
-export interface AuthToggleRequest {
-	auth_enabled: boolean;
 }
 
 export interface GlobalToggles {

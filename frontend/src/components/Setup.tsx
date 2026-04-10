@@ -15,7 +15,7 @@ interface WizardData {
 	password: string;
 	confirmPassword: string;
 	caddyfileText: string;
-	adaptedConfig: unknown | null;
+	adaptedConfig: Record<string, unknown> | null;
 	importedSettings: AdaptCaddyfileResponse | null;
 	acmeEmail: string;
 	globalToggles: GlobalToggles;

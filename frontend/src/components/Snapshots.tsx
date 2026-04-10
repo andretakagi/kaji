@@ -1,31 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { createSnapshot, deleteSnapshot, fetchSnapshots, restoreSnapshot } from "../api";
+import { formatTime } from "../formatTime";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { SnapshotIndex } from "../types/snapshots";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import Feedback from "./Feedback";
-
-function formatSnapshotTime(iso: string): string {
-	const d = new Date(iso);
-	const now = new Date();
-	const sameDay =
-		d.getFullYear() === now.getFullYear() &&
-		d.getMonth() === now.getMonth() &&
-		d.getDate() === now.getDate();
-
-	if (sameDay) {
-		return d.toLocaleTimeString([], {
-			hour: "2-digit",
-			minute: "2-digit",
-		});
-	}
-	return d.toLocaleDateString([], {
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
 
 function defaultSnapshotName(): string {
 	const d = new Date();
@@ -201,7 +180,7 @@ export default function Snapshots() {
 									</span>
 									<span className={`snapshot-badge ${s.type}`}>{s.type}</span>
 									{isCurrent && <span className="snapshot-badge active">current</span>}
-									<span className="snapshot-time">{formatSnapshotTime(s.created_at)}</span>
+									<span className="snapshot-time">{formatTime(s.created_at)}</span>
 								</div>
 								{s.description && <p className="snapshot-desc">{s.description}</p>}
 								<div className="snapshot-row-actions">

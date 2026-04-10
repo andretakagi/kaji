@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchConfig, fetchLogs } from "../api";
+import { formatTime } from "../formatTime";
 import { usePolledEffect } from "../hooks/usePolledData";
 import type { CaddyLogEntry, LogQueryParams } from "../types/logs";
 import Autocomplete from "./Autocomplete";
@@ -15,29 +16,6 @@ const STATUS_RANGES: Record<string, { min?: number; max?: number }> = {
 	"4xx": { min: 400, max: 499 },
 	"5xx": { min: 500, max: 599 },
 };
-
-function formatTime(ts: number): string {
-	const d = new Date(ts * 1000);
-	const now = new Date();
-	const sameDay =
-		d.getFullYear() === now.getFullYear() &&
-		d.getMonth() === now.getMonth() &&
-		d.getDate() === now.getDate();
-
-	if (sameDay) {
-		return d.toLocaleTimeString([], {
-			hour: "2-digit",
-			minute: "2-digit",
-			second: "2-digit",
-		});
-	}
-	return d.toLocaleDateString([], {
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
 
 function formatDuration(seconds: number | undefined): string {
 	if (seconds == null) return "--";
@@ -326,7 +304,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 							const key = `${i}-${entry.ts}-${entry.status ?? entry.level}-${entry.request?.host ?? ""}-${entry.request?.uri ?? entry.msg}`;
 							return (
 								<div className="log-entry" key={key}>
-									<span className="log-time">{formatTime(entry.ts)}</span>
+									<span className="log-time">{formatTime(entry.ts, { seconds: true })}</span>
 									{isHttp && entry.status != null ? (
 										<span className={`log-status ${statusClass(entry.status)}`}>
 											{entry.status}
