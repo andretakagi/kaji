@@ -313,16 +313,6 @@ export default function Settings({
 
 			<AppearanceSection />
 
-			{!caddyRunning ? <CaddyOffSection title="Route Settings" /> : <RouteSettingsSection />}
-
-			{!caddyRunning ? (
-				<CaddyOffSection title="Metrics" />
-			) : (
-				<MetricsSettings caddyRunning={caddyRunning} />
-			)}
-
-			<SnapshotSettings />
-
 			{failedSections.has("auth") ? (
 				<section className="settings-section settings-section-failed">
 					<h3>Authentication</h3>
@@ -340,6 +330,16 @@ export default function Settings({
 					<APIKeySection />
 				</>
 			)}
+
+			{!caddyRunning ? <CaddyOffSection title="Route Settings" /> : <RouteSettingsSection />}
+
+			{!caddyRunning ? (
+				<CaddyOffSection title="Metrics" />
+			) : (
+				<MetricsSettings caddyRunning={caddyRunning} />
+			)}
+
+			<SnapshotSettings />
 
 			{!caddyRunning ? <CaddyOffSection title="Export Caddyfile" /> : <ExportCaddyfileSection />}
 
