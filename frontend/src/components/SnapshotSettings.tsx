@@ -1,39 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { fetchSnapshots, updateSnapshotSettings } from "../api";
-import { useAsyncAction } from "../hooks/useAsyncAction";
+import { useSettingsSection } from "../hooks/useSettingsSection";
 import Feedback from "./Feedback";
 import { Toggle } from "./Toggle";
 
 export function SnapshotSettings() {
-	const [autoEnabled, setAutoEnabled] = useState(false);
-	const [pruneLimit, setPruneLimit] = useState(10);
-	const [savedAutoEnabled, setSavedAutoEnabled] = useState(false);
-	const [savedPruneLimit, setSavedPruneLimit] = useState(10);
-	const [loaded, setLoaded] = useState(false);
-	const { saving, feedback, run } = useAsyncAction();
+	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } =
+		useSettingsSection({ autoEnabled: false, pruneLimit: 10 });
 
 	useEffect(() => {
 		fetchSnapshots()
-			.then((data) => {
-				setAutoEnabled(data.auto_snapshot_enabled);
-				setPruneLimit(data.auto_snapshot_limit);
-				setSavedAutoEnabled(data.auto_snapshot_enabled);
-				setSavedPruneLimit(data.auto_snapshot_limit);
-				setLoaded(true);
-			})
-			.catch(() => setLoaded(true));
-	}, []);
-
-	const dirty = autoEnabled !== savedAutoEnabled || pruneLimit !== savedPruneLimit;
+			.then((data) =>
+				load({ autoEnabled: data.auto_snapshot_enabled, pruneLimit: data.auto_snapshot_limit }),
+			)
+			.catch(markLoaded);
+	}, [load, markLoaded]);
 
 	const handleSave = () =>
-		run(async () => {
+		save(async (v) => {
 			await updateSnapshotSettings({
-				auto_snapshot_enabled: autoEnabled,
-				auto_snapshot_limit: pruneLimit,
+				auto_snapshot_enabled: v.autoEnabled,
+				auto_snapshot_limit: v.pruneLimit,
 			});
-			setSavedAutoEnabled(autoEnabled);
-			setSavedPruneLimit(pruneLimit);
 			return "Saved";
 		});
 
@@ -45,21 +33,24 @@ export function SnapshotSettings() {
 			<div className="settings-toggle-row">
 				<span>Take snapshot before each config change</span>
 				<Toggle
-					checked={autoEnabled}
-					onChange={() => setAutoEnabled((v) => !v)}
+					checked={values.autoEnabled}
+					onChange={() => setValues((v) => ({ ...v, autoEnabled: !v.autoEnabled }))}
 					disabled={saving}
 				/>
 			</div>
-			{autoEnabled && (
+			{values.autoEnabled && (
 				<div className="snapshot-settings-limit">
 					<span>Keep last</span>
 					<input
 						type="number"
 						min={1}
 						max={100}
-						value={pruneLimit}
+						value={values.pruneLimit}
 						onChange={(e) =>
-							setPruneLimit(Math.min(100, Math.max(1, Number.parseInt(e.target.value, 10) || 1)))
+							setValues((v) => ({
+								...v,
+								pruneLimit: Math.min(100, Math.max(1, Number.parseInt(e.target.value, 10) || 1)),
+							}))
 						}
 						className="snapshot-limit-input"
 						disabled={saving}

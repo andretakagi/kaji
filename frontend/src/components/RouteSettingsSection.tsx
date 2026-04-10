@@ -7,46 +7,52 @@ import {
 	updateDNSProvider,
 	updateGlobalToggles,
 } from "../api";
-import { useAsyncAction } from "../hooks/useAsyncAction";
+import { useSettingsSection } from "../hooks/useSettingsSection";
 import type { GlobalToggles } from "../types/api";
 import Feedback from "./Feedback";
 
 export default function RouteSettingsSection() {
 	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
-	const [httpsValue, setHttpsValue] = useState<GlobalToggles["auto_https"]>("on");
-	const [acmeEmail, setAcmeEmail] = useState("");
-	const [initialAcmeEmail, setInitialAcmeEmail] = useState("");
-	const [dnsEnabled, setDnsEnabled] = useState(false);
-	const [dnsToken, setDnsToken] = useState("");
-	const [initialDnsEnabled, setInitialDnsEnabled] = useState(false);
-	const [initialDnsToken, setInitialDnsToken] = useState("");
 	const [dnsTokenTouched, setDnsTokenTouched] = useState(false);
-	const [loaded, setLoaded] = useState(false);
-	const { saving, feedback, run } = useAsyncAction();
+	const {
+		values,
+		setValues,
+		saved,
+		dirty: fieldsDirty,
+		loaded,
+		load,
+		save,
+		saving,
+		feedback,
+	} = useSettingsSection({
+		httpsValue: "on" as GlobalToggles["auto_https"],
+		acmeEmail: "",
+		dnsEnabled: false,
+		dnsToken: "",
+	});
 
 	useEffect(() => {
 		Promise.all([fetchGlobalToggles(), fetchACMEEmail(), fetchDNSProvider()]).then(
 			([toggles, acmeResult, dnsResult]) => {
 				setGlobalToggles(toggles);
-				setHttpsValue(toggles.auto_https);
-				setAcmeEmail(acmeResult.email);
-				setInitialAcmeEmail(acmeResult.email);
-				setDnsEnabled(dnsResult.enabled);
-				setInitialDnsEnabled(dnsResult.enabled);
-				setDnsToken(dnsResult.api_token ?? "");
-				setInitialDnsToken(dnsResult.api_token ?? "");
-				setLoaded(true);
+				load({
+					httpsValue: toggles.auto_https,
+					acmeEmail: acmeResult.email,
+					dnsEnabled: dnsResult.enabled,
+					dnsToken: dnsResult.api_token ?? "",
+				});
 			},
 		);
-	}, []);
+	}, [load]);
 
 	if (!loaded || !globalToggles) return null;
 
-	const httpsDirty = httpsValue !== globalToggles.auto_https;
-	const acmeDirty = acmeEmail !== initialAcmeEmail;
-	const dnsDirty = dnsEnabled !== initialDnsEnabled || (dnsTokenTouched && dnsToken !== "");
-	const dirty = httpsDirty || acmeDirty || dnsDirty;
-	const httpsOn = httpsValue !== "off";
+	const httpsDirty = values.httpsValue !== saved.httpsValue;
+	const acmeDirty = values.acmeEmail !== saved.acmeEmail;
+	const dnsDirty =
+		values.dnsEnabled !== saved.dnsEnabled || (dnsTokenTouched && values.dnsToken !== "");
+	const dirty = fieldsDirty || dnsDirty;
+	const httpsOn = values.httpsValue !== "off";
 
 	const descriptions: Record<GlobalToggles["auto_https"], string> = {
 		on: "Automatic certificates and HTTP-to-HTTPS redirects for all routes",
@@ -55,23 +61,20 @@ export default function RouteSettingsSection() {
 	};
 
 	const handleSave = () =>
-		run(async () => {
+		save(async (v) => {
 			if (httpsDirty) {
-				const updated = { ...globalToggles, auto_https: httpsValue };
+				const updated = { ...globalToggles, auto_https: v.httpsValue };
 				await updateGlobalToggles(updated);
 				setGlobalToggles(updated);
 			}
 			if (acmeDirty) {
-				await updateACMEEmail(acmeEmail);
-				setInitialAcmeEmail(acmeEmail);
+				await updateACMEEmail(v.acmeEmail);
 			}
 			if (dnsDirty) {
 				await updateDNSProvider({
-					enabled: dnsEnabled,
-					api_token: dnsTokenTouched ? dnsToken : undefined,
+					enabled: v.dnsEnabled,
+					api_token: dnsTokenTouched ? v.dnsToken : undefined,
 				});
-				setInitialDnsEnabled(dnsEnabled);
-				setInitialDnsToken(dnsToken || initialDnsToken);
 				setDnsTokenTouched(false);
 			}
 			return "Saved";
@@ -85,8 +88,8 @@ export default function RouteSettingsSection() {
 				<input
 					id="acme-email"
 					type="email"
-					value={acmeEmail}
-					onChange={(e) => setAcmeEmail(e.target.value)}
+					value={values.acmeEmail}
+					onChange={(e) => setValues((v) => ({ ...v, acmeEmail: e.target.value }))}
 					placeholder="you@example.com"
 					maxLength={254}
 					disabled={saving}
@@ -94,7 +97,7 @@ export default function RouteSettingsSection() {
 				<span className="settings-toggle-desc">
 					Email for Let's Encrypt certificate notifications
 				</span>
-				{httpsOn && !acmeEmail && !acmeDirty && (
+				{httpsOn && !values.acmeEmail && !acmeDirty && (
 					<span className="settings-toggle-desc warning">
 						No ACME email set - you won't receive certificate expiry warnings
 					</span>
@@ -105,23 +108,28 @@ export default function RouteSettingsSection() {
 				<label htmlFor="global-https">Auto HTTPS</label>
 				<select
 					id="global-https"
-					value={httpsValue}
-					onChange={(e) => setHttpsValue(e.target.value as GlobalToggles["auto_https"])}
+					value={values.httpsValue}
+					onChange={(e) =>
+						setValues((v) => ({
+							...v,
+							httpsValue: e.target.value as GlobalToggles["auto_https"],
+						}))
+					}
 					disabled={saving}
 				>
 					<option value="on">On</option>
 					<option value="off">Off</option>
 					<option value="disable_redirects">On without redirects</option>
 				</select>
-				<span className="settings-toggle-desc">{descriptions[httpsValue]}</span>
+				<span className="settings-toggle-desc">{descriptions[values.httpsValue]}</span>
 			</div>
 
 			<div className="settings-field settings-field-spaced">
 				<label className="toggle-label">
 					<input
 						type="checkbox"
-						checked={dnsEnabled}
-						onChange={(e) => setDnsEnabled(e.target.checked)}
+						checked={values.dnsEnabled}
+						onChange={(e) => setValues((v) => ({ ...v, dnsEnabled: e.target.checked }))}
 						disabled={saving}
 					/>
 					Cloudflare DNS challenge
@@ -129,22 +137,22 @@ export default function RouteSettingsSection() {
 				<span className="settings-toggle-desc">
 					Use DNS-01 challenges for wildcard certs and domains where HTTP-01 isn't viable
 				</span>
-				{dnsEnabled && (
+				{values.dnsEnabled && (
 					<input
 						type="password"
-						value={dnsTokenTouched ? dnsToken : initialDnsToken}
+						value={dnsTokenTouched ? values.dnsToken : saved.dnsToken}
 						onChange={(e) => {
-							setDnsToken(e.target.value);
+							setValues((v) => ({ ...v, dnsToken: e.target.value }));
 							setDnsTokenTouched(true);
 						}}
 						onFocus={() => {
 							if (!dnsTokenTouched) {
-								setDnsToken("");
+								setValues((v) => ({ ...v, dnsToken: "" }));
 								setDnsTokenTouched(true);
 							}
 						}}
 						onBlur={() => {
-							if (dnsTokenTouched && dnsToken === "") {
+							if (dnsTokenTouched && values.dnsToken === "") {
 								setDnsTokenTouched(false);
 							}
 						}}
@@ -154,7 +162,7 @@ export default function RouteSettingsSection() {
 						className="settings-field-nested"
 					/>
 				)}
-				{dnsEnabled && !acmeEmail && !acmeDirty && (
+				{values.dnsEnabled && !values.acmeEmail && !acmeDirty && (
 					<span className="settings-toggle-desc warning">
 						DNS challenge requires an ACME email - set one above
 					</span>
@@ -164,7 +172,7 @@ export default function RouteSettingsSection() {
 				<button
 					type="button"
 					className="btn btn-primary settings-save-btn"
-					disabled={saving || (acmeDirty && !acmeEmail)}
+					disabled={saving || (acmeDirty && !values.acmeEmail)}
 					onClick={handleSave}
 				>
 					{saving ? "Saving..." : "Save"}

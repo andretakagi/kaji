@@ -1,17 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { fetchGlobalToggles, updateGlobalToggles } from "../api";
-import { useAsyncAction } from "../hooks/useAsyncAction";
+import { useSettingsSection } from "../hooks/useSettingsSection";
 import type { GlobalToggles } from "../types/api";
 import Feedback from "./Feedback";
 import { Toggle } from "./Toggle";
 
 export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
-	const [prometheus, setPrometheus] = useState(false);
-	const [perHost, setPerHost] = useState(false);
-	const [savedPrometheus, setSavedPrometheus] = useState(false);
-	const [savedPerHost, setSavedPerHost] = useState(false);
-	const [loaded, setLoaded] = useState(false);
-	const { saving, feedback, run } = useAsyncAction();
+	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } =
+		useSettingsSection({ prometheus: false, perHost: false });
 	const togglesRef = useRef<GlobalToggles | null>(null);
 
 	useEffect(() => {
@@ -19,29 +15,21 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 		fetchGlobalToggles()
 			.then((t) => {
 				togglesRef.current = t;
-				setPrometheus(t.prometheus_metrics);
-				setPerHost(t.per_host_metrics);
-				setSavedPrometheus(t.prometheus_metrics);
-				setSavedPerHost(t.per_host_metrics);
-				setLoaded(true);
+				load({ prometheus: t.prometheus_metrics, perHost: t.per_host_metrics });
 			})
-			.catch(() => setLoaded(true));
-	}, [caddyRunning]);
-
-	const dirty = prometheus !== savedPrometheus || perHost !== savedPerHost;
+			.catch(markLoaded);
+	}, [caddyRunning, load, markLoaded]);
 
 	const handleSave = () =>
-		run(async () => {
+		save(async (v) => {
 			if (!togglesRef.current) throw new Error("Toggles not loaded");
 			const updated = {
 				...togglesRef.current,
-				prometheus_metrics: prometheus,
-				per_host_metrics: perHost,
+				prometheus_metrics: v.prometheus,
+				per_host_metrics: v.perHost,
 			};
 			await updateGlobalToggles(updated);
 			togglesRef.current = updated;
-			setSavedPrometheus(prometheus);
-			setSavedPerHost(perHost);
 			return "Saved";
 		});
 
@@ -63,10 +51,13 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 						inline
 						small
 						id="metrics-prometheus"
-						checked={prometheus}
+						checked={values.prometheus}
 						onChange={(checked) => {
-							setPrometheus(checked);
-							if (!checked) setPerHost(false);
+							setValues((v) => ({
+								...v,
+								prometheus: checked,
+								perHost: checked ? v.perHost : false,
+							}));
 						}}
 						disabled={saving}
 					/>
@@ -83,9 +74,9 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 						inline
 						small
 						id="metrics-per-host"
-						checked={perHost}
-						onChange={setPerHost}
-						disabled={saving || !prometheus}
+						checked={values.perHost}
+						onChange={(checked) => setValues((v) => ({ ...v, perHost: checked }))}
+						disabled={saving || !values.prometheus}
 					/>
 				</label>
 			</div>
