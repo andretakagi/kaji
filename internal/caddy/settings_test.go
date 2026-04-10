@@ -653,3 +653,407 @@ func TestSetConfigCascadeAllFail(t *testing.T) {
 		t.Fatal("expected error when all cascade levels fail")
 	}
 }
+
+func TestGetDNSProviderEnabled(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[{"issuers":[{"module":"acme","challenges":{"dns":{"provider":{"name":"cloudflare","api_token":"supersecrettoken"}}}}]}]`))
+	})
+	c := testClient(t, mux)
+	got, err := c.GetDNSProvider()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !got.Enabled {
+		t.Error("Enabled should be true")
+	}
+	if got.Provider != "cloudflare" {
+		t.Errorf("Provider = %q, want cloudflare", got.Provider)
+	}
+	// "supersecrettoken" is 16 chars, last 4 are "oken"
+	if got.APIToken != "************oken" {
+		t.Errorf("APIToken = %q, want masked with last 4 visible", got.APIToken)
+	}
+}
+
+func TestGetDNSProviderDisabled(t *testing.T) {
+	policies := []map[string]any{
+		{
+			"issuers": []map[string]any{
+				{"module": "acme", "email": "admin@example.com"},
+			},
+		},
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(policiesJSON(policies))
+	})
+	c := testClient(t, mux)
+	got, err := c.GetDNSProvider()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Enabled {
+		t.Error("Enabled should be false when no challenges block")
+	}
+}
+
+func TestGetDNSProviderNoPolicies(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("null"))
+	})
+	c := testClient(t, mux)
+	got, err := c.GetDNSProvider()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Enabled {
+		t.Error("Enabled should be false when no policies exist")
+	}
+}
+
+func TestSetDNSProviderEnable(t *testing.T) {
+	policies := []map[string]any{
+		{
+			"issuers": []map[string]any{
+				{"module": "acme", "email": "admin@example.com"},
+			},
+		},
+	}
+
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(policiesJSON(policies))
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			body, _ := io.ReadAll(r.Body)
+			captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.SetDNSProvider("mytoken", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(captured) == 0 {
+		t.Fatal("expected a PATCH request")
+	}
+	req := captured[0]
+	if !strings.HasSuffix(req.path, "/issuers") {
+		t.Errorf("PATCH path = %q, expected it to end with /issuers", req.path)
+	}
+	if !strings.Contains(string(req.body), "cloudflare") {
+		t.Errorf("PATCH body missing cloudflare: %s", req.body)
+	}
+	if !strings.Contains(string(req.body), "mytoken") {
+		t.Errorf("PATCH body missing mytoken: %s", req.body)
+	}
+}
+
+func TestSetDNSProviderDisable(t *testing.T) {
+	policies := []map[string]any{
+		{
+			"issuers": []map[string]any{
+				{
+					"module": "acme",
+					"challenges": map[string]any{
+						"dns": map[string]any{
+							"provider": map[string]any{
+								"name":      "cloudflare",
+								"api_token": "existingtoken",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(policiesJSON(policies))
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			body, _ := io.ReadAll(r.Body)
+			captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.SetDNSProvider("", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(captured) == 0 {
+		t.Fatal("expected a PATCH request")
+	}
+	body := string(captured[0].body)
+	if strings.Contains(body, "cloudflare") {
+		t.Errorf("PATCH body should not contain cloudflare when disabling: %s", body)
+	}
+}
+
+func TestSetDNSProviderBootstrap(t *testing.T) {
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("null"))
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			body, _ := io.ReadAll(r.Body)
+			captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.SetDNSProvider("newtoken", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(captured) == 0 {
+		t.Fatal("expected POST requests from cascade")
+	}
+	// At least one POST should contain the DNS provider config
+	var found bool
+	for _, req := range captured {
+		if strings.Contains(string(req.body), "cloudflare") && strings.Contains(string(req.body), "newtoken") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("no POST body contains cloudflare and newtoken")
+	}
+}
+
+func TestGetLoggingConfig(t *testing.T) {
+	want := `{"logs":{"default":{"level":"INFO"}}}`
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/logging", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(want))
+	})
+	c := testClient(t, mux)
+	got, err := c.GetLoggingConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got) != want {
+		t.Errorf("GetLoggingConfig() = %s, want %s", got, want)
+	}
+}
+
+func TestGetLoggingConfigMissing(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/logging", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("not found"))
+	})
+	c := testClient(t, mux)
+	_, err := c.GetLoggingConfig()
+	if err == nil {
+		t.Fatal("expected error for 404 response")
+	}
+}
+
+func TestSetLoggingConfig(t *testing.T) {
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /config/logging", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		w.WriteHeader(http.StatusOK)
+	})
+	c := testClient(t, mux)
+
+	payload := []byte(`{"logs":{"default":{"level":"DEBUG"}}}`)
+	err := c.SetLoggingConfig(payload)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(captured) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(captured))
+	}
+	if string(captured[0].body) != string(payload) {
+		t.Errorf("body = %s, want %s", captured[0].body, payload)
+	}
+}
+
+func TestSetLoggingConfigRejected(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /config/logging", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("invalid logging config"))
+	})
+	c := testClient(t, mux)
+
+	err := c.SetLoggingConfig([]byte(`{"bad":"config"}`))
+	if err == nil {
+		t.Fatal("expected error for 400 response")
+	}
+	if !strings.Contains(err.Error(), "rejected") {
+		t.Errorf("error = %q, want it to contain 'rejected'", err.Error())
+	}
+}
+
+func TestEnsureAccessLoggerCreates(t *testing.T) {
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/config/logging/logs/kaji_access", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("null"))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/config/logging/logs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.EnsureAccessLogger()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, req := range captured {
+		if req.method == http.MethodPost && strings.Contains(req.path, "kaji_access") {
+			found = true
+			if !strings.Contains(string(req.body), "discard") {
+				t.Errorf("POST body missing discard writer: %s", req.body)
+			}
+			if !strings.Contains(string(req.body), "http.log.access.*") {
+				t.Errorf("POST body missing include pattern: %s", req.body)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected POST to logging/logs/kaji_access")
+	}
+}
+
+func TestEnsureAccessLoggerExists(t *testing.T) {
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/config/logging/logs/kaji_access", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"writer":{"output":"stdout"},"include":["http.log.access.*"]}`))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			body, _ := io.ReadAll(r.Body)
+			captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.EnsureAccessLogger()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, req := range captured {
+		if req.method == http.MethodPost {
+			t.Errorf("unexpected POST to %s - logger already exists", req.path)
+		}
+	}
+}
+
+func TestEnsureDefaultLoggerCreates(t *testing.T) {
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/config/logging/logs/default", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("null"))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/config/logging/logs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.EnsureDefaultLogger()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found bool
+	for _, req := range captured {
+		if req.method == http.MethodPost && strings.Contains(req.path, "default") {
+			found = true
+			if !strings.Contains(string(req.body), `"level":"INFO"`) {
+				t.Errorf("POST body missing level INFO: %s", req.body)
+			}
+			if !strings.Contains(string(req.body), "console") {
+				t.Errorf("POST body missing console encoder: %s", req.body)
+			}
+			if !strings.Contains(string(req.body), "discard") {
+				t.Errorf("POST body missing discard writer: %s", req.body)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected POST to logging/logs/default")
+	}
+}

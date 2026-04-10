@@ -948,3 +948,494 @@ func TestHandleDisabledRoutes(t *testing.T) {
 		t.Errorf("expected 0 disabled routes, got %d", len(routes))
 	}
 }
+
+// --- Caddy service control tests ---
+
+func TestHandleCaddyStart(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/caddy/start", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("caddy start: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["status"] != "ok" {
+		t.Errorf("caddy start status = %q, want ok", resp["status"])
+	}
+}
+
+func TestHandleCaddyStop(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/caddy/stop", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("caddy stop: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["status"] != "ok" {
+		t.Errorf("caddy stop status = %q, want ok", resp["status"])
+	}
+}
+
+func TestHandleCaddyRestart(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/caddy/restart", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("caddy restart: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["status"] != "ok" {
+		t.Errorf("caddy restart status = %q, want ok", resp["status"])
+	}
+}
+
+// --- Route disable/enable tests ---
+
+func TestHandleRouteDisableAndEnable(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	createBody := `{"domain":"disable-test.com","upstream":"127.0.0.1:8080"}`
+	req := authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	routeID := caddy.GenerateRouteID("disable-test.com")
+
+	// Disable the route
+	disableBody := `{"@id":"` + routeID + `"}`
+	req = authedRequest(http.MethodPost, "/api/routes/disable", disableBody, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disable route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify it appears in the disabled list
+	req = authedRequest(http.MethodGet, "/api/routes/disabled", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disabled routes after disable: got %d, want 200", rec.Code)
+	}
+
+	var disabled []map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &disabled)
+	if len(disabled) != 1 {
+		t.Fatalf("expected 1 disabled route, got %d", len(disabled))
+	}
+
+	// Enable the route
+	enableBody := `{"@id":"` + routeID + `"}`
+	req = authedRequest(http.MethodPost, "/api/routes/enable", enableBody, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enable route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify disabled list is empty again
+	req = authedRequest(http.MethodGet, "/api/routes/disabled", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	var disabledAfter []any
+	json.Unmarshal(rec.Body.Bytes(), &disabledAfter)
+	if len(disabledAfter) != 0 {
+		t.Errorf("expected 0 disabled routes after enable, got %d", len(disabledAfter))
+	}
+}
+
+func TestHandleEnableRouteNotFound(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"@id":"kaji_nonexistent_com"}`
+	req := authedRequest(http.MethodPost, "/api/routes/enable", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("enable nonexistent route: got %d, want 404; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// --- Settings update tests ---
+
+func TestHandleGlobalTogglesUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Create a route first so the fake Caddy has a server in the config.
+	// SetGlobalToggles iterates over existing servers, so without one
+	// it's a no-op and the GET returns defaults.
+	createBody := `{"domain":"toggles-test.com","upstream":"127.0.0.1:8080"}`
+	req := authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	body := `{"auto_https":"off","prometheus_metrics":true,"per_host_metrics":false}`
+	req = authedRequest(http.MethodPut, "/api/settings/global-toggles", body, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("global toggles update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	req = authedRequest(http.MethodGet, "/api/settings/global-toggles", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("global toggles get after update: got %d, want 200", rec.Code)
+	}
+
+	var toggles map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &toggles)
+	if toggles["auto_https"] != "off" {
+		t.Errorf("auto_https = %v, want off", toggles["auto_https"])
+	}
+}
+
+func TestHandleGlobalTogglesUpdateInvalidAutoHTTPS(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"auto_https":"bogus"}`
+	req := authedRequest(http.MethodPut, "/api/settings/global-toggles", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid auto_https: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleACMEEmailUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"email":"test@example.com"}`
+	req := authedRequest(http.MethodPut, "/api/settings/acme-email", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("acme email update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleACMEEmailUpdateInvalid(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"email":"not-an-email"}`
+	req := authedRequest(http.MethodPut, "/api/settings/acme-email", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid email: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleAdvancedGetAndUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/settings/advanced", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("advanced get: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var getResp map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &getResp)
+	if _, ok := getResp["caddy_admin_url"]; !ok {
+		t.Fatal("advanced get response missing caddy_admin_url")
+	}
+
+	body := `{"caddy_admin_url":"http://localhost:2020"}`
+	req = authedRequest(http.MethodPut, "/api/settings/advanced", body, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("advanced update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	req = authedRequest(http.MethodGet, "/api/settings/advanced", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	json.Unmarshal(rec.Body.Bytes(), &getResp)
+	if getResp["caddy_admin_url"] != "http://localhost:2020" {
+		t.Errorf("caddy_admin_url = %q, want http://localhost:2020", getResp["caddy_admin_url"])
+	}
+}
+
+func TestHandleAdvancedUpdateInvalidURL(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"caddy_admin_url":"not a url"}`
+	req := authedRequest(http.MethodPut, "/api/settings/advanced", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid URL: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleDNSProviderGetAndUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"enabled":true,"api_token":"testtoken123"}`
+	req := authedRequest(http.MethodPut, "/api/settings/dns-provider", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dns provider update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	req = authedRequest(http.MethodGet, "/api/settings/dns-provider", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dns provider get: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["enabled"] != true {
+		t.Errorf("dns provider enabled = %v, want true", resp["enabled"])
+	}
+}
+
+// --- Config proxy and load tests ---
+
+func TestHandleConfigProxy(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/caddy/config", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("config proxy: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	if !json.Valid(rec.Body.Bytes()) {
+		t.Error("config proxy response is not valid JSON")
+	}
+}
+
+func TestHandleConfigLoad(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"apps":{}}`
+	req := authedRequest(http.MethodPost, "/api/caddy/load", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("config load: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleConfigLoadInvalidJSON(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/caddy/load", "not json", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid JSON load: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleUpstreams(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/caddy/upstreams", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("upstreams: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	if !json.Valid(rec.Body.Bytes()) {
+		t.Error("upstreams response is not valid JSON")
+	}
+
+	var arr []any
+	if err := json.Unmarshal(rec.Body.Bytes(), &arr); err != nil {
+		t.Errorf("upstreams response is not a JSON array: %v", err)
+	}
+}
+
+func TestHandleCaddyfileExport(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/caddyfile", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("caddyfile export: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse caddyfile response: %v", err)
+	}
+	if _, ok := resp["content"]; !ok {
+		t.Error("caddyfile response missing content field")
+	}
+}
+
+// --- Log tests ---
+
+func TestHandleLogsNoFile(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/logs", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("logs no file: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleLogConfigGet(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/logs/config", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("log config get: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse log config response: %v", err)
+	}
+	if _, ok := resp["logs"]; !ok {
+		t.Error("log config response missing logs field")
+	}
+}
+
+func TestHandleAccessDomains(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/logs/access-domains", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("access domains: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// --- Snapshot restore test ---
+
+func TestHandleSnapshotRestore(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/snapshots", `{"name":"restore-test"}`, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create snapshot: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var snap map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &snap)
+	snapID := snap["id"].(string)
+
+	req = authedRequest(http.MethodPost, "/api/snapshots/"+snapID+"/restore", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("snapshot restore: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["status"] != "ok" {
+		t.Errorf("snapshot restore status = %q, want ok", resp["status"])
+	}
+}
