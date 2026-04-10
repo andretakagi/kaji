@@ -3,6 +3,7 @@ import { changePassword, updateAuthEnabled } from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import Feedback from "./Feedback";
+import { Toggle } from "./Toggle";
 
 interface AuthSectionProps {
 	enabled: boolean;
@@ -97,10 +98,7 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 			<h3>Authentication</h3>
 			<div className="settings-toggle-row">
 				<span>Require password to access Kaji</span>
-				<label className="toggle-switch">
-					<input type="checkbox" checked={toggleValue} onChange={handleToggle} disabled={saving} />
-					<span className="toggle-slider" />
-				</label>
+				<Toggle checked={toggleValue} onChange={handleToggle} disabled={saving} />
 			</div>
 			{pendingDisable && (
 				<div className="auth-password-form">
@@ -140,6 +138,7 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 							id="auth-pw"
 							type="password"
 							autoComplete="new-password"
+							maxLength={512}
 							value={newPw}
 							onChange={(e) => setNewPw(e.target.value)}
 							required
@@ -151,6 +150,7 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 							id="auth-pw-confirm"
 							type="password"
 							autoComplete="new-password"
+							maxLength={512}
 							value={confirmPw}
 							onChange={(e) => setConfirmPw(e.target.value)}
 							required
@@ -186,6 +186,7 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 							id="pw-new"
 							type="password"
 							autoComplete="new-password"
+							maxLength={512}
 							value={cpNew}
 							onChange={(e) => setCpNew(e.target.value)}
 							required
@@ -197,6 +198,7 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 							id="pw-confirm"
 							type="password"
 							autoComplete="new-password"
+							maxLength={512}
 							value={cpConfirm}
 							onChange={(e) => setCpConfirm(e.target.value)}
 							required

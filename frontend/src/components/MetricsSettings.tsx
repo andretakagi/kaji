@@ -3,6 +3,7 @@ import { fetchGlobalToggles, updateGlobalToggles } from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { GlobalToggles } from "../types/api";
 import Feedback from "./Feedback";
+import { Toggle } from "./Toggle";
 
 export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 	const [prometheus, setPrometheus] = useState(false);
@@ -50,7 +51,7 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 		<section className="settings-section">
 			<h3>Metrics</h3>
 			<div className="settings-toggle-grid">
-				<label className="settings-toggle-item">
+				<label className="settings-toggle-item" htmlFor="metrics-prometheus">
 					<div className="settings-toggle-label">
 						<span>Prometheus metrics</span>
 						<span className="settings-toggle-desc">
@@ -58,20 +59,19 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 							percentiles, and other server stats for graphing in Grafana or similar tools.
 						</span>
 					</div>
-					<span className="toggle-switch small">
-						<input
-							type="checkbox"
-							checked={prometheus}
-							onChange={(e) => {
-								setPrometheus(e.target.checked);
-								if (!e.target.checked) setPerHost(false);
-							}}
-							disabled={saving}
-						/>
-						<span className="toggle-slider" />
-					</span>
+					<Toggle
+						inline
+						small
+						id="metrics-prometheus"
+						checked={prometheus}
+						onChange={(checked) => {
+							setPrometheus(checked);
+							if (!checked) setPerHost(false);
+						}}
+						disabled={saving}
+					/>
 				</label>
-				<label className="settings-toggle-item">
+				<label className="settings-toggle-item" htmlFor="metrics-per-host">
 					<div className="settings-toggle-label">
 						<span>Per-host metrics</span>
 						<span className="settings-toggle-desc">
@@ -79,15 +79,14 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 							per-site dashboards, but increases cardinality with many hosts.
 						</span>
 					</div>
-					<span className="toggle-switch small">
-						<input
-							type="checkbox"
-							checked={perHost}
-							onChange={(e) => setPerHost(e.target.checked)}
-							disabled={saving || !prometheus}
-						/>
-						<span className="toggle-slider" />
-					</span>
+					<Toggle
+						inline
+						small
+						id="metrics-per-host"
+						checked={perHost}
+						onChange={setPerHost}
+						disabled={saving || !prometheus}
+					/>
 				</label>
 			</div>
 			{dirty && (

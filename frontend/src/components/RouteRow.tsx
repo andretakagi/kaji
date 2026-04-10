@@ -4,6 +4,7 @@ import type { ParsedRoute, RouteToggles } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
+import { Toggle } from "./Toggle";
 import ToggleGrid from "./ToggleGrid";
 
 interface Props {
@@ -74,24 +75,25 @@ export default memo(
 
 		const title = (
 			<>
-				<span className="route-domain">{route.domain || "(no domain)"}</span>
+				<span className="route-domain" title={route.domain || undefined}>
+					{route.domain || "(no domain)"}
+				</span>
 				<span className="route-arrow">&rarr;</span>
-				<span className="route-upstream">{route.upstream || "(no upstream)"}</span>
+				<span className="route-upstream" title={route.upstream || undefined}>
+					{route.upstream || "(no upstream)"}
+				</span>
 			</>
 		);
 
 		const actions = (
 			<>
-				<label className="toggle-switch" title={route.disabled ? "Enable" : "Disable"}>
-					<input
-						type="checkbox"
-						checked={!route.disabled}
-						onChange={() => onToggleEnabled(route)}
-						disabled={!route.id || toggling}
-						aria-label={route.disabled ? "Enable route" : "Disable route"}
-					/>
-					<span className="toggle-slider" />
-				</label>
+				<Toggle
+					checked={!route.disabled}
+					onChange={() => onToggleEnabled(route)}
+					disabled={!route.id || toggling}
+					title={route.disabled ? "Enable" : "Disable"}
+					aria-label={route.disabled ? "Enable route" : "Disable route"}
+				/>
 
 				<ConfirmDeleteButton
 					onConfirm={() => onDelete(route.id)}

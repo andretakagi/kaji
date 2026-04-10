@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { fetchIPLists } from "../api";
 import type { IPList, RouteToggles } from "../types/api";
+import { Toggle } from "./Toggle";
 
 interface ToggleGridProps {
 	toggles: RouteToggles;
@@ -73,6 +74,7 @@ export default function ToggleGrid({
 							id={`cors-origins-${idPrefix}`}
 							type="text"
 							placeholder="* (all origins)"
+							maxLength={2000}
 							value={toggles.cors.allowed_origins.join(", ")}
 							onChange={(e) => {
 								const origins = e.target.value
@@ -105,6 +107,7 @@ export default function ToggleGrid({
 							id={`auth-user-${idPrefix}`}
 							type="text"
 							placeholder="admin"
+							maxLength={255}
 							value={toggles.basic_auth.username}
 							onChange={(e) =>
 								onUpdate("basic_auth", {
@@ -118,6 +121,7 @@ export default function ToggleGrid({
 							id={`auth-pass-${idPrefix}`}
 							type="password"
 							placeholder={isNew ? "required" : "(unchanged)"}
+							maxLength={512}
 							value={toggles.basic_auth.password}
 							onChange={(e) =>
 								onUpdate("basic_auth", {
@@ -164,6 +168,7 @@ export default function ToggleGrid({
 								id={`access-log-name-${idPrefix}`}
 								type="text"
 								placeholder="sink name"
+								maxLength={255}
 								value={toggles.access_log}
 								onChange={(e) => {
 									const sanitized = e.target.value.replace(/\s+/g, "_");
@@ -246,29 +251,25 @@ export default function ToggleGrid({
 				/>
 				{toggles.ip_filtering.enabled && (
 					<div className="toggle-detail">
-						<div className="ip-filter-type-row">
-							<label className="toggle-radio-option">
-								<input
-									type="radio"
-									name={`${idPrefix}-ip-filter-type`}
-									checked={toggles.ip_filtering.type === "blacklist"}
-									onChange={() =>
-										onUpdate("ip_filtering", { enabled: true, list_id: "", type: "blacklist" })
-									}
-								/>
-								<span>Blacklist</span>
-							</label>
-							<label className="toggle-radio-option">
-								<input
-									type="radio"
-									name={`${idPrefix}-ip-filter-type`}
-									checked={toggles.ip_filtering.type === "whitelist"}
-									onChange={() =>
-										onUpdate("ip_filtering", { enabled: true, list_id: "", type: "whitelist" })
-									}
-								/>
-								<span>Whitelist</span>
-							</label>
+						<div className="ip-list-type-toggle">
+							<button
+								type="button"
+								className={`type-toggle-btn${toggles.ip_filtering.type === "blacklist" ? " active" : ""}`}
+								onClick={() =>
+									onUpdate("ip_filtering", { enabled: true, list_id: "", type: "blacklist" })
+								}
+							>
+								Blacklist
+							</button>
+							<button
+								type="button"
+								className={`type-toggle-btn${toggles.ip_filtering.type === "whitelist" ? " active" : ""}`}
+								onClick={() =>
+									onUpdate("ip_filtering", { enabled: true, list_id: "", type: "whitelist" })
+								}
+							>
+								Whitelist
+							</button>
 						</div>
 						{toggles.ip_filtering.type && (
 							<select
@@ -310,21 +311,14 @@ function ToggleItem({
 	onChange: (v: boolean) => void;
 	disabled?: boolean;
 }) {
+	const id = useId();
 	return (
-		<label className={`toggle-item${disabled ? " toggle-item-disabled" : ""}`}>
+		<label className={`toggle-item${disabled ? " toggle-item-disabled" : ""}`} htmlFor={id}>
 			<div className="toggle-item-text">
 				<span className="toggle-item-label">{label}</span>
 				<span className="toggle-item-desc">{description}</span>
 			</div>
-			<div className="toggle-switch small">
-				<input
-					type="checkbox"
-					checked={checked}
-					onChange={(e) => onChange(e.target.checked)}
-					disabled={disabled}
-				/>
-				<span className="toggle-slider" />
-			</div>
+			<Toggle inline small id={id} checked={checked} onChange={onChange} disabled={disabled} />
 		</label>
 	);
 }
@@ -385,6 +379,7 @@ function UpstreamList({
 					<input
 						type="text"
 						placeholder="localhost:3001"
+						maxLength={260}
 						value={entry.value}
 						onChange={(e) => {
 							const next = [...entries];

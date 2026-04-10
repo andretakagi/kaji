@@ -6,6 +6,7 @@ import {
 	type GlobalToggles,
 } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { Toggle } from "./Toggle";
 
 const STEP_LABELS = ["Auth", "Import", "ACME Email"];
 
@@ -214,14 +215,10 @@ function StepAuth({
 			<div className="setup-auth-toggle">
 				<div className="setup-toggle-row">
 					<span>Require password</span>
-					<label className="toggle-switch">
-						<input
-							type="checkbox"
-							checked={data.authEnabled}
-							onChange={() => update("authEnabled", !data.authEnabled)}
-						/>
-						<span className="toggle-slider" />
-					</label>
+					<Toggle
+						checked={data.authEnabled}
+						onChange={() => update("authEnabled", !data.authEnabled)}
+					/>
 				</div>
 				{!data.authEnabled && (
 					<div className="field-hint">You can enable authentication later from Settings.</div>
@@ -236,6 +233,8 @@ function StepAuth({
 							id="setup-password"
 							type="password"
 							autoComplete="new-password"
+							minLength={8}
+							maxLength={512}
 							value={data.password}
 							onChange={(e) => update("password", e.target.value)}
 							placeholder="Choose a password"
@@ -247,6 +246,8 @@ function StepAuth({
 							id="setup-confirm"
 							type="password"
 							autoComplete="new-password"
+							minLength={8}
+							maxLength={512}
 							value={data.confirmPassword}
 							onChange={(e) => update("confirmPassword", e.target.value)}
 							placeholder="Repeat your password"
@@ -421,6 +422,7 @@ function StepACME({
 					value={data.acmeEmail}
 					onChange={(e) => update("acmeEmail", e.target.value)}
 					placeholder="you@example.com"
+					maxLength={254}
 				/>
 				<div className="field-hint">
 					Used by Let's Encrypt for certificate expiry notices and account recovery.

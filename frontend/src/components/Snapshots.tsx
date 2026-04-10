@@ -10,6 +10,7 @@ import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { SnapshotIndex } from "../types/snapshots";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import Feedback from "./Feedback";
+import { Toggle } from "./Toggle";
 
 function formatSnapshotTime(iso: string): string {
 	const d = new Date(iso);
@@ -137,12 +138,7 @@ export default function Snapshots() {
 		return (
 			<div className="empty-state">
 				<p>{error}</p>
-				<button
-					type="button"
-					className="btn btn-primary"
-					onClick={load}
-					style={{ marginTop: "0.75rem" }}
-				>
+				<button type="button" className="btn btn-primary" onClick={load}>
 					Retry
 				</button>
 			</div>
@@ -161,15 +157,11 @@ export default function Snapshots() {
 				<h3>Snapshot Settings</h3>
 				<div className="settings-toggle-row">
 					<span>Take snapshot before each config change</span>
-					<label className="toggle-switch">
-						<input
-							type="checkbox"
-							checked={autoEnabled}
-							onChange={() => setAutoEnabled((v) => !v)}
-							disabled={settingsAction.saving}
-						/>
-						<span className="toggle-slider" />
-					</label>
+					<Toggle
+						checked={autoEnabled}
+						onChange={() => setAutoEnabled((v) => !v)}
+						disabled={settingsAction.saving}
+					/>
 				</div>
 				{autoEnabled && (
 					<div className="snapshot-settings-limit">
@@ -179,7 +171,9 @@ export default function Snapshots() {
 							min={1}
 							max={100}
 							value={pruneLimit}
-							onChange={(e) => setPruneLimit(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
+							onChange={(e) =>
+								setPruneLimit(Math.min(100, Math.max(1, Number.parseInt(e.target.value, 10) || 1)))
+							}
 							className="snapshot-limit-input"
 							disabled={settingsAction.saving}
 						/>
@@ -210,6 +204,7 @@ export default function Snapshots() {
 								value={createName}
 								onChange={(e) => setCreateName(e.target.value)}
 								placeholder="Snapshot name"
+								maxLength={255}
 								disabled={createAction.saving}
 							/>
 						</div>
@@ -221,6 +216,7 @@ export default function Snapshots() {
 								onChange={(e) => setCreateDesc(e.target.value)}
 								placeholder="Optional description"
 								rows={2}
+								maxLength={1000}
 								disabled={createAction.saving}
 							/>
 						</div>
@@ -268,7 +264,9 @@ export default function Snapshots() {
 						return (
 							<div className={`snapshot-card${isCurrent ? " snapshot-current" : ""}`} key={s.id}>
 								<div className="snapshot-header">
-									<span className="snapshot-name">{s.name}</span>
+									<span className="snapshot-name" title={s.name}>
+										{s.name}
+									</span>
 									<span className={`snapshot-badge ${s.type}`}>{s.type}</span>
 									{isCurrent && <span className="snapshot-badge active">current</span>}
 									<span className="snapshot-time">{formatSnapshotTime(s.created_at)}</span>

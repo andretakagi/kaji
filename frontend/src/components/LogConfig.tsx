@@ -7,6 +7,7 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { SectionHeader } from "./SectionHeader";
+import { Toggle } from "./Toggle";
 
 const NS_PER_DAY = 24 * 3600 * 1e9;
 
@@ -127,6 +128,7 @@ function LogSinkEditor({
 								id={`${name}-filepath`}
 								type="text"
 								placeholder="access.log"
+								maxLength={255}
 								value={sink.writer?.filename ?? ""}
 								onChange={(e) => updateWriter({ filename: e.target.value })}
 							/>
@@ -164,9 +166,12 @@ function LogSinkEditor({
 										id={`${name}-roll-size`}
 										type="number"
 										min={1}
+										max={10240}
 										value={sink.writer?.roll_size_mb ?? 100}
 										onChange={(e) =>
-											updateWriter({ roll_size_mb: Math.max(1, Number(e.target.value) || 1) })
+											updateWriter({
+												roll_size_mb: Math.min(10240, Math.max(1, Number(e.target.value) || 1)),
+											})
 										}
 									/>
 								</div>
@@ -176,9 +181,12 @@ function LogSinkEditor({
 										id={`${name}-roll-keep`}
 										type="number"
 										min={1}
+										max={1000}
 										value={sink.writer?.roll_keep ?? 5}
 										onChange={(e) =>
-											updateWriter({ roll_keep: Math.max(1, Number(e.target.value) || 1) })
+											updateWriter({
+												roll_keep: Math.min(1000, Math.max(1, Number(e.target.value) || 1)),
+											})
 										}
 									/>
 								</div>
@@ -188,10 +196,12 @@ function LogSinkEditor({
 										id={`${name}-roll-days`}
 										type="number"
 										min={1}
+										max={3650}
 										value={Math.round((sink.writer?.roll_keep_for ?? 30 * NS_PER_DAY) / NS_PER_DAY)}
 										onChange={(e) =>
 											updateWriter({
-												roll_keep_for: Math.max(1, Number(e.target.value) || 1) * NS_PER_DAY,
+												roll_keep_for:
+													Math.min(3650, Math.max(1, Number(e.target.value) || 1)) * NS_PER_DAY,
 											})
 										}
 									/>
@@ -260,20 +270,12 @@ const LogConfigCard = memo(function LogConfigCard({
 
 	const actions =
 		isDefault || isAccessLog ? (
-			<label
-				className="toggle-switch small"
-				onClick={(e) => e.stopPropagation()}
-				onKeyDown={(e) => e.stopPropagation()}
-			>
-				<input
-					type="checkbox"
-					checked={!isDiscard}
-					onChange={(e) =>
-						isAccessLog ? handleAccessToggle(e.target.checked) : onToggle?.(e.target.checked)
-					}
-				/>
-				<span className="toggle-slider" />
-			</label>
+			<Toggle
+				small
+				stopPropagation
+				checked={!isDiscard}
+				onChange={(checked) => (isAccessLog ? handleAccessToggle(checked) : onToggle?.(checked))}
+			/>
 		) : (
 			<ConfirmDeleteButton
 				onConfirm={async () => {
