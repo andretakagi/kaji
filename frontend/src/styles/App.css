@@ -2931,11 +2931,6 @@ input:disabled + .toggle-slider {
 	gap: 0.375rem;
 }
 
-.confirm-inline-label {
-	font-size: 0.75rem;
-	color: var(--text-muted);
-}
-
 .snapshot-edit-form {
 	display: flex;
 	flex-direction: column;

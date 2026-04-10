@@ -4,6 +4,7 @@ import { formatTime } from "../formatTime";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { SnapshotIndex } from "../types/snapshots";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { ConfirmActionButton } from "./ConfirmActionButton";
 import Feedback from "./Feedback";
 
 function defaultSnapshotName(): string {
@@ -23,12 +24,7 @@ export default function Snapshots() {
 	const [createDesc, setCreateDesc] = useState("");
 	const createAction = useAsyncAction();
 
-	// Restore
-	const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null);
 	const restoreAction = useAsyncAction();
-
-	// Delete
-	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 	const deleteAction = useAsyncAction();
 
 	const load = useCallback(async () => {
@@ -61,7 +57,6 @@ export default function Snapshots() {
 	const handleRestore = (id: string) =>
 		restoreAction.run(async () => {
 			await restoreSnapshot(id);
-			setConfirmRestoreId(null);
 			await load();
 			return "Snapshot restored";
 		});
@@ -69,7 +64,6 @@ export default function Snapshots() {
 	const handleDelete = (id: string) =>
 		deleteAction.run(async () => {
 			await deleteSnapshot(id);
-			setConfirmDeleteId(null);
 			await load();
 			return "Snapshot deleted";
 		});
@@ -169,8 +163,6 @@ export default function Snapshots() {
 				<div className="snapshot-list">
 					{sorted.map((s) => {
 						const isCurrent = s.id === currentId;
-						const isConfirmingRestore = confirmRestoreId === s.id;
-						const isConfirmingDelete = confirmDeleteId === s.id;
 
 						return (
 							<div className={`snapshot-card${isCurrent ? " snapshot-current" : ""}`} key={s.id}>
@@ -184,65 +176,24 @@ export default function Snapshots() {
 								</div>
 								{s.description && <p className="snapshot-desc">{s.description}</p>}
 								<div className="snapshot-row-actions">
-									{isConfirmingRestore ? (
-										<span className="confirm-inline">
-											<span className="confirm-inline-label">Restore this snapshot?</span>
-											<button
-												type="button"
-												className="btn btn-primary btn-sm"
-												disabled={restoreAction.saving}
-												onClick={() => handleRestore(s.id)}
-											>
-												{restoreAction.saving ? "Restoring..." : "Yes"}
-											</button>
-											<button
-												type="button"
-												className="btn btn-ghost btn-sm"
-												onClick={() => setConfirmRestoreId(null)}
-											>
-												Cancel
-											</button>
-										</span>
-									) : (
-										<button
-											type="button"
-											className="btn btn-ghost btn-sm"
-											disabled={isCurrent}
-											onClick={() => setConfirmRestoreId(s.id)}
-										>
-											Restore
-										</button>
-									)}
-
-									{isConfirmingDelete ? (
-										<span className="confirm-inline">
-											<span className="confirm-inline-label">Delete?</span>
-											<button
-												type="button"
-												className="btn btn-danger btn-sm"
-												disabled={deleteAction.saving}
-												onClick={() => handleDelete(s.id)}
-											>
-												{deleteAction.saving ? "Deleting..." : "Yes"}
-											</button>
-											<button
-												type="button"
-												className="btn btn-ghost btn-sm"
-												onClick={() => setConfirmDeleteId(null)}
-											>
-												Cancel
-											</button>
-										</span>
-									) : (
-										<button
-											type="button"
-											className="btn btn-danger btn-sm"
-											disabled={isCurrent}
-											onClick={() => setConfirmDeleteId(s.id)}
-										>
-											Delete
-										</button>
-									)}
+									<ConfirmActionButton
+										onConfirm={() => handleRestore(s.id)}
+										trigger="Restore"
+										confirmLabel="Yes"
+										confirmingLabel="Restoring..."
+										variant="primary"
+										disabled={isCurrent}
+										acting={restoreAction.saving}
+									/>
+									<ConfirmActionButton
+										onConfirm={() => handleDelete(s.id)}
+										trigger="Delete"
+										confirmLabel="Yes"
+										confirmingLabel="Deleting..."
+										variant="danger"
+										disabled={isCurrent}
+										acting={deleteAction.saving}
+									/>
 								</div>
 							</div>
 						);
