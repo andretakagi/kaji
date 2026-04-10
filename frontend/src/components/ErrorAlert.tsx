@@ -1,3 +1,5 @@
+import { cn } from "../cn";
+
 interface ErrorAlertProps {
 	message: string | null;
 	onDismiss: () => void;
@@ -7,7 +9,7 @@ interface ErrorAlertProps {
 export function ErrorAlert({ message, onDismiss, className }: ErrorAlertProps) {
 	if (!message) return null;
 	return (
-		<div className={`alert-error${className ? ` ${className}` : ""}`} role="alert">
+		<div className={cn("alert-error", className)} role="alert">
 			{message}
 			<button type="button" onClick={onDismiss}>
 				Dismiss

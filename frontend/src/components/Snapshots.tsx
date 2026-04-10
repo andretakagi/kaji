@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createSnapshot, deleteSnapshot, fetchSnapshots, restoreSnapshot } from "../api";
+import { cn } from "../cn";
 import { formatTime } from "../formatTime";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { SnapshotIndex } from "../types/snapshots";
@@ -166,7 +167,7 @@ export default function Snapshots() {
 						const isCurrent = s.id === currentId;
 
 						return (
-							<div className={`snapshot-card${isCurrent ? " snapshot-current" : ""}`} key={s.id}>
+							<div className={cn("snapshot-card", isCurrent && "snapshot-current")} key={s.id}>
 								<div className="snapshot-header">
 									<span className="snapshot-name" title={s.name}>
 										{s.name}

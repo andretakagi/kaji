@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchConfig, fetchLogs } from "../api";
+import { cn } from "../cn";
 import { formatTime } from "../formatTime";
 import { usePolledEffect } from "../hooks/usePolledData";
 import type { CaddyLogEntry, LogQueryParams } from "../types/logs";
@@ -200,7 +201,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 						type="button"
 						role="tab"
 						aria-selected={!streaming}
-						className={`logs-mode-tab ${!streaming ? "active" : ""}`}
+						className={cn("logs-mode-tab", !streaming && "active")}
 						onClick={() => {
 							if (streaming) {
 								setStreaming(false);
@@ -215,7 +216,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 						type="button"
 						role="tab"
 						aria-selected={streaming}
-						className={`logs-mode-tab ${streaming ? "active" : ""}`}
+						className={cn("logs-mode-tab", streaming && "active")}
 						onClick={() => {
 							if (!streaming) {
 								setStreaming(true);

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { cn } from "../cn";
 
 interface ConfirmActionButtonProps {
 	onConfirm: () => void | Promise<void>;
@@ -48,7 +49,7 @@ export function ConfirmActionButton({
 
 	if (confirming) {
 		return (
-			<span className={`confirm-inline ${className ?? ""}`}>
+			<span className={cn("confirm-inline", className)}>
 				<button
 					type="button"
 					className={`btn btn-${variant} btn-sm`}
@@ -67,7 +68,7 @@ export function ConfirmActionButton({
 	return (
 		<button
 			type="button"
-			className={`btn btn-${variant} btn-sm ${className ?? ""}`}
+			className={cn("btn", `btn-${variant}`, "btn-sm", className)}
 			onClick={() => setConfirming(true)}
 			disabled={disabled}
 		>

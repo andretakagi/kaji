@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from "react";
+import { cn } from "../cn";
 
 interface Props {
 	title: ReactNode;
@@ -23,7 +24,7 @@ export default function CollapsibleCard({
 	const isExpanded = expanded || !!forceExpanded;
 
 	return (
-		<div className={`card ${disabled ? "card-disabled" : ""}`}>
+		<div className={cn("card", disabled && "card-disabled")}>
 			<div className="card-header">
 				<button
 					type="button"
@@ -32,13 +33,13 @@ export default function CollapsibleCard({
 					aria-label={ariaLabel ?? (isExpanded ? "Collapse" : "Expand")}
 					onClick={() => setExpanded(!isExpanded)}
 				>
-					<span className={`chevron ${isExpanded ? "open" : ""}`} />
+					<span className={cn("chevron", isExpanded && "open")} />
 					<div className="card-title">{title}</div>
 				</button>
 				{actions && <div className="card-actions">{actions}</div>}
 			</div>
 			<div
-				className={`card-body-wrapper${isExpanded ? " expanded" : ""}`}
+				className={cn("card-body-wrapper", isExpanded && "expanded")}
 				aria-hidden={!isExpanded || undefined}
 				{...(disabled ? { inert: true } : {})}
 			>

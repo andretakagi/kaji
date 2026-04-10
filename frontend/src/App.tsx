@@ -10,6 +10,7 @@ import {
 	startCaddy,
 	stopCaddy,
 } from "./api";
+import { cn } from "./cn";
 import { ErrorAlert } from "./components/ErrorAlert";
 import IPLists from "./components/IPLists";
 import Login from "./components/Login";
@@ -210,11 +211,11 @@ function App() {
 						<div className="status-widget">
 							<span className="status-widget-caddy">Caddy</span>
 							<span
-								className={`status-beacon ${running ? "running" : "stopped"}`}
+								className={cn("status-beacon", running ? "running" : "stopped")}
 								role="status"
 								aria-label={`Caddy is ${running ? "running" : "stopped"}`}
 							/>
-							<span className={`status-label ${running ? "running" : "stopped"}`}>
+							<span className={cn("status-label", running ? "running" : "stopped")}>
 								{running ? "Running" : "Stopped"}
 							</span>
 							<div className="status-widget-actions">

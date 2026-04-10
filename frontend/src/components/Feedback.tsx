@@ -1,3 +1,5 @@
+import { cn } from "../cn";
+
 function Feedback({
 	msg,
 	type,
@@ -9,10 +11,7 @@ function Feedback({
 }) {
 	if (!msg) return null;
 	return (
-		<div
-			className={`feedback ${type}${className ? ` ${className}` : ""}`}
-			role={type === "error" ? "alert" : "status"}
-		>
+		<div className={cn("feedback", type, className)} role={type === "error" ? "alert" : "status"}>
 			{msg}
 		</div>
 	);

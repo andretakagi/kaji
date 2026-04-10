@@ -8,6 +8,7 @@ import {
 	revokeAPIKey,
 	updateAdvancedSettings,
 } from "../api";
+import { cn } from "../cn";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import AuthSection from "./AuthSection";
@@ -37,7 +38,7 @@ function AppearanceSection() {
 				<div className="theme-switcher">
 					<button
 						type="button"
-						className={`theme-pill${theme === "dark" ? " active" : ""}`}
+						className={cn("theme-pill", theme === "dark" && "active")}
 						onClick={() => applyTheme("dark")}
 						aria-pressed={theme === "dark"}
 					>
@@ -45,7 +46,7 @@ function AppearanceSection() {
 					</button>
 					<button
 						type="button"
-						className={`theme-pill${theme === "light" ? " active" : ""}`}
+						className={cn("theme-pill", theme === "light" && "active")}
 						onClick={() => applyTheme("light")}
 						aria-pressed={theme === "light"}
 					>

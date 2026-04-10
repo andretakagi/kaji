@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "../cn";
 
 interface AutocompleteProps {
 	id?: string;
@@ -119,7 +120,7 @@ export default function Autocomplete({
 							role="option"
 							tabIndex={-1}
 							aria-selected={i === activeIndex}
-							className={`autocomplete-item${i === activeIndex ? " active" : ""}`}
+							className={cn("autocomplete-item", i === activeIndex && "active")}
 							onClick={() => handleSelect(option)}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" || e.key === " ") {

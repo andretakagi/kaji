@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createIPList, fetchIPLists } from "../api";
+import { cn } from "../cn";
 import { usePolledData } from "../hooks/usePolledData";
 import type { IPList } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
@@ -144,7 +145,7 @@ export default function IPLists() {
 					<div className="ip-list-type-toggle">
 						<button
 							type="button"
-							className={`type-toggle-btn${newType === "blacklist" ? " active" : ""}`}
+							className={cn("type-toggle-btn", newType === "blacklist" && "active")}
 							onClick={() => {
 								setNewType("blacklist");
 								setNewChildren([]);
@@ -155,7 +156,7 @@ export default function IPLists() {
 						</button>
 						<button
 							type="button"
-							className={`type-toggle-btn${newType === "whitelist" ? " active" : ""}`}
+							className={cn("type-toggle-btn", newType === "whitelist" && "active")}
 							onClick={() => {
 								setNewType("whitelist");
 								setNewChildren([]);

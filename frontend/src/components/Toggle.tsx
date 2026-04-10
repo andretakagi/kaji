@@ -1,3 +1,5 @@
+import { cn } from "../cn";
+
 interface ToggleProps {
 	checked: boolean;
 	onChange: (checked: boolean) => void;
@@ -27,7 +29,7 @@ export function Toggle({
 		? (e: React.KeyboardEvent) => e.stopPropagation()
 		: undefined;
 
-	const className = `toggle-switch${small ? " small" : ""}`;
+	const className = cn("toggle-switch", small && "small");
 
 	if (inline) {
 		return (
