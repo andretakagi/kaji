@@ -188,7 +188,18 @@ export default function IPLists() {
 											onClick={() => setNewIps((prev) => prev.filter((x) => x !== ip))}
 											aria-label={`Remove ${ip}`}
 										>
-											x
+											<svg
+												width="8"
+												height="8"
+												viewBox="0 0 8 8"
+												fill="none"
+												stroke="currentColor"
+												strokeWidth="1.5"
+												strokeLinecap="round"
+												aria-hidden="true"
+											>
+												<path d="M1 1l6 6M7 1L1 7" />
+											</svg>
 										</button>
 									</span>
 								))}
@@ -238,7 +249,18 @@ export default function IPLists() {
 												onClick={() => setNewChildren((prev) => prev.filter((x) => x !== cid))}
 												aria-label={`Remove ${child?.name ?? cid}`}
 											>
-												x
+												<svg
+													width="8"
+													height="8"
+													viewBox="0 0 8 8"
+													fill="none"
+													stroke="currentColor"
+													strokeWidth="1.5"
+													strokeLinecap="round"
+													aria-hidden="true"
+												>
+													<path d="M1 1l6 6M7 1L1 7" />
+												</svg>
 											</button>
 										</span>
 									);
@@ -265,7 +287,11 @@ export default function IPLists() {
 						)}
 					</div>
 
-					{createError && <span className="ip-list-error">{createError}</span>}
+					{createError && (
+						<div className="inline-error" role="alert">
+							{createError}
+						</div>
+					)}
 					<button type="submit" className="btn btn-primary submit-btn" disabled={creating}>
 						{creating ? "Creating..." : "Create"}
 					</button>

@@ -23,6 +23,7 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
+	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [deleting, setDeleting] = useState(false);
 
 	const [usage, setUsage] = useState<IPListUsage | null>(null);
@@ -104,15 +105,17 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 		setIpInput("");
 		setIpError(null);
 		setSaveError(null);
+		setDeleteError(null);
 	}
 
 	async function handleDelete() {
 		setDeleting(true);
+		setDeleteError(null);
 		try {
 			await deleteIPList(list.id);
 			onDeleted(list.id);
 		} catch (err) {
-			setSaveError(getErrorMessage(err, "Failed to delete"));
+			setDeleteError(getErrorMessage(err, "Failed to delete"));
 			setDeleting(false);
 		}
 	}
@@ -143,6 +146,11 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 	return (
 		<CollapsibleCard title={title} actions={actions} ariaLabel={list.name}>
 			<div className="ip-list-detail">
+				{deleteError && (
+					<div className="inline-error" role="alert">
+						{deleteError}
+					</div>
+				)}
 				{list.description && <p className="ip-list-description">{list.description}</p>}
 
 				<div className="ip-list-section">
@@ -158,7 +166,18 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 								<span key={ip} className="ip-chip">
 									{ip}
 									<button type="button" onClick={() => removeIp(ip)} aria-label={`Remove ${ip}`}>
-										x
+										<svg
+											width="8"
+											height="8"
+											viewBox="0 0 8 8"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="1.5"
+											strokeLinecap="round"
+											aria-hidden="true"
+										>
+											<path d="M1 1l6 6M7 1L1 7" />
+										</svg>
 									</button>
 								</span>
 							))}
@@ -204,7 +223,18 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 											onClick={() => removeChild(cid)}
 											aria-label={`Remove ${child?.name ?? cid}`}
 										>
-											x
+											<svg
+												width="8"
+												height="8"
+												viewBox="0 0 8 8"
+												fill="none"
+												stroke="currentColor"
+												strokeWidth="1.5"
+												strokeLinecap="round"
+												aria-hidden="true"
+											>
+												<path d="M1 1l6 6M7 1L1 7" />
+											</svg>
 										</button>
 									</span>
 								);
