@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"time"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
@@ -33,7 +34,13 @@ func handleStart(mgr system.CaddyManager, cc *caddy.Client, store *config.Config
 			writeError(w, "failed to start caddy", http.StatusInternalServerError)
 			return
 		}
+		if err := cc.WaitReady(10 * time.Second); err != nil {
+			log.Printf("handleStart: caddy started but admin API not ready: %v", err)
+			writeError(w, "caddy process started but admin API is not responding", http.StatusBadGateway)
+			return
+		}
 		loadSavedCaddyConfig(cc, store)
+		ensureLoggers(cc)
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }
@@ -56,7 +63,13 @@ func handleRestart(mgr system.CaddyManager, cc *caddy.Client, store *config.Conf
 			writeError(w, "failed to restart caddy", http.StatusInternalServerError)
 			return
 		}
+		if err := cc.WaitReady(10 * time.Second); err != nil {
+			log.Printf("handleRestart: caddy restarted but admin API not ready: %v", err)
+			writeError(w, "caddy process restarted but admin API is not responding", http.StatusBadGateway)
+			return
+		}
 		loadSavedCaddyConfig(cc, store)
+		ensureLoggers(cc)
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }

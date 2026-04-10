@@ -77,38 +77,43 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
 		}
 
 		var warnings []string
+		caddyUp := cc.IsReachable()
 
-		if len(req.CaddyfileJSON) > 0 {
-			if err := cc.LoadConfig(req.CaddyfileJSON); err != nil {
-				log.Printf("handleSetup: load caddyfile config: %v", err)
-				warnings = append(warnings, "failed to load Caddyfile config: "+err.Error())
+		if caddyUp {
+			if len(req.CaddyfileJSON) > 0 {
+				if err := cc.LoadConfig(req.CaddyfileJSON); err != nil {
+					log.Printf("handleSetup: load caddyfile config: %v", err)
+					warnings = append(warnings, "failed to load Caddyfile config: "+err.Error())
+				}
 			}
-		}
 
-		if req.ACMEEmail != "" {
-			if err := cc.SetACMEEmail(req.ACMEEmail); err != nil {
-				log.Printf("handleSetup: set ACME email: %v", err)
-				warnings = append(warnings, "failed to set ACME email: "+err.Error())
+			if req.ACMEEmail != "" {
+				if err := cc.SetACMEEmail(req.ACMEEmail); err != nil {
+					log.Printf("handleSetup: set ACME email: %v", err)
+					warnings = append(warnings, "failed to set ACME email: "+err.Error())
+				}
 			}
-		}
-		if req.GlobalToggles != nil {
-			if err := cc.SetGlobalToggles(req.GlobalToggles); err != nil {
-				log.Printf("handleSetup: set global toggles: %v", err)
-				warnings = append(warnings, "failed to set global toggles: "+err.Error())
+			if req.GlobalToggles != nil {
+				if err := cc.SetGlobalToggles(req.GlobalToggles); err != nil {
+					log.Printf("handleSetup: set global toggles: %v", err)
+					warnings = append(warnings, "failed to set global toggles: "+err.Error())
+				}
 			}
-		}
 
-		if err := cc.EnsureDefaultLogger(); err != nil {
-			log.Printf("handleSetup: ensure default logger: %v", err)
-			warnings = append(warnings, "failed to initialize default logger: "+err.Error())
-		}
+			if err := cc.EnsureDefaultLogger(); err != nil {
+				log.Printf("handleSetup: ensure default logger: %v", err)
+				warnings = append(warnings, "failed to initialize default logger: "+err.Error())
+			}
 
-		if err := cc.EnsureAccessLogger(); err != nil {
-			log.Printf("handleSetup: ensure access logger: %v", err)
-			warnings = append(warnings, "failed to initialize access logger: "+err.Error())
-		}
+			if err := cc.EnsureAccessLogger(); err != nil {
+				log.Printf("handleSetup: ensure access logger: %v", err)
+				warnings = append(warnings, "failed to initialize access logger: "+err.Error())
+			}
 
-		persistCaddyConfig(cc, store)
+			persistCaddyConfig(cc, store)
+		} else {
+			log.Println("handleSetup: Caddy not reachable, skipping proxy configuration")
+		}
 
 		if newCfg.AuthEnabled {
 			token, err := auth.GenerateSessionToken()

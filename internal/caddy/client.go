@@ -59,6 +59,28 @@ func (c *Client) url() string {
 	return strings.TrimRight(u, "/")
 }
 
+func (c *Client) IsReachable() bool {
+	resp, err := c.httpClient.Get(c.url() + "/config/")
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return true
+}
+
+// WaitReady polls Caddy's admin API until it responds or the timeout is
+// reached. Returns nil once Caddy is reachable, or an error after timeout.
+func (c *Client) WaitReady(timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if c.IsReachable() {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("caddy admin API at %s not reachable after %s", c.url(), timeout)
+}
+
 func (c *Client) doGet(rawURL string) ([]byte, error) {
 	resp, err := c.httpClient.Get(rawURL)
 	if err != nil {

@@ -119,6 +119,15 @@ func loadSavedCaddyConfig(cc *caddy.Client, store *config.ConfigStore) {
 	}
 }
 
+func ensureLoggers(cc *caddy.Client) {
+	if err := cc.EnsureDefaultLogger(); err != nil {
+		log.Printf("ensureLoggers: default: %v", err)
+	}
+	if err := cc.EnsureAccessLogger(); err != nil {
+		log.Printf("ensureLoggers: access: %v", err)
+	}
+}
+
 func sessionMaxAge(cfg *config.AppConfig) int {
 	if cfg.SessionMaxAge > 0 {
 		return cfg.SessionMaxAge

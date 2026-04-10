@@ -81,15 +81,19 @@ func main() {
 	}
 
 	if configExists {
-		cfg := store.Get()
-		saved, err := os.ReadFile(cfg.CaddyConfigPath)
-		switch {
-		case err == nil:
-			if err := caddyClient.LoadConfig(saved); err != nil {
-				log.Printf("Failed to load saved Caddy config: %v", err)
+		if err := caddyClient.WaitReady(10 * time.Second); err != nil {
+			log.Printf("Caddy admin API not reachable, skipping config restore: %v", err)
+		} else {
+			cfg := store.Get()
+			saved, err := os.ReadFile(cfg.CaddyConfigPath)
+			switch {
+			case err == nil:
+				if err := caddyClient.LoadConfig(saved); err != nil {
+					log.Printf("Failed to load saved Caddy config: %v", err)
+				}
+			case !os.IsNotExist(err):
+				log.Printf("Failed to read saved Caddy config: %v", err)
 			}
-		case !os.IsNotExist(err):
-			log.Printf("Failed to read saved Caddy config: %v", err)
 		}
 	}
 
