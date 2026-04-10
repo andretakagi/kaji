@@ -128,7 +128,9 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 
 	const title = (
 		<>
-			<span className="ip-list-name">{list.name}</span>
+			<span className="ip-list-name" title={list.name}>
+				{list.name}
+			</span>
 			<span className={`ip-list-badge ip-list-badge-${list.type}`}>{list.type}</span>
 			<span className="ip-list-count">{list.resolved_count} IPs</span>
 		</>
@@ -154,6 +156,7 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						onFocus={loadUsage}
+						maxLength={255}
 						disabled={saving}
 					/>
 					<label htmlFor={`ipl-desc-${list.id}`}>Description</label>
@@ -163,6 +166,7 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 						value={description}
 						onChange={(e) => setDescription(e.target.value)}
 						placeholder="Optional"
+						maxLength={1000}
 						disabled={saving}
 					/>
 				</div>
@@ -191,6 +195,7 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 							type="text"
 							placeholder="192.168.1.0/24"
 							value={ipInput}
+							maxLength={45}
 							onChange={(e) => {
 								setIpInput(e.target.value);
 								setIpError(null);

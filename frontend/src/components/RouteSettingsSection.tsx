@@ -88,19 +88,20 @@ export default function RouteSettingsSection({
 					value={acmeEmail}
 					onChange={(e) => setAcmeEmail(e.target.value)}
 					placeholder="you@example.com"
+					maxLength={254}
 					disabled={saving}
 				/>
 				<span className="settings-toggle-desc">
 					Email for Let's Encrypt certificate notifications
 				</span>
 				{httpsOn && !acmeEmail && !acmeDirty && (
-					<span className="settings-toggle-desc" style={{ color: "var(--yellow)" }}>
+					<span className="settings-toggle-desc warning">
 						No ACME email set - you won't receive certificate expiry warnings
 					</span>
 				)}
 			</div>
 
-			<div className="settings-field" style={{ marginTop: "0.75rem" }}>
+			<div className="settings-field settings-field-spaced">
 				<label htmlFor="global-https">Auto HTTPS</label>
 				<select
 					id="global-https"
@@ -115,7 +116,7 @@ export default function RouteSettingsSection({
 				<span className="settings-toggle-desc">{descriptions[httpsValue]}</span>
 			</div>
 
-			<div className="settings-field" style={{ marginTop: "0.75rem" }}>
+			<div className="settings-field settings-field-spaced">
 				<label className="toggle-label">
 					<input
 						type="checkbox"
@@ -150,11 +151,11 @@ export default function RouteSettingsSection({
 						placeholder="Cloudflare API token"
 						disabled={saving}
 						autoComplete="off"
-						style={{ marginTop: "0.5rem" }}
+						className="settings-field-nested"
 					/>
 				)}
 				{dnsEnabled && !acmeEmail && !acmeDirty && (
-					<span className="settings-toggle-desc" style={{ color: "var(--yellow)" }}>
+					<span className="settings-toggle-desc warning">
 						DNS challenge requires an ACME email - set one above
 					</span>
 				)}

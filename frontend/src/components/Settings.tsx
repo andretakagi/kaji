@@ -204,6 +204,7 @@ function AdvancedSection({ initial }: { initial: { caddy_admin_url: string } }) 
 					value={caddyAdminUrl}
 					onChange={(e) => setCaddyAdminUrl(e.target.value)}
 					placeholder="http://localhost:2019"
+					maxLength={2048}
 				/>
 			</div>
 			<button

@@ -467,6 +467,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 								placeholder="example.com"
 								value={domain}
 								onChange={(e) => setDomain(e.target.value)}
+								maxLength={253}
 								required
 							/>
 						</div>
@@ -478,6 +479,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 								placeholder="localhost:3000"
 								value={upstream}
 								onChange={(e) => setUpstream(e.target.value)}
+								maxLength={260}
 								required
 							/>
 						</div>
