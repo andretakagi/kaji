@@ -1,0 +1,7 @@
+name: "Kaji CodeQL config"
+
+# Secure flag is set dynamically via shouldSecure() based on TLS detection
+# and user config - not a real vulnerability.
+query-filters:
+  - exclude:
+      id: go/cookie-secure-not-set

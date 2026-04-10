@@ -2,7 +2,7 @@
 
 All notable changes to Kaji are documented in this file.
 
-## [Unreleased]
+## [1.3.0] - 2026-04-10
 
 ### Added
 - IP whitelist/blacklist management with named lists, composable child lists, and recursive resolution. Per-route IP filtering toggle with cascade logic that rebuilds affected routes when lists change.
