@@ -147,6 +147,7 @@ body::before {
 }
 
 [data-theme="light"] body::before {
+	filter: invert(1);
 	mix-blend-mode: multiply;
 	opacity: 0.05;
 }
