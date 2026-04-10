@@ -15,7 +15,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["^\\.caddy-version$"],
+      "managerFilePatterns": [
+        "/^\\.caddy-version$/"
+      ],
       "matchStrings": ["(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "depNameTemplate": "caddyserver/caddy",
       "datasourceTemplate": "github-releases",
