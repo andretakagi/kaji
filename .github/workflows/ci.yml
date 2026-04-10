@@ -44,4 +44,4 @@ jobs:
         run: go test -race -count=1 ./...
 
       - name: Build Go binary
-        run: go build -o kaji .
+        run: go build -ldflags "-X main.version=$(git describe --tags --always)" -o kaji .

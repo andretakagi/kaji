@@ -46,12 +46,17 @@ jobs:
               go build -ldflags "${LDFLAGS}" -o "${output}" .
           done
 
+      - name: Read Caddy version
+        id: caddy
+        run: echo "version=$(cat .caddy-version)" >> "$GITHUB_OUTPUT"
+
       - name: Install xcaddy
         run: go install github.com/caddyserver/xcaddy/cmd/xcaddy@v0.4.5
 
       - name: Cross-compile Caddy binaries
         run: |
           set -e
+          CADDY_VERSION="${{ steps.caddy.outputs.version }}"
           platforms=(
             "linux/amd64"
             "linux/arm64"
@@ -63,7 +68,7 @@ jobs:
             arch="${platform#*/}"
             output="caddy-${os}-${arch}"
             echo "Building ${output}..."
-            GOOS="${os}" GOARCH="${arch}" xcaddy build v2.11.2 \
+            GOOS="${os}" GOARCH="${arch}" xcaddy build "v${CADDY_VERSION}" \
               --with github.com/caddy-dns/cloudflare \
               --output "${output}"
           done
