@@ -70,6 +70,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 	const [debouncedHost, setDebouncedHost] = useState("");
 	const [streamEntries, setStreamEntries] = useState<CaddyLogEntry[]>([]);
 	const eventSourceRef = useRef<EventSource | null>(null);
+	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 	useEffect(() => {
@@ -127,6 +128,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 	// Stop streaming if Caddy goes offline
 	useEffect(() => {
 		if (!caddyRunning && streaming) {
+			clearTimeout(reconnectTimerRef.current);
 			setStreaming(false);
 			setStreamEntries([]);
 			setStreamDisconnected(false);
@@ -147,8 +149,6 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 		}
 
 		if (!streaming) return;
-
-		let reconnectTimer: ReturnType<typeof setTimeout>;
 
 		function connect() {
 			const es = new EventSource("/api/logs/stream");
@@ -171,14 +171,14 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 				setStreamDisconnected(true);
 				es.close();
 				eventSourceRef.current = null;
-				reconnectTimer = setTimeout(connect, 3000);
+				reconnectTimerRef.current = setTimeout(connect, 3000);
 			};
 		}
 
 		connect();
 
 		return () => {
-			clearTimeout(reconnectTimer);
+			clearTimeout(reconnectTimerRef.current);
 			if (eventSourceRef.current) {
 				eventSourceRef.current.close();
 				eventSourceRef.current = null;
