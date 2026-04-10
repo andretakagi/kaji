@@ -5,6 +5,7 @@ import { usePolledEffect } from "../hooks/usePolledData";
 import type { CaddyLogEntry, LogQueryParams } from "../types/logs";
 import Autocomplete from "./Autocomplete";
 import { ErrorAlert } from "./ErrorAlert";
+import LoadingState from "./LoadingState";
 import { LogConfigList } from "./LogConfig";
 
 const PAGE_SIZE = 50;
@@ -180,7 +181,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 	}
 
 	if (loading && !streaming) {
-		return <div className="empty-state">Loading logs...</div>;
+		return <LoadingState label="logs" />;
 	}
 
 	const hasFilters = level || debouncedHost || statusRange !== "all";

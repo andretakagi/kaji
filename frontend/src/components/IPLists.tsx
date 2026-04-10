@@ -6,6 +6,7 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateIPOrCIDR } from "../utils/validate";
 import { ErrorAlert } from "./ErrorAlert";
 import IPListCard from "./IPListCard";
+import LoadingState from "./LoadingState";
 import { SectionHeader } from "./SectionHeader";
 
 export default function IPLists() {
@@ -92,7 +93,7 @@ export default function IPLists() {
 	}
 
 	if (loading) {
-		return <div className="empty-state">Loading IP lists...</div>;
+		return <LoadingState label="IP lists" />;
 	}
 
 	const sameTypeOtherLists = lists.filter((l) => l.type === newType && !newChildren.includes(l.id));

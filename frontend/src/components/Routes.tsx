@@ -17,6 +17,7 @@ import type { CaddyConfig, CaddyHandler, CaddyRoute } from "../types/caddy";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateDomain, validateUpstream } from "../utils/validate";
 import { ErrorAlert } from "./ErrorAlert";
+import LoadingState from "./LoadingState";
 import RouteRow from "./RouteRow";
 import { SectionHeader } from "./SectionHeader";
 import ToggleGrid from "./ToggleGrid";
@@ -372,7 +373,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	);
 
 	if (loading) {
-		return <div className="empty-state">Loading routes...</div>;
+		return <LoadingState label="routes" />;
 	}
 
 	return (

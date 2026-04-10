@@ -6,6 +6,7 @@ import type { CaddyLoggingConfig, CaddyLogSink } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
+import LoadingState from "./LoadingState";
 import { SectionHeader } from "./SectionHeader";
 import { Toggle } from "./Toggle";
 
@@ -504,7 +505,7 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 		return a.localeCompare(b);
 	});
 	if (!loaded) {
-		return <div className="empty-state">Loading log config...</div>;
+		return <LoadingState label="log config" />;
 	}
 
 	if (loadError) {

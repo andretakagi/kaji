@@ -6,6 +6,7 @@ import type { SnapshotIndex } from "../types/snapshots";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { ConfirmActionButton } from "./ConfirmActionButton";
 import Feedback from "./Feedback";
+import LoadingState from "./LoadingState";
 
 function defaultSnapshotName(): string {
 	const d = new Date();
@@ -76,7 +77,7 @@ export default function Snapshots() {
 	};
 
 	if (loading) {
-		return <div className="empty-state">Loading snapshots...</div>;
+		return <LoadingState label="snapshots" />;
 	}
 
 	if (error) {
