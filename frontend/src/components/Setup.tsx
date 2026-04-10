@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { adaptCaddyfile, fetchDefaultCaddyfile, submitSetup } from "../api";
 import {
 	type AdaptCaddyfileResponse,
@@ -38,9 +38,9 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		globalToggles: { ...DEFAULT_GLOBAL_TOGGLES },
 	});
 
-	const update = <K extends keyof WizardData>(key: K, value: WizardData[K]) => {
+	const update = useCallback(<K extends keyof WizardData>(key: K, value: WizardData[K]) => {
 		setData((prev) => ({ ...prev, [key]: value }));
-	};
+	}, []);
 
 	const validateStep = (): boolean => {
 		setError("");
