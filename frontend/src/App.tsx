@@ -10,6 +10,7 @@ import {
 	startCaddy,
 	stopCaddy,
 } from "./api";
+import { ErrorAlert } from "./components/ErrorAlert";
 import IPLists from "./components/IPLists";
 import Login from "./components/Login";
 import Logs from "./components/Logs";
@@ -271,14 +272,11 @@ function App() {
 					</div>
 				</header>
 
-				{serviceError && (
-					<div className="alert-error service-error" role="alert">
-						{serviceError}
-						<button type="button" onClick={() => setServiceError(null)}>
-							Dismiss
-						</button>
-					</div>
-				)}
+				<ErrorAlert
+					message={serviceError}
+					onDismiss={() => setServiceError(null)}
+					className="service-error"
+				/>
 
 				<main id="main-content" className="app-content">
 					{view === "routes" && <Routes caddyRunning={running} />}

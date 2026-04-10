@@ -3,6 +3,7 @@ import { fetchConfig, fetchLogs, POLL_INTERVAL } from "../api";
 import type { CaddyLogEntry, LogQueryParams } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import Autocomplete from "./Autocomplete";
+import { ErrorAlert } from "./ErrorAlert";
 import { LogConfigList } from "./LogConfig";
 import { MetricsSettings } from "./MetricsSettings";
 
@@ -320,14 +321,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 				</div>
 			</div>
 
-			{error && (
-				<div className="alert-error" role="alert">
-					{error}
-					<button type="button" onClick={() => setError("")}>
-						Dismiss
-					</button>
-				</div>
-			)}
+			<ErrorAlert message={error} onDismiss={() => setError("")} />
 
 			{displayEntries.length === 0 ? (
 				<div className="empty-state">

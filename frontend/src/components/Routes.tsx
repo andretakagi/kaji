@@ -19,6 +19,7 @@ import type { DisabledRoute, GlobalToggles, ParsedRoute, RouteToggles } from "..
 import type { CaddyConfig, CaddyHandler, CaddyRoute } from "../types/caddy";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateDomain, validateUpstream } from "../utils/validate";
+import { ErrorAlert } from "./ErrorAlert";
 import RouteRow from "./RouteRow";
 import RouteSettingsSection from "./RouteSettingsSection";
 import ToggleGrid from "./ToggleGrid";
@@ -453,14 +454,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				</div>
 			)}
 
-			{error && (
-				<div className="alert-error" role="alert">
-					{error}
-					<button type="button" onClick={() => setError("")}>
-						Dismiss
-					</button>
-				</div>
-			)}
+			<ErrorAlert message={error} onDismiss={() => setError("")} />
 
 			{showForm && (
 				<form className="add-route-form" onSubmit={handleAdd}>

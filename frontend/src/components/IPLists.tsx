@@ -3,7 +3,9 @@ import { createIPList, fetchIPLists, POLL_INTERVAL } from "../api";
 import { deepEqual } from "../deepEqual";
 import type { IPList } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { ErrorAlert } from "./ErrorAlert";
 import IPListCard from "./IPListCard";
+import { SectionHeader } from "./SectionHeader";
 
 export default function IPLists() {
 	const [lists, setLists] = useState<IPList[]>([]);
@@ -75,8 +77,7 @@ export default function IPLists() {
 
 	return (
 		<div className="ip-lists">
-			<div className="section-header">
-				<h2>IP Lists</h2>
+			<SectionHeader title="IP Lists">
 				<button
 					type="button"
 					className="btn btn-primary"
@@ -92,16 +93,9 @@ export default function IPLists() {
 				>
 					{showForm ? "Cancel" : "New List"}
 				</button>
-			</div>
+			</SectionHeader>
 
-			{error && (
-				<div className="alert-error" role="alert">
-					{error}
-					<button type="button" onClick={() => setError(null)}>
-						Dismiss
-					</button>
-				</div>
-			)}
+			<ErrorAlert message={error} onDismiss={() => setError(null)} />
 
 			{showForm && (
 				<form className="ip-list-create-form" onSubmit={handleCreate}>
