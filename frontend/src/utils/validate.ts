@@ -1,3 +1,13 @@
+export function validatePassword(password: string, confirmPassword: string): string | null {
+	if (password.length < 8) {
+		return "Password must be at least 8 characters";
+	}
+	if (password !== confirmPassword) {
+		return "Passwords do not match";
+	}
+	return null;
+}
+
 export function validateDomain(domain: string): string | null {
 	if (!domain.trim()) {
 		return "Domain is required";

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { changePassword, updateAuthEnabled } from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { validatePassword } from "../utils/validate";
 import Feedback from "./Feedback";
 import { Toggle } from "./Toggle";
 
@@ -51,12 +52,9 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 		e.preventDefault();
 		setError("");
 
-		if (newPw.length < 8) {
-			setError("Password must be at least 8 characters");
-			return;
-		}
-		if (newPw !== confirmPw) {
-			setError("Passwords do not match");
+		const pwErr = validatePassword(newPw, confirmPw);
+		if (pwErr) {
+			setError(pwErr);
 			return;
 		}
 
@@ -76,12 +74,9 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 	const handleChangePassword = (e: React.SubmitEvent) => {
 		e.preventDefault();
 
-		if (cpNew.length < 8) {
-			cp.setFeedback({ msg: "New password must be at least 8 characters", type: "error" });
-			return;
-		}
-		if (cpNew !== cpConfirm) {
-			cp.setFeedback({ msg: "Passwords do not match", type: "error" });
+		const pwErr = validatePassword(cpNew, cpConfirm);
+		if (pwErr) {
+			cp.setFeedback({ msg: pwErr, type: "error" });
 			return;
 		}
 

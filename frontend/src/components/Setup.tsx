@@ -6,6 +6,7 @@ import {
 	type GlobalToggles,
 } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { validatePassword } from "../utils/validate";
 import { Toggle } from "./Toggle";
 
 const STEP_LABELS = ["Auth", "Import", "ACME Email"];
@@ -44,12 +45,9 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 	const validateStep = (): boolean => {
 		setError("");
 		if (step === 0 && data.authEnabled) {
-			if (data.password.length < 8) {
-				setError("Password must be at least 8 characters.");
-				return false;
-			}
-			if (data.password !== data.confirmPassword) {
-				setError("Passwords do not match.");
+			const pwErr = validatePassword(data.password, data.confirmPassword);
+			if (pwErr) {
+				setError(pwErr);
 				return false;
 			}
 		}

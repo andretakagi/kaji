@@ -10,10 +10,7 @@ interface FormatTimeOptions {
 	seconds?: boolean;
 }
 
-export function formatTime(
-	input: Date | number | string,
-	opts?: FormatTimeOptions,
-): string {
+export function formatTime(input: Date | number | string, opts?: FormatTimeOptions): string {
 	const d = typeof input === "number" ? new Date(input * 1000) : new Date(input);
 
 	if (isSameDay(d, new Date())) {
