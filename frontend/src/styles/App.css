@@ -44,6 +44,7 @@
 	--surface-hover: #3d3952;
 	--accent: #4b3a70;
 	--accent-hover: #5a4785;
+	--accent-text: #e2dce8;
 	--text: #c5c3c4;
 	--text-secondary: #b7a2c9;
 	--text-emphasis: #e2dce8;
@@ -79,6 +80,7 @@
 	--surface-hover: #f0ecf5;
 	--accent: #4f3d7a;
 	--accent-hover: #3d2e65;
+	--accent-text: #ffffff;
 	--text: #1e1a2b;
 	--text-secondary: #5c4f6e;
 	--text-emphasis: #110e1a;
@@ -150,7 +152,7 @@ body::before {
 }
 
 [data-theme="light"] .btn-primary {
-	color: #ffffff;
+	color: var(--accent-text);
 }
 
 .settings-section,
@@ -2185,7 +2187,7 @@ input:disabled + .toggle-slider {
 
 .theme-pill.active {
 	background: var(--accent);
-	color: var(--text-emphasis);
+	color: var(--accent-text);
 	font-weight: 600;
 }
 

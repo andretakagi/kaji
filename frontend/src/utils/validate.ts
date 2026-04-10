@@ -14,7 +14,7 @@ export function validateDomain(domain: string): string | null {
 	}
 	const labels = check.split(".");
 	if (labels.length < 2) {
-		return "Domain must have at least two labels (e.g. example.com)";
+		return "Invalid domain address";
 	}
 	for (const label of labels) {
 		if (!label) {

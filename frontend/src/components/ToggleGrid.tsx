@@ -244,7 +244,7 @@ export default function ToggleGrid({
 						onUpdate(
 							"ip_filtering",
 							v
-								? { enabled: true, list_id: "", type: "" }
+								? { enabled: true, list_id: "", type: "blacklist" }
 								: { enabled: false, list_id: "", type: "" },
 						)
 					}

@@ -11,7 +11,7 @@ func TestValidateDomain(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"valid single label would fail", "example", "domain must have at least two labels (e.g. example.com)"},
+		{"valid single label would fail", "example", "invalid domain address"},
 		{"valid two labels", "example.com", ""},
 		{"valid subdomain", "sub.example.com", ""},
 		{"valid wildcard", "*.example.com", ""},

@@ -31,7 +31,7 @@ func validateDomain(domain string) string {
 	}
 	labels := strings.Split(check, ".")
 	if len(labels) < 2 {
-		return "domain must have at least two labels (e.g. example.com)"
+		return "invalid domain address"
 	}
 	for _, label := range labels {
 		if label == "" {

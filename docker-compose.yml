@@ -1,7 +1,6 @@
 services:
   kaji:
     build: .
-    image: ghcr.io/andretakagi/kaji:latest
     container_name: kaji
     restart: unless-stopped
     ports:
