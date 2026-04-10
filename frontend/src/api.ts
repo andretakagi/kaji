@@ -426,11 +426,11 @@ export function createIPList(list: {
 export function updateIPList(
 	id: string,
 	list: { name: string; description: string; ips: string[]; children: string[] },
-): Promise<{ status: string }> {
+): Promise<IPList> {
 	return request(
 		`/api/ip-lists/${encodeURIComponent(id)}`,
 		{ method: "PUT", ...jsonBody(list) },
-		validateStatusResponse,
+		validateIPListSingle,
 	);
 }
 
