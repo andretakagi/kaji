@@ -5,7 +5,6 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 import Autocomplete from "./Autocomplete";
 import { ErrorAlert } from "./ErrorAlert";
 import { LogConfigList } from "./LogConfig";
-import { MetricsSettings } from "./MetricsSettings";
 
 const PAGE_SIZE = 50;
 
@@ -221,7 +220,6 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 
 	return (
 		<div className="logs">
-			<MetricsSettings caddyRunning={caddyRunning} />
 			<LogConfigList caddyRunning={caddyRunning} />
 
 			<div className="section-header">

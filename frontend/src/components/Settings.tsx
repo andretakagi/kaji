@@ -12,6 +12,9 @@ import { useAsyncAction } from "../hooks/useAsyncAction";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import AuthSection from "./AuthSection";
 import Feedback from "./Feedback";
+import { MetricsSettings } from "./MetricsSettings";
+import RouteSettingsSection from "./RouteSettingsSection";
+import { SnapshotSettings } from "./SnapshotSettings";
 
 function AppearanceSection() {
 	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
@@ -308,6 +311,16 @@ export default function Settings({
 			)}
 
 			<AppearanceSection />
+
+			{!caddyRunning ? <CaddyOffSection title="Route Settings" /> : <RouteSettingsSection />}
+
+			{!caddyRunning ? (
+				<CaddyOffSection title="Metrics" />
+			) : (
+				<MetricsSettings caddyRunning={caddyRunning} />
+			)}
+
+			<SnapshotSettings />
 
 			{failedSections.has("auth") ? (
 				<section className="settings-section settings-section-failed">

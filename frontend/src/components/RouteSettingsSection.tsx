@@ -1,48 +1,46 @@
-import { updateACMEEmail, updateDNSProvider, updateGlobalToggles } from "../api";
+import { useEffect, useState } from "react";
+import {
+	fetchACMEEmail,
+	fetchDNSProvider,
+	fetchGlobalToggles,
+	updateACMEEmail,
+	updateDNSProvider,
+	updateGlobalToggles,
+} from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { GlobalToggles } from "../types/api";
 import Feedback from "./Feedback";
 
-export interface RouteSettingsProps {
-	globalToggles: GlobalToggles;
-	httpsValue: GlobalToggles["auto_https"];
-	setHttpsValue: (v: GlobalToggles["auto_https"]) => void;
-	acmeEmail: string;
-	setAcmeEmail: (v: string) => void;
-	initialAcmeEmail: string;
-	onTogglesSaved: (toggles: GlobalToggles) => void;
-	onAcmeSaved: () => void;
-	dnsEnabled: boolean;
-	setDnsEnabled: (v: boolean) => void;
-	dnsToken: string;
-	setDnsToken: (v: string) => void;
-	initialDnsEnabled: boolean;
-	initialDnsToken: string;
-	dnsTokenTouched: boolean;
-	setDnsTokenTouched: (v: boolean) => void;
-	onDnsSaved: () => void;
-}
-
-export default function RouteSettingsSection({
-	globalToggles,
-	httpsValue,
-	setHttpsValue,
-	acmeEmail,
-	setAcmeEmail,
-	initialAcmeEmail,
-	onTogglesSaved,
-	onAcmeSaved,
-	dnsEnabled,
-	setDnsEnabled,
-	dnsToken,
-	setDnsToken,
-	initialDnsEnabled,
-	initialDnsToken,
-	dnsTokenTouched,
-	setDnsTokenTouched,
-	onDnsSaved,
-}: RouteSettingsProps) {
+export default function RouteSettingsSection() {
+	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
+	const [httpsValue, setHttpsValue] = useState<GlobalToggles["auto_https"]>("on");
+	const [acmeEmail, setAcmeEmail] = useState("");
+	const [initialAcmeEmail, setInitialAcmeEmail] = useState("");
+	const [dnsEnabled, setDnsEnabled] = useState(false);
+	const [dnsToken, setDnsToken] = useState("");
+	const [initialDnsEnabled, setInitialDnsEnabled] = useState(false);
+	const [initialDnsToken, setInitialDnsToken] = useState("");
+	const [dnsTokenTouched, setDnsTokenTouched] = useState(false);
+	const [loaded, setLoaded] = useState(false);
 	const { saving, feedback, run } = useAsyncAction();
+
+	useEffect(() => {
+		Promise.all([fetchGlobalToggles(), fetchACMEEmail(), fetchDNSProvider()]).then(
+			([toggles, acmeResult, dnsResult]) => {
+				setGlobalToggles(toggles);
+				setHttpsValue(toggles.auto_https);
+				setAcmeEmail(acmeResult.email);
+				setInitialAcmeEmail(acmeResult.email);
+				setDnsEnabled(dnsResult.enabled);
+				setInitialDnsEnabled(dnsResult.enabled);
+				setDnsToken(dnsResult.api_token ?? "");
+				setInitialDnsToken(dnsResult.api_token ?? "");
+				setLoaded(true);
+			},
+		);
+	}, []);
+
+	if (!loaded || !globalToggles) return null;
 
 	const httpsDirty = httpsValue !== globalToggles.auto_https;
 	const acmeDirty = acmeEmail !== initialAcmeEmail;
@@ -61,18 +59,20 @@ export default function RouteSettingsSection({
 			if (httpsDirty) {
 				const updated = { ...globalToggles, auto_https: httpsValue };
 				await updateGlobalToggles(updated);
-				onTogglesSaved(updated);
+				setGlobalToggles(updated);
 			}
 			if (acmeDirty) {
 				await updateACMEEmail(acmeEmail);
-				onAcmeSaved();
+				setInitialAcmeEmail(acmeEmail);
 			}
 			if (dnsDirty) {
 				await updateDNSProvider({
 					enabled: dnsEnabled,
 					api_token: dnsTokenTouched ? dnsToken : undefined,
 				});
-				onDnsSaved();
+				setInitialDnsEnabled(dnsEnabled);
+				setInitialDnsToken(dnsToken || initialDnsToken);
+				setDnsTokenTouched(false);
 			}
 			return "Saved";
 		});

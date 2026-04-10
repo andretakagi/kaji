@@ -1,16 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-	createSnapshot,
-	deleteSnapshot,
-	fetchSnapshots,
-	restoreSnapshot,
-	updateSnapshotSettings,
-} from "../api";
+import { createSnapshot, deleteSnapshot, fetchSnapshots, restoreSnapshot } from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { SnapshotIndex } from "../types/snapshots";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import Feedback from "./Feedback";
-import { Toggle } from "./Toggle";
 
 function formatSnapshotTime(iso: string): string {
 	const d = new Date(iso);
@@ -45,14 +38,6 @@ export default function Snapshots() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 
-	// Settings
-	const [autoEnabled, setAutoEnabled] = useState(false);
-	const [pruneLimit, setPruneLimit] = useState(10);
-	const [savedAutoEnabled, setSavedAutoEnabled] = useState(false);
-	const [savedPruneLimit, setSavedPruneLimit] = useState(10);
-	const settingsAction = useAsyncAction();
-	const settingsDirty = autoEnabled !== savedAutoEnabled || pruneLimit !== savedPruneLimit;
-
 	// Create form
 	const [showCreate, setShowCreate] = useState(false);
 	const [createName, setCreateName] = useState("");
@@ -73,10 +58,6 @@ export default function Snapshots() {
 		try {
 			const data = await fetchSnapshots();
 			setIndex(data);
-			setAutoEnabled(data.auto_snapshot_enabled);
-			setPruneLimit(data.auto_snapshot_limit);
-			setSavedAutoEnabled(data.auto_snapshot_enabled);
-			setSavedPruneLimit(data.auto_snapshot_limit);
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to load snapshots"));
 		} finally {
@@ -87,15 +68,6 @@ export default function Snapshots() {
 	useEffect(() => {
 		load();
 	}, [load]);
-
-	const handleSaveSettings = () =>
-		settingsAction.run(async () => {
-			await updateSnapshotSettings({
-				auto_snapshot_enabled: autoEnabled,
-				auto_snapshot_limit: pruneLimit,
-			});
-			return "Saved";
-		});
 
 	const handleCreate = () =>
 		createAction.run(async () => {
@@ -153,46 +125,6 @@ export default function Snapshots() {
 
 	return (
 		<div className="snapshots">
-			<section className="settings-section">
-				<h3>Snapshot Settings</h3>
-				<div className="settings-toggle-row">
-					<span>Take snapshot before each config change</span>
-					<Toggle
-						checked={autoEnabled}
-						onChange={() => setAutoEnabled((v) => !v)}
-						disabled={settingsAction.saving}
-					/>
-				</div>
-				{autoEnabled && (
-					<div className="snapshot-settings-limit">
-						<span>Keep last</span>
-						<input
-							type="number"
-							min={1}
-							max={100}
-							value={pruneLimit}
-							onChange={(e) =>
-								setPruneLimit(Math.min(100, Math.max(1, Number.parseInt(e.target.value, 10) || 1)))
-							}
-							className="snapshot-limit-input"
-							disabled={settingsAction.saving}
-						/>
-						<span>auto snapshots</span>
-					</div>
-				)}
-				{settingsDirty && (
-					<button
-						type="button"
-						className="btn btn-primary settings-save-btn"
-						disabled={settingsAction.saving}
-						onClick={handleSaveSettings}
-					>
-						{settingsAction.saving ? "Saving..." : "Save"}
-					</button>
-				)}
-				<Feedback msg={settingsAction.feedback.msg} type={settingsAction.feedback.type} />
-			</section>
-
 			<div className="snapshot-action-bar">
 				{showCreate ? (
 					<div className="snapshot-create-form">

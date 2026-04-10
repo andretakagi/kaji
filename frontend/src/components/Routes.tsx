@@ -4,10 +4,8 @@ import {
 	deleteRoute,
 	disableRoute,
 	enableRoute,
-	fetchACMEEmail,
 	fetchConfig,
 	fetchDisabledRoutes,
-	fetchDNSProvider,
 	fetchGlobalToggles,
 	fetchIPLists,
 	fetchRouteIPListBindings,
@@ -21,7 +19,6 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateDomain, validateUpstream } from "../utils/validate";
 import { ErrorAlert } from "./ErrorAlert";
 import RouteRow from "./RouteRow";
-import RouteSettingsSection from "./RouteSettingsSection";
 import { SectionHeader } from "./SectionHeader";
 import ToggleGrid from "./ToggleGrid";
 
@@ -180,14 +177,6 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	const [error, setError] = useState("");
 	const [showForm, setShowForm] = useState(false);
 	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
-	const [httpsValue, setHttpsValue] = useState<GlobalToggles["auto_https"]>("on");
-	const [acmeEmail, setAcmeEmail] = useState("");
-	const [initialAcmeEmail, setInitialAcmeEmail] = useState("");
-	const [dnsEnabled, setDnsEnabled] = useState(false);
-	const [dnsToken, setDnsToken] = useState("");
-	const [initialDnsEnabled, setInitialDnsEnabled] = useState(false);
-	const [initialDnsToken, setInitialDnsToken] = useState("");
-	const [dnsTokenTouched, setDnsTokenTouched] = useState(false);
 	const [domain, setDomain] = useState("");
 	const [upstream, setUpstream] = useState("");
 	const [formToggles, setFormToggles] = useState<RouteToggles>({ ...defaultToggles });
@@ -199,18 +188,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 
 	useEffect(() => {
 		if (!caddyRunning) return;
-		Promise.all([fetchGlobalToggles(), fetchACMEEmail(), fetchDNSProvider()]).then(
-			([toggles, acmeResult, dnsResult]) => {
-				setGlobalToggles(toggles);
-				setHttpsValue(toggles.auto_https);
-				setAcmeEmail(acmeResult.email);
-				setInitialAcmeEmail(acmeResult.email);
-				setDnsEnabled(dnsResult.enabled);
-				setInitialDnsEnabled(dnsResult.enabled);
-				setDnsToken(dnsResult.api_token ?? "");
-				setInitialDnsToken(dnsResult.api_token ?? "");
-			},
-		);
+		fetchGlobalToggles().then(setGlobalToggles);
 	}, [caddyRunning]);
 
 	const loadRoutes = useCallback(async () => {
@@ -408,32 +386,6 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 
 	return (
 		<div className="routes">
-			{caddyRunning && globalToggles && (
-				<RouteSettingsSection
-					globalToggles={globalToggles}
-					httpsValue={httpsValue}
-					setHttpsValue={setHttpsValue}
-					acmeEmail={acmeEmail}
-					setAcmeEmail={setAcmeEmail}
-					initialAcmeEmail={initialAcmeEmail}
-					onTogglesSaved={(t) => setGlobalToggles(t)}
-					onAcmeSaved={() => setInitialAcmeEmail(acmeEmail)}
-					dnsEnabled={dnsEnabled}
-					setDnsEnabled={setDnsEnabled}
-					dnsToken={dnsToken}
-					setDnsToken={setDnsToken}
-					initialDnsEnabled={initialDnsEnabled}
-					initialDnsToken={initialDnsToken}
-					dnsTokenTouched={dnsTokenTouched}
-					setDnsTokenTouched={setDnsTokenTouched}
-					onDnsSaved={() => {
-						setInitialDnsEnabled(dnsEnabled);
-						setInitialDnsToken(dnsToken || initialDnsToken);
-						setDnsTokenTouched(false);
-					}}
-				/>
-			)}
-
 			<SectionHeader title="Routes">
 				<button
 					type="button"
