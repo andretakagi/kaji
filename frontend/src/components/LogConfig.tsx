@@ -6,6 +6,7 @@ import type { CaddyLoggingConfig, CaddyLogSink } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
+import { SectionHeader } from "./SectionHeader";
 
 const NS_PER_DAY = 24 * 3600 * 1e9;
 
@@ -510,9 +511,7 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 
 	return (
 		<>
-			<div className="section-header">
-				<h2>Log Configuration</h2>
-			</div>
+			<SectionHeader title="Log Configuration" />
 
 			{sinkEntries.length === 0 ? (
 				<div className="empty-state">

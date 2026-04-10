@@ -22,6 +22,7 @@ import { validateDomain, validateUpstream } from "../utils/validate";
 import { ErrorAlert } from "./ErrorAlert";
 import RouteRow from "./RouteRow";
 import RouteSettingsSection from "./RouteSettingsSection";
+import { SectionHeader } from "./SectionHeader";
 import ToggleGrid from "./ToggleGrid";
 
 const defaultToggles: RouteToggles = {
@@ -433,8 +434,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				/>
 			)}
 
-			<div className="section-header">
-				<h2>Routes</h2>
+			<SectionHeader title="Routes">
 				<button
 					type="button"
 					className="btn btn-primary add-route-btn"
@@ -446,7 +446,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				>
 					{showForm ? "Cancel" : "Add Route"}
 				</button>
-			</div>
+			</SectionHeader>
 
 			{!caddyRunning && (
 				<div className="caddy-offline" role="status">
