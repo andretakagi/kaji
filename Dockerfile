@@ -10,7 +10,7 @@ RUN CADDY_VERSION=$(cat /tmp/.caddy-version) \
     && rm -rf /go/pkg/mod /root/.cache/go-build
 
 # Stage 2: Build frontend
-FROM --platform=$BUILDPLATFORM oven/bun:1.2.5 AS frontend
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.12 AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
@@ -29,7 +29,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "-X main.version=${VERSION}" -o kaji .
 
 # Stage 4: Final image
-FROM alpine:3.21
+FROM alpine:3.23
 RUN apk add --no-cache ca-certificates libcap
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY --from=builder /build/kaji /usr/local/bin/kaji
