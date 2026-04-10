@@ -5,13 +5,20 @@ All notable changes to Kaji are documented in this file.
 ## [Unreleased]
 
 ### Added
-- Cloudflare DNS module (`caddy-dns/cloudflare`) for DNS-01 ACME challenges and wildcard certs
+- IP whitelist/blacklist management with named lists, composable child lists, and recursive resolution. Per-route IP filtering toggle with cascade logic that rebuilds affected routes when lists change.
+- Cloudflare DNS module (`caddy-dns/cloudflare`) for DNS-01 ACME challenges and wildcard certs. Toggle and API token configuration in Route Settings.
 - Custom Caddy binaries with cloudflare module included in GitHub releases
-- Cloudflare DNS challenge configuration in Route Settings (toggle + API token)
+- Light/dark mode toggle in Settings with localStorage persistence. Light theme uses an inverted purple/violet palette that preserves brand identity. Inline script prevents flash of wrong theme on load.
+- Security policy with GitHub private vulnerability reporting
 
 ### Changed
 - Upgraded Caddy from 2.9.1 to 2.11.2
-- Dockerfile now builds Caddy from source via xcaddy instead of pulling stock image
+- Docker image now includes the cloudflare DNS module (built via xcaddy)
+- Multi-platform Docker images (linux/amd64 and linux/arm64)
+- Upgraded base image to Alpine 3.23
+
+### Fixed
+- Log viewer could show partial lines when a log entry straddled a read boundary
 
 ## [1.2.3] - 2026-04-09
 
@@ -21,7 +28,7 @@ All notable changes to Kaji are documented in this file.
 - Release workflow for cross-compiled binaries on version tags
 
 ### Changed
-- Refactored handlers.go and Logs.tsx into smaller domain-focused files
+- Split route, auth, settings, and log handlers into separate files for easier navigation
 
 ## [1.2.0] - 2026-04-09
 
@@ -39,36 +46,29 @@ All notable changes to Kaji are documented in this file.
 - Removed standalone log config creation from logs page
 - Removed settings step from first-time setup wizard
 - Snapshot settings Save button only appears when values changed
-- Updated README to reflect current feature set
-- Polished frontend accessibility, input validation, overflow handling, and mobile layout
+- Improved accessibility, input validation, overflow handling, and mobile layout
 
 ### Fixed
-- Deleting disabled routes now uses correct ConfigStore method
+- Deleting disabled routes no longer fails silently
 - Access log no longer shows disabled routes
 - Confirm dialog no longer hidden when route card is collapsed
 - Access log timestamps now use local time
-- Replaced deprecated React.FormEvent with React.SubmitEvent
 
 ## [1.1.0] - 2026-04-08
 
 ### Added
 - Multiple upstream support for load balancing
 - Access log domain tracking in log config UI
-- Design spec for access log integration
 
 ### Changed
 - Reworked auth settings UI with inline confirmation flow
 - Auth toggle now requires confirmation before disabling
 - Updated favicon to use kanji character
-- Polished UI details across components
 
 ### Fixed
 - Setup wizard navigation state on completion
 - Release download URL to use correct v1.0.0 tag
 - README inaccuracies for ports, setup wizard, and load balancing strategy
-
-### Dependencies
-- Updated Vite from 8.0.3 to 8.0.5
 
 ## [1.0.0] - 2026-03-15
 
