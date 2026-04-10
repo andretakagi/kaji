@@ -917,8 +917,8 @@ func TestSetLoggingConfigRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for 400 response")
 	}
-	if !strings.Contains(err.Error(), "rejected") {
-		t.Errorf("error = %q, want it to contain 'rejected'", err.Error())
+	if !strings.Contains(err.Error(), "request failed") {
+		t.Errorf("error = %q, want it to contain 'request failed'", err.Error())
 	}
 }
 

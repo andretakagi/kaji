@@ -127,8 +127,8 @@ func TestClientLoadConfigNon200(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}
-	if !strings.Contains(err.Error(), "rejected") {
-		t.Errorf("error = %q, want 'rejected'", err)
+	if !strings.Contains(err.Error(), "request failed") {
+		t.Errorf("error = %q, want 'request failed'", err)
 	}
 }
 
