@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchConfig, fetchLogs, POLL_INTERVAL } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fetchConfig, fetchLogs } from "../api";
+import { usePolledEffect } from "../hooks/usePolledData";
 import type { CaddyLogEntry, LogQueryParams } from "../types/logs";
-import { getErrorMessage } from "../utils/getErrorMessage";
 import Autocomplete from "./Autocomplete";
 import { ErrorAlert } from "./ErrorAlert";
 import { LogConfigList } from "./LogConfig";
@@ -57,8 +57,6 @@ function statusClass(code: number): string {
 export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 	const [entries, setEntries] = useState<CaddyLogEntry[]>([]);
 	const [hasMore, setHasMore] = useState(false);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState("");
 	const [level, setLevel] = useState("");
 	const [host, setHost] = useState("");
 	const [hosts, setHosts] = useState<string[]>([]);
@@ -102,8 +100,8 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 			.catch(() => {});
 	}, [caddyRunning]);
 
-	const loadLogs = useCallback(async () => {
-		try {
+	const { loading, error, setError } = usePolledEffect({
+		effect: async () => {
 			const range = STATUS_RANGES[statusRange] ?? {};
 			const params: LogQueryParams = {
 				limit: PAGE_SIZE,
@@ -117,12 +115,10 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 			const res = await fetchLogs(params);
 			setEntries(res.entries ?? []);
 			setHasMore(res.has_more);
-		} catch (err) {
-			setError(getErrorMessage(err, "Failed to load logs"));
-		} finally {
-			setLoading(false);
-		}
-	}, [level, debouncedHost, statusRange, page]);
+		},
+		errorPrefix: "Failed to load logs",
+		enabled: !streaming && caddyRunning,
+	});
 
 	// Stop streaming if Caddy goes offline
 	useEffect(() => {
@@ -133,13 +129,6 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 			setStreamDisconnected(false);
 		}
 	}, [caddyRunning, streaming]);
-
-	useEffect(() => {
-		if (streaming || !caddyRunning) return;
-		loadLogs();
-		const id = setInterval(loadLogs, POLL_INTERVAL);
-		return () => clearInterval(id);
-	}, [loadLogs, streaming, caddyRunning]);
 
 	useEffect(() => {
 		if (eventSourceRef.current) {

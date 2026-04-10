@@ -9,10 +9,9 @@ import {
 	fetchGlobalToggles,
 	fetchIPLists,
 	fetchRouteIPListBindings,
-	POLL_INTERVAL,
 	updateRoute,
 } from "../api";
-import { deepEqual } from "../deepEqual";
+import { usePolledData } from "../hooks/usePolledData";
 import type { DisabledRoute, GlobalToggles, ParsedRoute, RouteToggles } from "../types/api";
 import type { CaddyConfig, CaddyHandler, CaddyRoute } from "../types/caddy";
 import { getErrorMessage } from "../utils/getErrorMessage";
@@ -172,9 +171,68 @@ function parseDisabledRoute(dr: DisabledRoute): ParsedRoute {
 }
 
 export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
-	const [routes, setRoutes] = useState<ParsedRoute[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState("");
+	const fetchRoutes = async (): Promise<ParsedRoute[]> => {
+		const parsed: ParsedRoute[] = [];
+
+		if (caddyRunning) {
+			const [config, disabled, bindings, ipListsData] = await Promise.all([
+				fetchConfig(),
+				fetchDisabledRoutes(),
+				fetchRouteIPListBindings(),
+				fetchIPLists(),
+			]);
+			const servers = (config as CaddyConfig).apps?.http?.servers;
+			if (servers) {
+				for (const [name, server] of Object.entries(servers)) {
+					const domainSinks = new Map<string, string>(
+						Object.entries(server.logs?.logger_names ?? {}),
+					);
+					for (const route of server.routes ?? []) {
+						parsed.push(parseRoute(route, name, domainSinks));
+					}
+				}
+			}
+			for (const dr of disabled) {
+				parsed.push(parseDisabledRoute(dr));
+			}
+			for (const route of parsed) {
+				const listID = bindings[route.id];
+				if (listID) {
+					const list = ipListsData.find((l) => l.id === listID);
+					if (list) {
+						route.toggles = {
+							...route.toggles,
+							ip_filtering: {
+								enabled: true,
+								list_id: listID,
+								type: list.type,
+							},
+						};
+					}
+				}
+			}
+		} else {
+			const disabled = await fetchDisabledRoutes();
+			for (const dr of disabled) {
+				parsed.push(parseDisabledRoute(dr));
+			}
+		}
+
+		return parsed;
+	};
+
+	const {
+		data: routes,
+		loading,
+		error,
+		setError,
+		reload: loadRoutes,
+	} = usePolledData({
+		fetcher: fetchRoutes,
+		initialData: [] as ParsedRoute[],
+		errorPrefix: "Failed to load routes",
+	});
+
 	const [showForm, setShowForm] = useState(false);
 	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
 	const [domain, setDomain] = useState("");
@@ -190,73 +248,6 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 		if (!caddyRunning) return;
 		fetchGlobalToggles().then(setGlobalToggles);
 	}, [caddyRunning]);
-
-	const loadRoutes = useCallback(async () => {
-		try {
-			const parsed: ParsedRoute[] = [];
-
-			if (caddyRunning) {
-				const [config, disabled, bindings, ipListsData] = await Promise.all([
-					fetchConfig(),
-					fetchDisabledRoutes(),
-					fetchRouteIPListBindings(),
-					fetchIPLists(),
-				]);
-				const servers = (config as CaddyConfig).apps?.http?.servers;
-				if (servers) {
-					for (const [name, server] of Object.entries(servers)) {
-						const domainSinks = new Map<string, string>(
-							Object.entries(server.logs?.logger_names ?? {}),
-						);
-						for (const route of server.routes ?? []) {
-							parsed.push(parseRoute(route, name, domainSinks));
-						}
-					}
-				}
-				for (const dr of disabled) {
-					parsed.push(parseDisabledRoute(dr));
-				}
-				for (const route of parsed) {
-					const listID = bindings[route.id];
-					if (listID) {
-						const list = ipListsData.find((l) => l.id === listID);
-						if (list) {
-							route.toggles = {
-								...route.toggles,
-								ip_filtering: {
-									enabled: true,
-									list_id: listID,
-									type: list.type,
-								},
-							};
-						}
-					}
-				}
-			} else {
-				const disabled = await fetchDisabledRoutes();
-				for (const dr of disabled) {
-					parsed.push(parseDisabledRoute(dr));
-				}
-			}
-
-			setRoutes((prev) => {
-				if (deepEqual(prev, parsed)) {
-					return prev;
-				}
-				return parsed;
-			});
-		} catch (err) {
-			setError(getErrorMessage(err, "Failed to load routes"));
-		} finally {
-			setLoading(false);
-		}
-	}, [caddyRunning]);
-
-	useEffect(() => {
-		loadRoutes();
-		const id = setInterval(loadRoutes, POLL_INTERVAL);
-		return () => clearInterval(id);
-	}, [loadRoutes]);
 
 	function updateFormToggle<K extends keyof RouteToggles>(key: K, value: RouteToggles[K]) {
 		setFormToggles((prev) => ({ ...prev, [key]: value }));
@@ -339,7 +330,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				setDeleting(null);
 			}
 		},
-		[loadRoutes],
+		[loadRoutes, setError],
 	);
 
 	const handleToggleEnabled = useCallback(
@@ -359,7 +350,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				setToggling(null);
 			}
 		},
-		[loadRoutes, toggling],
+		[loadRoutes, toggling, setError],
 	);
 
 	const handleUpdateToggles = useCallback(
@@ -377,7 +368,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				throw err;
 			}
 		},
-		[loadRoutes],
+		[loadRoutes, setError],
 	);
 
 	if (loading) {

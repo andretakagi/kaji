@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { createIPList, fetchIPLists, POLL_INTERVAL } from "../api";
-import { deepEqual } from "../deepEqual";
+import { useState } from "react";
+import { createIPList, fetchIPLists } from "../api";
+import { usePolledData } from "../hooks/usePolledData";
 import type { IPList } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateIPOrCIDR } from "../utils/validate";
@@ -9,9 +9,18 @@ import IPListCard from "./IPListCard";
 import { SectionHeader } from "./SectionHeader";
 
 export default function IPLists() {
-	const [lists, setLists] = useState<IPList[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+	const {
+		data: lists,
+		setData: setLists,
+		loading,
+		error,
+		setError,
+		reload: load,
+	} = usePolledData({
+		fetcher: fetchIPLists,
+		initialData: [] as IPList[],
+		errorPrefix: "Failed to load IP lists",
+	});
 	const [showForm, setShowForm] = useState(false);
 
 	const [newName, setNewName] = useState("");
@@ -23,26 +32,6 @@ export default function IPLists() {
 	const [newChildren, setNewChildren] = useState<string[]>([]);
 	const [creating, setCreating] = useState(false);
 	const [createError, setCreateError] = useState<string | null>(null);
-
-	const load = useCallback(async () => {
-		try {
-			const data = await fetchIPLists();
-			setLists((prev) => {
-				if (deepEqual(prev, data)) return prev;
-				return data;
-			});
-		} catch (err) {
-			setError(getErrorMessage(err, "Failed to load IP lists"));
-		} finally {
-			setLoading(false);
-		}
-	}, []);
-
-	useEffect(() => {
-		load();
-		const id = setInterval(load, POLL_INTERVAL);
-		return () => clearInterval(id);
-	}, [load]);
 
 	function resetForm() {
 		setNewName("");
@@ -123,7 +112,7 @@ export default function IPLists() {
 				</button>
 			</SectionHeader>
 
-			<ErrorAlert message={error} onDismiss={() => setError(null)} />
+			<ErrorAlert message={error} onDismiss={() => setError("")} />
 
 			{showForm && (
 				<form className="ip-list-create-form" onSubmit={handleCreate}>
