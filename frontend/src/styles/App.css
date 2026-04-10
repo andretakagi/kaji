@@ -3032,16 +3032,10 @@ input:disabled + .toggle-slider {
 	gap: 1rem;
 }
 
-.ip-list-fields {
-	display: grid;
-	grid-template-columns: auto 1fr;
-	gap: 0.5rem 0.75rem;
-	align-items: center;
-}
-
-.ip-list-fields label {
+.ip-list-description {
 	font-size: 0.85rem;
 	color: var(--text-secondary);
+	margin: 0;
 }
 
 .ip-list-section h4 {

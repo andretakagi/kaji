@@ -15,8 +15,6 @@ interface Props {
 }
 
 export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Props) {
-	const [name, setName] = useState(list.name);
-	const [description, setDescription] = useState(list.description);
 	const [ips, setIps] = useState<string[]>(list.ips);
 	const [children, setChildren] = useState<string[]>(list.children);
 
@@ -31,15 +29,9 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 	const [usageLoading, setUsageLoading] = useState(false);
 	const usageLoadedRef = useRef(false);
 
-	const dirty =
-		name !== list.name ||
-		description !== list.description ||
-		!deepEqual(ips, list.ips) ||
-		!deepEqual(children, list.children);
+	const dirty = !deepEqual(ips, list.ips) || !deepEqual(children, list.children);
 
 	useEffect(() => {
-		setName(list.name);
-		setDescription(list.description);
 		setIps(list.ips);
 		setChildren(list.children);
 	}, [list]);
@@ -92,7 +84,12 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 		setSaving(true);
 		setSaveError(null);
 		try {
-			await updateIPList(list.id, { name, description, ips, children });
+			await updateIPList(list.id, {
+				name: list.name,
+				description: list.description,
+				ips,
+				children,
+			});
 			onUpdated();
 		} catch (err) {
 			setSaveError(getErrorMessage(err, "Failed to save"));
@@ -102,8 +99,6 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 	}
 
 	function handleDiscard() {
-		setName(list.name);
-		setDescription(list.description);
 		setIps(list.ips);
 		setChildren(list.children);
 		setIpInput("");
@@ -148,28 +143,7 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 	return (
 		<CollapsibleCard title={title} actions={actions} ariaLabel={list.name}>
 			<div className="ip-list-detail">
-				<div className="ip-list-fields">
-					<label htmlFor={`ipl-name-${list.id}`}>Name</label>
-					<input
-						id={`ipl-name-${list.id}`}
-						type="text"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						onFocus={loadUsage}
-						maxLength={255}
-						disabled={saving}
-					/>
-					<label htmlFor={`ipl-desc-${list.id}`}>Description</label>
-					<input
-						id={`ipl-desc-${list.id}`}
-						type="text"
-						value={description}
-						onChange={(e) => setDescription(e.target.value)}
-						placeholder="Optional"
-						maxLength={1000}
-						disabled={saving}
-					/>
-				</div>
+				{list.description && <p className="ip-list-description">{list.description}</p>}
 
 				<div className="ip-list-section">
 					<h4>IP Addresses</h4>
