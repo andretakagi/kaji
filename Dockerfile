@@ -1,5 +1,5 @@
 # Stage 1: Caddy binary from official image
-FROM caddy:2.9.1-alpine AS caddy
+FROM caddy:2.11.2-alpine AS caddy
 
 # Stage 2: Build frontend
 FROM oven/bun:1.2.5 AS frontend
