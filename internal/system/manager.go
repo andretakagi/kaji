@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const defaultAdminURL = "http://localhost:2019"
+
 type CaddyManager interface {
 	Start() error
 	Stop() error
@@ -25,6 +27,13 @@ func NewCaddyManager(adminURL string) CaddyManager {
 		return &SystemdManager{AdminURL: adminURL}
 	}
 	return &ProcessManager{AdminURL: adminURL}
+}
+
+func adminURL(configured string) string {
+	if configured != "" {
+		return configured
+	}
+	return defaultAdminURL
 }
 
 // Polls until the admin API responds or timeout. Called after starting

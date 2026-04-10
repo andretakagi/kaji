@@ -8,12 +8,12 @@ import (
 )
 
 type RouteParams struct {
-	ID            string       `json:"@id"`
-	Domain        string       `json:"domain"`
-	Upstream      string       `json:"upstream"`
-	Toggles       RouteToggles `json:"toggles"`
-	IPListIPs     []string     `json:"-"`
-	IPListType    string       `json:"-"`
+	ID         string       `json:"@id"`
+	Domain     string       `json:"domain"`
+	Upstream   string       `json:"upstream"`
+	Toggles    RouteToggles `json:"toggles"`
+	IPListIPs  []string     `json:"-"`
+	IPListType string       `json:"-"`
 }
 
 type IPFilteringOpts struct {

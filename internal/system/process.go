@@ -68,18 +68,11 @@ func (p *ProcessManager) Start() error {
 	return nil
 }
 
-func (p *ProcessManager) adminURL() string {
-	if p.AdminURL != "" {
-		return p.AdminURL
-	}
-	return "http://localhost:2019"
-}
-
 func (p *ProcessManager) waitForAdminAPI() error {
 	client := &http.Client{Timeout: 1 * time.Second}
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		resp, err := client.Get(p.adminURL() + "/config/")
+		resp, err := client.Get(adminURL(p.AdminURL) + "/config/")
 		if err == nil {
 			resp.Body.Close()
 			return nil
@@ -151,7 +144,7 @@ func (p *ProcessManager) Status() (bool, error) {
 	// a syscall.Exec restart where we lost the child reference). Check
 	// the admin API to find out.
 	client := &http.Client{Timeout: 1 * time.Second}
-	resp, err := client.Get(p.adminURL() + "/config/")
+	resp, err := client.Get(adminURL(p.AdminURL) + "/config/")
 	if err != nil {
 		return false, nil
 	}

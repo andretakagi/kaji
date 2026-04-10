@@ -2,7 +2,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -25,8 +24,7 @@ func handleGlobalTogglesGet(cc *caddy.Client) http.HandlerFunc {
 func handleGlobalTogglesUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var toggles caddy.GlobalToggles
-		if err := json.NewDecoder(r.Body).Decode(&toggles); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &toggles) {
 			return
 		}
 		if msg := validateAutoHTTPS(toggles.AutoHTTPS); msg != "" {
@@ -60,8 +58,7 @@ func handleACMEEmailUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 		var req struct {
 			Email string `json:"email"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if msg := validateEmail(req.Email); msg != "" {
@@ -93,8 +90,7 @@ func handleAdvancedUpdate(store *config.ConfigStore) http.HandlerFunc {
 		var req struct {
 			CaddyAdminURL string `json:"caddy_admin_url"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 
@@ -133,8 +129,7 @@ func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *sn
 			Enabled  bool   `json:"enabled"`
 			APIToken string `json:"api_token"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		maybeAutoSnapshot(cc, ss, "DNS provider updated")

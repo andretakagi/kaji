@@ -3,7 +3,6 @@ package api
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -61,8 +60,7 @@ func handleCreateIPList(store *config.ConfigStore) http.HandlerFunc {
 			IPs         []string `json:"ips"`
 			Children    []string `json:"children"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 
@@ -147,8 +145,7 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			IPs         []string `json:"ips"`
 			Children    []string `json:"children"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 

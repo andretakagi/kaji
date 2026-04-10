@@ -29,8 +29,7 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
 			GlobalToggles *caddy.GlobalToggles `json:"global_toggles"`
 			CaddyfileJSON json.RawMessage      `json:"caddyfile_json"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 
@@ -135,8 +134,7 @@ func handleAdaptCaddyfile(cc *caddy.Client) http.HandlerFunc {
 		var req struct {
 			Caddyfile string `json:"caddyfile"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if strings.TrimSpace(req.Caddyfile) == "" {

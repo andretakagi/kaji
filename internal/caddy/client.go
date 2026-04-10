@@ -59,22 +59,57 @@ func (c *Client) url() string {
 	return strings.TrimRight(u, "/")
 }
 
-func (c *Client) getConfigRaw(path string) (json.RawMessage, error) {
-	target := c.url() + "/config/"
-	if path != "" {
-		target += path
-	}
-	resp, err := c.httpClient.Get(target)
+func (c *Client) doGet(rawURL string) ([]byte, error) {
+	resp, err := c.httpClient.Get(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("caddy admin API unreachable: %w", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading config response: %w", err)
+		return nil, fmt.Errorf("reading response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get config (status %d): %s", resp.StatusCode, body)
+		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, body)
+	}
+	return body, nil
+}
+
+func (c *Client) doRequest(method, rawURL, contentType string, body []byte) error {
+	var reqBody io.Reader
+	if body != nil {
+		reqBody = bytes.NewReader(body)
+	}
+	req, err := http.NewRequest(method, rawURL, reqBody)
+	if err != nil {
+		return fmt.Errorf("building request: %w", err)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("caddy admin API unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return fmt.Errorf("request failed (status %d, body unreadable)", resp.StatusCode)
+		}
+		return fmt.Errorf("request failed (status %d): %s", resp.StatusCode, respBody)
+	}
+	return nil
+}
+
+func (c *Client) getConfigRaw(path string) (json.RawMessage, error) {
+	target := c.url() + "/config/"
+	if path != "" {
+		target += path
+	}
+	body, err := c.doGet(target)
+	if err != nil {
+		return nil, err
 	}
 	return json.RawMessage(body), nil
 }
@@ -100,57 +135,23 @@ func (c *Client) GetConfigPath(path string) (json.RawMessage, error) {
 }
 
 func (c *Client) LoadConfig(configJSON []byte) error {
-	resp, err := c.httpClient.Post(
-		c.url()+"/load",
-		"application/json",
-		bytes.NewReader(configJSON),
-	)
-	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("caddy rejected config (status %d, body unreadable)", resp.StatusCode)
-		}
-		return fmt.Errorf("caddy rejected config (status %d): %s", resp.StatusCode, body)
+	if err := c.doRequest(http.MethodPost, c.url()+"/load", "application/json", configJSON); err != nil {
+		return fmt.Errorf("loading config: %w", err)
 	}
 	return nil
 }
 
 func (c *Client) GetRouteByID(id string) (json.RawMessage, error) {
-	resp, err := c.httpClient.Get(c.url() + "/id/" + url.PathEscape(id))
+	body, err := c.doGet(c.url() + "/id/" + url.PathEscape(id))
 	if err != nil {
-		return nil, fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading route response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("route %q not found (status %d): %s", id, resp.StatusCode, body)
+		return nil, fmt.Errorf("route %q: %w", id, err)
 	}
 	return json.RawMessage(body), nil
 }
 
 func (c *Client) DeleteByID(id string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.url()+"/id/"+url.PathEscape(id), nil)
-	if err != nil {
-		return fmt.Errorf("building delete request for route %q: %w", id, err)
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to delete %q (status %d, body unreadable)", id, resp.StatusCode)
-		}
-		return fmt.Errorf("failed to delete %q (status %d): %s", id, resp.StatusCode, body)
+	if err := c.doRequest(http.MethodDelete, c.url()+"/id/"+url.PathEscape(id), "", nil); err != nil {
+		return fmt.Errorf("deleting route %q: %w", id, err)
 	}
 	return nil
 }
@@ -169,18 +170,8 @@ func (c *Client) AddRoute(server string, route json.RawMessage) error {
 		}
 	}
 
-	target := c.url() + "/config/" + routesPath
-	resp, err := c.httpClient.Post(target, "application/json", bytes.NewReader(route))
-	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to add route (status %d, body unreadable)", resp.StatusCode)
-		}
-		return fmt.Errorf("failed to add route (status %d): %s", resp.StatusCode, body)
+	if err := c.doRequest(http.MethodPost, c.url()+"/config/"+routesPath, "application/json", route); err != nil {
+		return fmt.Errorf("adding route to %q: %w", server, err)
 	}
 	return nil
 }
@@ -212,38 +203,16 @@ func (c *Client) FindRouteServer(id string) (string, error) {
 }
 
 func (c *Client) GetLoggingConfig() (json.RawMessage, error) {
-	resp, err := c.httpClient.Get(c.url() + "/config/logging")
+	body, err := c.doGet(c.url() + "/config/logging")
 	if err != nil {
-		return nil, fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading logging config response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get logging config (status %d): %s", resp.StatusCode, body)
+		return nil, err
 	}
 	return json.RawMessage(body), nil
 }
 
 func (c *Client) SetLoggingConfig(loggingJSON []byte) error {
-	req, err := http.NewRequest(http.MethodPost, c.url()+"/config/logging", bytes.NewReader(loggingJSON))
-	if err != nil {
-		return fmt.Errorf("building logging config request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("caddy rejected logging config (status %d, body unreadable)", resp.StatusCode)
-		}
-		return fmt.Errorf("caddy rejected logging config (status %d): %s", resp.StatusCode, body)
+	if err := c.doRequest(http.MethodPost, c.url()+"/config/logging", "application/json", loggingJSON); err != nil {
+		return fmt.Errorf("setting logging config: %w", err)
 	}
 	return nil
 }
@@ -436,17 +405,9 @@ func (c *Client) AdaptCaddyfile(caddyfileText string) (json.RawMessage, error) {
 }
 
 func (c *Client) GetUpstreams() (json.RawMessage, error) {
-	resp, err := c.httpClient.Get(c.url() + "/reverse_proxy/upstreams")
+	body, err := c.doGet(c.url() + "/reverse_proxy/upstreams")
 	if err != nil {
-		return nil, fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading upstreams response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get upstreams (status %d): %s", resp.StatusCode, body)
+		return nil, err
 	}
 	return json.RawMessage(body), nil
 }

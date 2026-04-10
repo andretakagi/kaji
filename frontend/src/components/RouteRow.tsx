@@ -170,7 +170,7 @@ export default memo(
 			prev.route.upstream === next.route.upstream &&
 			prev.route.disabled === next.route.disabled &&
 			prev.route.server === next.route.server &&
-			JSON.stringify(prev.route.toggles) === JSON.stringify(next.route.toggles)
+			deepEqual(prev.route.toggles, next.route.toggles)
 		);
 	},
 );

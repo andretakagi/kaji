@@ -293,3 +293,79 @@ func writeRawJSON(w http.ResponseWriter, raw []byte) {
 		log.Printf("writeRawJSON: write error: %v", err)
 	}
 }
+
+func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		writeError(w, "invalid request body", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+type routeSinkInfo struct {
+	domain string
+	server string
+	sink   string
+}
+
+func lookupRouteSink(cc *caddy.Client, routeID string) routeSinkInfo {
+	var info routeSinkInfo
+	raw, err := cc.GetRouteByID(routeID)
+	if err != nil {
+		return info
+	}
+	var route struct {
+		Match []struct {
+			Host []string `json:"host"`
+		} `json:"match"`
+	}
+	if json.Unmarshal(raw, &route) == nil && len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
+		info.domain = route.Match[0].Host[0]
+	}
+	info.server, _ = cc.FindRouteServer(routeID)
+	if info.domain != "" && info.server != "" {
+		if domainSinks, err := cc.GetAccessLogDomains(info.server); err == nil {
+			info.sink = domainSinks[info.domain]
+		}
+	}
+	return info
+}
+
+func resolveIPFiltering(store *config.ConfigStore, toggles caddy.RouteToggles, params *caddy.RouteParams) error {
+	if !toggles.IPFiltering.Enabled || toggles.IPFiltering.ListID == "" {
+		return nil
+	}
+	cfg := store.Get()
+	resolved, err := caddy.ResolveIPList(toggles.IPFiltering.ListID, cfg.IPLists)
+	if err != nil {
+		return err
+	}
+	for _, l := range cfg.IPLists {
+		if l.ID == toggles.IPFiltering.ListID {
+			params.IPListType = l.Type
+			break
+		}
+	}
+	params.IPListIPs = resolved
+	return nil
+}
+
+func trackRouteIPList(store *config.ConfigStore, routeID string, toggles caddy.RouteToggles) {
+	listID := ""
+	if toggles.IPFiltering.Enabled {
+		listID = toggles.IPFiltering.ListID
+	}
+	if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		if c.RouteIPLists == nil {
+			c.RouteIPLists = make(map[string]string)
+		}
+		if listID != "" {
+			c.RouteIPLists[routeID] = listID
+		} else {
+			delete(c.RouteIPLists, routeID)
+		}
+		return &c, nil
+	}); err != nil {
+		log.Printf("trackRouteIPList: %v", err)
+	}
+}

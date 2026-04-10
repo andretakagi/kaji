@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteIPList, fetchIPListUsage, updateIPList } from "../api";
+import { deepEqual } from "../deepEqual";
 import type { IPList, IPListUsage } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateIPOrCIDR } from "../utils/validate";
@@ -33,8 +34,8 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 	const dirty =
 		name !== list.name ||
 		description !== list.description ||
-		JSON.stringify(ips) !== JSON.stringify(list.ips) ||
-		JSON.stringify(children) !== JSON.stringify(list.children);
+		!deepEqual(ips, list.ips) ||
+		!deepEqual(children, list.children);
 
 	useEffect(() => {
 		setName(list.name);

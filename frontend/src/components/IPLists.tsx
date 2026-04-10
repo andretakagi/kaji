@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createIPList, fetchIPLists, POLL_INTERVAL } from "../api";
+import { deepEqual } from "../deepEqual";
 import type { IPList } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import IPListCard from "./IPListCard";
@@ -20,7 +21,7 @@ export default function IPLists() {
 		try {
 			const data = await fetchIPLists();
 			setLists((prev) => {
-				if (JSON.stringify(prev) === JSON.stringify(data)) return prev;
+				if (deepEqual(prev, data)) return prev;
 				return data;
 			});
 		} catch (err) {

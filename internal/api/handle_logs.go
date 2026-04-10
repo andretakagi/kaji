@@ -188,7 +188,9 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 				json.Unmarshal(body, &incoming)
 				for name := range current.Logs {
 					if _, exists := incoming.Logs[name]; !exists {
-						_ = cc.ClearDomainsForSink(name)
+						if err := cc.ClearDomainsForSink(name); err != nil {
+							log.Printf("handleLogConfigUpdate: clear domains for removed sink %q: %v", name, err)
+						}
 					}
 				}
 			}
@@ -202,7 +204,9 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 				} `json:"writer"`
 			}
 			if json.Unmarshal(kajiRaw, &sink) == nil && sink.Writer.Output == "discard" {
-				_ = cc.ClearDomainsForSink("kaji_access")
+				if err := cc.ClearDomainsForSink("kaji_access"); err != nil {
+					log.Printf("handleLogConfigUpdate: clear kaji_access domains: %v", err)
+				}
 			}
 		}
 
@@ -213,7 +217,9 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			return
 		}
 		// Protected loggers must always exist
-		_ = cc.EnsureAccessLogger()
+		if err := cc.EnsureAccessLogger(); err != nil {
+			log.Printf("handleLogConfigUpdate: ensure access logger: %v", err)
+		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
 	}

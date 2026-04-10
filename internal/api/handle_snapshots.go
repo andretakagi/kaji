@@ -2,7 +2,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -24,8 +23,7 @@ func handleSnapshotCreate(ss *snapshot.Store, cc *caddy.Client) http.HandlerFunc
 			Name        string `json:"name"`
 			Description string `json:"description"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if req.Name == "" {
@@ -106,8 +104,7 @@ func handleSnapshotUpdate(ss *snapshot.Store) http.HandlerFunc {
 			Name        string `json:"name"`
 			Description string `json:"description"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 
@@ -125,8 +122,7 @@ func handleSnapshotSettings(ss *snapshot.Store) http.HandlerFunc {
 			AutoSnapshotEnabled bool `json:"auto_snapshot_enabled"`
 			AutoSnapshotLimit   int  `json:"auto_snapshot_limit"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if req.AutoSnapshotLimit < 1 {

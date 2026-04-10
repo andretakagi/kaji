@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-	changePassword,
 	exportCaddyfile,
 	fetchAdvancedSettings,
 	fetchAPIKeyStatus,
@@ -8,11 +7,10 @@ import {
 	generateAPIKey,
 	revokeAPIKey,
 	updateAdvancedSettings,
-	updateAuthEnabled,
 } from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
-import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateCaddyAdminUrl } from "../utils/validate";
+import AuthSection from "./AuthSection";
 import Feedback from "./Feedback";
 
 function AppearanceSection() {
@@ -61,209 +59,6 @@ function CaddyOffSection({ title }: { title: string }) {
 		<section className="settings-section settings-section-failed">
 			<h3>{title}</h3>
 			<p className="settings-section-error">Caddy is not running</p>
-		</section>
-	);
-}
-
-function AuthSection({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
-	const [toggleValue, setToggleValue] = useState(enabled);
-	useEffect(() => setToggleValue(enabled), [enabled]);
-
-	const [saving, setSaving] = useState(false);
-	const [error, setError] = useState("");
-	const [newPw, setNewPw] = useState("");
-	const [confirmPw, setConfirmPw] = useState("");
-
-	const [cpNew, setCpNew] = useState("");
-	const [cpConfirm, setCpConfirm] = useState("");
-	const cp = useAsyncAction();
-
-	const pendingDisable = enabled && !toggleValue;
-	const pendingEnable = !enabled && toggleValue;
-	const stayingOn = enabled && toggleValue;
-
-	const handleToggle = () => {
-		setToggleValue((v) => !v);
-		setError("");
-		setNewPw("");
-		setConfirmPw("");
-	};
-
-	const handleDisable = async () => {
-		setSaving(true);
-		setError("");
-		try {
-			await updateAuthEnabled(false);
-			onChange(false);
-		} catch (err) {
-			setError(getErrorMessage(err, "Failed to disable auth"));
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const handleEnable = async (e: React.SubmitEvent) => {
-		e.preventDefault();
-		setError("");
-
-		if (newPw.length < 8) {
-			setError("Password must be at least 8 characters");
-			return;
-		}
-		if (newPw !== confirmPw) {
-			setError("Passwords do not match");
-			return;
-		}
-
-		setSaving(true);
-		try {
-			await updateAuthEnabled(true, newPw);
-			setNewPw("");
-			setConfirmPw("");
-			onChange(true);
-		} catch (err) {
-			setError(getErrorMessage(err, "Failed to enable auth"));
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const handleChangePassword = (e: React.SubmitEvent) => {
-		e.preventDefault();
-
-		if (cpNew.length < 8) {
-			cp.setFeedback({ msg: "New password must be at least 8 characters", type: "error" });
-			return;
-		}
-		if (cpNew !== cpConfirm) {
-			cp.setFeedback({ msg: "Passwords do not match", type: "error" });
-			return;
-		}
-
-		cp.run(async () => {
-			await changePassword({ new_password: cpNew });
-			setCpNew("");
-			setCpConfirm("");
-			return "Password changed";
-		});
-	};
-
-	return (
-		<section className="settings-section">
-			<h3>Authentication</h3>
-			<div className="settings-toggle-row">
-				<span>Require password to access Kaji</span>
-				<label className="toggle-switch">
-					<input type="checkbox" checked={toggleValue} onChange={handleToggle} disabled={saving} />
-					<span className="toggle-slider" />
-				</label>
-			</div>
-			{pendingDisable && (
-				<div className="auth-password-form">
-					<p className="settings-description">
-						Authentication will be disabled. Anyone with access to this server will be able to use
-						Kaji without a password.
-					</p>
-					<div className="auth-password-actions">
-						<button
-							type="button"
-							className="btn btn-primary settings-save-btn"
-							disabled={saving}
-							onClick={handleDisable}
-						>
-							{saving ? "Saving..." : "Save"}
-						</button>
-						<button
-							type="button"
-							className="btn btn-ghost settings-cancel-btn"
-							disabled={saving}
-							onClick={() => {
-								setToggleValue(true);
-								setError("");
-							}}
-						>
-							Cancel
-						</button>
-					</div>
-				</div>
-			)}
-			{pendingEnable && (
-				<form className="auth-password-form" onSubmit={handleEnable}>
-					<p className="settings-description">Set a password to enable authentication.</p>
-					<div className="settings-field">
-						<label htmlFor="auth-pw">Password</label>
-						<input
-							id="auth-pw"
-							type="password"
-							autoComplete="new-password"
-							value={newPw}
-							onChange={(e) => setNewPw(e.target.value)}
-							required
-						/>
-					</div>
-					<div className="settings-field">
-						<label htmlFor="auth-pw-confirm">Confirm Password</label>
-						<input
-							id="auth-pw-confirm"
-							type="password"
-							autoComplete="new-password"
-							value={confirmPw}
-							onChange={(e) => setConfirmPw(e.target.value)}
-							required
-						/>
-					</div>
-					<div className="auth-password-actions">
-						<button type="submit" className="btn btn-primary settings-save-btn" disabled={saving}>
-							{saving ? "Enabling..." : "Enable Authentication"}
-						</button>
-						<button
-							type="button"
-							className="btn btn-ghost settings-cancel-btn"
-							onClick={() => {
-								setToggleValue(false);
-								setNewPw("");
-								setConfirmPw("");
-								setError("");
-							}}
-							disabled={saving}
-						>
-							Cancel
-						</button>
-					</div>
-				</form>
-			)}
-			{error && <Feedback msg={error} type="error" className="settings-feedback" />}
-			{stayingOn && (
-				<form className="auth-password-form" onSubmit={handleChangePassword}>
-					<h4 className="settings-subsection-title">Change Password</h4>
-					<div className="settings-field">
-						<label htmlFor="pw-new">New Password</label>
-						<input
-							id="pw-new"
-							type="password"
-							autoComplete="new-password"
-							value={cpNew}
-							onChange={(e) => setCpNew(e.target.value)}
-							required
-						/>
-					</div>
-					<div className="settings-field">
-						<label htmlFor="pw-confirm">Confirm New Password</label>
-						<input
-							id="pw-confirm"
-							type="password"
-							autoComplete="new-password"
-							value={cpConfirm}
-							onChange={(e) => setCpConfirm(e.target.value)}
-							required
-						/>
-					</div>
-					<button type="submit" className="btn btn-primary settings-save-btn" disabled={cp.saving}>
-						{cp.saving ? "Saving..." : "Change Password"}
-					</button>
-					<Feedback msg={cp.feedback.msg} type={cp.feedback.type} className="settings-feedback" />
-				</form>
-			)}
 		</section>
 	);
 }

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { getErrorMessage } from "../utils/getErrorMessage";
 
-type Feedback = { msg: string; type: "success" | "error" };
+export type Feedback = { msg: string; type: "success" | "error" };
 
 const empty: Feedback = { msg: "", type: "success" };
 

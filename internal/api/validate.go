@@ -4,9 +4,12 @@ package api
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/andretakagi/kaji/internal/caddy"
 )
 
 func validateDomain(domain string) string {
@@ -173,4 +176,25 @@ func validateIPListName(name string) string {
 		return "name too long (max 128 characters)"
 	}
 	return ""
+}
+
+func validateLoadBalancing(w http.ResponseWriter, lb caddy.LoadBalancing) bool {
+	if !lb.Enabled {
+		return true
+	}
+	if msg := validateLBStrategy(lb.Strategy); msg != "" {
+		writeError(w, msg, http.StatusBadRequest)
+		return false
+	}
+	if len(lb.Upstreams) == 0 {
+		writeError(w, "load balancing requires at least one additional upstream", http.StatusBadRequest)
+		return false
+	}
+	for _, u := range lb.Upstreams {
+		if msg := validateUpstream(u); msg != "" {
+			writeError(w, "additional upstream: "+msg, http.StatusBadRequest)
+			return false
+		}
+	}
+	return true
 }

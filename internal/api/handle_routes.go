@@ -2,7 +2,6 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -22,8 +21,7 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			Upstream string             `json:"upstream"`
 			Toggles  caddy.RouteToggles `json:"toggles"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if msg := validateDomain(req.Domain); msg != "" {
@@ -41,21 +39,8 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
-		if req.Toggles.LoadBalancing.Enabled {
-			if msg := validateLBStrategy(req.Toggles.LoadBalancing.Strategy); msg != "" {
-				writeError(w, msg, http.StatusBadRequest)
-				return
-			}
-			if len(req.Toggles.LoadBalancing.Upstreams) == 0 {
-				writeError(w, "load balancing requires at least one additional upstream", http.StatusBadRequest)
-				return
-			}
-			for _, u := range req.Toggles.LoadBalancing.Upstreams {
-				if msg := validateUpstream(u); msg != "" {
-					writeError(w, "additional upstream: "+msg, http.StatusBadRequest)
-					return
-				}
-			}
+		if !validateLoadBalancing(w, req.Toggles.LoadBalancing) {
+			return
 		}
 
 		if req.Toggles.BasicAuth.Enabled {
@@ -86,20 +71,9 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			Toggles:  req.Toggles,
 		}
 
-		if req.Toggles.IPFiltering.Enabled && req.Toggles.IPFiltering.ListID != "" {
-			cfg := store.Get()
-			resolved, err := caddy.ResolveIPList(req.Toggles.IPFiltering.ListID, cfg.IPLists)
-			if err != nil {
-				writeError(w, fmt.Sprintf("IP list error: %v", err), http.StatusBadRequest)
-				return
-			}
-			for _, l := range cfg.IPLists {
-				if l.ID == req.Toggles.IPFiltering.ListID {
-					params.IPListType = l.Type
-					break
-				}
-			}
-			params.IPListIPs = resolved
+		if err := resolveIPFiltering(store, req.Toggles, &params); err != nil {
+			writeError(w, fmt.Sprintf("IP list error: %v", err), http.StatusBadRequest)
+			return
 		}
 
 		route, err := caddy.BuildRoute(params)
@@ -120,22 +94,7 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 		writeJSON(w, map[string]any{"status": "ok", "@id": caddy.GenerateRouteID(req.Domain)})
 		persistCaddyConfig(cc, store)
-
-		listID := ""
-		if req.Toggles.IPFiltering.Enabled {
-			listID = req.Toggles.IPFiltering.ListID
-		}
-		_ = store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
-			if c.RouteIPLists == nil {
-				c.RouteIPLists = make(map[string]string)
-			}
-			if listID != "" {
-				c.RouteIPLists[routeID] = listID
-			} else {
-				delete(c.RouteIPLists, routeID)
-			}
-			return &c, nil
-		})
+		trackRouteIPList(store, routeID, req.Toggles)
 	}
 }
 
@@ -170,27 +129,11 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			}
 		}
 
-		var domain, server, oldSink string
-		if raw, err := cc.GetRouteByID(routeID); err == nil {
-			var route struct {
-				Match []struct {
-					Host []string `json:"host"`
-				} `json:"match"`
-			}
-			if json.Unmarshal(raw, &route) == nil && len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
-				domain = route.Match[0].Host[0]
-			}
-			server, _ = cc.FindRouteServer(routeID)
-			if domain != "" && server != "" {
-				if domainSinks, err := cc.GetAccessLogDomains(server); err == nil {
-					oldSink = domainSinks[domain]
-				}
-			}
-		}
+		info := lookupRouteSink(cc, routeID)
 
 		desc := "Route deleted: " + routeID
-		if domain != "" {
-			desc = "Route deleted: " + domain
+		if info.domain != "" {
+			desc = "Route deleted: " + info.domain
 		}
 		maybeAutoSnapshot(cc, ss, desc)
 
@@ -199,21 +142,21 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
-		if domain != "" && server != "" {
-			_ = cc.SetRouteAccessLog(server, domain, "")
-			if oldSink != "" {
-				if referenced, err := cc.IsSinkReferenced(oldSink); err == nil && !referenced {
-					_ = cc.DeleteConfigPath("logging/logs/" + oldSink)
+		if info.domain != "" && info.server != "" {
+			if err := cc.SetRouteAccessLog(info.server, info.domain, ""); err != nil {
+				log.Printf("handleDeleteRoute: clear access log: %v", err)
+			}
+			if info.sink != "" {
+				if referenced, err := cc.IsSinkReferenced(info.sink); err == nil && !referenced {
+					if err := cc.DeleteConfigPath("logging/logs/" + info.sink); err != nil {
+						log.Printf("handleDeleteRoute: remove unused log sink: %v", err)
+					}
 				}
 			}
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
-
-		_ = store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
-			delete(c.RouteIPLists, routeID)
-			return &c, nil
-		})
+		trackRouteIPList(store, routeID, caddy.RouteToggles{})
 	}
 }
 
@@ -230,8 +173,7 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			Upstream string             `json:"upstream"`
 			Toggles  caddy.RouteToggles `json:"toggles"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if msg := validateDomain(req.Domain); msg != "" {
@@ -243,21 +185,8 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
-		if req.Toggles.LoadBalancing.Enabled {
-			if msg := validateLBStrategy(req.Toggles.LoadBalancing.Strategy); msg != "" {
-				writeError(w, msg, http.StatusBadRequest)
-				return
-			}
-			if len(req.Toggles.LoadBalancing.Upstreams) == 0 {
-				writeError(w, "load balancing requires at least one additional upstream", http.StatusBadRequest)
-				return
-			}
-			for _, u := range req.Toggles.LoadBalancing.Upstreams {
-				if msg := validateUpstream(u); msg != "" {
-					writeError(w, "additional upstream: "+msg, http.StatusBadRequest)
-					return
-				}
-			}
+		if !validateLoadBalancing(w, req.Toggles.LoadBalancing) {
+			return
 		}
 
 		if req.Toggles.BasicAuth.Enabled {
@@ -286,20 +215,9 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			Toggles:  req.Toggles,
 		}
 
-		if req.Toggles.IPFiltering.Enabled && req.Toggles.IPFiltering.ListID != "" {
-			cfg := store.Get()
-			resolved, err := caddy.ResolveIPList(req.Toggles.IPFiltering.ListID, cfg.IPLists)
-			if err != nil {
-				writeError(w, fmt.Sprintf("IP list error: %v", err), http.StatusBadRequest)
-				return
-			}
-			for _, l := range cfg.IPLists {
-				if l.ID == req.Toggles.IPFiltering.ListID {
-					params.IPListType = l.Type
-					break
-				}
-			}
-			params.IPListIPs = resolved
+		if err := resolveIPFiltering(store, req.Toggles, &params); err != nil {
+			writeError(w, fmt.Sprintf("IP list error: %v", err), http.StatusBadRequest)
+			return
 		}
 
 		route, err := caddy.BuildRoute(params)
@@ -309,17 +227,7 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 
 		// Capture old sink before replacing
-		var oldSink string
-		if raw, err := cc.GetRouteByID(routeID); err == nil {
-			oldParams, _ := caddy.ParseRouteParams(raw)
-			oldDomain := oldParams.Domain
-			oldServer, _ := cc.FindRouteServer(routeID)
-			if oldDomain != "" && oldServer != "" {
-				if domainSinks, err := cc.GetAccessLogDomains(oldServer); err == nil {
-					oldSink = domainSinks[oldDomain]
-				}
-			}
-		}
+		oldInfo := lookupRouteSink(cc, routeID)
 
 		maybeAutoSnapshot(cc, ss, "Route updated: "+req.Domain)
 
@@ -332,29 +240,16 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		if err := cc.SetRouteAccessLog(server, req.Domain, req.Toggles.AccessLog); err != nil {
 			log.Printf("handleUpdateRoute: set access log: %v", err)
 		}
-		if oldSink != "" && oldSink != req.Toggles.AccessLog {
-			if referenced, err := cc.IsSinkReferenced(oldSink); err == nil && !referenced {
-				_ = cc.DeleteConfigPath("logging/logs/" + oldSink)
+		if oldInfo.sink != "" && oldInfo.sink != req.Toggles.AccessLog {
+			if referenced, err := cc.IsSinkReferenced(oldInfo.sink); err == nil && !referenced {
+				if err := cc.DeleteConfigPath("logging/logs/" + oldInfo.sink); err != nil {
+					log.Printf("handleUpdateRoute: remove unused log sink: %v", err)
+				}
 			}
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
-
-		listID := ""
-		if req.Toggles.IPFiltering.Enabled {
-			listID = req.Toggles.IPFiltering.ListID
-		}
-		_ = store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
-			if c.RouteIPLists == nil {
-				c.RouteIPLists = make(map[string]string)
-			}
-			if listID != "" {
-				c.RouteIPLists[routeID] = listID
-			} else {
-				delete(c.RouteIPLists, routeID)
-			}
-			return &c, nil
-		})
+		trackRouteIPList(store, routeID, req.Toggles)
 	}
 }
 
@@ -363,8 +258,7 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		var req struct {
 			ID string `json:"@id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if req.ID == "" {
@@ -424,7 +318,9 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		// Remove the domain from logger_names so the logs page
 		// no longer lists it under the access log sink.
 		if parsed, err := caddy.ParseRouteParams(route); err == nil && parsed.Domain != "" {
-			_ = cc.SetRouteAccessLog(server, parsed.Domain, "")
+			if err := cc.SetRouteAccessLog(server, parsed.Domain, ""); err != nil {
+				log.Printf("handleDisableRoute: clear access log: %v", err)
+			}
 		}
 
 		writeJSON(w, map[string]string{"status": "ok"})
@@ -437,8 +333,7 @@ func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		var req struct {
 			ID string `json:"@id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 		if req.ID == "" {
@@ -493,7 +388,9 @@ func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		// Restore the domain's logger_names entry if the route
 		// had an access log sink configured before it was disabled.
 		if parsed, err := caddy.ParseRouteParams(disabled.Route); err == nil && parsed.Toggles.AccessLog != "" {
-			_ = cc.SetRouteAccessLog(disabled.Server, parsed.Domain, parsed.Toggles.AccessLog)
+			if err := cc.SetRouteAccessLog(disabled.Server, parsed.Domain, parsed.Toggles.AccessLog); err != nil {
+				log.Printf("handleEnableRoute: restore access log: %v", err)
+			}
 		}
 
 		writeJSON(w, map[string]string{"status": "ok"})

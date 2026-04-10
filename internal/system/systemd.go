@@ -16,7 +16,7 @@ func (s *SystemdManager) Start() error {
 	if err := exec.Command("systemctl", "start", "caddy").Run(); err != nil {
 		return fmt.Errorf("systemctl start caddy: %w", err)
 	}
-	if err := WaitForAdminAPI(s.adminURL(), 5*time.Second); err != nil {
+	if err := WaitForAdminAPI(adminURL(s.AdminURL), 5*time.Second); err != nil {
 		return fmt.Errorf("caddy started but admin API not reachable: %w", err)
 	}
 	return nil
@@ -33,17 +33,10 @@ func (s *SystemdManager) Restart() error {
 	if err := exec.Command("systemctl", "restart", "caddy").Run(); err != nil {
 		return fmt.Errorf("systemctl restart caddy: %w", err)
 	}
-	if err := WaitForAdminAPI(s.adminURL(), 5*time.Second); err != nil {
+	if err := WaitForAdminAPI(adminURL(s.AdminURL), 5*time.Second); err != nil {
 		return fmt.Errorf("caddy restarted but admin API not reachable: %w", err)
 	}
 	return nil
-}
-
-func (s *SystemdManager) adminURL() string {
-	if s.AdminURL != "" {
-		return s.AdminURL
-	}
-	return "http://localhost:2019"
 }
 
 func (s *SystemdManager) Status() (bool, error) {

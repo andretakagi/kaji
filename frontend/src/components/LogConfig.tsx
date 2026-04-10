@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { fetchAccessDomains, fetchLogConfig, updateLogConfig } from "../api";
 import { deepEqual } from "../deepEqual";
+import type { Feedback } from "../hooks/useAsyncAction";
 import type { CaddyLoggingConfig, CaddyLogSink } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
@@ -28,7 +29,7 @@ function LogSinkEditor({
 		(sink.writer?.roll_keep ?? 0) > 0 ||
 		(sink.writer?.roll_keep_for ?? 0) > 0;
 	const [saving, setSaving] = useState(false);
-	const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+	const [feedback, setFeedback] = useState<Feedback | null>(null);
 
 	const dirty = !deepEqual(sink, savedSink);
 

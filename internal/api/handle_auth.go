@@ -2,7 +2,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 
@@ -37,8 +36,7 @@ func handleLogin(store *config.ConfigStore) http.HandlerFunc {
 		var req struct {
 			Password string `json:"password"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 
@@ -76,8 +74,7 @@ func handlePasswordChange(store *config.ConfigStore) http.HandlerFunc {
 		var req struct {
 			NewPassword string `json:"new_password"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 
@@ -129,8 +126,7 @@ func handleAuthToggle(store *config.ConfigStore) http.HandlerFunc {
 			AuthEnabled bool   `json:"auth_enabled"`
 			Password    string `json:"password"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, "invalid request body", http.StatusBadRequest)
+		if !decodeBody(w, r, &req) {
 			return
 		}
 

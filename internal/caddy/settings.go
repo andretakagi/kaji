@@ -2,10 +2,8 @@
 package caddy
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,21 +16,8 @@ type GlobalToggles struct {
 }
 
 func (c *Client) SetConfigPath(path string, data []byte) error {
-	resp, err := c.httpClient.Post(
-		c.url()+"/config/"+path,
-		"application/json",
-		bytes.NewReader(data),
-	)
-	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("failed to set config path %q (status %d, body unreadable)", path, resp.StatusCode)
-		}
-		return fmt.Errorf("failed to set config path %q (status %d): %s", path, resp.StatusCode, body)
+	if err := c.doRequest(http.MethodPost, c.url()+"/config/"+path, "application/json", data); err != nil {
+		return fmt.Errorf("setting config path %q: %w", path, err)
 	}
 	return nil
 }
@@ -40,42 +25,15 @@ func (c *Client) SetConfigPath(path string, data []byte) error {
 // PatchConfigPath replaces a JSON value at a Caddy config path via PATCH.
 // Unlike POST, PATCH replaces arrays instead of appending to them.
 func (c *Client) PatchConfigPath(path string, data []byte) error {
-	req, err := http.NewRequest(http.MethodPatch, c.url()+"/config/"+path, bytes.NewReader(data))
-	if err != nil {
-		return fmt.Errorf("building patch request for %q: %w", path, err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("failed to patch config path %q (status %d, body unreadable)", path, resp.StatusCode)
-		}
-		return fmt.Errorf("failed to patch config path %q (status %d): %s", path, resp.StatusCode, body)
+	if err := c.doRequest(http.MethodPatch, c.url()+"/config/"+path, "application/json", data); err != nil {
+		return fmt.Errorf("patching config path %q: %w", path, err)
 	}
 	return nil
 }
 
 func (c *Client) DeleteConfigPath(path string) error {
-	req, err := http.NewRequest(http.MethodDelete, c.url()+"/config/"+path, nil)
-	if err != nil {
-		return fmt.Errorf("building delete request for %q: %w", path, err)
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(resp.Body)
-		if readErr != nil {
-			return fmt.Errorf("failed to delete config path %q (status %d, body unreadable)", path, resp.StatusCode)
-		}
-		return fmt.Errorf("failed to delete config path %q (status %d): %s", path, resp.StatusCode, body)
+	if err := c.doRequest(http.MethodDelete, c.url()+"/config/"+path, "", nil); err != nil {
+		return fmt.Errorf("deleting config path %q: %w", path, err)
 	}
 	return nil
 }

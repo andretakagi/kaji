@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchGlobalToggles, updateGlobalToggles } from "../api";
+import { useAsyncAction } from "../hooks/useAsyncAction";
 import type { GlobalToggles } from "../types/api";
 import Feedback from "./Feedback";
 
@@ -9,11 +10,7 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 	const [savedPrometheus, setSavedPrometheus] = useState(false);
 	const [savedPerHost, setSavedPerHost] = useState(false);
 	const [loaded, setLoaded] = useState(false);
-	const [saving, setSaving] = useState(false);
-	const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" }>({
-		msg: "",
-		type: "success",
-	});
+	const { saving, feedback, run } = useAsyncAction();
 	const togglesRef = useRef<GlobalToggles | null>(null);
 
 	useEffect(() => {
@@ -32,11 +29,9 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 
 	const dirty = prometheus !== savedPrometheus || perHost !== savedPerHost;
 
-	const handleSave = async () => {
-		if (!togglesRef.current) return;
-		setSaving(true);
-		setFeedback({ msg: "", type: "success" });
-		try {
+	const handleSave = () =>
+		run(async () => {
+			if (!togglesRef.current) throw new Error("Toggles not loaded");
 			const updated = {
 				...togglesRef.current,
 				prometheus_metrics: prometheus,
@@ -46,13 +41,8 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 			togglesRef.current = updated;
 			setSavedPrometheus(prometheus);
 			setSavedPerHost(perHost);
-			setFeedback({ msg: "Saved", type: "success" });
-		} catch {
-			setFeedback({ msg: "Failed to save", type: "error" });
-		} finally {
-			setSaving(false);
-		}
-	};
+			return "Saved";
+		});
 
 	if (!loaded) return null;
 
