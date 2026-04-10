@@ -21,7 +21,7 @@ import (
 	"github.com/andretakagi/kaji/internal/system"
 )
 
-var version = "1.2.3"
+var version = "1.3.0"
 
 //go:embed dist/*
 var frontendFiles embed.FS
