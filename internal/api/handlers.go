@@ -73,6 +73,13 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/settings/advanced", handleAdvancedGet(store))
 	mux.HandleFunc("PUT /api/settings/advanced", handleAdvancedUpdate(store))
 
+	mux.HandleFunc("GET /api/ip-lists", handleListIPLists(store))
+	mux.HandleFunc("POST /api/ip-lists", handleCreateIPList(store))
+	mux.HandleFunc("GET /api/ip-lists/bindings", handleRouteIPListBindings(store))
+	mux.HandleFunc("PUT /api/ip-lists/{id}", handleUpdateIPList(store, cc, ss))
+	mux.HandleFunc("DELETE /api/ip-lists/{id}", handleDeleteIPList(store, cc, ss))
+	mux.HandleFunc("GET /api/ip-lists/{id}/usage", handleIPListUsage(store, cc))
+
 	mux.HandleFunc("GET /api/snapshots", handleSnapshotList(ss))
 	mux.HandleFunc("POST /api/snapshots", handleSnapshotCreate(ss, cc))
 	mux.HandleFunc("POST /api/snapshots/{id}/restore", handleSnapshotRestore(ss, cc, store))

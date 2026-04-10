@@ -90,6 +90,11 @@ export interface RouteToggles {
 		strategy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
 		upstreams: string[];
 	};
+	ip_filtering: {
+		enabled: boolean;
+		list_id: string;
+		type: "whitelist" | "blacklist" | "";
+	};
 }
 
 export interface CreateRouteRequest {
@@ -139,4 +144,21 @@ export interface DNSProviderSettings {
 	enabled: boolean;
 	provider?: string;
 	api_token?: string;
+}
+
+export interface IPList {
+	id: string;
+	name: string;
+	description: string;
+	type: "whitelist" | "blacklist";
+	ips: string[];
+	children: string[];
+	created_at: string;
+	updated_at: string;
+	resolved_count: number;
+}
+
+export interface IPListUsage {
+	routes: { id: string; domain: string }[];
+	composite_lists: { id: string; name: string }[];
 }

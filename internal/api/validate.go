@@ -2,6 +2,7 @@
 package api
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -134,6 +135,42 @@ var validLBStrategies = map[string]bool{
 func validateLBStrategy(strategy string) string {
 	if !validLBStrategies[strategy] {
 		return "load balancing strategy must be one of: round_robin, first, least_conn, random, ip_hash"
+	}
+	return ""
+}
+
+func validateIPOrCIDR(value string) string {
+	if strings.Contains(value, "/") {
+		_, _, err := net.ParseCIDR(value)
+		if err != nil {
+			return fmt.Sprintf("invalid CIDR: %s", value)
+		}
+		return ""
+	}
+	if net.ParseIP(value) == nil {
+		return fmt.Sprintf("invalid IP address: %s", value)
+	}
+	return ""
+}
+
+var validIPListTypes = map[string]bool{
+	"whitelist": true,
+	"blacklist": true,
+}
+
+func validateIPListType(t string) string {
+	if !validIPListTypes[t] {
+		return "type must be whitelist or blacklist"
+	}
+	return ""
+}
+
+func validateIPListName(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return "name is required"
+	}
+	if len(name) > 128 {
+		return "name too long (max 128 characters)"
 	}
 	return ""
 }

@@ -2846,3 +2846,179 @@ input:disabled + .toggle-slider {
 	flex-direction: column;
 	gap: 0.5rem;
 }
+
+/* ========================================================================
+   IP Lists
+   ======================================================================== */
+
+.ip-lists {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+	padding-bottom: 1.5rem;
+}
+
+.ip-list-create-form {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 1.25rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	box-shadow: var(--shadow);
+}
+
+.ip-list-type-selector {
+	display: flex;
+	gap: 1rem;
+}
+
+.ip-list-items {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.ip-list-badge {
+	font-size: 0.7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	padding: 0.15em 0.5em;
+	border-radius: var(--radius-sm);
+	margin-left: 0.5rem;
+	flex-shrink: 0;
+}
+
+.ip-list-badge-blacklist {
+	background: rgba(220, 80, 80, 0.15);
+	color: #e06060;
+}
+
+.ip-list-badge-whitelist {
+	background: rgba(80, 180, 120, 0.15);
+	color: #50b478;
+}
+
+.ip-list-name {
+	font-weight: 500;
+}
+
+.ip-list-count {
+	color: var(--text-secondary);
+	font-size: 0.85rem;
+	margin-left: 0.5rem;
+}
+
+.ip-list-detail {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.ip-list-fields {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 0.5rem 0.75rem;
+	align-items: center;
+}
+
+.ip-list-fields label {
+	font-size: 0.85rem;
+	color: var(--text-secondary);
+}
+
+.ip-list-section h4 {
+	font-size: 0.85rem;
+	font-weight: 500;
+	color: var(--text-secondary);
+	margin: 0 0 0.5rem;
+}
+
+.ip-list-ips,
+.ip-list-children {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+	margin-bottom: 0.5rem;
+}
+
+.ip-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	padding: 0.2em 0.5em;
+	font-size: 0.82rem;
+	font-family: var(--font-mono);
+}
+
+.ip-chip button {
+	background: none;
+	border: none;
+	color: var(--text-secondary);
+	cursor: pointer;
+	padding: 0;
+	font-size: 0.75rem;
+	line-height: 1;
+	transition: color 0.15s;
+}
+
+.ip-chip button:hover {
+	color: var(--red);
+}
+
+.ip-chip-list {
+	font-family: inherit;
+	background: rgba(var(--accent-rgb), 0.15);
+	border-color: rgba(var(--accent-rgb), 0.3);
+}
+
+.ip-chip-route {
+	font-family: inherit;
+	background: rgba(var(--text-secondary-rgb), 0.1);
+	border-color: rgba(var(--text-secondary-rgb), 0.25);
+}
+
+.ip-list-add-row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.ip-list-add-row input {
+	flex: 1;
+}
+
+.ip-list-add-child {
+	margin-top: 0.25rem;
+}
+
+.ip-list-error {
+	color: var(--red);
+	font-size: 0.82rem;
+}
+
+.ip-list-warning {
+	color: var(--yellow);
+	font-size: 0.82rem;
+	display: block;
+	margin: 0.25rem 0;
+}
+
+.ip-list-usage-group {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.375rem;
+	margin-bottom: 0.375rem;
+}
+
+.ip-list-usage-label {
+	font-size: 0.82rem;
+	color: var(--text-secondary);
+	margin-right: 0.25rem;
+}

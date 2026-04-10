@@ -9,6 +9,8 @@ import {
 	fetchDisabledRoutes,
 	fetchDNSProvider,
 	fetchGlobalToggles,
+	fetchIPLists,
+	fetchRouteIPListBindings,
 	POLL_INTERVAL,
 	updateACMEEmail,
 	updateDNSProvider,
@@ -35,6 +37,7 @@ const defaultToggles: RouteToggles = {
 	access_log: "",
 	websocket_passthrough: false,
 	load_balancing: { enabled: false, strategy: "round_robin", upstreams: [] },
+	ip_filtering: { enabled: false, list_id: "", type: "" },
 };
 
 // Caddyfile-adapted routes wrap all handlers in a top-level subroute.
@@ -385,7 +388,12 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 			const parsed: ParsedRoute[] = [];
 
 			if (caddyRunning) {
-				const [config, disabled] = await Promise.all([fetchConfig(), fetchDisabledRoutes()]);
+				const [config, disabled, bindings, ipListsData] = await Promise.all([
+					fetchConfig(),
+					fetchDisabledRoutes(),
+					fetchRouteIPListBindings(),
+					fetchIPLists(),
+				]);
 				const servers = (config as CaddyConfig).apps?.http?.servers;
 				if (servers) {
 					for (const [name, server] of Object.entries(servers)) {
@@ -399,6 +407,22 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				}
 				for (const dr of disabled) {
 					parsed.push(parseDisabledRoute(dr));
+				}
+				for (const route of parsed) {
+					const listID = bindings[route.id];
+					if (listID) {
+						const list = ipListsData.find((l) => l.id === listID);
+						if (list) {
+							route.toggles = {
+								...route.toggles,
+								ip_filtering: {
+									enabled: true,
+									list_id: listID,
+									type: list.type,
+								},
+							};
+						}
+					}
 				}
 			} else {
 				const disabled = await fetchDisabledRoutes();

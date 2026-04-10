@@ -40,6 +40,8 @@ import type {
 	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
+	IPList,
+	IPListUsage,
 	SetupResponse,
 	SetupStatus,
 	UpstreamStatus,
@@ -208,4 +210,36 @@ export function validateSnapshotIndex(data: unknown): SnapshotIndex {
 			snapshots: is.array,
 		}),
 	);
+}
+
+function isIPList(d: unknown): boolean {
+	return hasFields(d, {
+		id: is.string,
+		name: is.string,
+		type: is.string,
+	});
+}
+
+export function validateIPLists(data: unknown): IPList[] {
+	return assertValid("IPList[]", data, (d) => is.array(d) && d.every(isIPList));
+}
+
+export function validateIPListSingle(data: unknown): IPList {
+	return assertValid("IPList", data, isIPList);
+}
+
+export function validateIPListUsage(data: unknown): IPListUsage {
+	return assertValid("IPListUsage", data, (d) =>
+		hasFields(d, { routes: is.array, composite_lists: is.array }),
+	);
+}
+
+export function validateRouteIPListBindings(data: unknown): Record<string, string> {
+	return assertValid("RouteIPListBindings", data, (d) => {
+		if (!is.object(d)) return false;
+		for (const v of Object.values(d)) {
+			if (!is.string(v)) return false;
+		}
+		return true;
+	});
 }

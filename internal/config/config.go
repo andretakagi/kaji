@@ -38,18 +38,31 @@ type DisabledRoute struct {
 	Route      json.RawMessage `json:"route"`
 }
 
+type IPList struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Type        string   `json:"type"`
+	IPs         []string `json:"ips"`
+	Children    []string `json:"children"`
+	CreatedAt   string   `json:"created_at"`
+	UpdatedAt   string   `json:"updated_at"`
+}
+
 type AppConfig struct {
-	AuthEnabled     bool            `json:"auth_enabled"`
-	PasswordHash    string          `json:"password_hash"`
-	SessionSecret   string          `json:"session_secret"`
-	SessionMaxAge   int             `json:"session_max_age"`
-	APIKeyHash      string          `json:"api_key_hash"`
-	CaddyAdminURL   string          `json:"caddy_admin_url"`
-	CaddyConfigPath string          `json:"caddy_config_path"`
-	SecureCookies   string          `json:"secure_cookies"`
-	LogFile         string          `json:"log_file"`
-	Loki            LokiConfig      `json:"loki"`
-	DisabledRoutes  []DisabledRoute `json:"disabled_routes"`
+	AuthEnabled     bool              `json:"auth_enabled"`
+	PasswordHash    string            `json:"password_hash"`
+	SessionSecret   string            `json:"session_secret"`
+	SessionMaxAge   int               `json:"session_max_age"`
+	APIKeyHash      string            `json:"api_key_hash"`
+	CaddyAdminURL   string            `json:"caddy_admin_url"`
+	CaddyConfigPath string            `json:"caddy_config_path"`
+	SecureCookies   string            `json:"secure_cookies"`
+	LogFile         string            `json:"log_file"`
+	Loki            LokiConfig        `json:"loki"`
+	DisabledRoutes  []DisabledRoute   `json:"disabled_routes"`
+	IPLists         []IPList          `json:"ip_lists"`
+	RouteIPLists    map[string]string `json:"route_ip_lists"`
 }
 
 func DefaultConfig() *AppConfig {

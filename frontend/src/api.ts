@@ -8,6 +8,8 @@ import type {
 	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
+	IPList,
+	IPListUsage,
 	LoginRequest,
 	SetupRequest,
 	SetupResponse,
@@ -39,8 +41,12 @@ import {
 	validateDNSProvider,
 	validateGenerateAPIKey,
 	validateGlobalToggles,
+	validateIPListSingle,
+	validateIPLists,
+	validateIPListUsage,
 	validateLoggingConfig,
 	validateLogs,
+	validateRouteIPListBindings,
 	validateSetupResponse,
 	validateSetupStatus,
 	validateSnapshot,
@@ -401,4 +407,45 @@ export function updateSnapshotSettings(settings: SnapshotSettings): Promise<{ st
 		{ method: "PUT", ...jsonBody(settings) },
 		validateStatusResponse,
 	);
+}
+
+export function fetchIPLists(): Promise<IPList[]> {
+	return request("/api/ip-lists", undefined, validateIPLists);
+}
+
+export function createIPList(list: {
+	name: string;
+	description: string;
+	type: "whitelist" | "blacklist";
+	ips: string[];
+	children: string[];
+}): Promise<IPList> {
+	return request("/api/ip-lists", { method: "POST", ...jsonBody(list) }, validateIPListSingle);
+}
+
+export function updateIPList(
+	id: string,
+	list: { name: string; description: string; ips: string[]; children: string[] },
+): Promise<{ status: string }> {
+	return request(
+		`/api/ip-lists/${encodeURIComponent(id)}`,
+		{ method: "PUT", ...jsonBody(list) },
+		validateStatusResponse,
+	);
+}
+
+export function deleteIPList(id: string): Promise<{ status: string }> {
+	return request(
+		`/api/ip-lists/${encodeURIComponent(id)}`,
+		{ method: "DELETE" },
+		validateStatusResponse,
+	);
+}
+
+export function fetchIPListUsage(id: string): Promise<IPListUsage> {
+	return request(`/api/ip-lists/${encodeURIComponent(id)}/usage`, undefined, validateIPListUsage);
+}
+
+export function fetchRouteIPListBindings(): Promise<Record<string, string>> {
+	return request("/api/ip-lists/bindings", undefined, validateRouteIPListBindings);
 }

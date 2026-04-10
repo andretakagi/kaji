@@ -85,6 +85,23 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			Upstream: req.Upstream,
 			Toggles:  req.Toggles,
 		}
+
+		if req.Toggles.IPFiltering.Enabled && req.Toggles.IPFiltering.ListID != "" {
+			cfg := store.Get()
+			resolved, err := caddy.ResolveIPList(req.Toggles.IPFiltering.ListID, cfg.IPLists)
+			if err != nil {
+				writeError(w, fmt.Sprintf("IP list error: %v", err), http.StatusBadRequest)
+				return
+			}
+			for _, l := range cfg.IPLists {
+				if l.ID == req.Toggles.IPFiltering.ListID {
+					params.IPListType = l.Type
+					break
+				}
+			}
+			params.IPListIPs = resolved
+		}
+
 		route, err := caddy.BuildRoute(params)
 		if err != nil {
 			writeError(w, err.Error(), http.StatusBadRequest)
@@ -103,6 +120,22 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 		writeJSON(w, map[string]any{"status": "ok", "@id": caddy.GenerateRouteID(req.Domain)})
 		persistCaddyConfig(cc, store)
+
+		listID := ""
+		if req.Toggles.IPFiltering.Enabled {
+			listID = req.Toggles.IPFiltering.ListID
+		}
+		_ = store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+			if c.RouteIPLists == nil {
+				c.RouteIPLists = make(map[string]string)
+			}
+			if listID != "" {
+				c.RouteIPLists[routeID] = listID
+			} else {
+				delete(c.RouteIPLists, routeID)
+			}
+			return &c, nil
+		})
 	}
 }
 
@@ -176,6 +209,11 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
+
+		_ = store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+			delete(c.RouteIPLists, routeID)
+			return &c, nil
+		})
 	}
 }
 
@@ -247,6 +285,23 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			Upstream: req.Upstream,
 			Toggles:  req.Toggles,
 		}
+
+		if req.Toggles.IPFiltering.Enabled && req.Toggles.IPFiltering.ListID != "" {
+			cfg := store.Get()
+			resolved, err := caddy.ResolveIPList(req.Toggles.IPFiltering.ListID, cfg.IPLists)
+			if err != nil {
+				writeError(w, fmt.Sprintf("IP list error: %v", err), http.StatusBadRequest)
+				return
+			}
+			for _, l := range cfg.IPLists {
+				if l.ID == req.Toggles.IPFiltering.ListID {
+					params.IPListType = l.Type
+					break
+				}
+			}
+			params.IPListIPs = resolved
+		}
+
 		route, err := caddy.BuildRoute(params)
 		if err != nil {
 			writeError(w, err.Error(), http.StatusBadRequest)
@@ -284,6 +339,22 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
+
+		listID := ""
+		if req.Toggles.IPFiltering.Enabled {
+			listID = req.Toggles.IPFiltering.ListID
+		}
+		_ = store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+			if c.RouteIPLists == nil {
+				c.RouteIPLists = make(map[string]string)
+			}
+			if listID != "" {
+				c.RouteIPLists[routeID] = listID
+			} else {
+				delete(c.RouteIPLists, routeID)
+			}
+			return &c, nil
+		})
 	}
 }
 

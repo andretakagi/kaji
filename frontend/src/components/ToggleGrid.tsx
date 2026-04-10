@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
-import type { RouteToggles } from "../types/api";
+import { useEffect, useRef, useState } from "react";
+import { fetchIPLists } from "../api";
+import type { IPList, RouteToggles } from "../types/api";
 
 interface ToggleGridProps {
 	toggles: RouteToggles;
@@ -18,6 +19,16 @@ export default function ToggleGrid({
 	domain,
 	globalAutoHttps,
 }: ToggleGridProps) {
+	const [ipLists, setIpLists] = useState<IPList[]>([]);
+
+	useEffect(() => {
+		if (toggles.ip_filtering.enabled) {
+			fetchIPLists()
+				.then(setIpLists)
+				.catch(() => {});
+		}
+	}, [toggles.ip_filtering.enabled]);
+
 	return (
 		<div className="toggle-grid">
 			{globalAutoHttps && globalAutoHttps !== "off" ? (
@@ -216,6 +227,69 @@ export default function ToggleGrid({
 								onUpdate("load_balancing", { ...toggles.load_balancing, upstreams })
 							}
 						/>
+					</div>
+				)}
+			</div>
+			<div className={`toggle-group${toggles.ip_filtering.enabled ? " toggle-group-open" : ""}`}>
+				<ToggleItem
+					label="IP Filtering"
+					description="Restrict access by IP whitelist or blacklist"
+					checked={toggles.ip_filtering.enabled}
+					onChange={(v) =>
+						onUpdate(
+							"ip_filtering",
+							v
+								? { enabled: true, list_id: "", type: "" }
+								: { enabled: false, list_id: "", type: "" },
+						)
+					}
+				/>
+				{toggles.ip_filtering.enabled && (
+					<div className="toggle-detail">
+						<div className="ip-filter-type-row">
+							<label className="toggle-radio-option">
+								<input
+									type="radio"
+									name={`${idPrefix}-ip-filter-type`}
+									checked={toggles.ip_filtering.type === "blacklist"}
+									onChange={() =>
+										onUpdate("ip_filtering", { enabled: true, list_id: "", type: "blacklist" })
+									}
+								/>
+								<span>Blacklist</span>
+							</label>
+							<label className="toggle-radio-option">
+								<input
+									type="radio"
+									name={`${idPrefix}-ip-filter-type`}
+									checked={toggles.ip_filtering.type === "whitelist"}
+									onChange={() =>
+										onUpdate("ip_filtering", { enabled: true, list_id: "", type: "whitelist" })
+									}
+								/>
+								<span>Whitelist</span>
+							</label>
+						</div>
+						{toggles.ip_filtering.type && (
+							<select
+								value={toggles.ip_filtering.list_id}
+								onChange={(e) =>
+									onUpdate("ip_filtering", {
+										...toggles.ip_filtering,
+										list_id: e.target.value,
+									})
+								}
+							>
+								<option value="">Select a {toggles.ip_filtering.type}...</option>
+								{ipLists
+									.filter((l) => l.type === toggles.ip_filtering.type)
+									.map((l) => (
+										<option key={l.id} value={l.id}>
+											{l.name} ({l.resolved_count} IPs)
+										</option>
+									))}
+							</select>
+						)}
 					</div>
 				)}
 			</div>

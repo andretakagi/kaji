@@ -8,23 +8,32 @@ import (
 )
 
 type RouteParams struct {
-	ID       string       `json:"@id"`
-	Domain   string       `json:"domain"`
-	Upstream string       `json:"upstream"`
-	Toggles  RouteToggles `json:"toggles"`
+	ID            string       `json:"@id"`
+	Domain        string       `json:"domain"`
+	Upstream      string       `json:"upstream"`
+	Toggles       RouteToggles `json:"toggles"`
+	IPListIPs     []string     `json:"-"`
+	IPListType    string       `json:"-"`
+}
+
+type IPFilteringOpts struct {
+	Enabled bool   `json:"enabled"`
+	ListID  string `json:"list_id"`
+	Type    string `json:"type"`
 }
 
 type RouteToggles struct {
-	Enabled           bool          `json:"enabled"`
-	ForceHTTPS        bool          `json:"force_https"`
-	Compression       bool          `json:"compression"`
-	SecurityHeaders   bool          `json:"security_headers"`
-	CORS              CORSOpts      `json:"cors"`
-	TLSSkipVerify     bool          `json:"tls_skip_verify"`
-	BasicAuth         BasicAuth     `json:"basic_auth"`
-	AccessLog         string        `json:"access_log"`
-	WebSocketPassthru bool          `json:"websocket_passthrough"`
-	LoadBalancing     LoadBalancing `json:"load_balancing"`
+	Enabled           bool            `json:"enabled"`
+	ForceHTTPS        bool            `json:"force_https"`
+	Compression       bool            `json:"compression"`
+	SecurityHeaders   bool            `json:"security_headers"`
+	CORS              CORSOpts        `json:"cors"`
+	TLSSkipVerify     bool            `json:"tls_skip_verify"`
+	BasicAuth         BasicAuth       `json:"basic_auth"`
+	AccessLog         string          `json:"access_log"`
+	WebSocketPassthru bool            `json:"websocket_passthrough"`
+	LoadBalancing     LoadBalancing   `json:"load_balancing"`
+	IPFiltering       IPFilteringOpts `json:"ip_filtering"`
 }
 
 type LoadBalancing struct {
@@ -80,6 +89,37 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 							"headers": map[string][]string{
 								"Location": {"https://{http.request.host}{http.request.uri}"},
 							},
+						},
+					},
+				},
+			},
+		})
+	}
+
+	if len(p.IPListIPs) > 0 && p.IPListType != "" {
+		ipMatcher := map[string]any{
+			"remote_ip": map[string]any{"ranges": p.IPListIPs},
+		}
+
+		var matchBlock []map[string]any
+		if p.IPListType == "whitelist" {
+			matchBlock = []map[string]any{
+				{"not": []map[string]any{ipMatcher}},
+			}
+		} else {
+			matchBlock = []map[string]any{ipMatcher}
+		}
+
+		handlers = append(handlers, map[string]any{
+			"handler": "subroute",
+			"routes": []map[string]any{
+				{
+					"match": matchBlock,
+					"handle": []map[string]any{
+						{
+							"handler":     "static_response",
+							"status_code": "403",
+							"body":        "Forbidden",
 						},
 					},
 				},
@@ -316,6 +356,11 @@ func flattenHandlers(topLevel []json.RawMessage, toggles *RouteToggles) []json.R
 			continue
 		}
 
+		if isIPFilteringSubroute(peek.Routes) {
+			parseIPFilteringSubroute(peek.Routes, toggles)
+			continue
+		}
+
 		if isCORSSubroute(peek.Routes) {
 			result = append(result, h)
 			continue
@@ -371,6 +416,59 @@ func isCORSSubroute(routes []struct {
 		}
 	}
 	return false
+}
+
+func isIPFilteringSubroute(routes []struct {
+	Match  []json.RawMessage `json:"match"`
+	Handle []json.RawMessage `json:"handle"`
+}) bool {
+	if len(routes) != 1 {
+		return false
+	}
+	for _, m := range routes[0].Match {
+		var match map[string]json.RawMessage
+		if json.Unmarshal(m, &match) != nil {
+			continue
+		}
+		if _, ok := match["remote_ip"]; ok {
+			return true
+		}
+		if notRaw, ok := match["not"]; ok {
+			var nots []map[string]json.RawMessage
+			if json.Unmarshal(notRaw, &nots) == nil {
+				for _, n := range nots {
+					if _, ok := n["remote_ip"]; ok {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func parseIPFilteringSubroute(routes []struct {
+	Match  []json.RawMessage `json:"match"`
+	Handle []json.RawMessage `json:"handle"`
+}, toggles *RouteToggles) {
+	if len(routes) == 0 {
+		return
+	}
+	toggles.IPFiltering.Enabled = true
+	for _, m := range routes[0].Match {
+		var match map[string]json.RawMessage
+		if json.Unmarshal(m, &match) != nil {
+			continue
+		}
+		if _, ok := match["remote_ip"]; ok {
+			toggles.IPFiltering.Type = "blacklist"
+			return
+		}
+		if _, ok := match["not"]; ok {
+			toggles.IPFiltering.Type = "whitelist"
+			return
+		}
+	}
 }
 
 func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
