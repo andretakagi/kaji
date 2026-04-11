@@ -52,7 +52,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		globalToggles: { ...DEFAULT_GLOBAL_TOGGLES },
 		challengeType: "http-01",
 		dnsToken: "",
-		autoSnapshot: true,
+		autoSnapshot: false,
 		snapshotLimit: 10,
 	});
 
