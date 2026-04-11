@@ -949,6 +949,10 @@ input:disabled + .toggle-slider {
 	color: var(--text);
 }
 
+.setup-toggle-grid-stacked {
+	grid-template-columns: 1fr;
+}
+
 .setup-auth-toggle .field-hint {
 	margin-top: 0.5rem;
 }

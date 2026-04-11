@@ -555,43 +555,51 @@ function StepMetrics({
 	return (
 		<>
 			<p className="setup-step-description">Configure Prometheus metrics collection.</p>
-			<div className="setup-toggle-row">
-				<div>
-					<span>Prometheus metrics</span>
-					<div className="field-hint">Expose a /metrics endpoint for Prometheus to scrape.</div>
-				</div>
-				<Toggle
-					value={data.globalToggles.prometheus_metrics}
-					onChange={() =>
-						update("globalToggles", {
-							...data.globalToggles,
-							prometheus_metrics: !data.globalToggles.prometheus_metrics,
-							per_host_metrics: !data.globalToggles.prometheus_metrics
-								? data.globalToggles.per_host_metrics
-								: false,
-						})
-					}
-				/>
-			</div>
-			{data.globalToggles.prometheus_metrics && (
-				<div className="setup-toggle-row">
-					<div>
-						<span>Per-host metrics</span>
-						<div className="field-hint">
-							Break down metrics by hostname. Increases cardinality with many hosts.
-						</div>
+			<div className="settings-toggle-grid setup-toggle-grid-stacked">
+				<label className="settings-toggle-item">
+					<div className="settings-toggle-label">
+						<span>Prometheus metrics</span>
+						<span className="settings-toggle-desc">
+							Expose a /metrics endpoint for Prometheus to scrape.
+						</span>
 					</div>
 					<Toggle
-						value={data.globalToggles.per_host_metrics}
+						inline
+						small
+						value={data.globalToggles.prometheus_metrics}
 						onChange={() =>
 							update("globalToggles", {
 								...data.globalToggles,
-								per_host_metrics: !data.globalToggles.per_host_metrics,
+								prometheus_metrics: !data.globalToggles.prometheus_metrics,
+								per_host_metrics: !data.globalToggles.prometheus_metrics
+									? data.globalToggles.per_host_metrics
+									: false,
 							})
 						}
 					/>
-				</div>
-			)}
+				</label>
+				{data.globalToggles.prometheus_metrics && (
+					<label className="settings-toggle-item">
+						<div className="settings-toggle-label">
+							<span>Per-host metrics</span>
+							<span className="settings-toggle-desc">
+								Break down metrics by hostname. Increases cardinality with many hosts.
+							</span>
+						</div>
+						<Toggle
+							inline
+							small
+							value={data.globalToggles.per_host_metrics}
+							onChange={() =>
+								update("globalToggles", {
+									...data.globalToggles,
+									per_host_metrics: !data.globalToggles.per_host_metrics,
+								})
+							}
+						/>
+					</label>
+				)}
+			</div>
 		</>
 	);
 }
