@@ -531,11 +531,6 @@ function StepHTTPS({
 					onChange={(v: ChallengeType) => update("challengeType", v)}
 					aria-label="Challenge type"
 				/>
-				<div className="field-hint">
-					{data.challengeType === "http-01"
-						? "Automatic via port 80"
-						: "DNS-01 challenges for wildcard certs and domains where HTTP-01 isn't viable"}
-				</div>
 				{data.challengeType === "cloudflare" && (
 					<input
 						type="password"

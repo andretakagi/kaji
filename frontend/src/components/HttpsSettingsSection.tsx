@@ -157,11 +157,6 @@ export default function HttpsSettingsSection() {
 					disabled={saving}
 					aria-label="Challenge type"
 				/>
-				<span className="settings-toggle-desc">
-					{values.challengeType === "http-01"
-						? "Automatic via port 80"
-						: "DNS-01 challenges for wildcard certs and domains where HTTP-01 isn't viable"}
-				</span>
 				{values.challengeType === "cloudflare" && (
 					<input
 						type="password"
