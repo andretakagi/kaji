@@ -14,12 +14,6 @@ import { Toggle } from "./Toggle";
 
 type ChallengeType = "http-01" | "cloudflare";
 
-const httpsOptions = [
-	{ value: "on", label: "On" },
-	{ value: "disable_redirects", label: "No Redirects" },
-	{ value: "off", label: "Off" },
-] as const;
-
 const challengeOptions = [
 	{ value: "http-01", label: "HTTP-01" },
 	{ value: "cloudflare", label: "Cloudflare DNS" },
@@ -110,19 +104,23 @@ export default function HttpsSettingsSection() {
 		<section className="settings-section">
 			<h3>HTTPS</h3>
 			<div className="settings-field">
-				<span className="settings-label" id="auto-https-label">
-					Auto HTTPS
-				</span>
-				<Toggle
-					options={httpsOptions}
+				<label htmlFor="global-https">Auto HTTPS</label>
+				<select
+					id="global-https"
 					value={values.httpsValue}
-					onChange={(v: GlobalToggles["auto_https"]) => {
-						setValues((prev) => ({ ...prev, httpsValue: v }));
+					onChange={(e) => {
+						setValues((prev) => ({
+							...prev,
+							httpsValue: e.target.value as GlobalToggles["auto_https"],
+						}));
 						setSaveWarning("");
 					}}
 					disabled={saving}
-					aria-label="Auto HTTPS"
-				/>
+				>
+					<option value="on">On</option>
+					<option value="off">Off</option>
+					<option value="disable_redirects">On without redirects</option>
+				</select>
 				<span className="settings-toggle-desc">{httpsDescriptions[values.httpsValue]}</span>
 			</div>
 

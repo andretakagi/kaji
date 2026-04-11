@@ -749,16 +749,19 @@ input:disabled + .toggle-slider {
 }
 
 .toggle-segmented {
-	display: flex;
+	display: inline-flex;
 	border: 1px solid var(--border-strong);
 	border-radius: var(--radius-sm);
 	overflow: hidden;
 	margin: 0;
 	padding: 0;
 	min-inline-size: 0;
+	width: fit-content;
 }
 
 .toggle-segment {
+	flex: 1 1 0;
+	min-width: 7rem;
 	padding: 0.35rem 1rem;
 	border: none;
 	background: transparent;
@@ -769,6 +772,7 @@ input:disabled + .toggle-slider {
 		background 0.15s,
 		color 0.15s;
 	font-family: inherit;
+	text-align: center;
 }
 
 .toggle-segment:not(:last-child) {
