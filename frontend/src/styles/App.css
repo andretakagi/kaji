@@ -152,10 +152,6 @@ body::before {
 	opacity: 0.05;
 }
 
-[data-theme="light"] .btn-primary {
-	color: var(--accent-text);
-}
-
 .settings-section,
 .auth-card,
 .route-card,
@@ -287,6 +283,10 @@ select:focus-visible {
 	color: var(--text-emphasis);
 	font-weight: 600;
 	padding: 0.45rem 1.25rem;
+}
+
+[data-theme="light"] .btn-primary {
+	color: var(--accent-text);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -888,6 +888,15 @@ input:disabled + .toggle-slider {
 	font-size: 0.875rem;
 	color: var(--text-muted);
 	margin-bottom: 1.75rem;
+}
+
+.settings-field label,
+.settings-label {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
 }
 
 .auth-field {
@@ -2285,15 +2294,6 @@ input:disabled + .toggle-slider {
 
 .settings-field-nested {
 	margin-top: 0.5rem;
-}
-
-.settings-field label,
-.settings-label {
-	font-size: 0.75rem;
-	font-weight: 600;
-	color: var(--text-secondary);
-	letter-spacing: 0.02em;
-	text-transform: uppercase;
 }
 
 .settings-field input,

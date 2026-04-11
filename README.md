@@ -11,21 +11,15 @@ Kaji is the **Nginx Proxy Manager of Caddy**: a simple, self-hosted dashboard fo
 
 ## Features
 
-- **Route management** - Create, edit, delete, and enable/disable reverse proxy routes. Disabled routes are preserved and can be re-enabled without recreating them.
-- **Per-route toggles** - Force HTTPS, gzip/zstd compression, security headers, CORS (with origin whitelist), TLS skip verify, basic auth, access logging, WebSocket passthrough, and load balancing with multiple upstreams (round robin, first, least connections, random, IP hash).
-- **Route settings** - Global auto HTTPS mode and ACME email configuration, scoped alongside routes. Per-route Force HTTPS locks when the global setting is active.
-- **Config snapshots** - Automatic snapshots before config changes with manual snapshot support. Restore any previous config state with one click.
-- **Log viewer** - Filter by level, host, or status code. Switch between paginated history and real-time streaming. Configurable log sinks with domain tracking, levels, formats, outputs, and file rotation. Built-in access log that can be toggled on/off per route.
-- **Prometheus metrics** - Per-host and global metrics toggles, configured alongside log settings.
-- **Service control** - Start, stop, and restart Caddy from the dashboard. Status, route count, and upstream health all visible at a glance.
-- **Auth and API keys** - Optional password auth with session cookies. Generate API keys for script and automation access.
-- **Setup wizard** - First-run flow to set an admin password and Caddy admin URL.
+- **Route management** - Create, edit, delete, and enable/disable routes with global auto HTTPS and ACME email configuration.
+- **Per-route toggles** - Force HTTPS, gzip/zstd compression, security headers, CORS, TLS skip verify, basic auth, access logging, WebSocket passthrough, and load balancing with multiple upstreams.
+- **IP allow/block lists** - Named whitelist and blacklist definitions with composable child lists. Cascade logic rebuilds affected routes when lists change.
+- **Config snapshots** - Automatic snapshots before config changes with manual snapshot support. Restore any previous state with one click.
+- **Logs and metrics** - Filter by level, host, or status code. Paginated history and real-time streaming. Configurable log sinks and per-host Prometheus metrics.
 - **Caddyfile import/export** - Import existing Caddyfile configs or export current config as a Caddyfile.
-- **Single binary** - Go backend with the React frontend embedded at build time. No runtime dependencies. Fully offline, no external CDN or network calls.
-- **IP allow/block lists** - Create named whitelist and blacklist definitions with composable child lists. Assign lists to individual routes for per-route IP filtering. Cascade logic rebuilds affected routes automatically when lists change.
 - **Cloudflare DNS** - Built-in `caddy-dns/cloudflare` module for DNS-01 ACME challenges. Supports wildcard certs and domains where HTTP-01 isn't viable.
-- **Light and dark mode** - Toggle between dark and light themes from Settings. Persisted in localStorage with no flash on reload.
-- **Docker ready** - Multi-arch images for amd64 and arm64. Auto-detects Docker mode or set `CADDY_GUI_MODE=docker`.
+- **Auth and API keys** - Optional password auth with API key support for automation.
+- **Single binary, Docker ready** - Go backend with embedded React frontend. Fully offline, no external CDN calls. Multi-arch Docker images for amd64 and arm64.
 
 ## Quick Start
 
@@ -60,8 +54,22 @@ services:
       - kaji_caddy_config:/etc/caddy       # Caddy configuration
       - kaji_gui_config:/etc/caddy-gui     # Kaji config and snapshots
       - kaji_caddy_logs:/var/log/caddy     # Access and error logs
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    mem_limit: 512m
+    tmpfs:
+      - /tmp
     environment:
       - CADDY_GUI_MODE=docker
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/caddy/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   kaji_caddy_data:

@@ -19,6 +19,9 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Docker Compose local overrides
+docker-compose.override.yml
+
 # Environment / secrets
 .env
 .env.*
