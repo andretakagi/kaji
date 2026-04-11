@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createIPList, fetchIPLists } from "../api";
-import { cn } from "../cn";
 import { usePolledData } from "../hooks/usePolledData";
 import type { IPList } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
@@ -9,6 +8,7 @@ import { ErrorAlert } from "./ErrorAlert";
 import IPListCard from "./IPListCard";
 import LoadingState from "./LoadingState";
 import { SectionHeader } from "./SectionHeader";
+import { Toggle } from "./Toggle";
 
 export default function IPLists() {
 	const {
@@ -142,30 +142,16 @@ export default function IPLists() {
 							/>
 						</div>
 					</div>
-					<div className="ip-list-type-toggle">
-						<button
-							type="button"
-							className={cn("type-toggle-btn", newType === "blacklist" && "active")}
-							onClick={() => {
-								setNewType("blacklist");
-								setNewChildren([]);
-							}}
-							disabled={creating}
-						>
-							Blacklist
-						</button>
-						<button
-							type="button"
-							className={cn("type-toggle-btn", newType === "whitelist" && "active")}
-							onClick={() => {
-								setNewType("whitelist");
-								setNewChildren([]);
-							}}
-							disabled={creating}
-						>
-							Whitelist
-						</button>
-					</div>
+					<Toggle
+						options={["blacklist", "whitelist"] as const}
+						value={newType}
+						onChange={(v: "blacklist" | "whitelist") => {
+							setNewType(v);
+							setNewChildren([]);
+						}}
+						disabled={creating}
+						aria-label="List type"
+					/>
 
 					<div className="ip-list-section">
 						<h4>IP Addresses</h4>

@@ -293,32 +293,13 @@ function IPFilteringGroup({
 			/>
 			{toggles.ip_filtering.enabled && (
 				<div className="toggle-detail">
-					<div className="ip-list-type-toggle">
-						<button
-							type="button"
-							className={cn(
-								"type-toggle-btn",
-								toggles.ip_filtering.type === "blacklist" && "active",
-							)}
-							onClick={() =>
-								onUpdate("ip_filtering", { enabled: true, list_id: "", type: "blacklist" })
-							}
-						>
-							Blacklist
-						</button>
-						<button
-							type="button"
-							className={cn(
-								"type-toggle-btn",
-								toggles.ip_filtering.type === "whitelist" && "active",
-							)}
-							onClick={() =>
-								onUpdate("ip_filtering", { enabled: true, list_id: "", type: "whitelist" })
-							}
-						>
-							Whitelist
-						</button>
-					</div>
+					<Toggle
+						options={["blacklist", "whitelist"] as const}
+						value={toggles.ip_filtering.type as "blacklist" | "whitelist"}
+						onChange={(v: "blacklist" | "whitelist") =>
+							onUpdate("ip_filtering", { enabled: true, list_id: "", type: v })
+						}
+					/>
 					{toggles.ip_filtering.type && (
 						<select
 							value={toggles.ip_filtering.list_id}
