@@ -257,8 +257,8 @@ function StepTheme() {
 	return (
 		<>
 			<p className="setup-step-description">Choose your preferred theme.</p>
-			<div className="setup-toggle-row">
-				<span>Theme</span>
+			<div className="auth-field">
+				<span className="settings-label">Theme</span>
 				<div className="theme-switcher">
 					<button
 						type="button"
