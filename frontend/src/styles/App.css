@@ -762,7 +762,7 @@ input:disabled + .toggle-slider {
 .toggle-segment {
 	flex: 1 1 0;
 	min-width: 7rem;
-	padding: 0.5rem 1.25rem;
+	padding: 0.35rem 1rem;
 	border: none;
 	background: transparent;
 	color: var(--text-muted);
@@ -1039,6 +1039,10 @@ input:disabled + .toggle-slider {
 	font-size: 0.875rem;
 	color: var(--text-muted);
 	margin-bottom: 1.25rem;
+}
+
+.setup-step-content .toggle-segment {
+	padding: 0.5rem 1.25rem;
 }
 
 /* Navigation */
