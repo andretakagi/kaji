@@ -958,7 +958,7 @@ input:disabled + .toggle-slider {
 	color: var(--text);
 }
 
-.setup-toggle-grid-stacked {
+.settings-toggle-grid.setup-toggle-grid-stacked {
 	grid-template-columns: 1fr;
 }
 

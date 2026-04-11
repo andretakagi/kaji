@@ -66,7 +66,7 @@ function BooleanSwitch({
 
 	if (inline) {
 		return (
-			<span className={className} title={title}>
+			<label className={className} title={title}>
 				<input
 					type="checkbox"
 					id={id}
@@ -76,7 +76,7 @@ function BooleanSwitch({
 					aria-label={ariaLabel}
 				/>
 				<span className="toggle-slider" />
-			</span>
+			</label>
 		);
 	}
 
