@@ -748,6 +748,53 @@ input:disabled + .toggle-slider {
 	transform: translateX(14px);
 }
 
+.toggle-segmented {
+	display: flex;
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	overflow: hidden;
+	margin: 0;
+	padding: 0;
+	min-inline-size: 0;
+}
+
+.toggle-segment {
+	padding: 0.35rem 1rem;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.8125rem;
+	cursor: pointer;
+	transition:
+		background 0.15s,
+		color 0.15s;
+	font-family: inherit;
+}
+
+.toggle-segment:not(:last-child) {
+	border-right: 1px solid var(--border-strong);
+}
+
+.toggle-segment:hover:not(.active):not(:disabled) {
+	color: var(--text);
+	background: var(--surface-hover);
+}
+
+.toggle-segment.active {
+	background: var(--accent);
+	color: var(--accent-text);
+	font-weight: 600;
+}
+
+.toggle-segment:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.toggle-segmented-disabled {
+	opacity: 0.5;
+}
+
 /* Shared patterns */
 
 .caddy-offline {
@@ -2226,7 +2273,8 @@ input:disabled + .toggle-slider {
 	margin-top: 0.5rem;
 }
 
-.settings-field label {
+.settings-field label,
+.settings-label {
 	font-size: 0.75rem;
 	font-weight: 600;
 	color: var(--text-secondary);

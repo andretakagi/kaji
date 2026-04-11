@@ -274,8 +274,8 @@ const LogConfigCard = memo(function LogConfigCard({
 			<Toggle
 				small
 				stopPropagation
-				checked={!isDiscard}
-				onChange={(checked) => (isAccessLog ? handleAccessToggle(checked) : onToggle?.(checked))}
+				value={!isDiscard}
+				onChange={(val) => (isAccessLog ? handleAccessToggle(val) : onToggle?.(val))}
 			/>
 		) : (
 			<ConfirmDeleteButton

@@ -33,7 +33,7 @@ export function SnapshotSettings() {
 			<div className="settings-toggle-row">
 				<span>Take snapshot before each config change</span>
 				<Toggle
-					checked={values.autoEnabled}
+					value={values.autoEnabled}
 					onChange={() => setValues((v) => ({ ...v, autoEnabled: !v.autoEnabled }))}
 					disabled={saving}
 				/>

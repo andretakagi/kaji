@@ -13,8 +13,8 @@ import { useAsyncAction } from "../hooks/useAsyncAction";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import AuthSection from "./AuthSection";
 import Feedback from "./Feedback";
+import HttpsSettingsSection from "./HttpsSettingsSection";
 import { MetricsSettings } from "./MetricsSettings";
-import RouteSettingsSection from "./RouteSettingsSection";
 import { SnapshotSettings } from "./SnapshotSettings";
 
 function AppearanceSection() {
@@ -331,7 +331,7 @@ export default function Settings({
 				</>
 			)}
 
-			{!caddyRunning ? <CaddyOffSection title="Route Settings" /> : <RouteSettingsSection />}
+			{!caddyRunning ? <CaddyOffSection title="HTTPS" /> : <HttpsSettingsSection />}
 
 			{!caddyRunning ? (
 				<CaddyOffSection title="Metrics" />

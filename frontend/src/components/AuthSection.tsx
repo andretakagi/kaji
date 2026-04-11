@@ -93,7 +93,7 @@ export default function AuthSection({ enabled, onChange }: AuthSectionProps) {
 			<h3>Authentication</h3>
 			<div className="settings-toggle-row">
 				<span>Require password to access Kaji</span>
-				<Toggle checked={toggleValue} onChange={handleToggle} disabled={saving} />
+				<Toggle value={toggleValue} onChange={handleToggle} disabled={saving} />
 			</div>
 			{pendingDisable && (
 				<div className="auth-password-form">

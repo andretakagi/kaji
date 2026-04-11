@@ -365,7 +365,7 @@ function ToggleItem({
 				<span className="toggle-item-label">{label}</span>
 				<span className="toggle-item-desc">{description}</span>
 			</div>
-			<Toggle inline small id={id} checked={checked} onChange={onChange} disabled={disabled} />
+			<Toggle inline small id={id} value={checked} onChange={onChange} disabled={disabled} />
 		</label>
 	);
 }

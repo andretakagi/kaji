@@ -88,7 +88,7 @@ export default memo(
 		const actions = (
 			<>
 				<Toggle
-					checked={!route.disabled}
+					value={!route.disabled}
 					onChange={() => onToggleEnabled(route)}
 					disabled={!route.id || toggling}
 					title={route.disabled ? "Enable" : "Disable"}

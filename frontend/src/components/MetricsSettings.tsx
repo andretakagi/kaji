@@ -51,7 +51,7 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 						inline
 						small
 						id="metrics-prometheus"
-						checked={values.prometheus}
+						value={values.prometheus}
 						onChange={(checked) => {
 							setValues((v) => ({
 								...v,
@@ -74,7 +74,7 @@ export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
 						inline
 						small
 						id="metrics-per-host"
-						checked={values.perHost}
+						value={values.perHost}
 						onChange={(checked) => setValues((v) => ({ ...v, perHost: checked }))}
 						disabled={saving || !values.prometheus}
 					/>

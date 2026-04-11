@@ -214,7 +214,7 @@ function StepAuth({
 				<div className="setup-toggle-row">
 					<span>Require password</span>
 					<Toggle
-						checked={data.authEnabled}
+						value={data.authEnabled}
 						onChange={() => update("authEnabled", !data.authEnabled)}
 					/>
 				</div>
