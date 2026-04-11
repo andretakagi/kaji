@@ -3,6 +3,7 @@ package caddy
 import (
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"math"
@@ -174,6 +175,8 @@ func parseCertFile(path, issuerKey, domain string) (*CertInfo, error) {
 
 func statusPriority(status string) int {
 	switch status {
+	case "missing":
+		return -1
 	case "expired":
 		return 0
 	case "critical":
@@ -209,4 +212,121 @@ func DeleteCertificate(dataDir, issuerKey, domain string) error {
 
 func CertFilePath(dataDir, issuerKey, domain string) string {
 	return filepath.Join(dataDir, "certificates", issuerKey, domain, domain+".crt")
+}
+
+func ExpectedCertDomains(configJSON []byte) []string {
+	if configJSON == nil {
+		return nil
+	}
+
+	var cfg caddyConfigPartial
+	if err := json.Unmarshal(configJSON, &cfg); err != nil {
+		return nil
+	}
+
+	autoHTTPS := "on"
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		if srv.AutoHTTPS != nil {
+			if srv.AutoHTTPS.Disable {
+				autoHTTPS = "off"
+			} else if srv.AutoHTTPS.DisableRedirects {
+				autoHTTPS = "disable_redirects"
+			}
+		}
+		break
+	}
+
+	var domains []string
+	seen := map[string]bool{}
+
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		for _, rawRoute := range srv.Routes {
+			var route struct {
+				ID    string `json:"@id"`
+				Match []struct {
+					Host []string `json:"host"`
+				} `json:"match"`
+				Handle []json.RawMessage `json:"handle"`
+			}
+			if json.Unmarshal(rawRoute, &route) != nil {
+				continue
+			}
+			if !strings.HasPrefix(route.ID, "kaji_") {
+				continue
+			}
+
+			hasHTTPS := autoHTTPS != "off"
+			if !hasHTTPS {
+				for _, h := range route.Handle {
+					var handler struct {
+						Handler string `json:"handler"`
+						Routes  []struct {
+							Match  []json.RawMessage `json:"match"`
+							Handle []json.RawMessage `json:"handle"`
+						} `json:"routes"`
+					}
+					if json.Unmarshal(h, &handler) != nil || handler.Handler != "subroute" {
+						continue
+					}
+					if isForceHTTPSSubroute(handler.Routes) {
+						hasHTTPS = true
+						break
+					}
+				}
+			}
+
+			if !hasHTTPS {
+				continue
+			}
+
+			for _, m := range route.Match {
+				for _, host := range m.Host {
+					lower := strings.ToLower(host)
+					if !seen[lower] {
+						seen[lower] = true
+						domains = append(domains, host)
+					}
+				}
+			}
+		}
+	}
+
+	return domains
+}
+
+func MergeMissingCerts(certs []CertInfo, expectedDomains []string) []CertInfo {
+	if len(expectedDomains) == 0 {
+		return certs
+	}
+
+	have := map[string]bool{}
+	for _, c := range certs {
+		have[strings.ToLower(c.Domain)] = true
+		for _, san := range c.SANs {
+			have[strings.ToLower(san)] = true
+		}
+	}
+
+	for _, domain := range expectedDomains {
+		if have[strings.ToLower(domain)] {
+			continue
+		}
+		certs = append(certs, CertInfo{
+			Domain:   domain,
+			SANs:     []string{},
+			Status:   "missing",
+			DaysLeft: -1,
+		})
+	}
+
+	sort.Slice(certs, func(i, j int) bool {
+		pi := statusPriority(certs[i].Status)
+		pj := statusPriority(certs[j].Status)
+		if pi != pj {
+			return pi < pj
+		}
+		return certs[i].DaysLeft < certs[j].DaysLeft
+	})
+
+	return certs
 }

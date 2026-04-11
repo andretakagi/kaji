@@ -3263,6 +3263,11 @@ input:disabled + .toggle-slider {
 	opacity: 0.6;
 }
 
+.cert-status-dot.cert-missing {
+	background: var(--text-muted);
+	opacity: 0.4;
+}
+
 .cert-domain {
 	flex: 1;
 	min-width: 0;
@@ -3292,6 +3297,17 @@ input:disabled + .toggle-slider {
 
 .cert-expiry-text.cert-expired {
 	color: var(--text-muted);
+}
+
+.cert-expiry-text.cert-missing {
+	color: var(--text-muted);
+}
+
+.cert-missing-hint {
+	color: var(--text-secondary);
+	font-size: 0.85rem;
+	line-height: 1.5;
+	margin: 0;
 }
 
 .cert-details {

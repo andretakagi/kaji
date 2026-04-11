@@ -24,6 +24,7 @@ function formatFingerprint(hex: string): string {
 }
 
 function expiryText(cert: CertInfo): string {
+	if (cert.status === "missing") return "Certificate not provisioned";
 	if (cert.status === "expired") return "Expired";
 	if (cert.days_left === 0) return "Expires today";
 	if (cert.days_left === 1) return "Expires in 1 day";
@@ -154,7 +155,11 @@ export default function Certificates({ caddyRunning }: { caddyRunning: boolean }
 				<div className="cert-list">
 					{certs.map((cert) => (
 						<CertCard
-							key={`${cert.issuer_key}-${cert.domain}`}
+							key={
+								cert.status === "missing"
+									? `missing-${cert.domain}`
+									: `${cert.issuer_key}-${cert.domain}`
+							}
 							cert={cert}
 							onRenew={handleRenew}
 							onDelete={handleDelete}
@@ -188,6 +193,20 @@ function CertCard({
 			<span className={cn("cert-expiry-text", `cert-${cert.status}`)}>{expiryText(cert)}</span>
 		</>
 	);
+
+	if (cert.status === "missing") {
+		return (
+			<CollapsibleCard title={title} ariaLabel={cert.domain}>
+				<div className="cert-details">
+					<p className="cert-missing-hint">
+						Caddy could not provision a certificate for this domain. Common causes: ports 80/443 not
+						reachable, domain DNS not pointing to this server, or Caddy unable to reach ACME
+						provider.
+					</p>
+				</div>
+			</CollapsibleCard>
+		);
+	}
 
 	return (
 		<CollapsibleCard title={title} ariaLabel={cert.domain}>

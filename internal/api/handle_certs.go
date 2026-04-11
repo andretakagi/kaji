@@ -12,7 +12,7 @@ import (
 	"github.com/andretakagi/kaji/internal/config"
 )
 
-func handleCertificatesList(store *config.ConfigStore) http.HandlerFunc {
+func handleCertificatesList(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
 		dataDir := caddy.ResolveCaddyDataDir(cfg.CaddyDataDir)
@@ -25,6 +25,13 @@ func handleCertificatesList(store *config.ConfigStore) http.HandlerFunc {
 		if certs == nil {
 			certs = []caddy.CertInfo{}
 		}
+
+		configJSON, err := cc.GetConfig()
+		if err == nil {
+			expected := caddy.ExpectedCertDomains(configJSON)
+			certs = caddy.MergeMissingCerts(certs, expected)
+		}
+
 		writeJSON(w, certs)
 	}
 }
