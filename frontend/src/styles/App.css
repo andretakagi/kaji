@@ -78,8 +78,8 @@
 	--bg: #f4f2f7;
 	--surface: #ffffff;
 	--surface-hover: #f0ecf5;
-	--accent: #4f3d7a;
-	--accent-hover: #3d2e65;
+	--accent: #7c5fbf;
+	--accent-hover: #6a4fad;
 	--accent-text: #ffffff;
 	--text: #1e1a2b;
 	--text-secondary: #5c4f6e;
@@ -89,7 +89,7 @@
 	--border-strong: #bdb4ce;
 	--shadow: 0 2px 8px rgba(80, 60, 120, 0.1);
 
-	--accent-rgb: 79, 61, 122;
+	--accent-rgb: 124, 95, 191;
 	--text-secondary-rgb: 92, 79, 110;
 	--text-rgb: 30, 26, 43;
 
@@ -1004,13 +1004,13 @@ input:disabled + .toggle-slider {
 .setup-step.active .setup-step-number {
 	border-color: var(--accent);
 	background: var(--accent);
-	color: var(--text-emphasis);
+	color: var(--accent-text);
 }
 
 .setup-step.completed .setup-step-number {
 	border-color: var(--accent);
 	background: var(--accent);
-	color: var(--text-emphasis);
+	color: var(--accent-text);
 }
 
 .setup-step-label {
@@ -3015,43 +3015,6 @@ input:disabled + .toggle-slider {
 	flex-direction: column;
 	gap: 0.75rem;
 	box-shadow: var(--shadow);
-}
-
-.ip-list-type-toggle {
-	display: flex;
-	background: var(--bg);
-	border-radius: 8px;
-	padding: 3px;
-	gap: 2px;
-}
-
-.type-toggle-btn {
-	flex: 1;
-	padding: 0.4rem 1rem;
-	border: none;
-	border-radius: 6px;
-	background: transparent;
-	color: var(--text-secondary);
-	font-size: 0.8125rem;
-	font-weight: 500;
-	cursor: pointer;
-	transition:
-		background 0.15s,
-		color 0.15s;
-}
-
-.type-toggle-btn:hover:not(.active):not(:disabled) {
-	color: var(--text);
-}
-
-.type-toggle-btn.active {
-	background: var(--accent);
-	color: var(--text-on-accent, #fff);
-}
-
-.type-toggle-btn:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
 }
 
 .ip-list-items {
