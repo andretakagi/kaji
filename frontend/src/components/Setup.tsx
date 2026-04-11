@@ -6,7 +6,6 @@ import {
 	updateDNSProvider,
 	updateSnapshotSettings,
 } from "../api";
-import { cn } from "../cn";
 import {
 	type AdaptCaddyfileResponse,
 	DEFAULT_GLOBAL_TOGGLES,
@@ -15,6 +14,11 @@ import {
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validatePassword } from "../utils/validate";
 import { Toggle } from "./Toggle";
+
+const themeOptions = [
+	{ value: "dark", label: "Dark" },
+	{ value: "light", label: "Light" },
+] as const;
 
 const STEP_LABELS = ["Theme", "Auth", "Import", "HTTPS", "Metrics", "Snapshots"];
 const LAST_STEP = STEP_LABELS.length - 1;
@@ -242,7 +246,9 @@ function StepIndicator({ current }: { current: number }) {
 }
 
 function StepTheme() {
-	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+	const [theme, setTheme] = useState<"dark" | "light">(
+		() => (localStorage.getItem("theme") as "dark" | "light") || "dark",
+	);
 
 	const applyTheme = (t: "dark" | "light") => {
 		setTheme(t);
@@ -259,24 +265,12 @@ function StepTheme() {
 			<p className="setup-step-description">Choose your preferred theme.</p>
 			<div className="auth-field">
 				<span className="settings-label">Theme</span>
-				<div className="theme-switcher">
-					<button
-						type="button"
-						className={cn("theme-pill", theme === "dark" && "active")}
-						onClick={() => applyTheme("dark")}
-						aria-pressed={theme === "dark"}
-					>
-						Dark
-					</button>
-					<button
-						type="button"
-						className={cn("theme-pill", theme === "light" && "active")}
-						onClick={() => applyTheme("light")}
-						aria-pressed={theme === "light"}
-					>
-						Light
-					</button>
-				</div>
+				<Toggle
+					options={themeOptions}
+					value={theme}
+					onChange={(v: "dark" | "light") => applyTheme(v)}
+					aria-label="Theme"
+				/>
 			</div>
 		</>
 	);
