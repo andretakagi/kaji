@@ -444,8 +444,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 
 			{routes.length === 0 ? (
 				<div className="empty-state routes-empty">
-					No routes yet. Routes map domains to your services
-					{caddyRunning ? " - add one to get started." : "."}
+					No routes yet. Routes connect a domain to an upstream service, with options for HTTPS, headers, IP filtering, and more{caddyRunning ? "." : "."}
 				</div>
 			) : (
 				<div className="route-list">

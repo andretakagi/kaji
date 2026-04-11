@@ -159,7 +159,7 @@ export default function Snapshots() {
 
 			{snapshots.length === 0 ? (
 				<div className="empty-state">
-					No snapshots yet. Take one to save the current configuration.
+					No snapshots yet. Snapshots capture a point-in-time copy of your entire Caddy configuration, so you can restore it later if something goes wrong.
 				</div>
 			) : (
 				<div className="snapshot-list">
