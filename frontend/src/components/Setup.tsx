@@ -556,7 +556,7 @@ function StepMetrics({
 		<>
 			<p className="setup-step-description">Configure Prometheus metrics collection.</p>
 			<div className="settings-toggle-grid setup-toggle-grid-stacked">
-				<label className="settings-toggle-item">
+				<div className="settings-toggle-item">
 					<div className="settings-toggle-label">
 						<span>Prometheus metrics</span>
 						<span className="settings-toggle-desc">
@@ -577,9 +577,9 @@ function StepMetrics({
 							})
 						}
 					/>
-				</label>
+				</div>
 				{data.globalToggles.prometheus_metrics && (
-					<label className="settings-toggle-item">
+					<div className="settings-toggle-item">
 						<div className="settings-toggle-label">
 							<span>Per-host metrics</span>
 							<span className="settings-toggle-desc">
@@ -597,7 +597,7 @@ function StepMetrics({
 								})
 							}
 						/>
-					</label>
+					</div>
 				)}
 			</div>
 		</>
