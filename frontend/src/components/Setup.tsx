@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { adaptCaddyfile, fetchDefaultCaddyfile, submitSetup } from "../api";
+import {
+	adaptCaddyfile,
+	fetchDefaultCaddyfile,
+	submitSetup,
+	updateDNSProvider,
+	updateSnapshotSettings,
+} from "../api";
 import { cn } from "../cn";
 import {
 	type AdaptCaddyfileResponse,
@@ -10,7 +16,10 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 import { validatePassword } from "../utils/validate";
 import { Toggle } from "./Toggle";
 
-const STEP_LABELS = ["Auth", "Import", "Preferences"];
+const STEP_LABELS = ["Theme", "Auth", "Import", "HTTPS", "Metrics", "Snapshots"];
+const LAST_STEP = STEP_LABELS.length - 1;
+
+type ChallengeType = "http-01" | "cloudflare";
 
 interface WizardData {
 	authEnabled: boolean;
@@ -21,6 +30,10 @@ interface WizardData {
 	importedSettings: AdaptCaddyfileResponse | null;
 	acmeEmail: string;
 	globalToggles: GlobalToggles;
+	challengeType: ChallengeType;
+	dnsToken: string;
+	autoSnapshot: boolean;
+	snapshotLimit: number;
 }
 
 function Setup({ onComplete }: { onComplete: () => void }) {
@@ -37,6 +50,10 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		importedSettings: null,
 		acmeEmail: "",
 		globalToggles: { ...DEFAULT_GLOBAL_TOGGLES },
+		challengeType: "http-01",
+		dnsToken: "",
+		autoSnapshot: true,
+		snapshotLimit: 10,
 	});
 
 	const update = useCallback(<K extends keyof WizardData>(key: K, value: WizardData[K]) => {
@@ -45,7 +62,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 
 	const validateStep = (): boolean => {
 		setError("");
-		if (step === 0 && data.authEnabled) {
+		if (step === 1 && data.authEnabled) {
 			const pwErr = validatePassword(data.password, data.confirmPassword);
 			if (pwErr) {
 				setError(pwErr);
@@ -77,8 +94,28 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 				global_toggles: data.globalToggles,
 				caddyfile_json: data.adaptedConfig || undefined,
 			});
-			if (res.warnings?.length) {
-				setSetupWarnings(res.warnings);
+
+			const warnings = [...(res.warnings || [])];
+
+			try {
+				if (data.challengeType === "cloudflare" && data.dnsToken) {
+					await updateDNSProvider({ enabled: true, api_token: data.dnsToken });
+				}
+			} catch {
+				warnings.push("Failed to configure DNS challenge provider");
+			}
+
+			try {
+				await updateSnapshotSettings({
+					auto_snapshot_enabled: data.autoSnapshot,
+					auto_snapshot_limit: data.snapshotLimit,
+				});
+			} catch {
+				warnings.push("Failed to configure snapshot settings");
+			}
+
+			if (warnings.length) {
+				setSetupWarnings(warnings);
 				return;
 			}
 			onComplete();
@@ -95,9 +132,12 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 	};
 
 	const stepContent = [
+		<StepTheme key="theme" />,
 		<StepAuth key="auth" data={data} update={update} />,
 		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
-		<StepPreferences key="prefs" data={data} update={update} />,
+		<StepHTTPS key="https" data={data} update={update} />,
+		<StepMetrics key="metrics" data={data} update={update} />,
+		<StepSnapshots key="snapshots" data={data} update={update} />,
 	];
 
 	if (setupWarnings.length > 0) {
@@ -126,7 +166,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 				<h1>Kaji</h1>
 				<StepIndicator current={step} />
 
-				{error && step !== 1 && (
+				{error && step !== 2 && (
 					<div className="inline-error auth-error" role="alert">
 						{error}
 					</div>
@@ -141,7 +181,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 						</button>
 					)}
 					{step === 0 && <span />}
-					{step < 2 ? (
+					{step < LAST_STEP ? (
 						<button type="button" className="btn btn-primary" onClick={handleNext}>
 							Next
 						</button>
@@ -198,6 +238,47 @@ function StepIndicator({ current }: { current: number }) {
 				);
 			})}
 		</div>
+	);
+}
+
+function StepTheme() {
+	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+
+	const applyTheme = (t: "dark" | "light") => {
+		setTheme(t);
+		document.documentElement.setAttribute("data-theme", t);
+		localStorage.setItem("theme", t);
+		const cs = document.querySelector('meta[name="color-scheme"]');
+		if (cs) cs.setAttribute("content", t);
+		const tc = document.querySelector('meta[name="theme-color"]');
+		if (tc) tc.setAttribute("content", t === "light" ? "#f0edf4" : "#1a1d28");
+	};
+
+	return (
+		<>
+			<p className="setup-step-description">Choose your preferred theme.</p>
+			<div className="setup-toggle-row">
+				<span>Theme</span>
+				<div className="theme-switcher">
+					<button
+						type="button"
+						className={cn("theme-pill", theme === "dark" && "active")}
+						onClick={() => applyTheme("dark")}
+						aria-pressed={theme === "dark"}
+					>
+						Dark
+					</button>
+					<button
+						type="button"
+						className={cn("theme-pill", theme === "light" && "active")}
+						onClick={() => applyTheme("light")}
+						aria-pressed={theme === "light"}
+					>
+						Light
+					</button>
+				</div>
+			</div>
+		</>
 	);
 }
 
@@ -400,47 +481,37 @@ function StepImport({
 	);
 }
 
-function StepPreferences({
+const challengeOptions = [
+	{ value: "http-01", label: "HTTP-01" },
+	{ value: "cloudflare", label: "Cloudflare DNS" },
+] as const;
+
+function StepHTTPS({
 	data,
 	update,
 }: {
 	data: WizardData;
 	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
 }) {
-	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
-
-	const applyTheme = (t: "dark" | "light") => {
-		setTheme(t);
-		document.documentElement.setAttribute("data-theme", t);
-		localStorage.setItem("theme", t);
-		const cs = document.querySelector('meta[name="color-scheme"]');
-		if (cs) cs.setAttribute("content", t);
-		const tc = document.querySelector('meta[name="theme-color"]');
-		if (tc) tc.setAttribute("content", t === "light" ? "#f0edf4" : "#1a1d28");
-	};
-
 	return (
 		<>
-			<div className="setup-toggle-row">
-				<span>Theme</span>
-				<div className="theme-switcher">
-					<button
-						type="button"
-						className={cn("theme-pill", theme === "dark" && "active")}
-						onClick={() => applyTheme("dark")}
-						aria-pressed={theme === "dark"}
-					>
-						Dark
-					</button>
-					<button
-						type="button"
-						className={cn("theme-pill", theme === "light" && "active")}
-						onClick={() => applyTheme("light")}
-						aria-pressed={theme === "light"}
-					>
-						Light
-					</button>
-				</div>
+			<p className="setup-step-description">Configure HTTPS certificate settings.</p>
+			<div className="auth-field">
+				<label htmlFor="setup-auto-https">Auto HTTPS</label>
+				<select
+					id="setup-auto-https"
+					value={data.globalToggles.auto_https}
+					onChange={(e) =>
+						update("globalToggles", {
+							...data.globalToggles,
+							auto_https: e.target.value as GlobalToggles["auto_https"],
+						})
+					}
+				>
+					<option value="on">On</option>
+					<option value="off">Off</option>
+					<option value="disable_redirects">On without redirects</option>
+				</select>
 			</div>
 			<div className="auth-field">
 				<label htmlFor="setup-acme-email">ACME Email</label>
@@ -456,6 +527,125 @@ function StepPreferences({
 					Used by Let's Encrypt for certificate expiry notices and account recovery.
 				</div>
 			</div>
+			<div className="auth-field">
+				<span className="settings-label" id="setup-challenge-label">
+					Challenge type
+				</span>
+				<Toggle
+					options={challengeOptions}
+					value={data.challengeType}
+					onChange={(v: ChallengeType) => update("challengeType", v)}
+					aria-label="Challenge type"
+				/>
+				<div className="field-hint">
+					{data.challengeType === "http-01"
+						? "Automatic via port 80"
+						: "DNS-01 challenges for wildcard certs and domains where HTTP-01 isn't viable"}
+				</div>
+				{data.challengeType === "cloudflare" && (
+					<input
+						type="password"
+						value={data.dnsToken}
+						onChange={(e) => update("dnsToken", e.target.value)}
+						placeholder="Cloudflare API token"
+						autoComplete="off"
+					/>
+				)}
+			</div>
+		</>
+	);
+}
+
+function StepMetrics({
+	data,
+	update,
+}: {
+	data: WizardData;
+	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
+}) {
+	return (
+		<>
+			<p className="setup-step-description">Configure Prometheus metrics collection.</p>
+			<div className="setup-toggle-row">
+				<div>
+					<span>Prometheus metrics</span>
+					<div className="field-hint">Expose a /metrics endpoint for Prometheus to scrape.</div>
+				</div>
+				<Toggle
+					value={data.globalToggles.prometheus_metrics}
+					onChange={() =>
+						update("globalToggles", {
+							...data.globalToggles,
+							prometheus_metrics: !data.globalToggles.prometheus_metrics,
+							per_host_metrics: !data.globalToggles.prometheus_metrics
+								? data.globalToggles.per_host_metrics
+								: false,
+						})
+					}
+				/>
+			</div>
+			{data.globalToggles.prometheus_metrics && (
+				<div className="setup-toggle-row">
+					<div>
+						<span>Per-host metrics</span>
+						<div className="field-hint">
+							Break down metrics by hostname. Increases cardinality with many hosts.
+						</div>
+					</div>
+					<Toggle
+						value={data.globalToggles.per_host_metrics}
+						onChange={() =>
+							update("globalToggles", {
+								...data.globalToggles,
+								per_host_metrics: !data.globalToggles.per_host_metrics,
+							})
+						}
+					/>
+				</div>
+			)}
+		</>
+	);
+}
+
+function StepSnapshots({
+	data,
+	update,
+}: {
+	data: WizardData;
+	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
+}) {
+	return (
+		<>
+			<p className="setup-step-description">
+				Snapshots save a copy of your Caddy config before each change, so you can roll back if
+				something goes wrong.
+			</p>
+			<div className="setup-toggle-row">
+				<span>Auto snapshots</span>
+				<Toggle
+					value={data.autoSnapshot}
+					onChange={() => update("autoSnapshot", !data.autoSnapshot)}
+				/>
+			</div>
+			{data.autoSnapshot && (
+				<div className="snapshot-settings-limit">
+					<span>Keep last</span>
+					<input
+						type="number"
+						min={1}
+						max={100}
+						value={data.snapshotLimit}
+						onChange={(e) =>
+							update(
+								"snapshotLimit",
+								Math.min(100, Math.max(1, Number.parseInt(e.target.value, 10) || 1)),
+							)
+						}
+						className="snapshot-limit-input"
+					/>
+					<span>auto snapshots</span>
+				</div>
+			)}
 		</>
 	);
 }
