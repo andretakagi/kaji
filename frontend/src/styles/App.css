@@ -940,6 +940,10 @@ input:disabled + .toggle-slider {
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.5rem;
+	padding: 0.875rem 1rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	margin-bottom: 0.75rem;
 }
 
 .setup-toggle-row span {
