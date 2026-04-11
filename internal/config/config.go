@@ -57,6 +57,7 @@ type AppConfig struct {
 	APIKeyHash      string            `json:"api_key_hash"`
 	CaddyAdminURL   string            `json:"caddy_admin_url"`
 	CaddyConfigPath string            `json:"caddy_config_path"`
+	CaddyDataDir    string            `json:"caddy_data_dir"`
 	SecureCookies   string            `json:"secure_cookies"`
 	LogFile         string            `json:"log_file"`
 	Loki            LokiConfig        `json:"loki"`

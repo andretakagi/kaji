@@ -4,9 +4,11 @@ import {
 	fetchAdvancedSettings,
 	fetchAPIKeyStatus,
 	fetchAuthStatus,
+	fetchCaddyDataDir,
 	generateAPIKey,
 	revokeAPIKey,
 	updateAdvancedSettings,
+	updateCaddyDataDir,
 } from "../api";
 import { cn } from "../cn";
 import { useAsyncAction } from "../hooks/useAsyncAction";
@@ -180,20 +182,29 @@ function ExportCaddyfileSection() {
 	);
 }
 
-function AdvancedSection({ initial }: { initial: { caddy_admin_url: string } }) {
+function AdvancedSection({
+	initial,
+}: {
+	initial: {
+		caddy_admin_url: string;
+		caddy_data_dir: string;
+		caddy_data_dir_placeholder: string;
+	};
+}) {
 	const [caddyAdminUrl, setCaddyAdminUrl] = useState(initial.caddy_admin_url);
+	const [caddyDataDir, setCaddyDataDir] = useState(initial.caddy_data_dir);
 	useEffect(() => {
 		setCaddyAdminUrl(initial.caddy_admin_url);
-	}, [initial.caddy_admin_url]);
+		setCaddyDataDir(initial.caddy_data_dir);
+	}, [initial.caddy_admin_url, initial.caddy_data_dir]);
 	const { saving, feedback, run } = useAsyncAction();
 
 	const handleSave = () =>
 		run(async () => {
 			const urlError = validateCaddyAdminUrl(caddyAdminUrl);
 			if (urlError) throw new Error(urlError);
-			await updateAdvancedSettings({
-				caddy_admin_url: caddyAdminUrl,
-			});
+			await updateAdvancedSettings({ caddy_admin_url: caddyAdminUrl });
+			await updateCaddyDataDir(caddyDataDir);
 			return "Saved";
 		});
 
@@ -208,6 +219,17 @@ function AdvancedSection({ initial }: { initial: { caddy_admin_url: string } }) 
 					value={caddyAdminUrl}
 					onChange={(e) => setCaddyAdminUrl(e.target.value)}
 					placeholder="http://localhost:2019"
+					maxLength={2048}
+				/>
+			</div>
+			<div className="settings-field">
+				<label htmlFor="caddy-data-dir">Caddy data directory</label>
+				<input
+					id="caddy-data-dir"
+					type="text"
+					value={caddyDataDir}
+					onChange={(e) => setCaddyDataDir(e.target.value)}
+					placeholder={initial.caddy_data_dir_placeholder}
 					maxLength={2048}
 				/>
 			</div>
@@ -234,6 +256,8 @@ export default function Settings({
 	const [authEnabled, setAuthEnabled] = useState(false);
 	const [advanced, setAdvanced] = useState({
 		caddy_admin_url: "http://localhost:2019",
+		caddy_data_dir: "",
+		caddy_data_dir_placeholder: "/data/caddy",
 	});
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
@@ -244,8 +268,8 @@ export default function Settings({
 		setError("");
 		setFailedSections(new Set());
 
-		Promise.allSettled([fetchAuthStatus(), fetchAdvancedSettings()])
-			.then(([authResult, advancedResult]) => {
+		Promise.allSettled([fetchAuthStatus(), fetchAdvancedSettings(), fetchCaddyDataDir()])
+			.then(([authResult, advancedResult, dataDirResult]) => {
 				const failed = new Set<string>();
 
 				if (authResult.status === "fulfilled") {
@@ -254,8 +278,25 @@ export default function Settings({
 				} else {
 					failed.add("auth");
 				}
+
+				let dataDirOverride = "";
+				let dataDirResolved = "/data/caddy";
+				if (dataDirResult.status === "fulfilled") {
+					const dd = dataDirResult.value as {
+						caddy_data_dir: string;
+						is_override: string;
+					};
+					dataDirResolved = dd.caddy_data_dir;
+					dataDirOverride = dd.is_override === "true" ? dd.caddy_data_dir : "";
+				}
+
 				if (advancedResult.status === "fulfilled") {
-					setAdvanced(advancedResult.value as { caddy_admin_url: string });
+					const adv = advancedResult.value as { caddy_admin_url: string };
+					setAdvanced({
+						caddy_admin_url: adv.caddy_admin_url,
+						caddy_data_dir: dataDirOverride,
+						caddy_data_dir_placeholder: dataDirResolved,
+					});
 				} else {
 					failed.add("advanced");
 				}

@@ -87,6 +87,13 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("DELETE /api/snapshots/{id}", handleSnapshotDelete(ss))
 	mux.HandleFunc("PUT /api/snapshots/settings", handleSnapshotSettings(ss))
 
+	mux.HandleFunc("GET /api/certificates", handleCertificatesList(store))
+	mux.HandleFunc("POST /api/certificates/renew", handleCertificateRenew(store))
+	mux.HandleFunc("DELETE /api/certificates/{issuer}/{domain}", handleCertificateDelete(store, cc))
+	mux.HandleFunc("GET /api/certificates/{issuer}/{domain}/download", handleCertificateDownload(store))
+	mux.HandleFunc("GET /api/settings/caddy-data-dir", handleCaddyDataDirGet(store))
+	mux.HandleFunc("PUT /api/settings/caddy-data-dir", handleCaddyDataDirUpdate(store))
+
 	return accessLog(limitRequestBody(requireAuth(store, mux)))
 }
 
