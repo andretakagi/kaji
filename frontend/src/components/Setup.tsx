@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { adaptCaddyfile, fetchDefaultCaddyfile, submitSetup } from "../api";
+import { cn } from "../cn";
 import {
 	type AdaptCaddyfileResponse,
 	DEFAULT_GLOBAL_TOGGLES,
@@ -9,7 +10,7 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 import { validatePassword } from "../utils/validate";
 import { Toggle } from "./Toggle";
 
-const STEP_LABELS = ["Auth", "Import", "ACME Email"];
+const STEP_LABELS = ["Auth", "Import", "Preferences"];
 
 interface WizardData {
 	authEnabled: boolean;
@@ -96,7 +97,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 	const stepContent = [
 		<StepAuth key="auth" data={data} update={update} />,
 		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
-		<StepACME key="acme" data={data} update={update} />,
+		<StepPreferences key="prefs" data={data} update={update} />,
 	];
 
 	if (setupWarnings.length > 0) {
@@ -399,19 +400,48 @@ function StepImport({
 	);
 }
 
-function StepACME({
+function StepPreferences({
 	data,
 	update,
 }: {
 	data: WizardData;
 	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
 }) {
+	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+
+	const applyTheme = (t: "dark" | "light") => {
+		setTheme(t);
+		document.documentElement.setAttribute("data-theme", t);
+		localStorage.setItem("theme", t);
+		const cs = document.querySelector('meta[name="color-scheme"]');
+		if (cs) cs.setAttribute("content", t);
+		const tc = document.querySelector('meta[name="theme-color"]');
+		if (tc) tc.setAttribute("content", t === "light" ? "#f0edf4" : "#1a1d28");
+	};
+
 	return (
 		<>
-			<p className="setup-step-description">
-				Set the email address used for ACME certificate registration (Let's Encrypt). This is
-				optional but recommended.
-			</p>
+			<div className="setup-toggle-row">
+				<span>Theme</span>
+				<div className="theme-switcher">
+					<button
+						type="button"
+						className={cn("theme-pill", theme === "dark" && "active")}
+						onClick={() => applyTheme("dark")}
+						aria-pressed={theme === "dark"}
+					>
+						Dark
+					</button>
+					<button
+						type="button"
+						className={cn("theme-pill", theme === "light" && "active")}
+						onClick={() => applyTheme("light")}
+						aria-pressed={theme === "light"}
+					>
+						Light
+					</button>
+				</div>
+			</div>
 			<div className="auth-field">
 				<label htmlFor="setup-acme-email">ACME Email</label>
 				<input
