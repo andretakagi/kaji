@@ -11,6 +11,7 @@ import {
 	stopCaddy,
 } from "./api";
 import { cn } from "./cn";
+import Certificates from "./components/Certificates";
 import { ErrorAlert } from "./components/ErrorAlert";
 import IPLists from "./components/IPLists";
 import Login from "./components/Login";
@@ -56,13 +57,14 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 	}
 }
 
-type View = "routes" | "ip-lists" | "logs" | "snapshots" | "settings";
+type View = "routes" | "ip-lists" | "certificates" | "logs" | "snapshots" | "settings";
 type AppState = "loading" | "setup" | "login" | "ready";
 
 function pathToView(pathname: string): View {
 	const segment = pathname.replace(/^\//, "").split("/")[0];
 	if (
 		segment === "ip-lists" ||
+		segment === "certificates" ||
 		segment === "logs" ||
 		segment === "snapshots" ||
 		segment === "settings"
@@ -191,6 +193,7 @@ function App() {
 	const navItems: { key: View; label: string }[] = [
 		{ key: "routes", label: "Routes" },
 		{ key: "ip-lists", label: "IP Lists" },
+		{ key: "certificates", label: "Certificates" },
 		{ key: "logs", label: "Logs" },
 		{ key: "snapshots", label: "Snapshots" },
 		{ key: "settings", label: "Settings" },
@@ -282,6 +285,7 @@ function App() {
 				<main id="main-content" className="app-content">
 					{view === "routes" && <Routes caddyRunning={running} />}
 					{view === "ip-lists" && <IPLists />}
+					{view === "certificates" && <Certificates caddyRunning={running} />}
 					{view === "logs" && <Logs caddyRunning={running} />}
 					{view === "snapshots" && <Snapshots />}
 					{view === "settings" && <Settings onAuthChange={setAuthEnabled} caddyRunning={running} />}

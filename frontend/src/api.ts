@@ -18,6 +18,7 @@ import type {
 	UpstreamStatus,
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
+import type { CertInfo } from "./types/certs";
 import type {
 	CaddyLoggingConfig,
 	CaddyLogSink,
@@ -34,8 +35,10 @@ import {
 	validateAPIKeyStatus,
 	validateAuthStatus,
 	validateCaddyConfig,
+	validateCaddyDataDir,
 	validateCaddyfileResponse,
 	validateCaddyStatus,
+	validateCertificates,
 	validateCreateRouteResponse,
 	validateDisabledRoutes,
 	validateDNSProvider,
@@ -448,4 +451,52 @@ export function fetchIPListUsage(id: string): Promise<IPListUsage> {
 
 export function fetchRouteIPListBindings(): Promise<Record<string, string>> {
 	return request("/api/ip-lists/bindings", undefined, validateRouteIPListBindings);
+}
+
+export function fetchCertificates(): Promise<CertInfo[]> {
+	return request("/api/certificates", undefined, validateCertificates);
+}
+
+export function renewCertificate(issuerKey: string, domain: string): Promise<{ status: string }> {
+	return request(
+		"/api/certificates/renew",
+		{ method: "POST", ...jsonBody({ issuer_key: issuerKey, domain }) },
+		validateStatusResponse,
+	);
+}
+
+export function deleteCertificate(
+	issuerKey: string,
+	domain: string,
+	force = false,
+): Promise<{ status: string }> {
+	const query = force ? "?force=true" : "";
+	return request(
+		`/api/certificates/${encodeURIComponent(issuerKey)}/${encodeURIComponent(domain)}${query}`,
+		{ method: "DELETE" },
+		validateStatusResponse,
+	);
+}
+
+export function downloadCertificate(issuerKey: string, domain: string): void {
+	const url = `/api/certificates/${encodeURIComponent(issuerKey)}/${encodeURIComponent(domain)}/download`;
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = `${domain}.crt`;
+	a.click();
+}
+
+export function fetchCaddyDataDir(): Promise<{
+	caddy_data_dir: string;
+	is_override: string;
+}> {
+	return request("/api/settings/caddy-data-dir", undefined, validateCaddyDataDir);
+}
+
+export function updateCaddyDataDir(dir: string): Promise<{ status: string }> {
+	return request(
+		"/api/settings/caddy-data-dir",
+		{ method: "PUT", ...jsonBody({ caddy_data_dir: dir }) },
+		validateStatusResponse,
+	);
 }

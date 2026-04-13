@@ -2,8 +2,10 @@
 package api
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
@@ -140,5 +142,50 @@ func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *sn
 		}
 		writeJSON(w, map[string]string{"status": "ok"})
 		persistCaddyConfig(cc, store)
+	}
+}
+
+func handleCaddyDataDirGet(store *config.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg := store.Get()
+		resolved := caddy.ResolveCaddyDataDir(cfg.CaddyDataDir)
+		isOverride := "false"
+		if cfg.CaddyDataDir != "" {
+			isOverride = "true"
+		}
+		writeJSON(w, map[string]string{
+			"caddy_data_dir": resolved,
+			"is_override":    isOverride,
+		})
+	}
+}
+
+func handleCaddyDataDirUpdate(store *config.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			CaddyDataDir string `json:"caddy_data_dir"`
+		}
+		if !decodeBody(w, r, &req) {
+			return
+		}
+
+		if req.CaddyDataDir != "" {
+			info, err := os.Stat(req.CaddyDataDir)
+			if err != nil || !info.IsDir() {
+				writeError(w, fmt.Sprintf("directory does not exist: %s", req.CaddyDataDir), http.StatusBadRequest)
+				return
+			}
+		}
+
+		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+			c.CaddyDataDir = req.CaddyDataDir
+			return &c, nil
+		}); err != nil {
+			log.Printf("handleCaddyDataDirUpdate: save config: %v", err)
+			writeError(w, "failed to save config", http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }

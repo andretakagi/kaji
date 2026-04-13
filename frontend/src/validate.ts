@@ -47,6 +47,7 @@ import type {
 	UpstreamStatus,
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
+import type { CertInfo } from "./types/certs";
 import type { CaddyLogEntry, CaddyLoggingConfig } from "./types/logs";
 import type { Snapshot, SnapshotIndex } from "./types/snapshots";
 
@@ -240,4 +241,32 @@ export function validateRouteIPListBindings(data: unknown): Record<string, strin
 		}
 		return true;
 	});
+}
+
+function isCertInfo(d: unknown): boolean {
+	return hasFields(d, {
+		domain: is.string,
+		sans: is.array,
+		issuer: is.string,
+		not_before: is.string,
+		not_after: is.string,
+		days_left: is.number,
+		status: is.string,
+		managed: is.boolean,
+		issuer_key: is.string,
+		fingerprint: is.string,
+	});
+}
+
+export function validateCertificates(data: unknown): CertInfo[] {
+	return assertValid("CertInfo[]", data, (d) => is.array(d) && d.every(isCertInfo));
+}
+
+export function validateCaddyDataDir(data: unknown): {
+	caddy_data_dir: string;
+	is_override: string;
+} {
+	return assertValid("CaddyDataDir", data, (d) =>
+		hasFields(d, { caddy_data_dir: is.string, is_override: is.string }),
+	);
 }
