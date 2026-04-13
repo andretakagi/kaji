@@ -59,6 +59,7 @@ export interface CaddyLogSink {
 
 export interface CaddyLoggingConfig {
 	logs?: Record<string, CaddyLogSink>;
+	log_dir?: string;
 }
 
 export interface LokiConfig {

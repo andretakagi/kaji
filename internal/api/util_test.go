@@ -187,7 +187,7 @@ func TestValidateLogFilePaths(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := validateLogFilePaths([]byte(tt.body))
+			got := validateLogFilePaths([]byte(tt.body), "/var/log/caddy/")
 			if tt.wantErr && got == "" {
 				t.Error("expected non-empty error string, got empty")
 			}

@@ -60,6 +60,7 @@ type AppConfig struct {
 	CaddyDataDir    string            `json:"caddy_data_dir"`
 	SecureCookies   string            `json:"secure_cookies"`
 	LogFile         string            `json:"log_file"`
+	LogDir          string            `json:"log_dir"`
 	Loki            LokiConfig        `json:"loki"`
 	DisabledRoutes  []DisabledRoute   `json:"disabled_routes"`
 	IPLists         []IPList          `json:"ip_lists"`
@@ -67,10 +68,18 @@ type AppConfig struct {
 }
 
 func DefaultConfig() *AppConfig {
+	logDir := "/var/log/caddy/"
+	if v := os.Getenv("CADDY_LOG_DIR"); v != "" {
+		logDir = v
+		if logDir[len(logDir)-1] != '/' {
+			logDir += "/"
+		}
+	}
 	return &AppConfig{
 		CaddyAdminURL:   "http://localhost:2019",
 		CaddyConfigPath: "/etc/caddy/caddy.json",
 		LogFile:         "/var/log/caddy/access.log",
+		LogDir:          logDir,
 		Loki: LokiConfig{
 			BatchSize:            1048576,
 			FlushIntervalSeconds: 5,
@@ -95,6 +104,12 @@ func LoadFrom(path string) (*AppConfig, error) {
 	cfg := DefaultConfig()
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parsing config file %s: %w", path, err)
+	}
+	if v := os.Getenv("CADDY_LOG_DIR"); v != "" {
+		if v[len(v)-1] != '/' {
+			v += "/"
+		}
+		cfg.LogDir = v
 	}
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("config validation: %w", err)

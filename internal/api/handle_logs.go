@@ -142,24 +142,28 @@ func handleLogStream(store *config.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleLogConfigGet(cc *caddy.Client) http.HandlerFunc {
+func handleLogConfigGet(store *config.ConfigStore, cc *caddy.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		raw, err := cc.GetLoggingConfig()
 		if err != nil {
-			// On a fresh Caddy instance, the logging path doesn't exist yet.
-			// Return an empty config instead of an error.
 			raw = []byte(`{"logs":{}}`)
 		}
 		trimmed := bytes.TrimSpace(raw)
 		if len(trimmed) == 0 || string(trimmed) == "null" {
 			raw = []byte(`{"logs":{}}`)
 		}
-		writeRawJSON(w, raw)
+		var base map[string]json.RawMessage
+		if json.Unmarshal(raw, &base) != nil {
+			base = map[string]json.RawMessage{}
+		}
+		dir, _ := json.Marshal(store.Get().LogDir)
+		base["log_dir"] = dir
+		out, _ := json.Marshal(base)
+		writeRawJSON(w, out)
 	}
 }
 
 func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
-	dockerMode := os.Getenv("CADDY_GUI_MODE") == "docker"
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -170,11 +174,9 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			writeError(w, "request body is not valid JSON", http.StatusBadRequest)
 			return
 		}
-		if dockerMode {
-			if msg := validateLogFilePaths(body); msg != "" {
-				writeError(w, msg, http.StatusBadRequest)
-				return
-			}
+		if msg := validateLogFilePaths(body, store.Get().LogDir); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
 		}
 		// If any existing sink is being removed, cascade: clear domain mappings.
 		var incoming struct {
@@ -236,12 +238,7 @@ func handleAccessDomains(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-const dockerLogDir = "/var/log/caddy/"
-
-// validateLogFilePaths checks that any file-output sinks write to the
-// writable log volume. In Docker the container runs read-only, so only
-// /var/log/caddy/ is available.
-func validateLogFilePaths(body []byte) string {
+func validateLogFilePaths(body []byte, logDir string) string {
 	var cfg struct {
 		Logs map[string]struct {
 			Writer struct {
@@ -258,8 +255,8 @@ func validateLogFilePaths(body []byte) string {
 			continue
 		}
 		cleaned := path.Clean(sink.Writer.Filename)
-		if !strings.HasPrefix(cleaned, dockerLogDir) {
-			return fmt.Sprintf("log '%s': file path must be under %s (the container filesystem is read-only)", name, dockerLogDir)
+		if !strings.HasPrefix(cleaned, logDir) {
+			return fmt.Sprintf("log '%s': file path must be under %s", name, logDir)
 		}
 	}
 	return ""

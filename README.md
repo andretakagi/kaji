@@ -91,6 +91,7 @@ These environment variables control runtime behavior:
 | `CADDY_GUI_MODE` | auto-detect | Set to `docker` to use the built-in process manager instead of systemd. Auto-detected when running in Docker. |
 | `KAJI_LISTEN_ADDR` | `:8080` | Address and port for the Kaji dashboard (e.g. `:9090` or `127.0.0.1:8080`). |
 | `KAJI_CONFIG_PATH` | `/etc/caddy-gui/config.json` | Path to the Kaji config file. Useful for non-standard installs or development. |
+| `CADDY_LOG_DIR` | `/var/log/caddy/` | Directory where Caddy writes log files. The dashboard displays filenames relative to this path and validates that log sinks write within it. |
 
 ## Development
 

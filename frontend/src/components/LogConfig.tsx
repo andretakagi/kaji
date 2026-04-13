@@ -18,12 +18,14 @@ function LogSinkEditor({
 	savedSink,
 	onSave,
 	onChange,
+	logDir,
 }: {
 	name: string;
 	sink: CaddyLogSink;
 	savedSink: CaddyLogSink | undefined;
 	onSave: () => Promise<void>;
 	onChange: (sink: CaddyLogSink) => void;
+	logDir: string;
 }) {
 	const output = sink.writer?.output ?? "stdout";
 	const isFile = output === "file";
@@ -124,7 +126,7 @@ function LogSinkEditor({
 					<div className="log-config-field">
 						<label htmlFor={`${name}-filepath`}>File name</label>
 						<label className="log-config-filepath" htmlFor={`${name}-filepath`}>
-							<span className="log-config-filepath-prefix">/var/log/caddy/</span>
+							<span className="log-config-filepath-prefix">{logDir}</span>
 							<input
 								id={`${name}-filepath`}
 								type="text"
@@ -243,6 +245,7 @@ const LogConfigCard = memo(function LogConfigCard({
 	onToggle,
 	accessDomains,
 	isDefault,
+	logDir,
 }: {
 	name: string;
 	sink: CaddyLogSink;
@@ -253,6 +256,7 @@ const LogConfigCard = memo(function LogConfigCard({
 	onToggle?: (enabled: boolean) => void;
 	accessDomains?: string[];
 	isDefault?: boolean;
+	logDir: string;
 }) {
 	const [removeError, setRemoveError] = useState("");
 	const isAccessLog = name === "kaji_access";
@@ -348,6 +352,7 @@ const LogConfigCard = memo(function LogConfigCard({
 				savedSink={savedSink}
 				onSave={() => onSave(name)}
 				onChange={(s) => onChange(name, s)}
+				logDir={logDir}
 			/>
 			{isAccessLog && !isDiscard && (
 				<div className="access-log-domains">
@@ -540,6 +545,7 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 							}
 							accessDomains={domainsForSink(accessDomains, name)}
 							isDefault={name === "default"}
+							logDir={editConfig.log_dir ?? "/var/log/caddy/"}
 						/>
 					))}
 				</div>

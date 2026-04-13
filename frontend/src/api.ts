@@ -303,14 +303,13 @@ export async function exportCaddyfile(): Promise<string> {
 	return data.content;
 }
 
-const LOG_DIR = "/var/log/caddy/";
-
 export async function fetchLogConfig(): Promise<CaddyLoggingConfig> {
 	const config = await request("/api/logs/config", undefined, validateLoggingConfig);
+	const logDir = config.log_dir ?? "/var/log/caddy/";
 	for (const sink of Object.values(config.logs ?? {})) {
 		if (sink.writer && sink.writer.output === "file") {
-			if (sink.writer.filename?.startsWith(LOG_DIR)) {
-				sink.writer.filename = sink.writer.filename.slice(LOG_DIR.length);
+			if (sink.writer.filename?.startsWith(logDir)) {
+				sink.writer.filename = sink.writer.filename.slice(logDir.length);
 			}
 		}
 	}
@@ -318,13 +317,14 @@ export async function fetchLogConfig(): Promise<CaddyLoggingConfig> {
 }
 
 export function updateLogConfig(config: CaddyLoggingConfig): Promise<{ status: string }> {
+	const logDir = config.log_dir ?? "/var/log/caddy/";
 	const logs: Record<string, CaddyLogSink> = {};
 	for (const [name, sink] of Object.entries(config.logs ?? {})) {
 		const writer = sink.writer ? { ...sink.writer } : undefined;
 		if (writer) {
 			if (writer.output === "file") {
 				if (writer.filename && !writer.filename.startsWith("/")) {
-					writer.filename = LOG_DIR + writer.filename;
+					writer.filename = logDir + writer.filename;
 				}
 				const hasRollSettings =
 					(writer.roll_size_mb != null && writer.roll_size_mb > 0) ||
@@ -339,7 +339,8 @@ export function updateLogConfig(config: CaddyLoggingConfig): Promise<{ status: s
 		}
 		logs[name] = { ...sink, writer };
 	}
-	const sanitized: CaddyLoggingConfig = { ...config, logs };
+	const { log_dir: _, ...rest } = config;
+	const sanitized: CaddyLoggingConfig = { ...rest, logs };
 	return request(
 		"/api/logs/config",
 		{ method: "PUT", ...jsonBody(sanitized) },

@@ -56,7 +56,7 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/routes/disabled", handleDisabledRoutes(store))
 	mux.HandleFunc("GET /api/logs", handleLogs(store))
 	mux.HandleFunc("GET /api/logs/stream", handleLogStream(store))
-	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(cc))
+	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(store, cc))
 	mux.HandleFunc("PUT /api/logs/config", handleLogConfigUpdate(store, cc, ss))
 	mux.HandleFunc("GET /api/logs/access-domains", handleAccessDomains(cc))
 	mux.HandleFunc("GET /api/caddyfile", handleCaddyfileExport(cc, store))
