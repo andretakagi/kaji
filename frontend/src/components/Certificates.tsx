@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+	CertInUseError,
 	deleteCertificate,
 	downloadCertificate,
 	fetchCertificates,
@@ -9,7 +10,6 @@ import { cn } from "../cn";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { usePolledData } from "../hooks/usePolledData";
 import type { CertInfo } from "../types/certs";
-import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmActionButton } from "./ConfirmActionButton";
 import Feedback from "./Feedback";
@@ -51,6 +51,7 @@ export default function Certificates({ caddyRunning }: { caddyRunning: boolean }
 	const [forceDelete, setForceDelete] = useState<{
 		issuerKey: string;
 		domain: string;
+		affectedRoutes: string[];
 	} | null>(null);
 
 	const handleRenew = (cert: CertInfo) =>
@@ -67,9 +68,12 @@ export default function Certificates({ caddyRunning }: { caddyRunning: boolean }
 				await reload();
 				return "Certificate deleted";
 			} catch (err) {
-				const msg = getErrorMessage(err, "Failed to delete certificate");
-				if (msg.toLowerCase().includes("active route") || msg.toLowerCase().includes("in use")) {
-					setForceDelete({ issuerKey: cert.issuer_key, domain: cert.domain });
+				if (err instanceof CertInUseError) {
+					setForceDelete({
+						issuerKey: cert.issuer_key,
+						domain: cert.domain,
+						affectedRoutes: err.affectedRoutes,
+					});
 				}
 				throw err;
 			}
@@ -122,9 +126,14 @@ export default function Certificates({ caddyRunning }: { caddyRunning: boolean }
 			{forceDelete && (
 				<div className="cert-force-delete-banner" role="alert">
 					<p>
-						This certificate's domain has an active route. Deleting it may cause TLS errors until
+						This certificate's domain has active routes. Deleting it may cause TLS errors until
 						Caddy provisions a replacement.
 					</p>
+					<ul className="cert-affected-routes">
+						{forceDelete.affectedRoutes.map((route) => (
+							<li key={route}>{route}</li>
+						))}
+					</ul>
 					<div className="cert-force-delete-actions">
 						<button
 							type="button"

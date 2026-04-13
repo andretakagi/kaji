@@ -92,9 +92,17 @@ func handleCertificateDelete(store *config.ConfigStore, cc *caddy.Client) http.H
 
 		if r.URL.Query().Get("force") != "true" {
 			configJSON, err := cc.GetConfig()
-			if err == nil && containsDomain(configJSON, domain) {
-				writeError(w, fmt.Sprintf("domain %q has an active route - use force=true to delete anyway", domain), http.StatusConflict)
-				return
+			if err == nil {
+				routes := routesUsingDomain(configJSON, domain)
+				if len(routes) > 0 {
+					setAPIHeaders(w)
+					w.WriteHeader(http.StatusConflict)
+					json.NewEncoder(w).Encode(map[string]any{
+						"error":           fmt.Sprintf("domain %q has an active route - use force=true to delete anyway", domain),
+						"affected_routes": routes,
+					})
+					return
+				}
 			}
 		}
 
@@ -144,7 +152,7 @@ func handleCertificateDownload(store *config.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func containsDomain(configJSON []byte, domain string) bool {
+func routesUsingDomain(configJSON []byte, domain string) []string {
 	var cfg struct {
 		Apps struct {
 			HTTP struct {
@@ -159,18 +167,25 @@ func containsDomain(configJSON []byte, domain string) bool {
 		} `json:"apps"`
 	}
 	if err := json.Unmarshal(configJSON, &cfg); err != nil {
-		return false
+		return nil
 	}
+	var routes []string
 	for _, srv := range cfg.Apps.HTTP.Servers {
 		for _, route := range srv.Routes {
+			var hosts []string
+			match := false
 			for _, m := range route.Match {
 				for _, h := range m.Host {
+					hosts = append(hosts, h)
 					if h == domain {
-						return true
+						match = true
 					}
 				}
 			}
+			if match {
+				routes = append(routes, strings.Join(hosts, ", "))
+			}
 		}
 	}
-	return false
+	return routes
 }

@@ -471,17 +471,39 @@ export function renewCertificate(issuerKey: string, domain: string): Promise<{ s
 	);
 }
 
-export function deleteCertificate(
+export class CertInUseError extends Error {
+	affectedRoutes: string[];
+	constructor(message: string, affectedRoutes: string[]) {
+		super(message);
+		this.affectedRoutes = affectedRoutes;
+	}
+}
+
+export async function deleteCertificate(
 	issuerKey: string,
 	domain: string,
 	force = false,
 ): Promise<{ status: string }> {
 	const query = force ? "?force=true" : "";
-	return request(
-		`/api/certificates/${encodeURIComponent(issuerKey)}/${encodeURIComponent(domain)}${query}`,
-		{ method: "DELETE" },
-		validateStatusResponse,
-	);
+	const path = `/api/certificates/${encodeURIComponent(issuerKey)}/${encodeURIComponent(domain)}${query}`;
+	const res = await fetch(path, { method: "DELETE", credentials: "include" });
+	if (!res.ok) {
+		const text = await res.text();
+		let message = text || res.statusText;
+		let affectedRoutes: string[] | undefined;
+		try {
+			const json = JSON.parse(text);
+			if (json.error) message = json.error;
+			if (Array.isArray(json.affected_routes)) affectedRoutes = json.affected_routes;
+		} catch {
+			// not JSON
+		}
+		if (affectedRoutes && affectedRoutes.length > 0) {
+			throw new CertInUseError(message, affectedRoutes);
+		}
+		throw new Error(message);
+	}
+	return res.json();
 }
 
 export function downloadCertificate(issuerKey: string, domain: string): void {
