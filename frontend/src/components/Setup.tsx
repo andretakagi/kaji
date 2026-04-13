@@ -20,7 +20,7 @@ const themeOptions = [
 	{ value: "light", label: "Light" },
 ] as const;
 
-const STEP_LABELS = ["Theme", "Auth", "Import", "HTTPS", "Metrics", "Snapshots"];
+const STEP_LABELS = ["Auth", "Import", "Settings"];
 const LAST_STEP = STEP_LABELS.length - 1;
 
 type ChallengeType = "http-01" | "cloudflare";
@@ -66,7 +66,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 
 	const validateStep = (): boolean => {
 		setError("");
-		if (step === 1 && data.authEnabled) {
+		if (step === 0 && data.authEnabled) {
 			const pwErr = validatePassword(data.password, data.confirmPassword);
 			if (pwErr) {
 				setError(pwErr);
@@ -136,12 +136,9 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 	};
 
 	const stepContent = [
-		<StepTheme key="theme" />,
 		<StepAuth key="auth" data={data} update={update} />,
 		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
-		<StepHTTPS key="https" data={data} update={update} />,
-		<StepMetrics key="metrics" data={data} update={update} />,
-		<StepSnapshots key="snapshots" data={data} update={update} />,
+		<StepSettings key="settings" data={data} update={update} />,
 	];
 
 	if (setupWarnings.length > 0) {
@@ -170,7 +167,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 				<h1>Kaji</h1>
 				<StepIndicator current={step} />
 
-				{error && step !== 2 && (
+				{error && step !== 1 && (
 					<div className="inline-error auth-error" role="alert">
 						{error}
 					</div>
@@ -261,18 +258,15 @@ function StepTheme() {
 	};
 
 	return (
-		<>
-			<p className="setup-step-description">Choose your preferred theme.</p>
-			<div className="auth-field">
-				<span className="settings-label">Theme</span>
-				<Toggle
-					options={themeOptions}
-					value={theme}
-					onChange={(v: "dark" | "light") => applyTheme(v)}
-					aria-label="Theme"
-				/>
-			</div>
-		</>
+		<div className="auth-field">
+			<span className="settings-label">Theme</span>
+			<Toggle
+				options={themeOptions}
+				value={theme}
+				onChange={(v: "dark" | "light") => applyTheme(v)}
+				aria-label="Theme"
+			/>
+		</div>
 	);
 }
 
@@ -480,7 +474,7 @@ const challengeOptions = [
 	{ value: "cloudflare", label: "Cloudflare DNS" },
 ] as const;
 
-function StepHTTPS({
+function StepHTTPSContent({
 	data,
 	update,
 }: {
@@ -489,7 +483,6 @@ function StepHTTPS({
 }) {
 	return (
 		<>
-			<p className="setup-step-description">Configure HTTPS certificate settings.</p>
 			<div className="auth-field">
 				<label htmlFor="setup-auto-https">Auto HTTPS</label>
 				<select
@@ -545,7 +538,7 @@ function StepHTTPS({
 	);
 }
 
-function StepMetrics({
+function StepMetricsContent({
 	data,
 	update,
 }: {
@@ -553,58 +546,55 @@ function StepMetrics({
 	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
 }) {
 	return (
-		<>
-			<p className="setup-step-description">Configure Prometheus metrics collection.</p>
-			<div className="settings-toggle-grid setup-toggle-grid-stacked">
+		<div className="settings-toggle-grid setup-toggle-grid-stacked">
+			<div className="settings-toggle-item">
+				<div className="settings-toggle-label">
+					<span>Prometheus metrics</span>
+					<span className="settings-toggle-desc">
+						Expose a /metrics endpoint for Prometheus to scrape.
+					</span>
+				</div>
+				<Toggle
+					inline
+					small
+					value={data.globalToggles.prometheus_metrics}
+					onChange={() =>
+						update("globalToggles", {
+							...data.globalToggles,
+							prometheus_metrics: !data.globalToggles.prometheus_metrics,
+							per_host_metrics: !data.globalToggles.prometheus_metrics
+								? data.globalToggles.per_host_metrics
+								: false,
+						})
+					}
+				/>
+			</div>
+			{data.globalToggles.prometheus_metrics && (
 				<div className="settings-toggle-item">
 					<div className="settings-toggle-label">
-						<span>Prometheus metrics</span>
+						<span>Per-host metrics</span>
 						<span className="settings-toggle-desc">
-							Expose a /metrics endpoint for Prometheus to scrape.
+							Break down metrics by hostname. Increases cardinality with many hosts.
 						</span>
 					</div>
 					<Toggle
 						inline
 						small
-						value={data.globalToggles.prometheus_metrics}
+						value={data.globalToggles.per_host_metrics}
 						onChange={() =>
 							update("globalToggles", {
 								...data.globalToggles,
-								prometheus_metrics: !data.globalToggles.prometheus_metrics,
-								per_host_metrics: !data.globalToggles.prometheus_metrics
-									? data.globalToggles.per_host_metrics
-									: false,
+								per_host_metrics: !data.globalToggles.per_host_metrics,
 							})
 						}
 					/>
 				</div>
-				{data.globalToggles.prometheus_metrics && (
-					<div className="settings-toggle-item">
-						<div className="settings-toggle-label">
-							<span>Per-host metrics</span>
-							<span className="settings-toggle-desc">
-								Break down metrics by hostname. Increases cardinality with many hosts.
-							</span>
-						</div>
-						<Toggle
-							inline
-							small
-							value={data.globalToggles.per_host_metrics}
-							onChange={() =>
-								update("globalToggles", {
-									...data.globalToggles,
-									per_host_metrics: !data.globalToggles.per_host_metrics,
-								})
-							}
-						/>
-					</div>
-				)}
-			</div>
-		</>
+			)}
+		</div>
 	);
 }
 
-function StepSnapshots({
+function StepSnapshotsContent({
 	data,
 	update,
 }: {
@@ -613,10 +603,6 @@ function StepSnapshots({
 }) {
 	return (
 		<>
-			<p className="setup-step-description">
-				Snapshots save a copy of your Caddy config before each change, so you can roll back if
-				something goes wrong.
-			</p>
 			<div className="setup-toggle-row">
 				<span>Auto snapshots</span>
 				<Toggle
@@ -643,6 +629,42 @@ function StepSnapshots({
 					<span>auto snapshots</span>
 				</div>
 			)}
+		</>
+	);
+}
+
+function StepSettings({
+	data,
+	update,
+}: {
+	data: WizardData;
+	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
+}) {
+	return (
+		<>
+			<p className="setup-step-description">
+				Configure your preferences. All of these can be changed later in Settings.
+			</p>
+
+			<div className="setup-settings-section">
+				<h3 className="setup-settings-heading">Theme</h3>
+				<StepTheme />
+			</div>
+
+			<div className="setup-settings-section">
+				<h3 className="setup-settings-heading">HTTPS</h3>
+				<StepHTTPSContent data={data} update={update} />
+			</div>
+
+			<div className="setup-settings-section">
+				<h3 className="setup-settings-heading">Metrics</h3>
+				<StepMetricsContent data={data} update={update} />
+			</div>
+
+			<div className="setup-settings-section">
+				<h3 className="setup-settings-heading">Snapshots</h3>
+				<StepSnapshotsContent data={data} update={update} />
+			</div>
 		</>
 	);
 }
