@@ -168,6 +168,7 @@ function App() {
 						setView("routes");
 						checkAuth();
 					}}
+					fetchSetupStatus={fetchSetupStatus}
 				/>
 			</main>
 		);

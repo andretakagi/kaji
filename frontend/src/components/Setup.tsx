@@ -4,6 +4,7 @@ import {
 	type AdaptCaddyfileResponse,
 	DEFAULT_GLOBAL_TOGGLES,
 	type GlobalToggles,
+	type SetupStatus,
 } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validatePassword } from "../utils/validate";
@@ -34,7 +35,14 @@ interface WizardData {
 	snapshotLimit: number;
 }
 
-function Setup({ onComplete }: { onComplete: () => void }) {
+function Setup({
+	onComplete,
+	fetchSetupStatus,
+}: {
+	onComplete: () => void;
+	fetchSetupStatus: () => Promise<SetupStatus>;
+}) {
+	const [caddyReady, setCaddyReady] = useState<boolean | null>(null);
 	const [step, setStep] = useState(0);
 	const [error, setError] = useState("");
 	const [dnsError, setDnsError] = useState("");
@@ -59,6 +67,25 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 	const update = useCallback(<K extends keyof WizardData>(key: K, value: WizardData[K]) => {
 		setData((prev) => ({ ...prev, [key]: value }));
 	}, []);
+
+	useEffect(() => {
+		let active = true;
+		const check = () => {
+			fetchSetupStatus()
+				.then((res) => {
+					if (active) setCaddyReady(res.caddy_running);
+				})
+				.catch(() => {
+					if (active) setCaddyReady(false);
+				});
+		};
+		check();
+		const id = setInterval(check, 3000);
+		return () => {
+			active = false;
+			clearInterval(id);
+		};
+	}, [fetchSetupStatus]);
 
 	const validateStep = (): boolean => {
 		setError("");
@@ -144,6 +171,24 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
 		<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
 	];
+
+	if (!caddyReady) {
+		return (
+			<div className="auth-wrapper">
+				<div className="auth-card auth-card-narrow setup-caddy-gate">
+					<h1>Kaji</h1>
+					<div className="setup-caddy-gate-status">
+						<span className="status-beacon stopped" />
+						<span>Waiting for Caddy</span>
+					</div>
+					<p>
+						Caddy must be running before setup can continue.
+						{caddyReady === false && " Retrying every few seconds..."}
+					</p>
+				</div>
+			</div>
+		);
+	}
 
 	if (setupWarnings.length > 0) {
 		return (

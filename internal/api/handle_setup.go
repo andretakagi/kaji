@@ -15,23 +15,26 @@ import (
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
 
-func handleSetupStatus() http.HandlerFunc {
+func handleSetupStatus(cc *caddy.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]bool{"is_first_run": !config.Exists()})
+		writeJSON(w, map[string]bool{
+			"is_first_run":  !config.Exists(),
+			"caddy_running": cc.IsReachable(),
+		})
 	}
 }
 
 func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Password           string               `json:"password"`
-			CaddyAdminURL      string               `json:"caddy_admin_url"`
-			ACMEEmail          string               `json:"acme_email"`
-			GlobalToggles      *caddy.GlobalToggles `json:"global_toggles"`
-			CaddyfileJSON      json.RawMessage      `json:"caddyfile_json"`
-			DNSChallengeToken  string               `json:"dns_challenge_token"`
-			AutoSnapshotEnabled *bool               `json:"auto_snapshot_enabled"`
-			AutoSnapshotLimit  *int                 `json:"auto_snapshot_limit"`
+			Password            string               `json:"password"`
+			CaddyAdminURL       string               `json:"caddy_admin_url"`
+			ACMEEmail           string               `json:"acme_email"`
+			GlobalToggles       *caddy.GlobalToggles `json:"global_toggles"`
+			CaddyfileJSON       json.RawMessage      `json:"caddyfile_json"`
+			DNSChallengeToken   string               `json:"dns_challenge_token"`
+			AutoSnapshotEnabled *bool                `json:"auto_snapshot_enabled"`
+			AutoSnapshotLimit   *int                 `json:"auto_snapshot_limit"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -65,6 +68,12 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 			}
 			newCfg.CaddyAdminURL = req.CaddyAdminURL
 		}
+
+		if !cc.IsReachable() {
+			writeError(w, "Caddy is not running. Start Caddy before running setup.", http.StatusBadGateway)
+			return
+		}
+
 		if err := store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
 			if config.Exists() {
 				return nil, config.ErrSetupDone
@@ -82,9 +91,8 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 
 		var warnings []string
 		var dnsError string
-		caddyUp := cc.IsReachable()
 
-		if caddyUp {
+		{
 			if len(req.CaddyfileJSON) > 0 {
 				if err := cc.LoadConfig(req.CaddyfileJSON); err != nil {
 					log.Printf("handleSetup: load caddyfile config: %v", err)
@@ -128,8 +136,6 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 			}
 
 			persistCaddyConfig(cc, store)
-		} else {
-			log.Println("handleSetup: Caddy not reachable, skipping proxy configuration")
 		}
 
 		if req.AutoSnapshotEnabled != nil {

@@ -30,7 +30,7 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 		writeJSON(w, map[string]string{"version": version})
 	})
 
-	mux.HandleFunc("GET /api/setup/status", handleSetupStatus())
+	mux.HandleFunc("GET /api/setup/status", handleSetupStatus(cc))
 	mux.HandleFunc("POST /api/setup", handleSetup(store, cc, ss))
 	mux.HandleFunc("POST /api/setup/adapt-caddyfile", handleAdaptCaddyfile(cc))
 	mux.HandleFunc("GET /api/setup/default-caddyfile", handleDefaultCaddyfile())

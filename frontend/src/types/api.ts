@@ -15,6 +15,7 @@ export interface UpstreamStatus {
 
 export interface SetupStatus {
 	is_first_run: boolean;
+	caddy_running: boolean;
 }
 
 export interface SetupRequest {

@@ -58,7 +58,9 @@ export function validateAuthStatus(data: unknown): AuthStatus {
 }
 
 export function validateSetupStatus(data: unknown): SetupStatus {
-	return assertValid("SetupStatus", data, (d) => hasFields(d, { is_first_run: is.boolean }));
+	return assertValid("SetupStatus", data, (d) =>
+		hasFields(d, { is_first_run: is.boolean, caddy_running: is.boolean }),
+	);
 }
 
 export function validateSetupResponse(data: unknown): SetupResponse {

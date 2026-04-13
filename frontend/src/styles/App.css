@@ -379,6 +379,27 @@ select:focus-visible {
 	gap: 0.25rem;
 }
 
+.setup-caddy-gate {
+	text-align: center;
+}
+
+.setup-caddy-gate p {
+	color: var(--text-muted);
+	font-size: 0.8125rem;
+	margin-bottom: 0;
+}
+
+.setup-caddy-gate-status {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	font-size: 0.9375rem;
+	font-weight: 500;
+	color: var(--text);
+	margin-bottom: 1rem;
+}
+
 /* Shared: States */
 
 .empty-state {
