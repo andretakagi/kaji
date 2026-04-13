@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-	adaptCaddyfile,
-	fetchDefaultCaddyfile,
-	submitSetup,
-	updateDNSProvider,
-	updateSnapshotSettings,
-} from "../api";
+import { adaptCaddyfile, fetchDefaultCaddyfile, submitSetup, updateDNSProvider } from "../api";
 import {
 	type AdaptCaddyfileResponse,
 	DEFAULT_GLOBAL_TOGGLES,
@@ -43,8 +37,10 @@ interface WizardData {
 function Setup({ onComplete }: { onComplete: () => void }) {
 	const [step, setStep] = useState(0);
 	const [error, setError] = useState("");
+	const [dnsError, setDnsError] = useState("");
 	const [setupWarnings, setSetupWarnings] = useState<string[]>([]);
 	const [submitting, setSubmitting] = useState(false);
+	const [setupDone, setSetupDone] = useState(false);
 	const [data, setData] = useState<WizardData>({
 		authEnabled: true,
 		password: "",
@@ -91,31 +87,34 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 		if (!validateStep()) return;
 		setSubmitting(true);
 		setError("");
+		setDnsError("");
 		try {
+			if (setupDone) {
+				// Core setup already completed - just retry the DNS configuration.
+				if (data.challengeType === "cloudflare" && data.dnsToken) {
+					await updateDNSProvider({ enabled: true, api_token: data.dnsToken });
+				}
+				onComplete();
+				return;
+			}
+
 			const res = await submitSetup({
 				password: data.authEnabled ? data.password : undefined,
 				acme_email: data.acmeEmail || undefined,
 				global_toggles: data.globalToggles,
 				caddyfile_json: data.adaptedConfig || undefined,
+				dns_challenge_token:
+					data.challengeType === "cloudflare" && data.dnsToken ? data.dnsToken : undefined,
+				auto_snapshot_enabled: data.autoSnapshot,
+				auto_snapshot_limit: data.snapshotLimit,
 			});
 
+			setSetupDone(true);
 			const warnings = [...(res.warnings || [])];
 
-			try {
-				if (data.challengeType === "cloudflare" && data.dnsToken) {
-					await updateDNSProvider({ enabled: true, api_token: data.dnsToken });
-				}
-			} catch {
-				warnings.push("Failed to configure DNS challenge provider");
-			}
-
-			try {
-				await updateSnapshotSettings({
-					auto_snapshot_enabled: data.autoSnapshot,
-					auto_snapshot_limit: data.snapshotLimit,
-				});
-			} catch {
-				warnings.push("Failed to configure snapshot settings");
+			if (res.dns_error) {
+				setDnsError(res.dns_error);
+				return;
 			}
 
 			if (warnings.length) {
@@ -129,6 +128,11 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 				onComplete();
 				return;
 			}
+			// DNS retry failed - show the error on the DNS field.
+			if (setupDone) {
+				setDnsError(getErrorMessage(err, "Could not configure DNS challenge"));
+				return;
+			}
 			setError(msg);
 		} finally {
 			setSubmitting(false);
@@ -138,7 +142,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 	const stepContent = [
 		<StepAuth key="auth" data={data} update={update} />,
 		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
-		<StepSettings key="settings" data={data} update={update} />,
+		<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
 	];
 
 	if (setupWarnings.length > 0) {
@@ -163,7 +167,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 
 	return (
 		<div className="auth-wrapper">
-			<div className="auth-card">
+			<div className={`auth-card${step === LAST_STEP ? " auth-card-wide" : ""}`}>
 				<h1>Kaji</h1>
 				<StepIndicator current={step} />
 
@@ -176,12 +180,17 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 				<div className="setup-step-content">{stepContent[step]}</div>
 
 				<div className="setup-nav">
-					{step > 0 && (
+					{step > 0 && !setupDone && (
 						<button type="button" className="btn btn-ghost" onClick={handleBack}>
 							Back
 						</button>
 					)}
-					{step === 0 && <span />}
+					{setupDone && (
+						<button type="button" className="btn btn-ghost" onClick={onComplete}>
+							Skip
+						</button>
+					)}
+					{step === 0 && !setupDone && <span />}
 					{step < LAST_STEP ? (
 						<button type="button" className="btn btn-primary" onClick={handleNext}>
 							Next
@@ -193,7 +202,7 @@ function Setup({ onComplete }: { onComplete: () => void }) {
 							disabled={submitting}
 							onClick={handleSubmit}
 						>
-							{submitting ? "Setting up..." : "Complete Setup"}
+							{submitting ? "Setting up..." : setupDone ? "Retry" : "Complete Setup"}
 						</button>
 					)}
 				</div>
@@ -258,15 +267,12 @@ function StepTheme() {
 	};
 
 	return (
-		<div className="auth-field">
-			<span className="settings-label">Theme</span>
-			<Toggle
-				options={themeOptions}
-				value={theme}
-				onChange={(v: "dark" | "light") => applyTheme(v)}
-				aria-label="Theme"
-			/>
-		</div>
+		<Toggle
+			options={themeOptions}
+			value={theme}
+			onChange={(v: "dark" | "light") => applyTheme(v)}
+			aria-label="Theme"
+		/>
 	);
 }
 
@@ -477,9 +483,11 @@ const challengeOptions = [
 function StepHTTPSContent({
 	data,
 	update,
+	dnsError,
 }: {
 	data: WizardData;
 	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
+	dnsError: string;
 }) {
 	return (
 		<>
@@ -525,13 +533,22 @@ function StepHTTPSContent({
 					aria-label="Challenge type"
 				/>
 				{data.challengeType === "cloudflare" && (
-					<input
-						type="password"
-						value={data.dnsToken}
-						onChange={(e) => update("dnsToken", e.target.value)}
-						placeholder="Cloudflare API token"
-						autoComplete="off"
-					/>
+					<>
+						<input
+							type="password"
+							className={dnsError ? "input-error" : ""}
+							style={{ marginTop: "0.5rem" }}
+							value={data.dnsToken}
+							onChange={(e) => update("dnsToken", e.target.value)}
+							placeholder="Cloudflare API token"
+							autoComplete="off"
+						/>
+						{dnsError && (
+							<div className="inline-error" role="alert">
+								{dnsError}
+							</div>
+						)}
+					</>
 				)}
 			</div>
 		</>
@@ -636,9 +653,11 @@ function StepSnapshotsContent({
 function StepSettings({
 	data,
 	update,
+	dnsError,
 }: {
 	data: WizardData;
 	update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
+	dnsError: string;
 }) {
 	return (
 		<>
@@ -646,24 +665,26 @@ function StepSettings({
 				Configure your preferences. All of these can be changed later in Settings.
 			</p>
 
-			<div className="setup-settings-section">
-				<h3 className="setup-settings-heading">Theme</h3>
-				<StepTheme />
-			</div>
+			<div className="setup-settings-grid">
+				<div className="setup-settings-section">
+					<h3 className="setup-settings-heading">HTTPS</h3>
+					<StepHTTPSContent data={data} update={update} dnsError={dnsError} />
+				</div>
 
-			<div className="setup-settings-section">
-				<h3 className="setup-settings-heading">HTTPS</h3>
-				<StepHTTPSContent data={data} update={update} />
-			</div>
+				<div className="setup-settings-section">
+					<h3 className="setup-settings-heading">Metrics</h3>
+					<StepMetricsContent data={data} update={update} />
+				</div>
 
-			<div className="setup-settings-section">
-				<h3 className="setup-settings-heading">Metrics</h3>
-				<StepMetricsContent data={data} update={update} />
-			</div>
+				<div className="setup-settings-section">
+					<h3 className="setup-settings-heading">Snapshots</h3>
+					<StepSnapshotsContent data={data} update={update} />
+				</div>
 
-			<div className="setup-settings-section">
-				<h3 className="setup-settings-heading">Snapshots</h3>
-				<StepSnapshotsContent data={data} update={update} />
+				<div className="setup-settings-section">
+					<h3 className="setup-settings-heading">Theme</h3>
+					<StepTheme />
+				</div>
 			</div>
 		</>
 	);

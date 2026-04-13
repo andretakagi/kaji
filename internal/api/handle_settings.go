@@ -137,7 +137,8 @@ func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *sn
 		maybeAutoSnapshot(cc, ss, "DNS provider updated")
 
 		if err := cc.SetDNSProvider(req.APIToken, req.Enabled); err != nil {
-			caddyError(w, "handleDNSProviderUpdate", err)
+			log.Printf("handleDNSProviderUpdate: %v", err)
+			writeError(w, cleanDNSProviderError(err), http.StatusBadGateway)
 			return
 		}
 		writeJSON(w, map[string]string{"status": "ok"})

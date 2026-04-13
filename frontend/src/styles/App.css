@@ -199,6 +199,10 @@ select {
 	transition: border-color 0.15s;
 }
 
+input.input-error {
+	border-color: var(--red);
+}
+
 input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus {
 	border-color: var(--accent-hover);
@@ -876,6 +880,11 @@ input:disabled + .toggle-slider {
 	max-width: 360px;
 }
 
+.auth-card-wide {
+	max-width: 960px;
+	transition: max-width 0.3s ease;
+}
+
 .auth-card h1 {
 	font-size: 1.5rem;
 	font-weight: 700;
@@ -1046,6 +1055,28 @@ input:disabled + .toggle-slider {
 /* Step content */
 .setup-step-content {
 	min-height: 200px;
+}
+
+.setup-settings-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1.25rem;
+}
+
+.setup-settings-section {
+	padding: 1.25rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+}
+
+.setup-settings-heading {
+	font-size: 0.85rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	color: var(--text-muted);
+	margin: 0 0 0.75rem;
 }
 
 .setup-step-description {
@@ -2618,6 +2649,14 @@ input:disabled + .toggle-slider {
 
 	.setup-import-textarea {
 		min-height: 120px;
+	}
+
+	.auth-card-wide {
+		max-width: 520px;
+	}
+
+	.setup-settings-grid {
+		grid-template-columns: 1fr;
 	}
 
 	/* Routes */

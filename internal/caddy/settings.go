@@ -112,51 +112,51 @@ func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 		raw = nil
 	}
 
+	var servers map[string]json.RawMessage
 	if raw != nil {
-		var servers map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &servers); err != nil {
 			return fmt.Errorf("failed to parse servers config: %w", err)
 		}
+	}
 
-		for name := range servers {
-			base := "apps/http/servers/" + name
+	for name := range servers {
+		base := "apps/http/servers/" + name
 
-			switch t.AutoHTTPS {
-			case "off":
-				data, err := json.Marshal(map[string]bool{"disable": true})
-				if err != nil {
-					return fmt.Errorf("failed to marshal auto_https config: %w", err)
-				}
-				if err := c.SetConfigPath(base+"/automatic_https", data); err != nil {
-					return fmt.Errorf("setting auto_https for server %s: %w", name, err)
-				}
-			case "disable_redirects":
-				data, err := json.Marshal(map[string]bool{"disable_redirects": true})
-				if err != nil {
-					return fmt.Errorf("failed to marshal auto_https config: %w", err)
-				}
-				if err := c.SetConfigPath(base+"/automatic_https", data); err != nil {
-					return fmt.Errorf("setting auto_https for server %s: %w", name, err)
-				}
-			default:
-				_ = c.DeleteConfigPath(base + "/automatic_https")
+		switch t.AutoHTTPS {
+		case "off":
+			data, err := json.Marshal(map[string]bool{"disable": true})
+			if err != nil {
+				return fmt.Errorf("failed to marshal auto_https config: %w", err)
 			}
-
-			if t.PrometheusMetrics {
-				metricsObj := map[string]any{}
-				if t.PerHostMetrics {
-					metricsObj["per_host"] = true
-				}
-				data, err := json.Marshal(metricsObj)
-				if err != nil {
-					return fmt.Errorf("failed to marshal metrics config: %w", err)
-				}
-				if err := c.SetConfigPath(base+"/metrics", data); err != nil {
-					return fmt.Errorf("setting metrics for server %s: %w", name, err)
-				}
-			} else {
-				_ = c.DeleteConfigPath(base + "/metrics")
+			if err := c.SetConfigPath(base+"/automatic_https", data); err != nil {
+				return fmt.Errorf("setting auto_https for server %s: %w", name, err)
 			}
+		case "disable_redirects":
+			data, err := json.Marshal(map[string]bool{"disable_redirects": true})
+			if err != nil {
+				return fmt.Errorf("failed to marshal auto_https config: %w", err)
+			}
+			if err := c.SetConfigPath(base+"/automatic_https", data); err != nil {
+				return fmt.Errorf("setting auto_https for server %s: %w", name, err)
+			}
+		default:
+			_ = c.DeleteConfigPath(base + "/automatic_https")
+		}
+
+		if t.PrometheusMetrics {
+			metricsObj := map[string]any{}
+			if t.PerHostMetrics {
+				metricsObj["per_host"] = true
+			}
+			data, err := json.Marshal(metricsObj)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metrics config: %w", err)
+			}
+			if err := c.SetConfigPath(base+"/metrics", data); err != nil {
+				return fmt.Errorf("setting metrics for server %s: %w", name, err)
+			}
+		} else {
+			_ = c.DeleteConfigPath(base + "/metrics")
 		}
 	}
 

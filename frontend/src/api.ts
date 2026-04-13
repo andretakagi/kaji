@@ -73,6 +73,7 @@ async function request<T>(
 	try {
 		res = await fetch(path, {
 			...options,
+			credentials: "include",
 			signal,
 		});
 	} catch (err) {

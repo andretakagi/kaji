@@ -23,11 +23,15 @@ export interface SetupRequest {
 	acme_email?: string;
 	global_toggles?: GlobalToggles;
 	caddyfile_json?: Record<string, unknown>;
+	dns_challenge_token?: string;
+	auto_snapshot_enabled?: boolean;
+	auto_snapshot_limit?: number;
 }
 
 export interface SetupResponse {
 	status: string;
 	warnings?: string[];
+	dns_error?: string;
 }
 
 export interface AdaptCaddyfileResponse {
