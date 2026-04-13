@@ -355,6 +355,36 @@ select:focus-visible {
 	color: var(--red);
 }
 
+.alert-warning {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.6rem 1rem;
+	font-size: 0.8125rem;
+	color: var(--yellow);
+	background: rgba(var(--yellow-rgb), 0.08);
+	border: 1px solid rgba(var(--yellow-rgb), 0.18);
+	border-radius: var(--radius-sm);
+	overflow-wrap: break-word;
+	word-break: break-word;
+	min-width: 0;
+}
+
+.alert-warning button {
+	background: none;
+	border: none;
+	color: rgba(var(--yellow-rgb), 0.6);
+	font-size: 0.75rem;
+	cursor: pointer;
+	flex-shrink: 0;
+	transition: color 0.15s;
+}
+
+.alert-warning button:hover {
+	color: var(--yellow);
+}
+
 .inline-error {
 	font-size: 0.8125rem;
 	color: var(--red);

@@ -4,8 +4,10 @@ package caddy
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -301,8 +303,12 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 				var current map[string]any
 				if json.Unmarshal(raw, &current) == nil {
 					current["writer"] = map[string]string{"output": "stdout"}
-					if data, err := json.Marshal(current); err == nil {
-						_ = c.SetConfigPath("logging/logs/kaji_access", data)
+					data, err := json.Marshal(current)
+					if err != nil {
+						return fmt.Errorf("marshaling kaji_access update: %w", err)
+					}
+					if err := c.SetConfigPath("logging/logs/kaji_access", data); err != nil {
+						return fmt.Errorf("re-enabling kaji_access writer: %w", err)
 					}
 				}
 			}
@@ -323,9 +329,11 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 		)
 	}
 
-	_ = c.DeleteConfigPath(
+	if err := c.DeleteConfigPath(
 		"apps/http/servers/" + server + "/logs/logger_names/" + domain,
-	)
+	); err != nil {
+		log.Printf("SetRouteAccessLog: removing %s logger_names entry: %v", domain, err)
+	}
 	return nil
 }
 
@@ -370,16 +378,19 @@ func (c *Client) ClearDomainsForSink(sinkName string) error {
 	if err != nil {
 		return err
 	}
+	var errs []error
 	for server, serverDomains := range domains {
 		for domain, logger := range serverDomains {
 			if logger == sinkName {
-				_ = c.DeleteConfigPath(
+				if err := c.DeleteConfigPath(
 					"apps/http/servers/" + server + "/logs/logger_names/" + domain,
-				)
+				); err != nil {
+					errs = append(errs, err)
+				}
 			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (c *Client) IsSinkReferenced(sinkName string) (bool, error) {

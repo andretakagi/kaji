@@ -89,10 +89,12 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
+		resp := map[string]any{"status": "ok", "@id": caddy.GenerateRouteID(req.Domain)}
 		if err := cc.SetRouteAccessLog(req.Server, req.Domain, req.Toggles.AccessLog); err != nil {
 			log.Printf("handleCreateRoute: set access log: %v", err)
+			resp["warning"] = "Route saved, but access logging could not be configured"
 		}
-		writeJSON(w, map[string]any{"status": "ok", "@id": caddy.GenerateRouteID(req.Domain)})
+		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 		trackRouteIPList(store, routeID, req.Toggles)
 	}
@@ -142,9 +144,11 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
+		resp := map[string]any{"status": "ok"}
 		if info.domain != "" && info.server != "" {
 			if err := cc.SetRouteAccessLog(info.server, info.domain, ""); err != nil {
 				log.Printf("handleDeleteRoute: clear access log: %v", err)
+				resp["warning"] = "Route deleted, but its access log entry could not be cleaned up"
 			}
 			if info.sink != "" {
 				if referenced, err := cc.IsSinkReferenced(info.sink); err == nil && !referenced {
@@ -154,7 +158,7 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 				}
 			}
 		}
-		writeJSON(w, map[string]string{"status": "ok"})
+		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 		trackRouteIPList(store, routeID, caddy.RouteToggles{})
 	}
@@ -237,8 +241,10 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
+		resp := map[string]any{"status": "ok"}
 		if err := cc.SetRouteAccessLog(server, req.Domain, req.Toggles.AccessLog); err != nil {
 			log.Printf("handleUpdateRoute: set access log: %v", err)
+			resp["warning"] = "Route saved, but access logging could not be updated"
 		}
 		if oldInfo.sink != "" && oldInfo.sink != req.Toggles.AccessLog {
 			if referenced, err := cc.IsSinkReferenced(oldInfo.sink); err == nil && !referenced {
@@ -247,7 +253,7 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 				}
 			}
 		}
-		writeJSON(w, map[string]string{"status": "ok"})
+		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 		trackRouteIPList(store, routeID, req.Toggles)
 	}
@@ -317,13 +323,15 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 
 		// Remove the domain from logger_names so the logs page
 		// no longer lists it under the access log sink.
+		resp := map[string]any{"status": "ok"}
 		if parsed, err := caddy.ParseRouteParams(route); err == nil && parsed.Domain != "" {
 			if err := cc.SetRouteAccessLog(server, parsed.Domain, ""); err != nil {
 				log.Printf("handleDisableRoute: clear access log: %v", err)
+				resp["warning"] = "Route disabled, but its access log entry could not be cleaned up"
 			}
 		}
 
-		writeJSON(w, map[string]string{"status": "ok"})
+		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 	}
 }
@@ -387,13 +395,15 @@ func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 
 		// Restore the domain's logger_names entry if the route
 		// had an access log sink configured before it was disabled.
+		resp := map[string]any{"status": "ok"}
 		if parsed, err := caddy.ParseRouteParams(disabled.Route); err == nil && parsed.Toggles.AccessLog != "" {
 			if err := cc.SetRouteAccessLog(disabled.Server, parsed.Domain, parsed.Toggles.AccessLog); err != nil {
 				log.Printf("handleEnableRoute: restore access log: %v", err)
+				resp["warning"] = "Route enabled, but access logging could not be restored"
 			}
 		}
 
-		writeJSON(w, map[string]string{"status": "ok"})
+		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 	}
 }

@@ -164,11 +164,13 @@ export function fetchUpstreams(): Promise<UpstreamStatus[]> {
 	return request("/api/caddy/upstreams", undefined, validateUpstreams);
 }
 
-export function createRoute(req: CreateRouteRequest): Promise<{ status: string; "@id": string }> {
+export function createRoute(
+	req: CreateRouteRequest,
+): Promise<{ status: string; "@id": string; warning?: string }> {
 	return request("/api/routes", { method: "POST", ...jsonBody(req) }, validateCreateRouteResponse);
 }
 
-export function deleteRoute(id: string): Promise<{ status: string }> {
+export function deleteRoute(id: string): Promise<{ status: string; warning?: string }> {
 	return request(
 		`/api/routes/${encodeURIComponent(id)}`,
 		{ method: "DELETE" },
@@ -176,7 +178,9 @@ export function deleteRoute(id: string): Promise<{ status: string }> {
 	);
 }
 
-export function updateRoute(req: UpdateRouteRequest): Promise<{ status: string }> {
+export function updateRoute(
+	req: UpdateRouteRequest,
+): Promise<{ status: string; warning?: string }> {
 	const { id, ...body } = req;
 	return request(
 		`/api/routes/${encodeURIComponent(id)}`,
@@ -185,7 +189,7 @@ export function updateRoute(req: UpdateRouteRequest): Promise<{ status: string }
 	);
 }
 
-export function disableRoute(id: string): Promise<{ status: string }> {
+export function disableRoute(id: string): Promise<{ status: string; warning?: string }> {
 	return request(
 		"/api/routes/disable",
 		{ method: "POST", ...jsonBody({ "@id": id }) },
@@ -193,7 +197,7 @@ export function disableRoute(id: string): Promise<{ status: string }> {
 	);
 }
 
-export function enableRoute(id: string): Promise<{ status: string }> {
+export function enableRoute(id: string): Promise<{ status: string; warning?: string }> {
 	return request(
 		"/api/routes/enable",
 		{ method: "POST", ...jsonBody({ "@id": id }) },

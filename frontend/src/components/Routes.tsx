@@ -239,6 +239,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	const [domain, setDomain] = useState("");
 	const [upstream, setUpstream] = useState("");
 	const [formToggles, setFormToggles] = useState<RouteToggles>({ ...defaultToggles });
+	const [warning, setWarning] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [deleting, setDeleting] = useState<string | null>(null);
 	const deletingRef = useRef(deleting);
@@ -257,6 +258,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	async function handleAdd(e: React.SubmitEvent) {
 		e.preventDefault();
 		setError("");
+		setWarning("");
 
 		const domainErr = validateDomain(domain);
 		if (domainErr) {
@@ -301,11 +303,14 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 
 		setSubmitting(true);
 		try {
-			await createRoute({
+			const res = await createRoute({
 				domain: domain.trim(),
 				upstream: upstream.trim(),
 				toggles: formToggles,
 			});
+			if (res.warning) {
+				setWarning(res.warning);
+			}
 			setDomain("");
 			setUpstream("");
 			setFormToggles({ ...defaultToggles });
@@ -321,9 +326,13 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	const handleDelete = useCallback(
 		async (id: string) => {
 			if (deletingRef.current) return;
+			setWarning("");
 			setDeleting(id);
 			try {
-				await deleteRoute(id);
+				const res = await deleteRoute(id);
+				if (res.warning) {
+					setWarning(res.warning);
+				}
 				await loadRoutes().catch(() => {});
 			} catch (err) {
 				setError(getErrorMessage(err, "Failed to delete route"));
@@ -337,12 +346,12 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 	const handleToggleEnabled = useCallback(
 		async (route: ParsedRoute) => {
 			if (toggling) return;
+			setWarning("");
 			setToggling(route.id);
 			try {
-				if (route.disabled) {
-					await enableRoute(route.id);
-				} else {
-					await disableRoute(route.id);
+				const res = route.disabled ? await enableRoute(route.id) : await disableRoute(route.id);
+				if (res.warning) {
+					setWarning(res.warning);
 				}
 				await loadRoutes().catch(() => {});
 			} catch (err) {
@@ -356,13 +365,17 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 
 	const handleUpdateToggles = useCallback(
 		async (route: ParsedRoute, toggles: RouteToggles) => {
+			setWarning("");
 			try {
-				await updateRoute({
+				const res = await updateRoute({
 					id: route.id,
 					domain: route.domain,
 					upstream: route.upstream,
 					toggles,
 				});
+				if (res.warning) {
+					setWarning(res.warning);
+				}
 				await loadRoutes().catch(() => {});
 			} catch (err) {
 				setError(getErrorMessage(err, "Failed to update route"));
@@ -399,6 +412,14 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 			)}
 
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
+			{warning && (
+				<div className="alert-warning" role="status">
+					{warning}
+					<button type="button" onClick={() => setWarning("")}>
+						Dismiss
+					</button>
+				</div>
+			)}
 
 			{showForm && (
 				<form className="add-route-form" onSubmit={handleAdd}>
