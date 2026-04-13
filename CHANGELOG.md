@@ -2,6 +2,20 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [1.4.0] - 2026-04-13
+
+### Added
+- Certificate deletion now shows which routes will be affected before confirming
+- Log directory is configurable via `CADDY_LOG_DIR` environment variable
+
+### Changed
+- Setup wizard consolidated from 6 steps to 3
+
+### Fixed
+- Access log errors are now surfaced as warnings instead of being silently dropped
+- Setup wizard no longer proceeds before Caddy is reachable
+- DNS challenge setup errors were silently swallowed, making failures unrecoverable
+
 ## [1.3.0] - 2026-04-10
 
 ### Added
