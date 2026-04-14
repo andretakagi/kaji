@@ -51,6 +51,7 @@ type LokiPusher struct {
 	batches     <-chan LokiBatch
 	positions   *PositionStore
 	client      *http.Client
+	afterFunc   func(time.Duration) <-chan time.Time
 
 	mu     sync.RWMutex
 	status map[string]*SinkStatus
@@ -68,6 +69,7 @@ func NewLokiPusher(
 		batches:     batches,
 		positions:   positions,
 		client:      &http.Client{Timeout: 30 * time.Second},
+		afterFunc:   time.After,
 		status:      make(map[string]*SinkStatus),
 	}
 }
@@ -129,7 +131,7 @@ func (p *LokiPusher) pushWithRetry(ctx context.Context, batch LokiBatch) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(backoff):
+		case <-p.afterFunc(backoff):
 		}
 		backoff = nextBackoff(backoff)
 	}

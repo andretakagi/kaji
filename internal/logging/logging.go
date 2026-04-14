@@ -11,7 +11,16 @@ import (
 	"time"
 )
 
+const (
+	tailMinWait = 250 * time.Millisecond
+	tailMaxWait = 4 * time.Second
+)
+
 func TailFile(ctx context.Context, path string, lines chan<- string) error {
+	return tailFile(ctx, path, lines, time.After)
+}
+
+func tailFile(ctx context.Context, path string, lines chan<- string, afterFunc func(time.Duration) <-chan time.Time) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("opening log file %s: %w", path, err)
@@ -23,12 +32,7 @@ func TailFile(ctx context.Context, path string, lines chan<- string) error {
 		return fmt.Errorf("seeking to end of log file: %w", err)
 	}
 
-	const (
-		minWait = 250 * time.Millisecond
-		maxWait = 4 * time.Second
-	)
-
-	wait := minWait
+	wait := tailMinWait
 	for {
 		scanner := bufio.NewScanner(f)
 		scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
@@ -39,7 +43,7 @@ func TailFile(ctx context.Context, path string, lines chan<- string) error {
 				return ctx.Err()
 			case lines <- scanner.Text():
 			}
-			wait = minWait
+			wait = tailMinWait
 		}
 		if err := scanner.Err(); err != nil {
 			return fmt.Errorf("scanning log file: %w", err)
@@ -48,9 +52,9 @@ func TailFile(ctx context.Context, path string, lines chan<- string) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(wait):
+		case <-afterFunc(wait):
 		}
-		if wait < maxWait {
+		if wait < tailMaxWait {
 			wait *= 2
 		}
 	}

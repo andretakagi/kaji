@@ -540,6 +540,69 @@ func TestPusherRetryCancelledDuringBackoff(t *testing.T) {
 	}
 }
 
+func TestPusherDropsBatchAfterMaxRetries(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher.afterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"sink": "exhaust-test"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "will exhaust retries"}},
+			},
+		},
+	}
+
+	// Close batches so Run exits after processing the batch
+	close(batches)
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		cancel()
+		t.Fatal("pusher did not finish after exhausting retries")
+	}
+	cancel()
+
+	// 1 initial attempt + 10 retries = 11 total
+	count := atomic.LoadInt32(&attempts)
+	if count != 11 {
+		t.Errorf("expected exactly 11 attempts (1 + 10 retries), got %d", count)
+	}
+
+	status := pusher.GetStatus()
+	s, ok := status["exhaust-test"]
+	if !ok {
+		t.Fatal("expected status for sink 'exhaust-test'")
+	}
+	if s.LastError == "" {
+		t.Error("expected LastError to be set after retry exhaustion")
+	}
+	if s.EntriesPushed != 0 {
+		t.Errorf("EntriesPushed should be 0, got %d", s.EntriesPushed)
+	}
+}
+
 func TestBackoffDoublesAndCaps(t *testing.T) {
 	b := initialBackoff
 
