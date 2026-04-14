@@ -162,8 +162,8 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 			return true;
 		});
 
-		const historyTimestamps = new Set(historyEntries.map((e) => e.ts));
-		const dedupedStream = filteredStream.filter((e) => !historyTimestamps.has(e.ts));
+		const historyKeys = new Set(historyEntries.map((e) => `${e.ts}:${e.msg}`));
+		const dedupedStream = filteredStream.filter((e) => !historyKeys.has(`${e.ts}:${e.msg}`));
 
 		return [...dedupedStream, ...historyEntries];
 	}, [streamEntries, historyEntries, level, debouncedHost, statusRange]);
