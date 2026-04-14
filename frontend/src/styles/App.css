@@ -1770,13 +1770,13 @@ input:disabled + .toggle-slider {
 }
 
 .logs-connection {
-	display: flex;
+	display: inline-flex;
 	align-items: center;
-	justify-content: center;
-	gap: 0.4rem;
-	padding: 0.5rem;
-	font-size: 0.75rem;
+	margin-left: 0.5rem;
+	font-size: 0.7rem;
+	font-weight: 400;
 	color: var(--text-muted);
+	vertical-align: middle;
 }
 
 .logs-connection.disconnected {

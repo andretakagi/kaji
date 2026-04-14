@@ -192,11 +192,30 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 			<LogConfigList caddyRunning={caddyRunning} />
 
 			<div className="section-header">
-				<h2>Log Viewer</h2>
+				<h2>
+					Log Viewer
+					<span className={cn("logs-connection", streamDisconnected && "disconnected")}>
+						{streamDisconnected ? "Reconnecting..." : <span className="live-dot" />}
+					</span>
+				</h2>
 			</div>
 
 			<div className="logs-toolbar">
 				<div className="logs-filters">
+					<div className="logs-filter">
+						<label htmlFor="log-show">Show last</label>
+						<select
+							id="log-show"
+							value={showCount}
+							onChange={(e) => setShowCount(Number(e.target.value))}
+						>
+							{SHOW_OPTIONS.map((n) => (
+								<option key={n} value={n}>
+									{n}
+								</option>
+							))}
+						</select>
+					</div>
 					<div className="logs-filter">
 						<label htmlFor="log-level">Level</label>
 						<select id="log-level" value={level} onChange={(e) => setLevel(e.target.value)}>
@@ -230,20 +249,6 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 							<option value="3xx">3xx</option>
 							<option value="4xx">4xx</option>
 							<option value="5xx">5xx</option>
-						</select>
-					</div>
-					<div className="logs-filter">
-						<label htmlFor="log-show">Show</label>
-						<select
-							id="log-show"
-							value={showCount}
-							onChange={(e) => setShowCount(Number(e.target.value))}
-						>
-							{SHOW_OPTIONS.map((n) => (
-								<option key={n} value={n}>
-									{n}
-								</option>
-							))}
 						</select>
 					</div>
 				</div>
@@ -302,17 +307,6 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 					})}
 				</div>
 			)}
-
-			<div className={cn("logs-connection", streamDisconnected && "disconnected")}>
-				{streamDisconnected ? (
-					"Disconnected. Reconnecting..."
-				) : (
-					<>
-						<span className="live-dot" />
-						Connected
-					</>
-				)}
-			</div>
 		</div>
 	);
 }
