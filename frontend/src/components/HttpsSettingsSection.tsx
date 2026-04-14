@@ -19,12 +19,6 @@ const challengeOptions = [
 	{ value: "cloudflare", label: "Cloudflare DNS" },
 ] as const;
 
-const httpsDescriptions: Record<GlobalToggles["auto_https"], string> = {
-	on: "Automatic certificates and HTTP-to-HTTPS redirects for all routes",
-	disable_redirects: "Automatic certificates, but no HTTP-to-HTTPS redirects",
-	off: "No automatic HTTPS",
-};
-
 export default function HttpsSettingsSection() {
 	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
 	const [dnsTokenTouched, setDnsTokenTouched] = useState(false);
@@ -121,7 +115,6 @@ export default function HttpsSettingsSection() {
 					<option value="off">Off</option>
 					<option value="disable_redirects">On without redirects</option>
 				</select>
-				<span className="settings-toggle-desc">{httpsDescriptions[values.httpsValue]}</span>
 			</div>
 
 			<div className="settings-field settings-field-spaced">
@@ -138,9 +131,6 @@ export default function HttpsSettingsSection() {
 					maxLength={254}
 					disabled={saving}
 				/>
-				<span className="settings-toggle-desc">
-					Email for Let's Encrypt certificate notifications
-				</span>
 			</div>
 
 			<div className="settings-field settings-field-spaced">
