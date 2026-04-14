@@ -444,17 +444,18 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 
 	const toggleDefaultLogger = useCallback(async (enabled: boolean) => {
 		const current = editConfigRef.current.logs?.default;
+		const currentWriter = current?.writer;
 		let updated: CaddyLogSink;
 		if (enabled) {
+			const output = currentWriter?.filename ? "file" : "stderr";
 			updated = {
 				...current,
-				writer: { output: "stderr" },
-				encoder: current?.encoder ?? { format: "console" },
+				writer: { ...currentWriter, output },
 			};
 		} else {
 			updated = {
 				...current,
-				writer: { output: "discard" },
+				writer: { ...currentWriter, output: "discard" },
 			};
 		}
 		const nextConfig: CaddyLoggingConfig = {
@@ -472,17 +473,18 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 
 	const toggleAccessLogger = useCallback(async (enabled: boolean) => {
 		const current = editConfigRef.current.logs?.kaji_access;
+		const currentWriter = current?.writer;
 		let updated: CaddyLogSink;
 		if (enabled) {
+			const output = currentWriter?.filename ? "file" : "stdout";
 			updated = {
 				...current,
-				writer: { output: "stdout" },
-				include: current?.include ?? ["http.log.access.*"],
+				writer: { ...currentWriter, output },
 			};
 		} else {
 			updated = {
 				...current,
-				writer: { output: "discard" },
+				writer: { ...currentWriter, output: "discard" },
 			};
 		}
 		const nextConfig: CaddyLoggingConfig = {
