@@ -190,6 +190,9 @@ func (s *ConfigStore) Update(fn func(current AppConfig) (*AppConfig, error)) err
 	if err != nil {
 		return fmt.Errorf("applying config update: %w", err)
 	}
+	if err := next.validate(); err != nil {
+		return fmt.Errorf("config validation: %w", err)
+	}
 	if err := Save(next); err != nil {
 		return fmt.Errorf("saving updated config: %w", err)
 	}
