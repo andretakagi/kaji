@@ -28,22 +28,23 @@ func TailFile(ctx context.Context, path string, lines chan<- string) error {
 		maxWait = 4 * time.Second
 	)
 
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
 	wait := minWait
 	for {
-		if scanner.Scan() {
+		scanner := bufio.NewScanner(f)
+		scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+
+		for scanner.Scan() {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			case lines <- scanner.Text():
 			}
 			wait = minWait
-			continue
 		}
 		if err := scanner.Err(); err != nil {
 			return fmt.Errorf("scanning log file: %w", err)
 		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
