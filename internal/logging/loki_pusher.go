@@ -244,7 +244,7 @@ func (p *LokiPusher) GetStatus() map[string]SinkStatus {
 	return result
 }
 
-func (p *LokiPusher) SendTestEntry(endpoint, bearerToken, tenantID string) error {
+func SendLokiTestEntry(endpoint, bearerToken, tenantID string) error {
 	type jsonEntry [2]string
 	type jsonStream struct {
 		Stream map[string]string `json:"stream"`
@@ -294,7 +294,8 @@ func (p *LokiPusher) SendTestEntry(endpoint, bearerToken, tenantID string) error
 		req.Header.Set("X-Scope-OrgID", tenantID)
 	}
 
-	resp, err := p.client.Do(req)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

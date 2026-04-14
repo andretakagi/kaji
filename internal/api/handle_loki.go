@@ -101,7 +101,7 @@ func mapsEqual(a, b map[string]string) bool {
 	return true
 }
 
-func handleLokiTest(store *config.ConfigStore, pipeline *logging.LokiPipeline) http.HandlerFunc {
+func handleLokiTest(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
 		if cfg.Loki.Endpoint == "" {
@@ -112,12 +112,7 @@ func handleLokiTest(store *config.ConfigStore, pipeline *logging.LokiPipeline) h
 			return
 		}
 
-		pusher := pipeline.GetPusher()
-		if pusher == nil {
-			pusher = logging.NewLokiPusher(cfg.Loki.Endpoint, cfg.Loki.BearerToken, cfg.Loki.TenantID, nil, nil)
-		}
-
-		if err := pusher.SendTestEntry(cfg.Loki.Endpoint, cfg.Loki.BearerToken, cfg.Loki.TenantID); err != nil {
+		if err := logging.SendLokiTestEntry(cfg.Loki.Endpoint, cfg.Loki.BearerToken, cfg.Loki.TenantID); err != nil {
 			writeJSON(w, map[string]any{
 				"success": false,
 				"message": err.Error(),

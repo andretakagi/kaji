@@ -653,9 +653,8 @@ func TestSendTestEntrySuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	pusher := NewLokiPusher("", "", "", nil, nil)
-	if err := pusher.SendTestEntry(server.URL, "", ""); err != nil {
-		t.Fatalf("SendTestEntry: %v", err)
+	if err := SendLokiTestEntry(server.URL, "", ""); err != nil {
+		t.Fatalf("SendLokiTestEntry: %v", err)
 	}
 
 	var parsed struct {
@@ -688,9 +687,8 @@ func TestSendTestEntryWithAuth(t *testing.T) {
 	}))
 	defer server.Close()
 
-	pusher := NewLokiPusher("", "", "", nil, nil)
-	if err := pusher.SendTestEntry(server.URL, "my-token", "my-tenant"); err != nil {
-		t.Fatalf("SendTestEntry: %v", err)
+	if err := SendLokiTestEntry(server.URL, "my-token", "my-tenant"); err != nil {
+		t.Fatalf("SendLokiTestEntry: %v", err)
 	}
 
 	if gotAuth != "Bearer my-token" {
@@ -708,16 +706,14 @@ func TestSendTestEntryServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	pusher := NewLokiPusher("", "", "", nil, nil)
-	err := pusher.SendTestEntry(server.URL, "", "")
+	err := SendLokiTestEntry(server.URL, "", "")
 	if err == nil {
 		t.Fatal("expected error for 500 response")
 	}
 }
 
 func TestSendTestEntryConnectionRefused(t *testing.T) {
-	pusher := NewLokiPusher("", "", "", nil, nil)
-	err := pusher.SendTestEntry("http://127.0.0.1:1", "", "")
+	err := SendLokiTestEntry("http://127.0.0.1:1", "", "")
 	if err == nil {
 		t.Fatal("expected error for connection refused")
 	}
