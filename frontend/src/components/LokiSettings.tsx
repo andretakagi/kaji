@@ -170,35 +170,41 @@ export function LokiSettings() {
 							Required for multi-tenant Loki setups. Leave empty for single-tenant.
 						</span>
 					</div>
-					<div className="loki-flush-row">
-						<span>Push logs every</span>
-						<input
-							id="loki-flush-interval"
-							type="number"
-							min={1}
-							max={60}
-							value={values.flush_interval_seconds}
-							onChange={(e) =>
-								setValues((v) => ({
-									...v,
-									flush_interval_seconds: Math.max(1, Number(e.target.value) || 1),
-								}))
-							}
-							disabled={saving}
-						/>
-						<span>seconds or</span>
-						<select
-							id="loki-batch-size"
-							value={values.batch_size}
-							onChange={(e) => setValues((v) => ({ ...v, batch_size: Number(e.target.value) }))}
-							disabled={saving}
-						>
-							<option value={512000}>500 KB</option>
-							<option value={1048576}>1 MB</option>
-							<option value={2097152}>2 MB</option>
-							<option value={3145728}>3 MB</option>
-						</select>
-						<span>of data</span>
+					<div className="settings-field">
+						<label>Push logs every</label>
+						<div className="loki-flush-row">
+							<div className="input-with-unit">
+								<input
+									id="loki-flush-interval"
+									type="number"
+									min={1}
+									max={60}
+									value={values.flush_interval_seconds}
+									onChange={(e) =>
+										setValues((v) => ({
+											...v,
+											flush_interval_seconds: Math.max(1, Number(e.target.value) || 1),
+										}))
+									}
+									disabled={saving}
+								/>
+								<span className="input-unit">sec</span>
+							</div>
+							<span className="loki-flush-or">or</span>
+							<select
+								id="loki-batch-size"
+								value={values.batch_size}
+								onChange={(e) =>
+									setValues((v) => ({ ...v, batch_size: Number(e.target.value) }))
+								}
+								disabled={saving}
+							>
+								<option value={512000}>500 KB</option>
+								<option value={1048576}>1 MB</option>
+								<option value={2097152}>2 MB</option>
+								<option value={3145728}>3 MB</option>
+							</select>
+						</div>
 					</div>
 					<div className="settings-field">
 						<span className="settings-field-hint" style={{ fontWeight: 500, color: "var(--text)" }}>

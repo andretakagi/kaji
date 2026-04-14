@@ -2475,18 +2475,36 @@ input:disabled + .toggle-slider {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	font-size: 0.85rem;
-	color: var(--text-secondary);
 	flex-wrap: wrap;
 }
 
-.loki-flush-row input[type="number"] {
-	width: 4rem;
-	text-align: center;
+.loki-flush-or {
+	font-size: 0.8rem;
+	color: var(--text-muted);
 }
 
 .loki-flush-row select {
 	width: auto;
+}
+
+.input-with-unit {
+	display: flex;
+	align-items: center;
+	position: relative;
+}
+
+.input-with-unit input[type="number"] {
+	width: 5.5rem;
+	padding-right: 2.5rem;
+	text-align: center;
+}
+
+.input-unit {
+	position: absolute;
+	right: 0.625rem;
+	font-size: 0.75rem;
+	color: var(--text-muted);
+	pointer-events: none;
 }
 
 .loki-labels {
