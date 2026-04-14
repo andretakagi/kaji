@@ -37,7 +37,9 @@ func (ps *PositionStore) Load() error {
 		Positions map[string]int64 `json:"positions"`
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
-		return fmt.Errorf("parsing positions file: %w", err)
+		os.Rename(ps.path, ps.path+".corrupt")
+		ps.positions = make(map[string]int64)
+		return fmt.Errorf("parsing positions file (renamed to %s.corrupt): %w", ps.path, err)
 	}
 	if file.Positions == nil {
 		file.Positions = make(map[string]int64)

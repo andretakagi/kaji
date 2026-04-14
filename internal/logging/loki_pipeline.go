@@ -47,7 +47,7 @@ func (p *LokiPipeline) Start() {
 	}
 
 	if err := p.positions.Load(); err != nil {
-		log.Printf("loki pipeline: load positions: %v", err)
+		log.Printf("loki pipeline: %v -- all tailers will start from the beginning of their files", err)
 	}
 
 	sinkPaths := p.resolveSinks()
