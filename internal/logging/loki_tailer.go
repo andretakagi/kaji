@@ -81,55 +81,37 @@ func (t *LokiTailer) tailFile(ctx context.Context) error {
 		return err
 	}
 
-	const (
-		minWait = 250 * time.Millisecond
-		maxWait = 4 * time.Second
-	)
-
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
-	wait := minWait
 
-	for {
-		if scanner.Scan() {
-			line := scanner.Text()
-			if line == "" {
-				continue
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case t.lines <- TaggedLine{Sink: t.sink, Line: line}:
-			}
-			pos, err := f.Seek(0, io.SeekCurrent)
-			if err != nil {
-				return err
-			}
-			t.offset = pos
-			t.pos.Set(t.path, pos)
-			wait = minWait
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
 			continue
 		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-
-		info, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		if info.Size() < t.offset {
-			log.Printf("loki tailer [%s]: file truncated during tail, restarting", t.sink)
-			return nil
-		}
-
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(wait):
+		case t.lines <- TaggedLine{Sink: t.sink, Line: line}:
 		}
-		if wait < maxWait {
-			wait *= 2
+		pos, err := f.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return err
 		}
+		t.offset = pos
+		t.pos.Set(t.path, pos)
 	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	info, err = f.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Size() < t.offset {
+		log.Printf("loki tailer [%s]: file truncated during tail, restarting", t.sink)
+	}
+
+	return nil
 }
