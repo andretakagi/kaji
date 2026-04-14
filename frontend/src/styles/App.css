@@ -1751,47 +1751,6 @@ input:disabled + .toggle-slider {
 	padding-bottom: 1.5rem;
 }
 
-.logs-mode-bar {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-}
-
-.logs-mode-toggle {
-	display: inline-flex;
-	background: var(--bg);
-	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	padding: 3px;
-	align-self: flex-start;
-}
-
-.logs-mode-tab {
-	padding: 0.375rem 1rem;
-	border: none;
-	border-radius: calc(var(--radius-sm) - 2px);
-	background: transparent;
-	color: var(--text-muted);
-	font-size: 0.8125rem;
-	font-weight: 500;
-	cursor: pointer;
-	transition:
-		background 0.15s,
-		color 0.15s;
-	display: flex;
-	align-items: center;
-	gap: 0.4rem;
-}
-
-.logs-mode-tab:hover:not(.active) {
-	color: var(--text-secondary);
-}
-
-.logs-mode-tab.active {
-	background: var(--accent);
-	color: var(--text-emphasis);
-}
-
 .live-dot {
 	width: 6px;
 	height: 6px;
@@ -1810,22 +1769,18 @@ input:disabled + .toggle-slider {
 	}
 }
 
-@keyframes beacon-pulse {
-	0%,
-	100% {
-		opacity: 1;
-		box-shadow: 0 0 6px rgba(var(--green-rgb), 0.5);
-	}
-	50% {
-		opacity: 0.7;
-		box-shadow: 0 0 3px rgba(var(--green-rgb), 0.2);
-	}
+.logs-connection {
+	display: inline-flex;
+	align-items: center;
+	margin-left: 0.5rem;
+	font-size: 0.7rem;
+	font-weight: 400;
+	color: var(--text-muted);
+	vertical-align: middle;
 }
 
-.logs-mode-hint {
-	margin: 0;
-	font-size: 0.75rem;
-	color: var(--text-muted);
+.logs-connection.disconnected {
+	color: var(--yellow);
 }
 
 .logs-toolbar {
@@ -2091,43 +2046,6 @@ input:disabled + .toggle-slider {
 	word-break: break-all;
 }
 
-.logs-pagination {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 1rem;
-}
-
-.logs-pagination button {
-	padding: 0.4rem 0.85rem;
-	border: 1px solid var(--border-strong);
-	border-radius: var(--radius-sm);
-	background: transparent;
-	color: var(--text-secondary);
-	font-size: 0.8125rem;
-	cursor: pointer;
-	transition:
-		background 0.15s,
-		border-color 0.15s;
-}
-
-.logs-pagination button:hover:not(:disabled) {
-	background: rgba(var(--accent-rgb), 0.12);
-	border-color: var(--accent);
-	color: var(--text);
-}
-
-.logs-pagination button:disabled {
-	opacity: 0.3;
-	cursor: not-allowed;
-}
-
-.logs-pagination span {
-	font-size: 0.8125rem;
-	color: var(--text-muted);
-	font-variant-numeric: tabular-nums;
-}
-
 .log-config-list {
 	display: flex;
 	flex-direction: column;
@@ -2222,11 +2140,17 @@ input:disabled + .toggle-slider {
 	padding: 0.3rem 0;
 }
 
+.log-config-toggle-row {
+	display: flex;
+	align-items: baseline;
+	gap: 1.5rem;
+	grid-column: 1 / -1;
+}
+
 .log-config-rotation-toggle {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	grid-column: 1 / -1;
 	font-size: 0.75rem;
 	color: var(--text-secondary);
 	cursor: pointer;
@@ -2234,6 +2158,22 @@ input:disabled + .toggle-slider {
 
 .log-config-rotation-toggle input[type="checkbox"] {
 	accent-color: var(--accent);
+}
+
+.log-config-rotation-toggle input[type="checkbox"]:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.log-config-rotation-toggle:has(input:disabled) {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.log-config-loki-toggle-group {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
 }
 
 .access-log-badge {
@@ -2516,6 +2456,128 @@ input:disabled + .toggle-slider {
 	color: var(--text-muted);
 	margin-top: 0.25rem;
 	line-height: 1.4;
+}
+
+.settings-field-hint {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+	margin-top: 0.125rem;
+}
+
+.loki-config-fields {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	margin-top: 0.5rem;
+}
+
+.loki-flush-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.loki-flush-or {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+}
+
+.loki-flush-row select {
+	width: auto;
+}
+
+.input-with-unit {
+	display: flex;
+	align-items: center;
+	position: relative;
+}
+
+.input-with-unit input[type="number"] {
+	width: 5.5rem;
+	padding-right: 2.5rem;
+	text-align: center;
+}
+
+.input-unit {
+	position: absolute;
+	right: 0.625rem;
+	font-size: 0.75rem;
+	color: var(--text-muted);
+	pointer-events: none;
+}
+
+.loki-labels {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.loki-label-row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.loki-label-row input {
+	flex: 1;
+}
+
+.loki-label-row input.input-error {
+	border-color: var(--red);
+}
+
+.loki-label-fixed input {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.loki-test-section {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.loki-status {
+	margin-top: 0.75rem;
+	padding: 0.75rem;
+	background: var(--surface);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+}
+
+.loki-status h4 {
+	margin: 0 0 0.5rem;
+	font-size: 0.85rem;
+	color: var(--text-muted);
+	font-weight: 500;
+}
+
+.loki-status-sink {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1rem;
+	align-items: baseline;
+	padding: 0.25rem 0;
+}
+
+.loki-status-sink-name {
+	font-weight: 600;
+	font-size: 0.85rem;
+}
+
+.loki-status-detail {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+}
+
+.loki-status-error {
+	color: var(--red);
+}
+
+.log-config-loki-hint {
+	font-size: 0.65rem;
+	color: var(--text-muted);
 }
 
 .api-key-display {

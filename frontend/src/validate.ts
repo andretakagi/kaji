@@ -48,7 +48,13 @@ import type {
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
 import type { CertInfo } from "./types/certs";
-import type { CaddyLogEntry, CaddyLoggingConfig } from "./types/logs";
+import type {
+	CaddyLogEntry,
+	CaddyLoggingConfig,
+	LokiConfig,
+	LokiStatus,
+	LokiTestResult,
+} from "./types/logs";
 import type { Snapshot, SnapshotIndex } from "./types/snapshots";
 
 export function validateAuthStatus(data: unknown): AuthStatus {
@@ -270,5 +276,28 @@ export function validateCaddyDataDir(data: unknown): {
 } {
 	return assertValid("CaddyDataDir", data, (d) =>
 		hasFields(d, { caddy_data_dir: is.string, is_override: is.string }),
+	);
+}
+
+export function validateLokiStatus(data: unknown): LokiStatus {
+	return assertValid("LokiStatus", data, (d) =>
+		hasFields(d, { running: is.boolean, sinks: is.object }),
+	);
+}
+
+export function validateLokiConfig(data: unknown): LokiConfig {
+	return assertValid("LokiConfig", data, (d) =>
+		hasFields(d, {
+			enabled: is.boolean,
+			endpoint: is.string,
+			batch_size: is.number,
+			flush_interval_seconds: is.number,
+		}),
+	);
+}
+
+export function validateLokiTestResult(data: unknown): LokiTestResult {
+	return assertValid("LokiTestResult", data, (d) =>
+		hasFields(d, { success: is.boolean, message: is.string }),
 	);
 }

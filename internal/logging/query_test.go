@@ -161,6 +161,107 @@ func TestReverseScannerChunkBoundary(t *testing.T) {
 	}
 }
 
+func TestReverseScannerNoTrailingNewline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "no-trailing.log")
+	os.WriteFile(path, []byte("aaa\nbbb\nccc"), 0644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rs, err := newReverseScanner(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for rs.Scan() {
+		got = append(got, string(rs.Bytes()))
+	}
+	if err := rs.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"ccc", "bbb", "aaa"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d lines, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestReverseScannerLongFirstLine(t *testing.T) {
+	longLine := strings.Repeat("A", 40000)
+	path := filepath.Join(t.TempDir(), "long-first.log")
+	os.WriteFile(path, []byte(longLine+"\nshort\n"), 0644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rs, err := newReverseScanner(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for rs.Scan() {
+		got = append(got, string(rs.Bytes()))
+	}
+	if err := rs.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"short", longLine}
+	if len(got) != len(want) {
+		t.Fatalf("got %d lines, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d: got len %d, want len %d", i, len(got[i]), len(want[i]))
+		}
+	}
+}
+
+func TestReverseScannerHugeSingleLine(t *testing.T) {
+	hugeLine := strings.Repeat("Z", 100000)
+	path := filepath.Join(t.TempDir(), "huge-single.log")
+	os.WriteFile(path, []byte(hugeLine), 0644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rs, err := newReverseScanner(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for rs.Scan() {
+		got = append(got, string(rs.Bytes()))
+	}
+	if err := rs.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(got))
+	}
+	if len(got[0]) != 100000 {
+		t.Errorf("line length: got %d, want 100000", len(got[0]))
+	}
+}
+
 // LogEntry.UnmarshalJSON tests
 
 func TestUnmarshalJSONKnownFields(t *testing.T) {
@@ -438,81 +539,6 @@ func TestQueryLogsDefaultLimit(t *testing.T) {
 
 func TestQueryLogsFileNotFound(t *testing.T) {
 	_, err := QueryLogs("/nonexistent/path/to/log.log", QueryParams{})
-	if err == nil {
-		t.Error("expected error for missing file, got nil")
-	}
-}
-
-// ReadRecent tests
-
-func TestReadRecentChronologicalOrder(t *testing.T) {
-	lines := []string{"first", "second", "third", "fourth", "fifth"}
-	path := writeLogFile(t, lines)
-
-	got, err := ReadRecent(path, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"third", "fourth", "fifth"}
-	if len(got) != len(want) {
-		t.Fatalf("expected %d lines, got %d", len(want), len(got))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("line %d: got %q, want %q", i, got[i], want[i])
-		}
-	}
-}
-
-func TestReadRecentFewerThanN(t *testing.T) {
-	lines := []string{"only", "two"}
-	path := writeLogFile(t, lines)
-
-	got, err := ReadRecent(path, 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 lines, got %d", len(got))
-	}
-	if got[0] != "only" || got[1] != "two" {
-		t.Errorf("unexpected order: %v", got)
-	}
-}
-
-func TestReadRecentEmptyFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "empty.log")
-	os.WriteFile(path, []byte{}, 0644)
-
-	got, err := ReadRecent(path, 5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 0 {
-		t.Fatalf("expected 0 lines from empty file, got %d", len(got))
-	}
-}
-
-func TestReadRecentExactN(t *testing.T) {
-	lines := []string{"a", "b", "c"}
-	path := writeLogFile(t, lines)
-
-	got, err := ReadRecent(path, 3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 3 {
-		t.Fatalf("expected 3 lines, got %d", len(got))
-	}
-	for i, want := range lines {
-		if got[i] != want {
-			t.Errorf("line %d: got %q, want %q", i, got[i], want)
-		}
-	}
-}
-
-func TestReadRecentFileNotFound(t *testing.T) {
-	_, err := ReadRecent("/nonexistent/path/to/log.log", 5)
 	if err == nil {
 		t.Error("expected error for missing file, got nil")
 	}

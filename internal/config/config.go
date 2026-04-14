@@ -26,9 +26,12 @@ func Path() string {
 type LokiConfig struct {
 	Enabled              bool              `json:"enabled"`
 	Endpoint             string            `json:"endpoint"`
+	BearerToken          string            `json:"bearer_token"`
+	TenantID             string            `json:"tenant_id"`
 	Labels               map[string]string `json:"labels"`
 	BatchSize            int               `json:"batch_size"`
 	FlushIntervalSeconds int               `json:"flush_interval_seconds"`
+	Sinks                []string          `json:"sinks"`
 }
 
 type DisabledRoute struct {
@@ -81,8 +84,10 @@ func DefaultConfig() *AppConfig {
 		LogFile:         "/var/log/caddy/access.log",
 		LogDir:          logDir,
 		Loki: LokiConfig{
+			Endpoint:             "http://loki:3100",
 			BatchSize:            1048576,
 			FlushIntervalSeconds: 5,
+			Labels:               map[string]string{"job": "kaji"},
 		},
 	}
 }
@@ -161,12 +166,22 @@ func SaveTo(cfg *AppConfig, path string) error {
 // via an atomic pointer. Writes are serialized with a mutex so that disk and
 // in-memory state always stay in sync.
 type ConfigStore struct {
-	p  atomic.Pointer[AppConfig]
-	mu sync.Mutex
+	p    atomic.Pointer[AppConfig]
+	mu   sync.Mutex
+	path string
 }
 
+// NewStore creates an in-memory config store with no disk persistence.
+// Useful in tests where you don't want disk writes.
 func NewStore(initial *AppConfig) *ConfigStore {
 	s := &ConfigStore{}
+	s.p.Store(initial)
+	return s
+}
+
+// NewStoreWithPath creates a config store that persists changes to the given path.
+func NewStoreWithPath(initial *AppConfig, path string) *ConfigStore {
+	s := &ConfigStore{path: path}
 	s.p.Store(initial)
 	return s
 }
@@ -175,9 +190,9 @@ func (s *ConfigStore) Get() *AppConfig {
 	return s.p.Load()
 }
 
-// Update applies fn to a value copy of the current config, saves the result
-// to disk, then swaps the in-memory pointer. The mutex ensures only one
-// writer runs at a time, so disk and memory can never desync.
+// Update applies fn to a value copy of the current config, validates the result,
+// persists to disk (if the store has a path), then swaps the in-memory pointer.
+// The mutex ensures only one writer runs at a time.
 func (s *ConfigStore) Update(fn func(current AppConfig) (*AppConfig, error)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -187,8 +202,13 @@ func (s *ConfigStore) Update(fn func(current AppConfig) (*AppConfig, error)) err
 	if err != nil {
 		return fmt.Errorf("applying config update: %w", err)
 	}
-	if err := Save(next); err != nil {
-		return fmt.Errorf("saving updated config: %w", err)
+	if err := next.validate(); err != nil {
+		return fmt.Errorf("config validation: %w", err)
+	}
+	if s.path != "" {
+		if err := SaveTo(next, s.path); err != nil {
+			return fmt.Errorf("saving updated config: %w", err)
+		}
 	}
 	s.p.Store(next)
 	return nil

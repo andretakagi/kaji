@@ -445,6 +445,8 @@ func (c *Client) EnsureAccessLogger() error {
 		return fmt.Errorf("bootstrapping logging for access logger: %w", err)
 	}
 	accessLog := map[string]any{
+		"level":   "INFO",
+		"encoder": map[string]any{"format": "console"},
 		"writer":  map[string]any{"output": "discard"},
 		"include": []string{"http.log.access.*"},
 	}

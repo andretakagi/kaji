@@ -21,11 +21,12 @@ import (
 	"github.com/andretakagi/kaji/internal/auth"
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/logging"
 	"github.com/andretakagi/kaji/internal/snapshot"
 	"github.com/andretakagi/kaji/internal/system"
 )
 
-func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.CaddyManager, cc *caddy.Client, ss *snapshot.Store, version string) http.Handler {
+func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.CaddyManager, cc *caddy.Client, ss *snapshot.Store, pipeline *logging.LokiPipeline, version string) http.Handler {
 	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"version": version})
 	})
@@ -93,6 +94,11 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/certificates/{issuer}/{domain}/download", handleCertificateDownload(store))
 	mux.HandleFunc("GET /api/settings/caddy-data-dir", handleCaddyDataDirGet(store))
 	mux.HandleFunc("PUT /api/settings/caddy-data-dir", handleCaddyDataDirUpdate(store))
+
+	mux.HandleFunc("GET /api/loki/status", handleLokiStatus(pipeline))
+	mux.HandleFunc("GET /api/loki/config", handleLokiConfigGet(store))
+	mux.HandleFunc("PUT /api/loki/config", handleLokiConfigUpdate(store, pipeline))
+	mux.HandleFunc("POST /api/loki/test", handleLokiTest(store))
 
 	return accessLog(limitRequestBody(requireAuth(store, mux)))
 }

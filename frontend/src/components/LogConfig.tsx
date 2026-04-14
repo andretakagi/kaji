@@ -1,8 +1,14 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { fetchAccessDomains, fetchLogConfig, updateLogConfig } from "../api";
+import {
+	fetchAccessDomains,
+	fetchLogConfig,
+	fetchLokiConfig,
+	updateLogConfig,
+	updateLokiConfig,
+} from "../api";
 import { deepEqual } from "../deepEqual";
 import type { Feedback } from "../hooks/useAsyncAction";
-import type { CaddyLoggingConfig, CaddyLogSink } from "../types/logs";
+import type { CaddyLoggingConfig, CaddyLogSink, LokiConfig } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
@@ -19,6 +25,9 @@ function LogSinkEditor({
 	onSave,
 	onChange,
 	logDir,
+	lokiConfig,
+	lokiSinks,
+	onLokiToggle,
 }: {
 	name: string;
 	sink: CaddyLogSink;
@@ -26,6 +35,9 @@ function LogSinkEditor({
 	onSave: () => Promise<void>;
 	onChange: (sink: CaddyLogSink) => void;
 	logDir: string;
+	lokiConfig: LokiConfig | null;
+	lokiSinks: string[];
+	onLokiToggle: (sink: string, enabled: boolean) => Promise<void>;
 }) {
 	const output = sink.writer?.output ?? "stdout";
 	const isFile = output === "file";
@@ -35,6 +47,7 @@ function LogSinkEditor({
 		(sink.writer?.roll_keep_for ?? 0) > 0;
 	const [saving, setSaving] = useState(false);
 	const [feedback, setFeedback] = useState<Feedback | null>(null);
+	const [lokiError, setLokiError] = useState("");
 
 	const dirty = !deepEqual(sink, savedSink);
 
@@ -140,27 +153,50 @@ function LogSinkEditor({
 				)}
 				{isFile && (
 					<>
-						<label className="log-config-rotation-toggle">
-							<input
-								type="checkbox"
-								checked={roll}
-								onChange={(e) => {
-									if (e.target.checked) {
-										updateWriter({
-											roll_size_mb: 100,
-											roll_keep: 5,
-											roll_keep_for: 30 * NS_PER_DAY,
-										});
-									} else {
-										const { roll_size_mb, roll_keep, roll_keep_for, ...rest } = sink.writer ?? {
-											output,
-										};
-										onChange({ ...sink, writer: rest as CaddyLogSink["writer"] });
-									}
-								}}
-							/>
-							Enable log rotation
-						</label>
+						<div className="log-config-toggle-row">
+							<label className="log-config-rotation-toggle">
+								<input
+									type="checkbox"
+									checked={roll}
+									onChange={(e) => {
+										if (e.target.checked) {
+											updateWriter({
+												roll_size_mb: 100,
+												roll_keep: 5,
+												roll_keep_for: 30 * NS_PER_DAY,
+											});
+										} else {
+											const { roll_size_mb, roll_keep, roll_keep_for, ...rest } = sink.writer ?? {
+												output,
+											};
+											onChange({ ...sink, writer: rest as CaddyLogSink["writer"] });
+										}
+									}}
+								/>
+								Enable log rotation
+							</label>
+							<div className="log-config-loki-toggle-group">
+								<label className="log-config-rotation-toggle">
+									<input
+										type="checkbox"
+										checked={lokiSinks.includes(name)}
+										onChange={(e) => {
+											setLokiError("");
+											onLokiToggle(name, e.target.checked).catch((err) => {
+												setLokiError(getErrorMessage(err, "Failed to update Loki config"));
+												setTimeout(() => setLokiError(""), 4000);
+											});
+										}}
+										disabled={!lokiConfig?.enabled}
+									/>
+									Push to Loki
+								</label>
+								{!lokiConfig?.enabled && (
+									<span className="log-config-loki-hint">Configure Loki in Settings to enable</span>
+								)}
+								{lokiError && <span className="feedback error">{lokiError}</span>}
+							</div>
+						</div>
 						{roll && (
 							<div className="log-config-rotation">
 								<div className="log-config-field">
@@ -246,6 +282,9 @@ const LogConfigCard = memo(function LogConfigCard({
 	accessDomains,
 	isDefault,
 	logDir,
+	lokiConfig,
+	lokiSinks,
+	onLokiToggle,
 }: {
 	name: string;
 	sink: CaddyLogSink;
@@ -257,6 +296,9 @@ const LogConfigCard = memo(function LogConfigCard({
 	accessDomains?: string[];
 	isDefault?: boolean;
 	logDir: string;
+	lokiConfig: LokiConfig | null;
+	lokiSinks: string[];
+	onLokiToggle: (sink: string, enabled: boolean) => Promise<void>;
 }) {
 	const [removeError, setRemoveError] = useState("");
 	const isAccessLog = name === "kaji_access";
@@ -353,6 +395,9 @@ const LogConfigCard = memo(function LogConfigCard({
 				onSave={() => onSave(name)}
 				onChange={(s) => onChange(name, s)}
 				logDir={logDir}
+				lokiConfig={lokiConfig}
+				lokiSinks={lokiSinks}
+				onLokiToggle={onLokiToggle}
 			/>
 			{isAccessLog && !isDiscard && (
 				<div className="access-log-domains">
@@ -394,15 +439,19 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 	const [loaded, setLoaded] = useState(false);
 	const [loadError, setLoadError] = useState("");
 	const [accessDomains, setAccessDomains] = useState<Record<string, Record<string, string>>>({});
+	const [lokiConfig, setLokiConfig] = useState<LokiConfig | null>(null);
+	const [lokiSinks, setLokiSinks] = useState<string[]>([]);
 
 	useEffect(() => {
 		if (!caddyRunning) return;
-		Promise.all([fetchLogConfig(), fetchAccessDomains()])
-			.then(([logData, domainData]) => {
+		Promise.all([fetchLogConfig(), fetchAccessDomains(), fetchLokiConfig()])
+			.then(([logData, domainData, loki]) => {
 				const normalized = logData?.logs ? logData : { logs: {} };
 				setEditConfig(structuredClone(normalized));
 				setSavedConfig(structuredClone(normalized));
 				setAccessDomains(domainData);
+				setLokiConfig(loki);
+				setLokiSinks(loki.sinks ?? []);
 				setLoaded(true);
 			})
 			.catch((err) => {
@@ -444,17 +493,18 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 
 	const toggleDefaultLogger = useCallback(async (enabled: boolean) => {
 		const current = editConfigRef.current.logs?.default;
+		const currentWriter = current?.writer;
 		let updated: CaddyLogSink;
 		if (enabled) {
+			const output = currentWriter?.filename ? "file" : "stderr";
 			updated = {
 				...current,
-				writer: { output: "stderr" },
-				encoder: current?.encoder ?? { format: "console" },
+				writer: { ...currentWriter, output },
 			};
 		} else {
 			updated = {
 				...current,
-				writer: { output: "discard" },
+				writer: { ...currentWriter, output: "discard" },
 			};
 		}
 		const nextConfig: CaddyLoggingConfig = {
@@ -472,17 +522,18 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 
 	const toggleAccessLogger = useCallback(async (enabled: boolean) => {
 		const current = editConfigRef.current.logs?.kaji_access;
+		const currentWriter = current?.writer;
 		let updated: CaddyLogSink;
 		if (enabled) {
+			const output = currentWriter?.filename ? "file" : "stdout";
 			updated = {
 				...current,
-				writer: { output: "stdout" },
-				include: current?.include ?? ["http.log.access.*"],
+				writer: { ...currentWriter, output },
 			};
 		} else {
 			updated = {
 				...current,
-				writer: { output: "discard" },
+				writer: { ...currentWriter, output: "discard" },
 			};
 		}
 		const nextConfig: CaddyLoggingConfig = {
@@ -500,6 +551,21 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 			// revert on failure - state remains unchanged
 		}
 	}, []);
+
+	const handleLokiToggle = useCallback(
+		async (sink: string, enabled: boolean) => {
+			if (!lokiConfig) return;
+			const nextSinks = enabled ? [...lokiSinks, sink] : lokiSinks.filter((s) => s !== sink);
+			setLokiSinks(nextSinks);
+			try {
+				await updateLokiConfig({ ...lokiConfig, sinks: nextSinks });
+			} catch (err) {
+				setLokiSinks(lokiSinks);
+				throw err;
+			}
+		},
+		[lokiConfig, lokiSinks],
+	);
 
 	const sinkEntries = Object.entries(editConfig.logs ?? {});
 	const sortedEntries = [...sinkEntries].sort(([a], [b]) => {
@@ -546,6 +612,9 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 							accessDomains={domainsForSink(accessDomains, name)}
 							isDefault={name === "default"}
 							logDir={editConfig.log_dir ?? "/var/log/caddy/"}
+							lokiConfig={lokiConfig}
+							lokiSinks={lokiSinks}
+							onLokiToggle={handleLokiToggle}
 						/>
 					))}
 				</div>
