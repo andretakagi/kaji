@@ -16,6 +16,19 @@ import (
 
 const lokiPushPath = "/loki/api/v1/push"
 
+const (
+	initialBackoff = 500 * time.Millisecond
+	maxBackoff     = 5 * time.Minute
+)
+
+func nextBackoff(current time.Duration) time.Duration {
+	next := current * 2
+	if next > maxBackoff {
+		next = maxBackoff
+	}
+	return next
+}
+
 func normalizeLokiEndpoint(endpoint string) string {
 	endpoint = strings.TrimRight(endpoint, "/")
 	if !strings.HasSuffix(endpoint, lokiPushPath) {
@@ -60,16 +73,8 @@ func NewLokiPusher(
 }
 
 func (p *LokiPusher) Run(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case batch, ok := <-p.batches:
-			if !ok {
-				return
-			}
-			p.pushWithRetry(ctx, batch)
-		}
+	for batch := range p.batches {
+		p.pushWithRetry(ctx, batch)
 	}
 }
 
@@ -83,8 +88,7 @@ func (p *LokiPusher) pushWithRetry(ctx context.Context, batch LokiBatch) {
 		return
 	}
 
-	backoff := 500 * time.Millisecond
-	maxBackoff := 5 * time.Minute
+	backoff := initialBackoff
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if ctx.Err() != nil {
@@ -127,10 +131,7 @@ func (p *LokiPusher) pushWithRetry(ctx context.Context, batch LokiBatch) {
 			return
 		case <-time.After(backoff):
 		}
-		backoff *= 2
-		if backoff > maxBackoff {
-			backoff = maxBackoff
-		}
+		backoff = nextBackoff(backoff)
 	}
 }
 

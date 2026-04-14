@@ -472,9 +472,10 @@ func TestPusherRetriesOnServerError(t *testing.T) {
 		},
 	}
 
-	// Let it retry for 3 seconds, then cancel
+	// Let it retry for 3 seconds, then cancel and close batches
 	time.Sleep(3 * time.Second)
 	cancel()
+	close(batches)
 
 	select {
 	case <-done:
@@ -522,9 +523,10 @@ func TestPusherRetryCancelledDuringBackoff(t *testing.T) {
 		},
 	}
 
-	// Wait for the first attempt to complete, then cancel during backoff
+	// Wait for the first attempt to complete, then cancel during backoff and close batches
 	time.Sleep(1 * time.Second)
 	cancel()
+	close(batches)
 
 	select {
 	case <-done:
@@ -535,6 +537,45 @@ func TestPusherRetryCancelledDuringBackoff(t *testing.T) {
 	count := atomic.LoadInt32(&attempts)
 	if count < 1 {
 		t.Errorf("expected at least 1 attempt, got %d", count)
+	}
+}
+
+func TestBackoffDoublesAndCaps(t *testing.T) {
+	b := initialBackoff
+
+	expected := []time.Duration{
+		1 * time.Second,
+		2 * time.Second,
+		4 * time.Second,
+		8 * time.Second,
+		16 * time.Second,
+		32 * time.Second,
+		64 * time.Second,
+		128 * time.Second,
+		256 * time.Second,
+		maxBackoff,
+	}
+
+	for i, want := range expected {
+		b = nextBackoff(b)
+		if b != want {
+			t.Errorf("step %d: got %v, want %v", i+1, b, want)
+		}
+	}
+
+	// After hitting the cap, further calls should stay at maxBackoff
+	b = nextBackoff(b)
+	if b != maxBackoff {
+		t.Errorf("beyond cap: got %v, want %v", b, maxBackoff)
+	}
+}
+
+func TestBackoffInitialValue(t *testing.T) {
+	if initialBackoff != 500*time.Millisecond {
+		t.Errorf("initialBackoff: got %v, want 500ms", initialBackoff)
+	}
+	if maxBackoff != 5*time.Minute {
+		t.Errorf("maxBackoff: got %v, want 5m", maxBackoff)
 	}
 }
 
