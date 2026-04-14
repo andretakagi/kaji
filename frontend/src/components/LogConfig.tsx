@@ -37,7 +37,7 @@ function LogSinkEditor({
 	logDir: string;
 	lokiConfig: LokiConfig | null;
 	lokiSinks: string[];
-	onLokiToggle: (sink: string, enabled: boolean) => void;
+	onLokiToggle: (sink: string, enabled: boolean) => Promise<void>;
 }) {
 	const output = sink.writer?.output ?? "stdout";
 	const isFile = output === "file";
@@ -47,6 +47,7 @@ function LogSinkEditor({
 		(sink.writer?.roll_keep_for ?? 0) > 0;
 	const [saving, setSaving] = useState(false);
 	const [feedback, setFeedback] = useState<Feedback | null>(null);
+	const [lokiError, setLokiError] = useState("");
 
 	const dirty = !deepEqual(sink, savedSink);
 
@@ -231,11 +232,18 @@ function LogSinkEditor({
 							<input
 								type="checkbox"
 								checked={lokiSinks.includes(name)}
-								onChange={(e) => onLokiToggle(name, e.target.checked)}
+								onChange={(e) => {
+									setLokiError("");
+									onLokiToggle(name, e.target.checked).catch((err) => {
+										setLokiError(getErrorMessage(err, "Failed to update Loki config"));
+										setTimeout(() => setLokiError(""), 4000);
+									});
+								}}
 								disabled={!lokiConfig?.enabled}
 							/>
 							Push to Loki
 						</label>
+						{lokiError && <span className="feedback error">{lokiError}</span>}
 						{!lokiConfig?.enabled && (
 							<span className="log-config-loki-hint">Configure Loki in Settings to enable</span>
 						)}
@@ -301,7 +309,7 @@ const LogConfigCard = memo(function LogConfigCard({
 	logDir: string;
 	lokiConfig: LokiConfig | null;
 	lokiSinks: string[];
-	onLokiToggle: (sink: string, enabled: boolean) => void;
+	onLokiToggle: (sink: string, enabled: boolean) => Promise<void>;
 }) {
 	const [removeError, setRemoveError] = useState("");
 	const isAccessLog = name === "kaji_access";
@@ -562,8 +570,9 @@ export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
 			setLokiSinks(nextSinks);
 			try {
 				await updateLokiConfig({ ...lokiConfig, sinks: nextSinks });
-			} catch {
+			} catch (err) {
 				setLokiSinks(lokiSinks);
+				throw err;
 			}
 		},
 		[lokiConfig, lokiSinks],
