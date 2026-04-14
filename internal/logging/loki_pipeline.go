@@ -11,6 +11,11 @@ import (
 
 type SinkResolver func() map[string]string
 
+type tailerHandle struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
 type LokiPipeline struct {
 	store        *config.ConfigStore
 	resolveSinks SinkResolver
@@ -24,7 +29,7 @@ type LokiPipeline struct {
 	pusher   *LokiPusher
 	lines    chan TaggedLine
 	running  bool
-	tailers  map[string]context.CancelFunc
+	tailers  map[string]tailerHandle
 }
 
 func NewLokiPipeline(store *config.ConfigStore, positionsPath string, resolveSinks SinkResolver) *LokiPipeline {
@@ -32,7 +37,7 @@ func NewLokiPipeline(store *config.ConfigStore, positionsPath string, resolveSin
 		store:        store,
 		resolveSinks: resolveSinks,
 		positions:    NewPositionStore(positionsPath),
-		tailers:      make(map[string]context.CancelFunc),
+		tailers:      make(map[string]tailerHandle),
 	}
 }
 
@@ -110,18 +115,28 @@ func (p *LokiPipeline) Start() {
 		p.startTailer(ctx, sinkName, filePath, lines)
 	}
 
+	if len(p.tailers) == 0 {
+		log.Println("loki pipeline: no sinks resolved, shutting down")
+		close(lines)
+		cancel()
+		p.wg.Wait()
+		return
+	}
+
 	p.running = true
 	log.Printf("loki pipeline: started with %d sink(s)", len(p.tailers))
 }
 
 func (p *LokiPipeline) startTailer(ctx context.Context, sink, path string, lines chan<- TaggedLine) {
 	tailerCtx, tailerCancel := context.WithCancel(ctx)
-	p.tailers[sink] = tailerCancel
+	done := make(chan struct{})
+	p.tailers[sink] = tailerHandle{cancel: tailerCancel, done: done}
 
 	tailer := NewLokiTailer(sink, path, p.positions, lines)
 	p.tailerWg.Add(1)
 	go func() {
 		defer p.tailerWg.Done()
+		defer close(done)
 		tailer.Run(tailerCtx)
 	}()
 }
@@ -134,8 +149,8 @@ func (p *LokiPipeline) Stop() {
 		return
 	}
 
-	for _, cancel := range p.tailers {
-		cancel()
+	for _, h := range p.tailers {
+		h.cancel()
 	}
 	p.tailerWg.Wait()
 
@@ -158,7 +173,7 @@ func (p *LokiPipeline) Stop() {
 		log.Printf("loki pipeline: save positions on stop: %v", err)
 	}
 
-	p.tailers = make(map[string]context.CancelFunc)
+	p.tailers = make(map[string]tailerHandle)
 	p.running = false
 	p.pusher = nil
 	p.lines = nil
@@ -184,12 +199,18 @@ func (p *LokiPipeline) Reconfigure() {
 		}
 	}
 
-	for name, cancel := range p.tailers {
+	var removed []chan struct{}
+	for name, h := range p.tailers {
 		if _, ok := wanted[name]; !ok {
-			cancel()
+			h.cancel()
+			removed = append(removed, h.done)
 			delete(p.tailers, name)
 			log.Printf("loki pipeline: stopped tailer for %q", name)
 		}
+	}
+
+	for _, done := range removed {
+		<-done
 	}
 
 	for name, path := range wanted {

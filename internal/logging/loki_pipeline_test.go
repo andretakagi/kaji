@@ -225,6 +225,25 @@ func TestPipelineSkipsUnknownSinks(t *testing.T) {
 	}
 }
 
+func TestPipelineAllSinksUnresolvable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	store := newTestPipelineConfig(server.URL, []string{"ghost", "phantom"})
+	posPath := filepath.Join(t.TempDir(), "positions.json")
+	resolver := func() map[string]string { return map[string]string{} }
+
+	p := NewLokiPipeline(store, posPath, resolver)
+	p.Start()
+
+	if p.IsRunning() {
+		p.Stop()
+		t.Fatal("expected pipeline to not be running when all sinks are unresolvable")
+	}
+}
+
 func TestPipelineStopWhenNotRunning(t *testing.T) {
 	store := newTestPipelineConfig("http://localhost:3100/loki/api/v1/push", []string{"access"})
 	posPath := filepath.Join(t.TempDir(), "positions.json")
