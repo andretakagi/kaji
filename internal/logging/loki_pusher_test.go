@@ -603,6 +603,100 @@ func TestPusherDropsBatchAfterMaxRetries(t *testing.T) {
 	}
 }
 
+func TestPusherRecordsErrorForAllSinksInBatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pusher.Run(ctx)
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"sink": "a"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "line from a"}},
+			},
+			{
+				Labels:  map[string]string{"sink": "b"},
+				Entries: []LokiEntry{{Timestamp: "2", Line: "line from b"}},
+			},
+		},
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	cancel()
+
+	status := pusher.GetStatus()
+	for _, sink := range []string{"a", "b"} {
+		s, ok := status[sink]
+		if !ok {
+			t.Errorf("expected status for sink %q", sink)
+			continue
+		}
+		if s.LastError == "" {
+			t.Errorf("sink %q: LastError should be set after 400 response", sink)
+		}
+		if s.EntriesPushed != 0 {
+			t.Errorf("sink %q: EntriesPushed should be 0, got %d", sink, s.EntriesPushed)
+		}
+	}
+}
+
+func TestPusherRecordsSuccessForAllSinksInBatch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pusher.Run(ctx)
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"sink": "a"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "a1"}, {Timestamp: "2", Line: "a2"}},
+			},
+			{
+				Labels:  map[string]string{"sink": "b"},
+				Entries: []LokiEntry{{Timestamp: "3", Line: "b1"}},
+			},
+		},
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	cancel()
+
+	status := pusher.GetStatus()
+	for _, tc := range []struct {
+		sink  string
+		count int64
+	}{{"a", 2}, {"b", 1}} {
+		s, ok := status[tc.sink]
+		if !ok {
+			t.Errorf("expected status for sink %q", tc.sink)
+			continue
+		}
+		if s.EntriesPushed != tc.count {
+			t.Errorf("sink %q: EntriesPushed got %d, want %d", tc.sink, s.EntriesPushed, tc.count)
+		}
+		if s.LastPushAt.IsZero() {
+			t.Errorf("sink %q: LastPushAt should be set", tc.sink)
+		}
+		if s.LastError != "" {
+			t.Errorf("sink %q: LastError should be empty, got %q", tc.sink, s.LastError)
+		}
+	}
+}
+
 func TestBackoffDoublesAndCaps(t *testing.T) {
 	b := initialBackoff
 
