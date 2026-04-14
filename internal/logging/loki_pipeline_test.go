@@ -238,3 +238,157 @@ func TestPipelineStopWhenNotRunning(t *testing.T) {
 		t.Error("expected IsRunning() to be false")
 	}
 }
+
+func TestReconfigureWhenNotRunningCallsRestart(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "access.log")
+	if err := os.WriteFile(logFile, []byte("line\n"), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	store := newTestPipelineConfig(server.URL, []string{"access"})
+	posPath := filepath.Join(dir, "positions.json")
+	resolver := func() map[string]string { return map[string]string{"access": logFile} }
+
+	p := NewLokiPipeline(store, posPath, resolver)
+
+	// Pipeline is not running, so Reconfigure should fall through to Restart
+	// which calls Stop (no-op) then Start.
+	p.Reconfigure()
+
+	if !p.IsRunning() {
+		t.Error("expected pipeline to be running after Reconfigure on stopped pipeline")
+	}
+	p.Stop()
+}
+
+func TestReconfigureWhenDisabledCallsRestart(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "access.log")
+	if err := os.WriteFile(logFile, []byte("line\n"), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	store := newTestPipelineConfig(server.URL, []string{"access"})
+	posPath := filepath.Join(dir, "positions.json")
+	resolver := func() map[string]string { return map[string]string{"access": logFile} }
+
+	p := NewLokiPipeline(store, posPath, resolver)
+	p.Start()
+	if !p.IsRunning() {
+		t.Fatal("expected pipeline to be running after Start()")
+	}
+
+	// Disable Loki in config, then Reconfigure should stop the pipeline
+	store.Set(&config.AppConfig{
+		Loki: config.LokiConfig{
+			Enabled:              false,
+			Endpoint:             server.URL,
+			BatchSize:            1024,
+			FlushIntervalSeconds: 1,
+			Sinks:                []string{"access"},
+		},
+	})
+
+	p.Reconfigure()
+
+	if p.IsRunning() {
+		t.Error("expected pipeline to be stopped after Reconfigure with Loki disabled")
+	}
+}
+
+func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	accessLog := filepath.Join(dir, "access.log")
+	errorLog := filepath.Join(dir, "error.log")
+	if err := os.WriteFile(accessLog, []byte("access line\n"), 0644); err != nil {
+		t.Fatalf("writing access log: %v", err)
+	}
+	if err := os.WriteFile(errorLog, []byte("error line\n"), 0644); err != nil {
+		t.Fatalf("writing error log: %v", err)
+	}
+
+	store := newTestPipelineConfig(server.URL, []string{"access"})
+	posPath := filepath.Join(dir, "positions.json")
+	resolver := func() map[string]string {
+		return map[string]string{"access": accessLog, "error": errorLog}
+	}
+
+	p := NewLokiPipeline(store, posPath, resolver)
+	p.Start()
+	defer p.Stop()
+
+	if !p.IsRunning() {
+		t.Fatal("expected pipeline to be running after Start()")
+	}
+
+	// Should have one tailer (access)
+	p.mu.Lock()
+	if len(p.tailers) != 1 {
+		t.Errorf("expected 1 tailer, got %d", len(p.tailers))
+	}
+	if _, ok := p.tailers["access"]; !ok {
+		t.Error("expected 'access' tailer to exist")
+	}
+	p.mu.Unlock()
+
+	// Reconfigure to have both access and error sinks
+	store.Set(&config.AppConfig{
+		Loki: config.LokiConfig{
+			Enabled:              true,
+			Endpoint:             server.URL,
+			BatchSize:            1024,
+			FlushIntervalSeconds: 1,
+			Sinks:                []string{"access", "error"},
+		},
+	})
+	p.Reconfigure()
+
+	p.mu.Lock()
+	if len(p.tailers) != 2 {
+		t.Errorf("expected 2 tailers after adding error sink, got %d", len(p.tailers))
+	}
+	if _, ok := p.tailers["error"]; !ok {
+		t.Error("expected 'error' tailer to exist after reconfigure")
+	}
+	p.mu.Unlock()
+
+	// Reconfigure to remove access, keep only error
+	store.Set(&config.AppConfig{
+		Loki: config.LokiConfig{
+			Enabled:              true,
+			Endpoint:             server.URL,
+			BatchSize:            1024,
+			FlushIntervalSeconds: 1,
+			Sinks:                []string{"error"},
+		},
+	})
+	p.Reconfigure()
+
+	p.mu.Lock()
+	if len(p.tailers) != 1 {
+		t.Errorf("expected 1 tailer after removing access sink, got %d", len(p.tailers))
+	}
+	if _, ok := p.tailers["access"]; ok {
+		t.Error("expected 'access' tailer to be removed after reconfigure")
+	}
+	if _, ok := p.tailers["error"]; !ok {
+		t.Error("expected 'error' tailer to still exist after reconfigure")
+	}
+	p.mu.Unlock()
+}

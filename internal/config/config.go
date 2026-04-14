@@ -179,6 +179,11 @@ func (s *ConfigStore) Get() *AppConfig {
 	return s.p.Load()
 }
 
+// Set replaces the in-memory config without writing to disk.
+func (s *ConfigStore) Set(cfg *AppConfig) {
+	s.p.Store(cfg)
+}
+
 // Update applies fn to a value copy of the current config, saves the result
 // to disk, then swaps the in-memory pointer. The mutex ensures only one
 // writer runs at a time, so disk and memory can never desync.
