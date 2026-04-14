@@ -195,19 +195,23 @@ func TestTailFileBackoffResetsOnNewData(t *testing.T) {
 	var waits []time.Duration
 	gate := make(chan struct{}, 1)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	afterFunc := func(d time.Duration) <-chan time.Time {
 		mu.Lock()
 		waits = append(waits, d)
 		mu.Unlock()
-		// Wait for the test to release this poll
-		<-gate
+		// Wait for the test to release this poll, or for cancellation
+		select {
+		case <-gate:
+		case <-ctx.Done():
+		}
 		ch := make(chan time.Time, 1)
 		ch <- time.Now()
 		return ch
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	lines := make(chan string, 100)
 
 	errCh := make(chan error, 1)
@@ -235,7 +239,13 @@ func TestTailFileBackoffResetsOnNewData(t *testing.T) {
 
 	// At this point the tailer is blocked in afterFunc waiting for gate.
 	// waits[0]=250ms, waits[1]=500ms, waits[2]=1s, and a 4th afterFunc call
-	// is blocked. Write data, then release the gate so the scanner picks it up.
+	// is blocked. Capture resetIdx now while the tailer is in a known state -
+	// the next afterFunc call after it reads our data will land at this index.
+	mu.Lock()
+	resetIdx := len(waits)
+	mu.Unlock()
+
+	// Write data, then release the gate so the scanner picks it up.
 	if _, err := f.WriteString("new data\n"); err != nil {
 		t.Fatalf("writing line: %v", err)
 	}
@@ -250,12 +260,7 @@ func TestTailFileBackoffResetsOnNewData(t *testing.T) {
 		t.Fatal("timed out waiting for line")
 	}
 
-	// Now let one more empty poll through so we can check the reset value
-	mu.Lock()
-	resetIdx := len(waits)
-	mu.Unlock()
-
-	// Wait for the next afterFunc call to be recorded (it's blocked on gate)
+	// Wait for the afterFunc call after data was read (it's blocked on gate)
 	for {
 		mu.Lock()
 		n := len(waits)
@@ -267,11 +272,6 @@ func TestTailFileBackoffResetsOnNewData(t *testing.T) {
 	}
 
 	cancel()
-	// Unblock any pending afterFunc so tailFile can exit
-	select {
-	case gate <- struct{}{}:
-	default:
-	}
 	<-errCh
 
 	mu.Lock()
