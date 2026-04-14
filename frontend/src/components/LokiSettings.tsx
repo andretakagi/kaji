@@ -22,6 +22,7 @@ export function LokiSettings() {
 		useSettingsSection(defaultValues);
 	const { saving: testing, feedback: testFeedback, run: runTest } = useAsyncAction();
 	const [status, setStatus] = useState<LokiStatus | null>(null);
+	const [pollFailures, setPollFailures] = useState(0);
 
 	useEffect(() => {
 		fetchLokiConfig()
@@ -32,15 +33,23 @@ export function LokiSettings() {
 	useEffect(() => {
 		if (!values.enabled) {
 			setStatus(null);
+			setPollFailures(0);
 			return;
 		}
 		let cancelled = false;
 		const poll = () => {
 			fetchLokiStatus()
 				.then((s) => {
-					if (!cancelled) setStatus(s);
+					if (!cancelled) {
+						setStatus(s);
+						setPollFailures(0);
+					}
 				})
-				.catch(() => {});
+				.catch(() => {
+					if (!cancelled) {
+						setPollFailures((n) => n + 1);
+					}
+				});
 		};
 		poll();
 		const id = setInterval(poll, 10000);
@@ -235,6 +244,9 @@ export function LokiSettings() {
 						</button>
 						<Feedback msg={testFeedback.msg} type={testFeedback.type} />
 					</div>
+					{pollFailures >= 3 && (
+						<Feedback msg="Unable to reach the Loki status endpoint" type="error" />
+					)}
 					{status?.running && (
 						<div className="loki-status">
 							<h4>Pipeline status</h4>
