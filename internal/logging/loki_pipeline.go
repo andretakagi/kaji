@@ -97,13 +97,12 @@ func (p *LokiPipeline) Start() {
 		cfg.Loki.BearerToken,
 		cfg.Loki.TenantID,
 		batches,
-		p.positions,
 	)
 	p.activeEndpoint = cfg.Loki.Endpoint
 	p.activeBearerToken = cfg.Loki.BearerToken
 	p.activeTenantID = cfg.Loki.TenantID
 
-	p.wg.Add(2)
+	p.wg.Add(3)
 	go func() {
 		defer p.wg.Done()
 		batcher.Run(ctx)
@@ -111,6 +110,21 @@ func (p *LokiPipeline) Start() {
 	go func() {
 		defer p.wg.Done()
 		p.pusher.Run(ctx)
+	}()
+	go func() {
+		defer p.wg.Done()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := p.positions.Save(); err != nil {
+					log.Printf("loki pipeline: save positions: %v", err)
+				}
+			}
+		}
 	}()
 
 	for _, sinkName := range cfg.Loki.Sinks {

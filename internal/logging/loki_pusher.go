@@ -49,7 +49,6 @@ type LokiPusher struct {
 	bearerToken string
 	tenantID    string
 	batches     <-chan LokiBatch
-	positions   *PositionStore
 	client      *http.Client
 	afterFunc   func(time.Duration) <-chan time.Time
 
@@ -60,14 +59,12 @@ type LokiPusher struct {
 func NewLokiPusher(
 	endpoint, bearerToken, tenantID string,
 	batches <-chan LokiBatch,
-	positions *PositionStore,
 ) *LokiPusher {
 	return &LokiPusher{
 		endpoint:    normalizeLokiEndpoint(endpoint),
 		bearerToken: bearerToken,
 		tenantID:    tenantID,
 		batches:     batches,
-		positions:   positions,
 		client:      &http.Client{Timeout: 30 * time.Second},
 		afterFunc:   time.After,
 		status:      make(map[string]*SinkStatus),
@@ -119,11 +116,6 @@ func (p *LokiPusher) pushWithRetry(ctx context.Context, batch LokiBatch) {
 		statusCode, err := p.sendRequest(ctx, body)
 		if err == nil && statusCode == http.StatusNoContent {
 			p.recordSuccess(batch)
-			if p.positions != nil {
-				if err := p.positions.Save(); err != nil {
-					log.Printf("loki pusher: save positions: %v", err)
-				}
-			}
 			return
 		}
 

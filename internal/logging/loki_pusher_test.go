@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,8 +31,7 @@ func TestPusherSendsGzippedJSON(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pos := NewPositionStore(filepath.Join(t.TempDir(), "positions.json"))
-	pusher := NewLokiPusher(server.URL, "", "", batches, pos)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -85,7 +83,7 @@ func TestPusherSendsBearerToken(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "secret-token", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "secret-token", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -117,7 +115,7 @@ func TestPusherSendsTenantID(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "my-tenant", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "my-tenant", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -150,7 +148,7 @@ func TestPusherOmitsAuthHeadersWhenEmpty(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -182,8 +180,7 @@ func TestPusherRecordsSuccessStatus(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pos := NewPositionStore(filepath.Join(t.TempDir(), "positions.json"))
-	pusher := NewLokiPusher(server.URL, "", "", batches, pos)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -223,7 +220,7 @@ func TestPusherRecordsErrorOnBadRequest(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -263,7 +260,7 @@ func TestPusherDropsBatchOnBadRequestNoRetry(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -286,45 +283,6 @@ func TestPusherDropsBatchOnBadRequestNoRetry(t *testing.T) {
 	}
 }
 
-func TestPusherSavesPositionsOnSuccess(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
-
-	dir := t.TempDir()
-	posPath := filepath.Join(dir, "positions.json")
-	pos := NewPositionStore(posPath)
-	pos.Set("/var/log/caddy/access.log", 9999)
-
-	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, pos)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
-
-	batches <- LokiBatch{
-		Streams: []LokiStream{
-			{
-				Labels:  map[string]string{"sink": "access"},
-				Entries: []LokiEntry{{Timestamp: "1", Line: "log"}},
-			},
-		},
-	}
-
-	time.Sleep(500 * time.Millisecond)
-	cancel()
-
-	// Verify positions were saved to disk
-	pos2 := NewPositionStore(posPath)
-	if err := pos2.Load(); err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if got := pos2.Get("/var/log/caddy/access.log"); got != 9999 {
-		t.Errorf("saved position: got %d, want 9999", got)
-	}
-}
-
 func TestPusherAccumulatesEntryCount(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -332,7 +290,7 @@ func TestPusherAccumulatesEntryCount(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 10)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -365,7 +323,7 @@ func TestPusherGetStatusReturnsSnapshot(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -406,7 +364,7 @@ func TestPusherRetryThenSucceed(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -452,7 +410,7 @@ func TestPusherRetriesOnServerError(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -505,7 +463,7 @@ func TestPusherRetryCancelledDuringBackoff(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -550,7 +508,7 @@ func TestPusherDropsBatchAfterMaxRetries(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 	pusher.afterFunc = func(d time.Duration) <-chan time.Time {
 		ch := make(chan time.Time, 1)
 		ch <- time.Now()
@@ -610,7 +568,7 @@ func TestPusherRecordsErrorForAllSinksInBatch(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
@@ -654,7 +612,7 @@ func TestPusherRecordsSuccessForAllSinksInBatch(t *testing.T) {
 	defer server.Close()
 
 	batches := make(chan LokiBatch, 1)
-	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go pusher.Run(ctx)
