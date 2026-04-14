@@ -86,6 +86,7 @@ func DefaultConfig() *AppConfig {
 		Loki: LokiConfig{
 			BatchSize:            1048576,
 			FlushIntervalSeconds: 5,
+			Labels:               map[string]string{"job": "kaji"},
 		},
 	}
 }
