@@ -2160,6 +2160,22 @@ input:disabled + .toggle-slider {
 	accent-color: var(--accent);
 }
 
+.log-config-rotation-toggle input[type="checkbox"]:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.log-config-rotation-toggle:has(input:disabled) {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.log-config-loki-toggle-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
 .access-log-badge {
 	font-size: 0.6rem;
 	font-weight: 700;
@@ -2537,10 +2553,9 @@ input:disabled + .toggle-slider {
 }
 
 .log-config-loki-hint {
-	font-size: 0.8rem;
+	font-size: 0.65rem;
 	color: var(--text-muted);
-	margin-top: -0.25rem;
-	padding-left: 1.5rem;
+	padding-left: 1.6rem;
 }
 
 .api-key-display {

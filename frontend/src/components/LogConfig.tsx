@@ -157,21 +157,6 @@ function LogSinkEditor({
 							<label className="log-config-rotation-toggle">
 								<input
 									type="checkbox"
-									checked={lokiSinks.includes(name)}
-									onChange={(e) => {
-										setLokiError("");
-										onLokiToggle(name, e.target.checked).catch((err) => {
-											setLokiError(getErrorMessage(err, "Failed to update Loki config"));
-											setTimeout(() => setLokiError(""), 4000);
-										});
-									}}
-									disabled={!lokiConfig?.enabled}
-								/>
-								Push to Loki
-							</label>
-							<label className="log-config-rotation-toggle">
-								<input
-									type="checkbox"
 									checked={roll}
 									onChange={(e) => {
 										if (e.target.checked) {
@@ -190,11 +175,28 @@ function LogSinkEditor({
 								/>
 								Enable log rotation
 							</label>
+							<div className="log-config-loki-toggle-group">
+								<label className="log-config-rotation-toggle">
+									<input
+										type="checkbox"
+										checked={lokiSinks.includes(name)}
+										onChange={(e) => {
+											setLokiError("");
+											onLokiToggle(name, e.target.checked).catch((err) => {
+												setLokiError(getErrorMessage(err, "Failed to update Loki config"));
+												setTimeout(() => setLokiError(""), 4000);
+											});
+										}}
+										disabled={!lokiConfig?.enabled}
+									/>
+									Push to Loki
+								</label>
+								{!lokiConfig?.enabled && (
+									<span className="log-config-loki-hint">Configure Loki in Settings to enable</span>
+								)}
+								{lokiError && <span className="feedback error">{lokiError}</span>}
+							</div>
 						</div>
-						{lokiError && <span className="feedback error">{lokiError}</span>}
-						{!lokiConfig?.enabled && (
-							<span className="log-config-loki-hint">Configure Loki in Settings to enable</span>
-						)}
 						{roll && (
 							<div className="log-config-rotation">
 								<div className="log-config-field">
