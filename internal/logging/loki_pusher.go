@@ -9,9 +9,20 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
+
+const lokiPushPath = "/loki/api/v1/push"
+
+func normalizeLokiEndpoint(endpoint string) string {
+	endpoint = strings.TrimRight(endpoint, "/")
+	if !strings.HasSuffix(endpoint, lokiPushPath) {
+		endpoint += lokiPushPath
+	}
+	return endpoint
+}
 
 type SinkStatus struct {
 	Tailing       bool      `json:"tailing"`
@@ -38,7 +49,7 @@ func NewLokiPusher(
 	positions *PositionStore,
 ) *LokiPusher {
 	return &LokiPusher{
-		endpoint:    endpoint,
+		endpoint:    normalizeLokiEndpoint(endpoint),
 		bearerToken: bearerToken,
 		tenantID:    tenantID,
 		batches:     batches,
@@ -248,7 +259,7 @@ func (p *LokiPusher) SendTestEntry(endpoint, bearerToken, tenantID string) error
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, normalizeLokiEndpoint(endpoint), &buf)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
