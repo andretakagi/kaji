@@ -59,6 +59,8 @@ func handleLokiConfigUpdate(store *config.ConfigStore, pipeline *logging.LokiPip
 			return
 		}
 
+		old := store.Get().Loki
+
 		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
 			c.Loki = req
 			return &c, nil
@@ -68,9 +70,35 @@ func handleLokiConfigUpdate(store *config.ConfigStore, pipeline *logging.LokiPip
 			return
 		}
 
-		pipeline.Restart()
+		if onlySinksChanged(old, req) {
+			pipeline.Reconfigure()
+		} else {
+			pipeline.Restart()
+		}
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
+}
+
+func onlySinksChanged(old, new config.LokiConfig) bool {
+	return old.Enabled == new.Enabled &&
+		old.Endpoint == new.Endpoint &&
+		old.BearerToken == new.BearerToken &&
+		old.TenantID == new.TenantID &&
+		old.BatchSize == new.BatchSize &&
+		old.FlushIntervalSeconds == new.FlushIntervalSeconds &&
+		mapsEqual(old.Labels, new.Labels)
+}
+
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 func handleLokiTest(store *config.ConfigStore, pipeline *logging.LokiPipeline) http.HandlerFunc {

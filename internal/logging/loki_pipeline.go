@@ -17,9 +17,11 @@ type LokiPipeline struct {
 	positions    *PositionStore
 
 	mu      sync.Mutex
+	ctx     context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	pusher  *LokiPusher
+	lines   chan TaggedLine
 	running bool
 	tailers map[string]context.CancelFunc
 }
@@ -60,9 +62,11 @@ func (p *LokiPipeline) Start() {
 	p.positions.Cleanup(activePaths)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	p.ctx = ctx
 	p.cancel = cancel
 
 	lines := make(chan TaggedLine, 1000)
+	p.lines = lines
 	batches := make(chan LokiBatch, 10)
 
 	labels := cfg.Loki.Labels
@@ -141,7 +145,45 @@ func (p *LokiPipeline) Stop() {
 	p.tailers = make(map[string]context.CancelFunc)
 	p.running = false
 	p.pusher = nil
+	p.lines = nil
+	p.ctx = nil
 	log.Println("loki pipeline: stopped")
+}
+
+func (p *LokiPipeline) Reconfigure() {
+	p.mu.Lock()
+	cfg := p.store.Get()
+
+	if !p.running || !cfg.Loki.Enabled {
+		p.mu.Unlock()
+		p.Restart()
+		return
+	}
+
+	sinkPaths := p.resolveSinks()
+	wanted := make(map[string]string)
+	for _, name := range cfg.Loki.Sinks {
+		if path, ok := sinkPaths[name]; ok {
+			wanted[name] = path
+		}
+	}
+
+	for name, cancel := range p.tailers {
+		if _, ok := wanted[name]; !ok {
+			cancel()
+			delete(p.tailers, name)
+			log.Printf("loki pipeline: stopped tailer for %q", name)
+		}
+	}
+
+	for name, path := range wanted {
+		if _, ok := p.tailers[name]; !ok {
+			p.startTailer(p.ctx, name, path, p.lines)
+			log.Printf("loki pipeline: started tailer for %q", name)
+		}
+	}
+
+	p.mu.Unlock()
 }
 
 func (p *LokiPipeline) Restart() {
