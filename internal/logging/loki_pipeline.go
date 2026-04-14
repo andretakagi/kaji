@@ -37,6 +37,10 @@ func (p *LokiPipeline) Start() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if p.running {
+		return
+	}
+
 	cfg := p.store.Get()
 	if !cfg.Loki.Enabled || cfg.Loki.Endpoint == "" {
 		return
