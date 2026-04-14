@@ -214,6 +214,86 @@ func TestTailerWaitsForFileCreation(t *testing.T) {
 	cancel()
 }
 
+func TestTailerDetectsTruncationDuringTail(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "test.log")
+	os.WriteFile(logPath, []byte("first line that is long enough\n"), 0644)
+
+	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
+	lines := make(chan TaggedLine, 100)
+	tailer := NewLokiTailer("test", logPath, pos, lines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	go tailer.Run(ctx)
+
+	select {
+	case tl := <-lines:
+		if tl.Line != "first line that is long enough" {
+			t.Fatalf("got %q, want %q", tl.Line, "first line that is long enough")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first line")
+	}
+
+	os.WriteFile(logPath, []byte("after truncate\n"), 0644)
+
+	select {
+	case tl := <-lines:
+		if tl.Line != "after truncate" {
+			t.Fatalf("got %q, want %q", tl.Line, "after truncate")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for line after truncation")
+	}
+
+	cancel()
+}
+
+func TestTailerAppendsAfterIdlePeriod(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "test.log")
+	os.WriteFile(logPath, []byte("initial\n"), 0644)
+
+	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
+	lines := make(chan TaggedLine, 100)
+	tailer := NewLokiTailer("test", logPath, pos, lines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	go tailer.Run(ctx)
+
+	select {
+	case tl := <-lines:
+		if tl.Line != "initial" {
+			t.Fatalf("got %q, want %q", tl.Line, "initial")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for initial line")
+	}
+
+	time.Sleep(5 * time.Second)
+
+	f, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		t.Fatalf("failed to open file for append: %v", err)
+	}
+	f.WriteString("late arrival\n")
+	f.Close()
+
+	select {
+	case tl := <-lines:
+		if tl.Line != "late arrival" {
+			t.Fatalf("got %q, want %q", tl.Line, "late arrival")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for late arrival")
+	}
+
+	cancel()
+}
 
 func TestTailerStopsOnContextCancel(t *testing.T) {
 	dir := t.TempDir()

@@ -170,7 +170,6 @@ func TestBatcherFlushesPendingOnCancel(t *testing.T) {
 	lines := make(chan TaggedLine, 100)
 	batches := make(chan LokiBatch, 10)
 
-	// Long flush interval so only context cancel triggers the flush
 	batcher := NewLokiBatcher(lines, batches, 1024*1024, 10*time.Minute, map[string]string{"job": "kaji"})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -183,7 +182,7 @@ func TestBatcherFlushesPendingOnCancel(t *testing.T) {
 
 	lines <- TaggedLine{Sink: "default", Line: "pending line"}
 
-	// Give batcher time to pick it up
+	// Give batcher time to receive the line before cancelling
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 
@@ -193,12 +192,13 @@ func TestBatcherFlushesPendingOnCancel(t *testing.T) {
 		t.Fatal("batcher did not stop")
 	}
 
+	// Batcher has exited. Check if a batch was flushed.
 	select {
 	case batch := <-batches:
 		if len(batch.Streams) == 0 || len(batch.Streams[0].Entries) == 0 {
 			t.Error("expected pending entries to be flushed on cancel")
 		}
-	case <-time.After(time.Second):
+	default:
 		t.Error("expected a batch to be flushed on context cancel")
 	}
 }

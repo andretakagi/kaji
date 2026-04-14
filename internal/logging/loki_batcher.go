@@ -59,11 +59,7 @@ func (b *LokiBatcher) Run(ctx context.Context) {
 			return
 		}
 		batch := b.buildBatch(streams)
-		select {
-		case b.batches <- batch:
-		case <-ctx.Done():
-			return
-		}
+		b.batches <- batch
 		streams = make(map[string]*LokiStream)
 		currentSize = 0
 	}

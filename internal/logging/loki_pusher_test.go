@@ -392,6 +392,152 @@ func TestPusherGetStatusReturnsSnapshot(t *testing.T) {
 	}
 }
 
+func TestPusherRetryThenSucceed(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n <= 2 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pusher.Run(ctx)
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"sink": "retry-test"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "will succeed"}},
+			},
+		},
+	}
+
+	// Wait for retry loop to complete (500ms + 1s backoff + request time)
+	time.Sleep(3 * time.Second)
+	cancel()
+
+	count := atomic.LoadInt32(&attempts)
+	if count != 3 {
+		t.Errorf("expected exactly 3 attempts, got %d", count)
+	}
+
+	status := pusher.GetStatus()
+	s, ok := status["retry-test"]
+	if !ok {
+		t.Fatal("expected status for sink 'retry-test'")
+	}
+	if s.LastError != "" {
+		t.Errorf("LastError should be empty after success, got %q", s.LastError)
+	}
+	if s.EntriesPushed != 1 {
+		t.Errorf("EntriesPushed: got %d, want 1", s.EntriesPushed)
+	}
+}
+
+func TestPusherRetriesOnServerError(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"sink": "error-test"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "will fail"}},
+			},
+		},
+	}
+
+	// Let it retry for 3 seconds, then cancel
+	time.Sleep(3 * time.Second)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("pusher did not stop after cancellation")
+	}
+
+	count := atomic.LoadInt32(&attempts)
+	if count < 3 {
+		t.Errorf("expected at least 3 retry attempts, got %d", count)
+	}
+
+	status := pusher.GetStatus()
+	s := status["error-test"]
+	if s.EntriesPushed != 0 {
+		t.Errorf("EntriesPushed should be 0, got %d", s.EntriesPushed)
+	}
+}
+
+func TestPusherRetryCancelledDuringBackoff(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"sink": "cancel-test"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "cancel me"}},
+			},
+		},
+	}
+
+	// Wait for the first attempt to complete, then cancel during backoff
+	time.Sleep(1 * time.Second)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("pusher did not stop within 3 seconds after cancellation")
+	}
+
+	count := atomic.LoadInt32(&attempts)
+	if count < 1 {
+		t.Errorf("expected at least 1 attempt, got %d", count)
+	}
+}
+
 func TestSendTestEntrySuccess(t *testing.T) {
 	var gotBody []byte
 

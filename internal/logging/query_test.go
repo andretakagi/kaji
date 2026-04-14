@@ -161,6 +161,107 @@ func TestReverseScannerChunkBoundary(t *testing.T) {
 	}
 }
 
+func TestReverseScannerNoTrailingNewline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "no-trailing.log")
+	os.WriteFile(path, []byte("aaa\nbbb\nccc"), 0644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rs, err := newReverseScanner(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for rs.Scan() {
+		got = append(got, string(rs.Bytes()))
+	}
+	if err := rs.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"ccc", "bbb", "aaa"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d lines, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d: got %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestReverseScannerLongFirstLine(t *testing.T) {
+	longLine := strings.Repeat("A", 40000)
+	path := filepath.Join(t.TempDir(), "long-first.log")
+	os.WriteFile(path, []byte(longLine+"\nshort\n"), 0644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rs, err := newReverseScanner(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for rs.Scan() {
+		got = append(got, string(rs.Bytes()))
+	}
+	if err := rs.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"short", longLine}
+	if len(got) != len(want) {
+		t.Fatalf("got %d lines, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d: got len %d, want len %d", i, len(got[i]), len(want[i]))
+		}
+	}
+}
+
+func TestReverseScannerHugeSingleLine(t *testing.T) {
+	hugeLine := strings.Repeat("Z", 100000)
+	path := filepath.Join(t.TempDir(), "huge-single.log")
+	os.WriteFile(path, []byte(hugeLine), 0644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	rs, err := newReverseScanner(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got []string
+	for rs.Scan() {
+		got = append(got, string(rs.Bytes()))
+	}
+	if err := rs.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("expected 1 line, got %d", len(got))
+	}
+	if len(got[0]) != 100000 {
+		t.Errorf("line length: got %d, want 100000", len(got[0]))
+	}
+}
+
 // LogEntry.UnmarshalJSON tests
 
 func TestUnmarshalJSONKnownFields(t *testing.T) {
