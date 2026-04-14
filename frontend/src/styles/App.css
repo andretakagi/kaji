@@ -2518,6 +2518,85 @@ input:disabled + .toggle-slider {
 	line-height: 1.4;
 }
 
+.settings-field-hint {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+	margin-top: 0.125rem;
+}
+
+.loki-config-fields {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	margin-top: 0.5rem;
+}
+
+.loki-labels {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.loki-label-row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.loki-label-row input {
+	flex: 1;
+}
+
+.loki-test-section {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.loki-status {
+	margin-top: 0.75rem;
+	padding: 0.75rem;
+	background: var(--surface);
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+}
+
+.loki-status h4 {
+	margin: 0 0 0.5rem;
+	font-size: 0.85rem;
+	color: var(--text-muted);
+	font-weight: 500;
+}
+
+.loki-status-sink {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1rem;
+	align-items: baseline;
+	padding: 0.25rem 0;
+}
+
+.loki-status-sink-name {
+	font-weight: 600;
+	font-size: 0.85rem;
+}
+
+.loki-status-detail {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+}
+
+.loki-status-error {
+	color: var(--red);
+}
+
+.log-config-loki-hint {
+	font-size: 0.8rem;
+	color: var(--text-muted);
+	margin-top: -0.25rem;
+	padding-left: 1.5rem;
+}
+
 .api-key-display {
 	display: flex;
 	gap: 0.5rem;

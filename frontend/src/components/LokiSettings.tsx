@@ -1,0 +1,273 @@
+import { useEffect, useState } from "react";
+import { fetchLokiConfig, fetchLokiStatus, testLokiConnection, updateLokiConfig } from "../api";
+import { useAsyncAction } from "../hooks/useAsyncAction";
+import { useSettingsSection } from "../hooks/useSettingsSection";
+import type { LokiConfig, LokiStatus } from "../types/logs";
+import Feedback from "./Feedback";
+import { Toggle } from "./Toggle";
+
+const defaultValues: LokiConfig = {
+	enabled: false,
+	endpoint: "",
+	bearer_token: "",
+	tenant_id: "",
+	labels: { job: "kaji" },
+	batch_size: 1048576,
+	flush_interval_seconds: 5,
+	sinks: [],
+};
+
+export function LokiSettings() {
+	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } =
+		useSettingsSection(defaultValues);
+	const { saving: testing, feedback: testFeedback, run: runTest } = useAsyncAction();
+	const [status, setStatus] = useState<LokiStatus | null>(null);
+
+	useEffect(() => {
+		fetchLokiConfig()
+			.then((cfg) => load(cfg))
+			.catch(markLoaded);
+	}, [load, markLoaded]);
+
+	useEffect(() => {
+		if (!values.enabled) {
+			setStatus(null);
+			return;
+		}
+		let cancelled = false;
+		const poll = () => {
+			fetchLokiStatus()
+				.then((s) => {
+					if (!cancelled) setStatus(s);
+				})
+				.catch(() => {});
+		};
+		poll();
+		const id = setInterval(poll, 10000);
+		return () => {
+			cancelled = true;
+			clearInterval(id);
+		};
+	}, [values.enabled]);
+
+	const handleSave = () =>
+		save(async (v) => {
+			await updateLokiConfig(v);
+			return "Saved";
+		});
+
+	const handleTest = () =>
+		runTest(async () => {
+			const result = await testLokiConnection();
+			if (!result.success) throw new Error(result.message);
+			return result.message || "Connection successful";
+		});
+
+	const addLabel = () => {
+		setValues((v) => ({ ...v, labels: { ...v.labels, "": "" } }));
+	};
+
+	const updateLabel = (oldKey: string, newKey: string, value: string) => {
+		setValues((v) => {
+			const next: Record<string, string> = {};
+			for (const [k, val] of Object.entries(v.labels)) {
+				if (k === oldKey) {
+					next[newKey] = value;
+				} else {
+					next[k] = val;
+				}
+			}
+			return { ...v, labels: next };
+		});
+	};
+
+	const removeLabel = (key: string) => {
+		setValues((v) => {
+			const next = { ...v.labels };
+			delete next[key];
+			return { ...v, labels: next };
+		});
+	};
+
+	if (!loaded) return null;
+
+	return (
+		<section className="settings-section">
+			<h3>Loki Integration</h3>
+			<p className="settings-description">
+				Push Caddy access logs to a Grafana Loki instance. Replaces the need for Promtail or Alloy
+				as a separate log forwarding agent.
+			</p>
+			<div className="settings-toggle-row">
+				<span>Enable Loki push</span>
+				<Toggle
+					inline
+					small
+					id="loki-enabled"
+					value={values.enabled}
+					onChange={(checked) => setValues((v) => ({ ...v, enabled: checked }))}
+					disabled={saving}
+				/>
+			</div>
+			{values.enabled && (
+				<div className="loki-config-fields">
+					<div className="settings-field">
+						<label htmlFor="loki-endpoint">Endpoint URL</label>
+						<input
+							id="loki-endpoint"
+							type="text"
+							value={values.endpoint}
+							onChange={(e) => setValues((v) => ({ ...v, endpoint: e.target.value }))}
+							placeholder="http://loki:3100"
+							disabled={saving}
+						/>
+					</div>
+					<div className="settings-field">
+						<label htmlFor="loki-bearer-token">Bearer token</label>
+						<input
+							id="loki-bearer-token"
+							type="password"
+							value={values.bearer_token}
+							onChange={(e) => setValues((v) => ({ ...v, bearer_token: e.target.value }))}
+							disabled={saving}
+						/>
+					</div>
+					<div className="settings-field">
+						<label htmlFor="loki-tenant-id">Tenant ID</label>
+						<input
+							id="loki-tenant-id"
+							type="text"
+							value={values.tenant_id}
+							onChange={(e) => setValues((v) => ({ ...v, tenant_id: e.target.value }))}
+							disabled={saving}
+						/>
+						<span className="settings-field-hint">
+							Required for multi-tenant Loki setups. Leave empty for single-tenant.
+						</span>
+					</div>
+					<div className="settings-field">
+						<label htmlFor="loki-batch-size">Batch size (bytes)</label>
+						<input
+							id="loki-batch-size"
+							type="number"
+							min={1024}
+							max={104857600}
+							value={values.batch_size}
+							onChange={(e) =>
+								setValues((v) => ({
+									...v,
+									batch_size: Math.max(1024, Number(e.target.value) || 1024),
+								}))
+							}
+							disabled={saving}
+						/>
+					</div>
+					<div className="settings-field">
+						<label htmlFor="loki-flush-interval">Flush interval (seconds)</label>
+						<input
+							id="loki-flush-interval"
+							type="number"
+							min={1}
+							max={300}
+							value={values.flush_interval_seconds}
+							onChange={(e) =>
+								setValues((v) => ({
+									...v,
+									flush_interval_seconds: Math.max(1, Number(e.target.value) || 1),
+								}))
+							}
+							disabled={saving}
+						/>
+					</div>
+					<div className="settings-field">
+						<span className="settings-field-hint" style={{ fontWeight: 500, color: "var(--text)" }}>
+							Labels
+						</span>
+						<div className="loki-labels">
+							{Object.entries(values.labels).map(([key, val]) => (
+								<div key={key} className="loki-label-row">
+									<input
+										type="text"
+										placeholder="key"
+										value={key}
+										onChange={(e) => updateLabel(key, e.target.value, val)}
+										disabled={saving}
+									/>
+									<input
+										type="text"
+										placeholder="value"
+										value={val}
+										onChange={(e) => updateLabel(key, key, e.target.value)}
+										disabled={saving}
+									/>
+									<button
+										type="button"
+										className="btn btn-ghost btn-sm"
+										onClick={() => removeLabel(key)}
+										disabled={saving}
+									>
+										Remove
+									</button>
+								</div>
+							))}
+							<button
+								type="button"
+								className="btn btn-ghost btn-sm"
+								onClick={addLabel}
+								disabled={saving}
+							>
+								Add label
+							</button>
+						</div>
+					</div>
+					<div className="loki-test-section">
+						<button
+							type="button"
+							className="btn btn-ghost settings-save-btn"
+							style={{ marginTop: 0 }}
+							disabled={testing || !values.endpoint}
+							onClick={handleTest}
+						>
+							{testing ? "Testing..." : "Test Connection"}
+						</button>
+						<Feedback msg={testFeedback.msg} type={testFeedback.type} />
+					</div>
+					{status?.running && (
+						<div className="loki-status">
+							<h4>Pipeline status</h4>
+							{Object.entries(status.sinks).map(([sink, s]) => (
+								<div key={sink} className="loki-status-sink">
+									<span className="loki-status-sink-name">{sink}</span>
+									{s.entries_pushed > 0 && (
+										<span className="loki-status-detail">
+											{s.entries_pushed.toLocaleString()} entries pushed
+										</span>
+									)}
+									{s.last_push_at && (
+										<span className="loki-status-detail">
+											last push {new Date(s.last_push_at).toLocaleTimeString()}
+										</span>
+									)}
+									{s.last_error && (
+										<span className="loki-status-detail loki-status-error">{s.last_error}</span>
+									)}
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+			{dirty && (
+				<button
+					type="button"
+					className="btn btn-primary settings-save-btn"
+					disabled={saving}
+					onClick={handleSave}
+				>
+					{saving ? "Saving..." : "Save"}
+				</button>
+			)}
+			<Feedback msg={feedback.msg} type={feedback.type} />
+		</section>
+	);
+}

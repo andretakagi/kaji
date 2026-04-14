@@ -16,6 +16,7 @@ import { validateCaddyAdminUrl } from "../utils/validate";
 import AuthSection from "./AuthSection";
 import Feedback from "./Feedback";
 import HttpsSettingsSection from "./HttpsSettingsSection";
+import { LokiSettings } from "./LokiSettings";
 import { MetricsSettings } from "./MetricsSettings";
 import { SnapshotSettings } from "./SnapshotSettings";
 
@@ -379,6 +380,8 @@ export default function Settings({
 			) : (
 				<MetricsSettings caddyRunning={caddyRunning} />
 			)}
+
+			{!caddyRunning ? <CaddyOffSection title="Loki Integration" /> : <LokiSettings />}
 
 			<SnapshotSettings />
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/logging"
 	"github.com/andretakagi/kaji/internal/snapshot"
 	"github.com/andretakagi/kaji/internal/system"
 )
@@ -281,7 +282,8 @@ func newTestHarness(t *testing.T) *testHarness {
 	ss := snapshot.NewStore(snapDir)
 
 	mux := http.NewServeMux()
-	h := RegisterRoutes(mux, store, &testManager{}, cc, ss, "test")
+	pipeline := logging.NewLokiPipeline(store, filepath.Join(tmpDir, "positions.json"), func() map[string]string { return nil })
+	h := RegisterRoutes(mux, store, &testManager{}, cc, ss, pipeline, "test")
 
 	return &testHarness{
 		handler:  h,

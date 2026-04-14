@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
@@ -17,6 +18,7 @@ import (
 	"github.com/andretakagi/kaji/internal/api"
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/logging"
 	"github.com/andretakagi/kaji/internal/snapshot"
 	"github.com/andretakagi/kaji/internal/system"
 )
@@ -80,6 +82,35 @@ func main() {
 		log.Printf("Failed to load snapshot index: %v", err)
 	}
 
+	resolveSinks := func() map[string]string {
+		result := make(map[string]string)
+		raw, err := caddyClient.GetLoggingConfig()
+		if err != nil {
+			log.Printf("loki: failed to get logging config: %v", err)
+			return result
+		}
+		var loggingCfg struct {
+			Logs map[string]struct {
+				Writer struct {
+					Output   string `json:"output"`
+					Filename string `json:"filename"`
+				} `json:"writer"`
+			} `json:"logs"`
+		}
+		if json.Unmarshal(raw, &loggingCfg) != nil {
+			return result
+		}
+		for name, sink := range loggingCfg.Logs {
+			if sink.Writer.Output == "file" && sink.Writer.Filename != "" {
+				result[name] = sink.Writer.Filename
+			}
+		}
+		return result
+	}
+
+	positionsPath := filepath.Join(filepath.Dir(config.Path()), "positions.json")
+	lokiPipeline := logging.NewLokiPipeline(store, positionsPath, resolveSinks)
+
 	if configExists {
 		if err := caddyClient.WaitReady(10 * time.Second); err != nil {
 			log.Printf("Caddy admin API not reachable, skipping config restore: %v", err)
@@ -97,6 +128,8 @@ func main() {
 		}
 	}
 
+	lokiPipeline.Start()
+
 	mux := http.NewServeMux()
 
 	distFS, err := fs.Sub(frontendFiles, "dist")
@@ -105,7 +138,7 @@ func main() {
 	}
 	mux.Handle("/", spaHandler(http.FS(distFS)))
 
-	handler := api.RegisterRoutes(mux, store, mgr, caddyClient, snapStore, version)
+	handler := api.RegisterRoutes(mux, store, mgr, caddyClient, snapStore, lokiPipeline, version)
 
 	addr := os.Getenv("KAJI_LISTEN_ADDR")
 	if addr == "" {
@@ -135,6 +168,8 @@ func main() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	lokiPipeline.Stop()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("HTTP shutdown error: %v", err)

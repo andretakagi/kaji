@@ -65,7 +65,27 @@ export interface CaddyLoggingConfig {
 export interface LokiConfig {
 	enabled: boolean;
 	endpoint: string;
+	bearer_token: string;
+	tenant_id: string;
 	labels: Record<string, string>;
 	batch_size: number;
 	flush_interval_seconds: number;
+	sinks: string[];
+}
+
+export interface LokiSinkStatus {
+	tailing: boolean;
+	last_push_at: string;
+	entries_pushed: number;
+	last_error: string;
+}
+
+export interface LokiStatus {
+	running: boolean;
+	sinks: Record<string, LokiSinkStatus>;
+}
+
+export interface LokiTestResult {
+	success: boolean;
+	message: string;
 }

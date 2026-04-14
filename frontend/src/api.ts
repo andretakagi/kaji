@@ -24,6 +24,9 @@ import type {
 	CaddyLogSink,
 	LogQueryParams,
 	LogQueryResponse,
+	LokiConfig,
+	LokiStatus,
+	LokiTestResult,
 } from "./types/logs";
 import type { Snapshot, SnapshotIndex, SnapshotSettings } from "./types/snapshots";
 import {
@@ -49,6 +52,9 @@ import {
 	validateIPListUsage,
 	validateLoggingConfig,
 	validateLogs,
+	validateLokiConfig,
+	validateLokiStatus,
+	validateLokiTestResult,
 	validateRouteIPListBindings,
 	validateSetupResponse,
 	validateSetupStatus,
@@ -527,4 +533,24 @@ export function updateCaddyDataDir(dir: string): Promise<{ status: string }> {
 		{ method: "PUT", ...jsonBody({ caddy_data_dir: dir }) },
 		validateStatusResponse,
 	);
+}
+
+export function fetchLokiStatus(): Promise<LokiStatus> {
+	return request("/api/loki/status", undefined, validateLokiStatus);
+}
+
+export function fetchLokiConfig(): Promise<LokiConfig> {
+	return request("/api/loki/config", undefined, validateLokiConfig);
+}
+
+export function updateLokiConfig(config: LokiConfig): Promise<{ status: string }> {
+	return request(
+		"/api/loki/config",
+		{ method: "PUT", ...jsonBody(config) },
+		validateStatusResponse,
+	);
+}
+
+export function testLokiConnection(): Promise<LokiTestResult> {
+	return request("/api/loki/test", { method: "POST" }, validateLokiTestResult);
 }

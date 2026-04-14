@@ -26,9 +26,12 @@ func Path() string {
 type LokiConfig struct {
 	Enabled              bool              `json:"enabled"`
 	Endpoint             string            `json:"endpoint"`
+	BearerToken          string            `json:"bearer_token"`
+	TenantID             string            `json:"tenant_id"`
 	Labels               map[string]string `json:"labels"`
 	BatchSize            int               `json:"batch_size"`
 	FlushIntervalSeconds int               `json:"flush_interval_seconds"`
+	Sinks                []string          `json:"sinks"`
 }
 
 type DisabledRoute struct {
