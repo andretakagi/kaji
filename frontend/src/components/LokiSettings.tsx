@@ -102,8 +102,9 @@ export function LokiSettings() {
 			if (dupes.size > 0) {
 				throw new Error(`Duplicate label key: ${[...dupes].join(", ")}`);
 			}
-			await updateLokiConfig(v);
-			setLabelRows(labelsToRows(v.labels));
+			const withJob = { ...v, labels: { ...v.labels, job: "kaji" } };
+			await updateLokiConfig(withJob);
+			setLabelRows(labelsToRows(withJob.labels));
 			return "Saved";
 		});
 
@@ -119,10 +120,6 @@ export function LokiSettings() {
 	return (
 		<section className="settings-section">
 			<h3>Loki Integration</h3>
-			<p className="settings-description">
-				Push Caddy access logs to a Grafana Loki instance. Replaces the need for Promtail or Alloy
-				as a separate log forwarding agent.
-			</p>
 			<div className="settings-toggle-row">
 				<span>Enable Loki push</span>
 				<Toggle
@@ -171,7 +168,7 @@ export function LokiSettings() {
 						</span>
 					</div>
 					<div className="settings-field">
-						<label>Push logs every</label>
+						<label htmlFor="loki-flush-interval">Push logs every</label>
 						<div className="loki-flush-row">
 							<div className="input-with-unit">
 								<input
@@ -194,9 +191,7 @@ export function LokiSettings() {
 							<select
 								id="loki-batch-size"
 								value={values.batch_size}
-								onChange={(e) =>
-									setValues((v) => ({ ...v, batch_size: Number(e.target.value) }))
-								}
+								onChange={(e) => setValues((v) => ({ ...v, batch_size: Number(e.target.value) }))}
 								disabled={saving}
 							>
 								<option value={512000}>500 KB</option>
@@ -211,50 +206,56 @@ export function LokiSettings() {
 							Labels
 						</span>
 						<div className="loki-labels">
-							{labelRows.map((row) => {
-								const isDupe =
-									row.key.trim() !== "" &&
-									labelRows.some((r) => r.id !== row.id && r.key.trim() === row.key.trim());
-								return (
-									<div key={row.id} className="loki-label-row">
-										<input
-											type="text"
-											placeholder="key"
-											value={row.key}
-											className={isDupe ? "input-error" : ""}
-											onChange={(e) =>
-												updateLabelRows(
-													labelRows.map((r) =>
-														r.id === row.id ? { ...r, key: e.target.value } : r,
-													),
-												)
-											}
-											disabled={saving}
-										/>
-										<input
-											type="text"
-											placeholder="value"
-											value={row.value}
-											onChange={(e) =>
-												updateLabelRows(
-													labelRows.map((r) =>
-														r.id === row.id ? { ...r, value: e.target.value } : r,
-													),
-												)
-											}
-											disabled={saving}
-										/>
-										<button
-											type="button"
-											className="btn btn-ghost btn-sm"
-											onClick={() => updateLabelRows(labelRows.filter((r) => r.id !== row.id))}
-											disabled={saving}
-										>
-											Remove
-										</button>
-									</div>
-								);
-							})}
+							<div className="loki-label-row loki-label-fixed">
+								<input type="text" value="job" disabled />
+								<input type="text" value="kaji" disabled />
+							</div>
+							{labelRows
+								.filter((row) => row.key.trim() !== "job")
+								.map((row) => {
+									const isDupe =
+										row.key.trim() !== "" &&
+										labelRows.some((r) => r.id !== row.id && r.key.trim() === row.key.trim());
+									return (
+										<div key={row.id} className="loki-label-row">
+											<input
+												type="text"
+												placeholder="key"
+												value={row.key}
+												className={isDupe ? "input-error" : ""}
+												onChange={(e) =>
+													updateLabelRows(
+														labelRows.map((r) =>
+															r.id === row.id ? { ...r, key: e.target.value } : r,
+														),
+													)
+												}
+												disabled={saving}
+											/>
+											<input
+												type="text"
+												placeholder="value"
+												value={row.value}
+												onChange={(e) =>
+													updateLabelRows(
+														labelRows.map((r) =>
+															r.id === row.id ? { ...r, value: e.target.value } : r,
+														),
+													)
+												}
+												disabled={saving}
+											/>
+											<button
+												type="button"
+												className="btn btn-ghost btn-sm"
+												onClick={() => updateLabelRows(labelRows.filter((r) => r.id !== row.id))}
+												disabled={saving}
+											>
+												Remove
+											</button>
+										</div>
+									);
+								})}
 							<button
 								type="button"
 								className="btn btn-ghost btn-sm"

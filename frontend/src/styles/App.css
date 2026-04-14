@@ -2527,6 +2527,11 @@ input:disabled + .toggle-slider {
 	border-color: var(--red);
 }
 
+.loki-label-fixed input {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
 .loki-test-section {
 	display: flex;
 	align-items: center;
