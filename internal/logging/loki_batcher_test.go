@@ -203,6 +203,52 @@ func TestBatcherFlushesPendingOnCancel(t *testing.T) {
 	}
 }
 
+func TestBatcherFlushesPendingOnChannelClose(t *testing.T) {
+	lines := make(chan TaggedLine, 100)
+	batches := make(chan LokiBatch, 10)
+
+	batcher := NewLokiBatcher(lines, batches, 1024*1024, 10*time.Minute, map[string]string{"job": "kaji"})
+
+	done := make(chan struct{})
+	go func() {
+		batcher.Run(context.Background())
+		close(done)
+	}()
+
+	lines <- TaggedLine{Sink: "default", Line: "pending line"}
+
+	time.Sleep(50 * time.Millisecond)
+	close(lines)
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("batcher did not stop after lines channel closed")
+	}
+
+	select {
+	case batch := <-batches:
+		if len(batch.Streams) == 0 || len(batch.Streams[0].Entries) == 0 {
+			t.Error("expected pending entries to be flushed on channel close")
+		}
+		if batch.Streams[0].Entries[0].Line != "pending line" {
+			t.Errorf("unexpected line: %q", batch.Streams[0].Entries[0].Line)
+		}
+	default:
+		t.Error("expected a batch to be flushed when lines channel is closed")
+	}
+
+	// batches channel should be closed since Run exited
+	select {
+	case _, ok := <-batches:
+		if ok {
+			t.Error("expected batches channel to be closed")
+		}
+	default:
+		t.Error("batches channel should be closed after Run returns")
+	}
+}
+
 func TestBatcherEmptyFlush(t *testing.T) {
 	lines := make(chan TaggedLine, 100)
 	batches := make(chan LokiBatch, 10)
