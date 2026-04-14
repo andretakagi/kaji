@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchLokiConfig, fetchLokiStatus, testLokiConnection, updateLokiConfig } from "../api";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { useSettingsSection } from "../hooks/useSettingsSection";
 import type { LokiConfig, LokiStatus } from "../types/logs";
 import Feedback from "./Feedback";
 import { Toggle } from "./Toggle";
+
+type LabelRow = { id: number; key: string; value: string };
 
 const defaultValues: LokiConfig = {
 	enabled: false,
@@ -23,12 +25,35 @@ export function LokiSettings() {
 	const { saving: testing, feedback: testFeedback, run: runTest } = useAsyncAction();
 	const [status, setStatus] = useState<LokiStatus | null>(null);
 	const [pollFailures, setPollFailures] = useState(0);
+	const [labelRows, setLabelRows] = useState<LabelRow[]>([]);
+	const nextLabelId = useRef(0);
+
+	const labelsToRows = useCallback((labels: Record<string, string>): LabelRow[] => {
+		return Object.entries(labels).map(([key, value]) => ({
+			id: nextLabelId.current++,
+			key,
+			value,
+		}));
+	}, []);
+
+	const rowsToLabels = useCallback((rows: LabelRow[]): Record<string, string> => {
+		const labels: Record<string, string> = {};
+		for (const row of rows) {
+			if (row.key.trim()) {
+				labels[row.key.trim()] = row.value;
+			}
+		}
+		return labels;
+	}, []);
 
 	useEffect(() => {
 		fetchLokiConfig()
-			.then((cfg) => load(cfg))
+			.then((cfg) => {
+				load(cfg);
+				setLabelRows(labelsToRows(cfg.labels ?? {}));
+			})
 			.catch(markLoaded);
-	}, [load, markLoaded]);
+	}, [load, markLoaded, labelsToRows]);
 
 	useEffect(() => {
 		if (!values.enabled) {
@@ -59,9 +84,26 @@ export function LokiSettings() {
 		};
 	}, [values.enabled]);
 
+	const updateLabelRows = (rows: LabelRow[]) => {
+		setLabelRows(rows);
+		setValues((v) => ({ ...v, labels: rowsToLabels(rows) }));
+	};
+
 	const handleSave = () =>
 		save(async (v) => {
+			const dupes = new Set<string>();
+			const seen = new Set<string>();
+			for (const row of labelRows) {
+				const k = row.key.trim();
+				if (!k) continue;
+				if (seen.has(k)) dupes.add(k);
+				seen.add(k);
+			}
+			if (dupes.size > 0) {
+				throw new Error(`Duplicate label key: ${[...dupes].join(", ")}`);
+			}
 			await updateLokiConfig(v);
+			setLabelRows(labelsToRows(v.labels));
 			return "Saved";
 		});
 
@@ -71,35 +113,6 @@ export function LokiSettings() {
 			if (!result.success) throw new Error(result.message);
 			return result.message || "Connection successful";
 		});
-
-	const addLabel = () => {
-		setValues((v) => ({ ...v, labels: { ...v.labels, "": "" } }));
-	};
-
-	const updateLabel = (oldKey: string, newKey: string, value: string) => {
-		setValues((v) => {
-			if (newKey !== oldKey && newKey in v.labels) {
-				return v;
-			}
-			const next: Record<string, string> = {};
-			for (const [k, val] of Object.entries(v.labels)) {
-				if (k === oldKey) {
-					next[newKey] = value;
-				} else {
-					next[k] = val;
-				}
-			}
-			return { ...v, labels: next };
-		});
-	};
-
-	const removeLabel = (key: string) => {
-		setValues((v) => {
-			const next = { ...v.labels };
-			delete next[key];
-			return { ...v, labels: next };
-		});
-	};
 
 	if (!loaded) return null;
 
@@ -196,37 +209,57 @@ export function LokiSettings() {
 							Labels
 						</span>
 						<div className="loki-labels">
-							{Object.entries(values.labels).map(([key, val]) => (
-								<div key={key} className="loki-label-row">
-									<input
-										type="text"
-										placeholder="key"
-										value={key}
-										onChange={(e) => updateLabel(key, e.target.value, val)}
-										disabled={saving}
-									/>
-									<input
-										type="text"
-										placeholder="value"
-										value={val}
-										onChange={(e) => updateLabel(key, key, e.target.value)}
-										disabled={saving}
-									/>
-									<button
-										type="button"
-										className="btn btn-ghost btn-sm"
-										onClick={() => removeLabel(key)}
-										disabled={saving}
-									>
-										Remove
-									</button>
-								</div>
-							))}
+							{labelRows.map((row) => {
+								const isDupe =
+									row.key.trim() !== "" &&
+									labelRows.some((r) => r.id !== row.id && r.key.trim() === row.key.trim());
+								return (
+									<div key={row.id} className="loki-label-row">
+										<input
+											type="text"
+											placeholder="key"
+											value={row.key}
+											className={isDupe ? "input-error" : ""}
+											onChange={(e) =>
+												updateLabelRows(
+													labelRows.map((r) =>
+														r.id === row.id ? { ...r, key: e.target.value } : r,
+													),
+												)
+											}
+											disabled={saving}
+										/>
+										<input
+											type="text"
+											placeholder="value"
+											value={row.value}
+											onChange={(e) =>
+												updateLabelRows(
+													labelRows.map((r) =>
+														r.id === row.id ? { ...r, value: e.target.value } : r,
+													),
+												)
+											}
+											disabled={saving}
+										/>
+										<button
+											type="button"
+											className="btn btn-ghost btn-sm"
+											onClick={() => updateLabelRows(labelRows.filter((r) => r.id !== row.id))}
+											disabled={saving}
+										>
+											Remove
+										</button>
+									</div>
+								);
+							})}
 							<button
 								type="button"
 								className="btn btn-ghost btn-sm"
-								onClick={addLabel}
-								disabled={saving || "" in values.labels}
+								onClick={() =>
+									updateLabelRows([...labelRows, { id: nextLabelId.current++, key: "", value: "" }])
+								}
+								disabled={saving}
 							>
 								Add label
 							</button>

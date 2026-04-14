@@ -2547,6 +2547,10 @@ input:disabled + .toggle-slider {
 	flex: 1;
 }
 
+.loki-label-row input.input-error {
+	border-color: var(--red);
+}
+
 .loki-test-section {
 	display: flex;
 	align-items: center;
