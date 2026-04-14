@@ -69,6 +69,9 @@ export function LokiSettings() {
 
 	const updateLabel = (oldKey: string, newKey: string, value: string) => {
 		setValues((v) => {
+			if (newKey !== oldKey && newKey in v.labels) {
+				return v;
+			}
 			const next: Record<string, string> = {};
 			for (const [k, val] of Object.entries(v.labels)) {
 				if (k === oldKey) {
@@ -214,7 +217,7 @@ export function LokiSettings() {
 								type="button"
 								className="btn btn-ghost btn-sm"
 								onClick={addLabel}
-								disabled={saving}
+								disabled={saving || "" in values.labels}
 							>
 								Add label
 							</button>
