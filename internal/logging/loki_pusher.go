@@ -195,7 +195,7 @@ func (p *LokiPusher) recordError(batch LokiBatch, errMsg string) {
 func (p *LokiPusher) getOrCreateStatus(sink string) *SinkStatus {
 	s, ok := p.status[sink]
 	if !ok {
-		s = &SinkStatus{Tailing: true}
+		s = &SinkStatus{}
 		p.status[sink] = s
 	}
 	return s

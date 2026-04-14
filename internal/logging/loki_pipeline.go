@@ -161,7 +161,13 @@ func (p *LokiPipeline) GetStatus() (bool, map[string]SinkStatus) {
 	if !p.running || p.pusher == nil {
 		return false, nil
 	}
-	return true, p.pusher.GetStatus()
+	sinks := p.pusher.GetStatus()
+	for name, s := range sinks {
+		_, active := p.tailers[name]
+		s.Tailing = active
+		sinks[name] = s
+	}
+	return true, sinks
 }
 
 func (p *LokiPipeline) GetPusher() *LokiPusher {
