@@ -74,6 +74,13 @@ func TestPositionStoreLoadInvalidJSON(t *testing.T) {
 	if err := ps.Load(); err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("original file should be removed after rename")
+	}
+	if _, err := os.Stat(path + ".corrupt"); err != nil {
+		t.Errorf("corrupt file should exist: %v", err)
+	}
 }
 
 func TestPositionStoreLoadNullPositions(t *testing.T) {

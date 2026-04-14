@@ -543,4 +543,3 @@ func TestQueryLogsFileNotFound(t *testing.T) {
 		t.Error("expected error for missing file, got nil")
 	}
 }
-

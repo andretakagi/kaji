@@ -55,4 +55,3 @@ func TailFile(ctx context.Context, path string, lines chan<- string) error {
 		}
 	}
 }
-
