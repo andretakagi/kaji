@@ -10,7 +10,7 @@ type LabelRow = { id: number; key: string; value: string };
 
 const defaultValues: LokiConfig = {
 	enabled: false,
-	endpoint: "",
+	endpoint: "http://loki:3100",
 	bearer_token: "",
 	tenant_id: "",
 	labels: { job: "kaji" },
@@ -170,30 +170,13 @@ export function LokiSettings() {
 							Required for multi-tenant Loki setups. Leave empty for single-tenant.
 						</span>
 					</div>
-					<div className="settings-field">
-						<label htmlFor="loki-batch-size">Batch size (bytes)</label>
-						<input
-							id="loki-batch-size"
-							type="number"
-							min={1024}
-							max={104857600}
-							value={values.batch_size}
-							onChange={(e) =>
-								setValues((v) => ({
-									...v,
-									batch_size: Math.max(1024, Number(e.target.value) || 1024),
-								}))
-							}
-							disabled={saving}
-						/>
-					</div>
-					<div className="settings-field">
-						<label htmlFor="loki-flush-interval">Flush interval (seconds)</label>
+					<div className="loki-flush-row">
+						<span>Push logs every</span>
 						<input
 							id="loki-flush-interval"
 							type="number"
 							min={1}
-							max={300}
+							max={60}
 							value={values.flush_interval_seconds}
 							onChange={(e) =>
 								setValues((v) => ({
@@ -203,6 +186,19 @@ export function LokiSettings() {
 							}
 							disabled={saving}
 						/>
+						<span>seconds or</span>
+						<select
+							id="loki-batch-size"
+							value={values.batch_size}
+							onChange={(e) => setValues((v) => ({ ...v, batch_size: Number(e.target.value) }))}
+							disabled={saving}
+						>
+							<option value={512000}>500 KB</option>
+							<option value={1048576}>1 MB</option>
+							<option value={2097152}>2 MB</option>
+							<option value={3145728}>3 MB</option>
+						</select>
+						<span>of data</span>
 					</div>
 					<div className="settings-field">
 						<span className="settings-field-hint" style={{ fontWeight: 500, color: "var(--text)" }}>

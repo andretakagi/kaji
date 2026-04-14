@@ -84,6 +84,7 @@ func DefaultConfig() *AppConfig {
 		LogFile:         "/var/log/caddy/access.log",
 		LogDir:          logDir,
 		Loki: LokiConfig{
+			Endpoint:             "http://loki:3100",
 			BatchSize:            1048576,
 			FlushIntervalSeconds: 5,
 			Labels:               map[string]string{"job": "kaji"},

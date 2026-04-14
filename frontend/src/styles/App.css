@@ -2140,11 +2140,17 @@ input:disabled + .toggle-slider {
 	padding: 0.3rem 0;
 }
 
+.log-config-toggle-row {
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
+	grid-column: 1 / -1;
+}
+
 .log-config-rotation-toggle {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	grid-column: 1 / -1;
 	font-size: 0.75rem;
 	color: var(--text-secondary);
 	cursor: pointer;
@@ -2447,6 +2453,24 @@ input:disabled + .toggle-slider {
 	flex-direction: column;
 	gap: 0.75rem;
 	margin-top: 0.5rem;
+}
+
+.loki-flush-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.85rem;
+	color: var(--text-secondary);
+	flex-wrap: wrap;
+}
+
+.loki-flush-row input[type="number"] {
+	width: 4rem;
+	text-align: center;
+}
+
+.loki-flush-row select {
+	width: auto;
 }
 
 .loki-labels {

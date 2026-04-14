@@ -153,27 +153,48 @@ function LogSinkEditor({
 				)}
 				{isFile && (
 					<>
-						<label className="log-config-rotation-toggle">
-							<input
-								type="checkbox"
-								checked={roll}
-								onChange={(e) => {
-									if (e.target.checked) {
-										updateWriter({
-											roll_size_mb: 100,
-											roll_keep: 5,
-											roll_keep_for: 30 * NS_PER_DAY,
+						<div className="log-config-toggle-row">
+							<label className="log-config-rotation-toggle">
+								<input
+									type="checkbox"
+									checked={lokiSinks.includes(name)}
+									onChange={(e) => {
+										setLokiError("");
+										onLokiToggle(name, e.target.checked).catch((err) => {
+											setLokiError(getErrorMessage(err, "Failed to update Loki config"));
+											setTimeout(() => setLokiError(""), 4000);
 										});
-									} else {
-										const { roll_size_mb, roll_keep, roll_keep_for, ...rest } = sink.writer ?? {
-											output,
-										};
-										onChange({ ...sink, writer: rest as CaddyLogSink["writer"] });
-									}
-								}}
-							/>
-							Enable log rotation
-						</label>
+									}}
+									disabled={!lokiConfig?.enabled}
+								/>
+								Push to Loki
+							</label>
+							<label className="log-config-rotation-toggle">
+								<input
+									type="checkbox"
+									checked={roll}
+									onChange={(e) => {
+										if (e.target.checked) {
+											updateWriter({
+												roll_size_mb: 100,
+												roll_keep: 5,
+												roll_keep_for: 30 * NS_PER_DAY,
+											});
+										} else {
+											const { roll_size_mb, roll_keep, roll_keep_for, ...rest } = sink.writer ?? {
+												output,
+											};
+											onChange({ ...sink, writer: rest as CaddyLogSink["writer"] });
+										}
+									}}
+								/>
+								Enable log rotation
+							</label>
+						</div>
+						{lokiError && <span className="feedback error">{lokiError}</span>}
+						{!lokiConfig?.enabled && (
+							<span className="log-config-loki-hint">Configure Loki in Settings to enable</span>
+						)}
 						{roll && (
 							<div className="log-config-rotation">
 								<div className="log-config-field">
@@ -222,40 +243,6 @@ function LogSinkEditor({
 										}
 									/>
 								</div>
-							</div>
-						)}
-					</>
-				)}
-				{isFile && (
-					<>
-						<label className="log-config-rotation-toggle">
-							<input
-								type="checkbox"
-								checked={lokiSinks.includes(name)}
-								onChange={(e) => {
-									setLokiError("");
-									onLokiToggle(name, e.target.checked).catch((err) => {
-										setLokiError(getErrorMessage(err, "Failed to update Loki config"));
-										setTimeout(() => setLokiError(""), 4000);
-									});
-								}}
-								disabled={!lokiConfig?.enabled}
-							/>
-							Push to Loki
-						</label>
-						{lokiError && <span className="feedback error">{lokiError}</span>}
-						{!lokiConfig?.enabled && (
-							<span className="log-config-loki-hint">Configure Loki in Settings to enable</span>
-						)}
-						{lokiSinks.includes(name) && lokiConfig?.enabled && (
-							<div className="log-config-field">
-								<label htmlFor={`${name}-loki-endpoint`}>Loki endpoint</label>
-								<input
-									id={`${name}-loki-endpoint`}
-									type="text"
-									value={lokiConfig.endpoint}
-									disabled
-								/>
 							</div>
 						)}
 					</>
