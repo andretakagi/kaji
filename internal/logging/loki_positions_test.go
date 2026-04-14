@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -142,24 +143,36 @@ func TestPositionStoreSaveAtomicOnDisk(t *testing.T) {
 	}
 }
 
+// TestPositionStoreConcurrentAccess exercises concurrent use of the
+// PositionStore. Run with -race to verify the mutex serializes access.
 func TestPositionStoreConcurrentAccess(t *testing.T) {
 	ps := NewPositionStore(filepath.Join(t.TempDir(), "positions.json"))
 
-	const goroutines = 50
+	const goroutines = 20
+	const iterations = 100
 	var wg sync.WaitGroup
 
 	for i := 0; i < goroutines; i++ {
 		wg.Add(1)
-		go func(n int) {
+		go func(id int) {
 			defer wg.Done()
-			ps.Set("/log", int64(n))
-			ps.Get("/log")
+			path := fmt.Sprintf("/log/%d", id)
+			for j := 0; j < iterations; j++ {
+				ps.Set(path, int64(j))
+				ps.Get(path)
+				if j%20 == 0 {
+					ps.Save()
+				}
+			}
 		}(i)
 	}
 	wg.Wait()
 
-	got := ps.Get("/log")
-	if got < 0 || got >= int64(goroutines) {
-		t.Errorf("unexpected offset %d after concurrent writes", got)
+	for i := 0; i < goroutines; i++ {
+		path := fmt.Sprintf("/log/%d", i)
+		got := ps.Get(path)
+		if got != iterations-1 {
+			t.Errorf("path %s: got %d, want %d", path, got, iterations-1)
+		}
 	}
 }
