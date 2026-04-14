@@ -290,8 +290,9 @@ func TestReconfigureWhenDisabledCallsRestart(t *testing.T) {
 	}
 
 	// Disable Loki in config, then Reconfigure should stop the pipeline
-	store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+	if err := store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
 		return &config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
 			Loki: config.LokiConfig{
 				Enabled:              false,
 				Endpoint:             server.URL,
@@ -300,7 +301,9 @@ func TestReconfigureWhenDisabledCallsRestart(t *testing.T) {
 				Sinks:                []string{"access"},
 			},
 		}, nil
-	})
+	}); err != nil {
+		t.Fatalf("updating config: %v", err)
+	}
 
 	p.Reconfigure()
 
@@ -350,8 +353,9 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 	p.mu.Unlock()
 
 	// Reconfigure to have both access and error sinks
-	store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+	if err := store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
 		return &config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
 			Loki: config.LokiConfig{
 				Enabled:              true,
 				Endpoint:             server.URL,
@@ -360,7 +364,9 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 				Sinks:                []string{"access", "error"},
 			},
 		}, nil
-	})
+	}); err != nil {
+		t.Fatalf("updating config: %v", err)
+	}
 	p.Reconfigure()
 
 	p.mu.Lock()
@@ -373,8 +379,9 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 	p.mu.Unlock()
 
 	// Reconfigure to remove access, keep only error
-	store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+	if err := store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
 		return &config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
 			Loki: config.LokiConfig{
 				Enabled:              true,
 				Endpoint:             server.URL,
@@ -383,7 +390,9 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 				Sinks:                []string{"error"},
 			},
 		}, nil
-	})
+	}); err != nil {
+		t.Fatalf("updating config: %v", err)
+	}
 	p.Reconfigure()
 
 	p.mu.Lock()
