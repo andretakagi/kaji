@@ -126,18 +126,21 @@ func TestTailerUpdatesPositionStore(t *testing.T) {
 	lines := make(chan TaggedLine, 100)
 	tailer := NewLokiTailer("test", logPath, pos, lines)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	go tailer.Run(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		tailer.Run(ctx)
+		close(done)
+	}()
 
 	select {
 	case <-lines:
-	case <-ctx.Done():
+	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for line")
 	}
 
 	cancel()
+	<-done
 
 	offset := pos.Get(logPath)
 	if offset <= 0 {
