@@ -93,7 +93,7 @@ func (b *LokiBatcher) Run(ctx context.Context) {
 				Line:      line.Line,
 			}
 			stream.Entries = append(stream.Entries, entry)
-			currentSize += len(line.Line) + 20
+			currentSize += len(line.Line) + 28
 			if currentSize >= b.batchSize {
 				flush()
 			}
