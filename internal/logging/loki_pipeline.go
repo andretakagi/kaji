@@ -177,18 +177,18 @@ func (p *LokiPipeline) Stop() {
 
 	close(p.lines)
 
-	done := make(chan struct{})
+	drainDone := make(chan struct{})
 	go func() {
 		p.wg.Wait()
-		close(done)
+		close(drainDone)
 	}()
 	select {
-	case <-done:
+	case <-drainDone:
 	case <-time.After(5 * time.Second):
 		log.Println("loki pipeline: drain deadline exceeded, forcing shutdown")
 		p.cancel()
-		p.wg.Wait()
 	}
+	<-drainDone
 
 	if err := p.positions.Save(); err != nil {
 		log.Printf("loki pipeline: save positions on stop: %v", err)
