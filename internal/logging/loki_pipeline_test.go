@@ -290,14 +290,16 @@ func TestReconfigureWhenDisabledCallsRestart(t *testing.T) {
 	}
 
 	// Disable Loki in config, then Reconfigure should stop the pipeline
-	store.Set(&config.AppConfig{
-		Loki: config.LokiConfig{
-			Enabled:              false,
-			Endpoint:             server.URL,
-			BatchSize:            1024,
-			FlushIntervalSeconds: 1,
-			Sinks:                []string{"access"},
-		},
+	store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+		return &config.AppConfig{
+			Loki: config.LokiConfig{
+				Enabled:              false,
+				Endpoint:             server.URL,
+				BatchSize:            1024,
+				FlushIntervalSeconds: 1,
+				Sinks:                []string{"access"},
+			},
+		}, nil
 	})
 
 	p.Reconfigure()
@@ -348,14 +350,16 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 	p.mu.Unlock()
 
 	// Reconfigure to have both access and error sinks
-	store.Set(&config.AppConfig{
-		Loki: config.LokiConfig{
-			Enabled:              true,
-			Endpoint:             server.URL,
-			BatchSize:            1024,
-			FlushIntervalSeconds: 1,
-			Sinks:                []string{"access", "error"},
-		},
+	store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+		return &config.AppConfig{
+			Loki: config.LokiConfig{
+				Enabled:              true,
+				Endpoint:             server.URL,
+				BatchSize:            1024,
+				FlushIntervalSeconds: 1,
+				Sinks:                []string{"access", "error"},
+			},
+		}, nil
 	})
 	p.Reconfigure()
 
@@ -369,14 +373,16 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 	p.mu.Unlock()
 
 	// Reconfigure to remove access, keep only error
-	store.Set(&config.AppConfig{
-		Loki: config.LokiConfig{
-			Enabled:              true,
-			Endpoint:             server.URL,
-			BatchSize:            1024,
-			FlushIntervalSeconds: 1,
-			Sinks:                []string{"error"},
-		},
+	store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+		return &config.AppConfig{
+			Loki: config.LokiConfig{
+				Enabled:              true,
+				Endpoint:             server.URL,
+				BatchSize:            1024,
+				FlushIntervalSeconds: 1,
+				Sinks:                []string{"error"},
+			},
+		}, nil
 	})
 	p.Reconfigure()
 

@@ -286,12 +286,10 @@ func TestLoadFromInvalidConfig(t *testing.T) {
 func TestConfigStoreConcurrent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
-	t.Setenv("KAJI_CONFIG_PATH", path)
 
 	initial := DefaultConfig()
-	store := NewStore(initial)
+	store := NewStoreWithPath(initial, path)
 
-	// Pre-populate the file so Update can save to it.
 	if err := SaveTo(initial, path); err != nil {
 		t.Fatalf("seeding config file: %v", err)
 	}
@@ -335,10 +333,9 @@ func TestConfigStoreConcurrent(t *testing.T) {
 func TestConfigStoreGetReturnsCurrentValue(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.json")
-	t.Setenv("KAJI_CONFIG_PATH", path)
 
 	initial := DefaultConfig()
-	store := NewStore(initial)
+	store := NewStoreWithPath(initial, path)
 
 	if err := SaveTo(initial, path); err != nil {
 		t.Fatalf("seeding config file: %v", err)

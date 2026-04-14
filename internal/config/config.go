@@ -166,12 +166,22 @@ func SaveTo(cfg *AppConfig, path string) error {
 // via an atomic pointer. Writes are serialized with a mutex so that disk and
 // in-memory state always stay in sync.
 type ConfigStore struct {
-	p  atomic.Pointer[AppConfig]
-	mu sync.Mutex
+	p    atomic.Pointer[AppConfig]
+	mu   sync.Mutex
+	path string
 }
 
+// NewStore creates an in-memory config store with no disk persistence.
+// Useful in tests where you don't want disk writes.
 func NewStore(initial *AppConfig) *ConfigStore {
 	s := &ConfigStore{}
+	s.p.Store(initial)
+	return s
+}
+
+// NewStoreWithPath creates a config store that persists changes to the given path.
+func NewStoreWithPath(initial *AppConfig, path string) *ConfigStore {
+	s := &ConfigStore{path: path}
 	s.p.Store(initial)
 	return s
 }
@@ -180,14 +190,9 @@ func (s *ConfigStore) Get() *AppConfig {
 	return s.p.Load()
 }
 
-// Set replaces the in-memory config without writing to disk.
-func (s *ConfigStore) Set(cfg *AppConfig) {
-	s.p.Store(cfg)
-}
-
-// Update applies fn to a value copy of the current config, saves the result
-// to disk, then swaps the in-memory pointer. The mutex ensures only one
-// writer runs at a time, so disk and memory can never desync.
+// Update applies fn to a value copy of the current config, validates the result,
+// persists to disk (if the store has a path), then swaps the in-memory pointer.
+// The mutex ensures only one writer runs at a time.
 func (s *ConfigStore) Update(fn func(current AppConfig) (*AppConfig, error)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,8 +205,10 @@ func (s *ConfigStore) Update(fn func(current AppConfig) (*AppConfig, error)) err
 	if err := next.validate(); err != nil {
 		return fmt.Errorf("config validation: %w", err)
 	}
-	if err := Save(next); err != nil {
-		return fmt.Errorf("saving updated config: %w", err)
+	if s.path != "" {
+		if err := SaveTo(next, s.path); err != nil {
+			return fmt.Errorf("saving updated config: %w", err)
+		}
 	}
 	s.p.Store(next)
 	return nil

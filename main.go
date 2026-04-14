@@ -57,7 +57,7 @@ func main() {
 		raw = config.DefaultConfig()
 	}
 
-	store := config.NewStore(raw)
+	store := config.NewStoreWithPath(raw, config.Path())
 	mgr := system.NewCaddyManager(raw.CaddyAdminURL)
 
 	running, _ := mgr.Status()

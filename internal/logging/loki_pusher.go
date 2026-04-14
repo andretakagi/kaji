@@ -75,8 +75,27 @@ func NewLokiPusher(
 }
 
 func (p *LokiPusher) Run(ctx context.Context) {
-	for batch := range p.batches {
-		p.pushWithRetry(ctx, batch)
+	for {
+		select {
+		case batch, ok := <-p.batches:
+			if !ok {
+				return
+			}
+			p.pushWithRetry(ctx, batch)
+		case <-ctx.Done():
+			// Drain any batches already in the channel before exiting.
+			for {
+				select {
+				case batch, ok := <-p.batches:
+					if !ok {
+						return
+					}
+					p.pushWithRetry(ctx, batch)
+				default:
+					return
+				}
+			}
+		}
 	}
 }
 

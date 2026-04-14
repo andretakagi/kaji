@@ -271,7 +271,7 @@ func newTestHarness(t *testing.T) *testHarness {
 	configPath := filepath.Join(tmpDir, "config.json")
 	t.Setenv("KAJI_CONFIG_PATH", configPath)
 
-	store := config.NewStore(config.DefaultConfig())
+	store := config.NewStoreWithPath(config.DefaultConfig(), configPath)
 
 	fc := newFakeCaddy()
 	caddySrv := httptest.NewServer(fc.handler())
