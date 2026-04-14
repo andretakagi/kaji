@@ -101,7 +101,10 @@ func (t *LokiTailer) tailFile(ctx context.Context) error {
 				return ctx.Err()
 			case t.lines <- TaggedLine{Sink: t.sink, Line: line}:
 			}
-			pos, _ := f.Seek(0, io.SeekCurrent)
+			pos, err := f.Seek(0, io.SeekCurrent)
+			if err != nil {
+				return err
+			}
 			t.offset = pos
 			t.pos.Set(t.path, pos)
 			wait = minWait
