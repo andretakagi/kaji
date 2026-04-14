@@ -16,14 +16,15 @@ type LokiPipeline struct {
 	resolveSinks SinkResolver
 	positions    *PositionStore
 
-	mu      sync.Mutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-	wg      sync.WaitGroup
-	pusher  *LokiPusher
-	lines   chan TaggedLine
-	running bool
-	tailers map[string]context.CancelFunc
+	mu       sync.Mutex
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	tailerWg sync.WaitGroup
+	pusher   *LokiPusher
+	lines    chan TaggedLine
+	running  bool
+	tailers  map[string]context.CancelFunc
 }
 
 func NewLokiPipeline(store *config.ConfigStore, positionsPath string, resolveSinks SinkResolver) *LokiPipeline {
@@ -118,9 +119,9 @@ func (p *LokiPipeline) startTailer(ctx context.Context, sink, path string, lines
 	p.tailers[sink] = tailerCancel
 
 	tailer := NewLokiTailer(sink, path, p.positions, lines)
-	p.wg.Add(1)
+	p.tailerWg.Add(1)
 	go func() {
-		defer p.wg.Done()
+		defer p.tailerWg.Done()
 		tailer.Run(tailerCtx)
 	}()
 }
@@ -133,10 +134,25 @@ func (p *LokiPipeline) Stop() {
 		return
 	}
 
-	if p.cancel != nil {
-		p.cancel()
+	for _, cancel := range p.tailers {
+		cancel()
 	}
-	p.wg.Wait()
+	p.tailerWg.Wait()
+
+	close(p.lines)
+
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		log.Println("loki pipeline: drain deadline exceeded, forcing shutdown")
+		p.cancel()
+		p.wg.Wait()
+	}
 
 	if err := p.positions.Save(); err != nil {
 		log.Printf("loki pipeline: save positions on stop: %v", err)

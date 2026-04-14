@@ -47,6 +47,8 @@ func NewLokiBatcher(
 }
 
 func (b *LokiBatcher) Run(ctx context.Context) {
+	defer close(b.batches)
+
 	streams := make(map[string]*LokiStream)
 	currentSize := 0
 	ticker := time.NewTicker(b.flushInterval)
