@@ -30,6 +30,10 @@ type LokiPipeline struct {
 	lines    chan TaggedLine
 	running  bool
 	tailers  map[string]tailerHandle
+
+	activeEndpoint    string
+	activeBearerToken string
+	activeTenantID    string
 }
 
 func NewLokiPipeline(store *config.ConfigStore, positionsPath string, resolveSinks SinkResolver) *LokiPipeline {
@@ -95,6 +99,9 @@ func (p *LokiPipeline) Start() {
 		batches,
 		p.positions,
 	)
+	p.activeEndpoint = cfg.Loki.Endpoint
+	p.activeBearerToken = cfg.Loki.BearerToken
+	p.activeTenantID = cfg.Loki.TenantID
 
 	p.wg.Add(2)
 	go func() {
@@ -187,6 +194,15 @@ func (p *LokiPipeline) Reconfigure() {
 
 	if !p.running || !cfg.Loki.Enabled {
 		p.mu.Unlock()
+		p.Restart()
+		return
+	}
+
+	if cfg.Loki.Endpoint != p.activeEndpoint ||
+		cfg.Loki.BearerToken != p.activeBearerToken ||
+		cfg.Loki.TenantID != p.activeTenantID {
+		p.mu.Unlock()
+		log.Println("loki pipeline: connection settings changed, restarting")
 		p.Restart()
 		return
 	}
