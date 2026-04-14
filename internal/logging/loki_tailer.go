@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"syscall"
 	"time"
 )
 
@@ -75,6 +76,7 @@ func (t *LokiTailer) tailFile(ctx context.Context) error {
 	if info.Size() < t.offset {
 		log.Printf("loki tailer [%s]: file truncated, resetting to start", t.sink)
 		t.offset = 0
+		t.pos.Set(t.path, 0)
 	}
 
 	if _, err := f.Seek(t.offset, io.SeekStart); err != nil {
@@ -105,13 +107,33 @@ func (t *LokiTailer) tailFile(ctx context.Context) error {
 		return err
 	}
 
-	info, err = f.Stat()
+	fdInfo, err := f.Stat()
 	if err != nil {
 		return err
 	}
-	if info.Size() < t.offset {
-		log.Printf("loki tailer [%s]: file truncated during tail, restarting", t.sink)
+	if fdInfo.Size() < t.offset {
+		log.Printf("loki tailer [%s]: file truncated during tail, resetting to start", t.sink)
+		t.offset = 0
+		t.pos.Set(t.path, 0)
+		return nil
+	}
+
+	pathInfo, err := os.Stat(t.path)
+	if err != nil {
+		return nil
+	}
+	if fileInode(fdInfo) != fileInode(pathInfo) {
+		log.Printf("loki tailer [%s]: file rotated (inode changed), resetting to start", t.sink)
+		t.offset = 0
+		t.pos.Set(t.path, 0)
 	}
 
 	return nil
+}
+
+func fileInode(info os.FileInfo) uint64 {
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		return stat.Ino
+	}
+	return 0
 }
