@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { adaptCaddyfile, setupImportFull, submitSetup, updateDNSProvider } from "../api";
 import { cn } from "../cn";
 import {
@@ -12,6 +12,7 @@ import {
 import type { CaddyConfig } from "../types/caddy";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validatePassword } from "../utils/validate";
+import FileUploadButton from "./FileUploadButton";
 import { Toggle } from "./Toggle";
 
 const themeOptions = [
@@ -132,7 +133,6 @@ function Setup({
 		setDnsError("");
 		try {
 			if (setupDone) {
-				// Core setup already completed - just retry the DNS configuration.
 				if (data.challengeType === "cloudflare" && data.dnsToken) {
 					await updateDNSProvider({ enabled: true, api_token: data.dnsToken });
 				}
@@ -165,6 +165,7 @@ function Setup({
 				setSetupWarnings(warnings);
 				return;
 			}
+
 			onComplete();
 		} catch (err) {
 			const msg = getErrorMessage(err, "Setup failed.");
@@ -172,7 +173,6 @@ function Setup({
 				onComplete();
 				return;
 			}
-			// DNS retry failed - show the error on the DNS field.
 			if (setupDone) {
 				setDnsError(getErrorMessage(err, "Could not configure DNS challenge"));
 				return;
@@ -425,8 +425,6 @@ function StepImport({
 	setError: (msg: string) => void;
 }) {
 	const [parsing, setParsing] = useState(false);
-	const caddyfileInputRef = useRef<HTMLInputElement>(null);
-	const backupInputRef = useRef<HTMLInputElement>(null);
 
 	const handleModeChange = (mode: "none" | "caddyfile" | "full") => {
 		update("importMode", mode);
@@ -442,10 +440,7 @@ function StepImport({
 		}
 	};
 
-	const handleCaddyfileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		e.target.value = "";
+	const handleCaddyfileUpload = async (file: File) => {
 		setParsing(true);
 		setError("");
 		try {
@@ -466,10 +461,7 @@ function StepImport({
 		}
 	};
 
-	const handleBackupUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		e.target.value = "";
+	const handleBackupUpload = async (file: File) => {
 		setParsing(true);
 		setError("");
 		try {
@@ -530,21 +522,9 @@ function StepImport({
 			{data.importMode === "caddyfile" && (
 				<>
 					<div className="setup-import-actions">
-						<input
-							ref={caddyfileInputRef}
-							type="file"
-							accept=".caddyfile,.Caddyfile,text/*"
-							onChange={handleCaddyfileUpload}
-							hidden
-						/>
-						<button
-							type="button"
-							className="btn btn-primary"
-							onClick={() => caddyfileInputRef.current?.click()}
-							disabled={parsing}
-						>
+						<FileUploadButton disabled={parsing} onChange={handleCaddyfileUpload}>
 							{parsing ? "Parsing..." : "Choose Caddyfile"}
-						</button>
+						</FileUploadButton>
 					</div>
 					{data.importedSettings && (
 						<div className="setup-import-result">
@@ -570,21 +550,9 @@ function StepImport({
 			{data.importMode === "full" && (
 				<>
 					<div className="setup-import-actions">
-						<input
-							ref={backupInputRef}
-							type="file"
-							accept=".zip"
-							onChange={handleBackupUpload}
-							hidden
-						/>
-						<button
-							type="button"
-							className="btn btn-primary"
-							onClick={() => backupInputRef.current?.click()}
-							disabled={parsing}
-						>
+						<FileUploadButton accept=".zip" disabled={parsing} onChange={handleBackupUpload}>
 							{parsing ? "Reading backup..." : "Choose Backup File"}
-						</button>
+						</FileUploadButton>
 					</div>
 					{data.backupSummary && (
 						<div className="setup-import-result">

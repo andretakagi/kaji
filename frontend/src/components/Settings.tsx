@@ -19,6 +19,7 @@ import { useAsyncAction } from "../hooks/useAsyncAction";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import AuthSection from "./AuthSection";
 import Feedback from "./Feedback";
+import FileUploadButton from "./FileUploadButton";
 import HttpsSettingsSection from "./HttpsSettingsSection";
 import { LokiSettings } from "./LokiSettings";
 import { MetricsSettings } from "./MetricsSettings";
@@ -157,8 +158,6 @@ function ExportImportSection() {
 	const { saving: importing, feedback: importFeedback, run: runImport } = useAsyncAction();
 	const [confirmAction, setConfirmAction] = useState<null | "caddyfile" | "full">(null);
 	const [pendingFile, setPendingFile] = useState<File | null>(null);
-	const caddyfileInputRef = useRef<HTMLInputElement>(null);
-	const fullInputRef = useRef<HTMLInputElement>(null);
 
 	const handleExportCaddyfile = () =>
 		runExport(async () => {
@@ -185,20 +184,14 @@ function ExportImportSection() {
 			return "Downloaded full backup";
 		});
 
-	const handleCaddyfileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
+	const handleCaddyfileFileChange = (file: File) => {
 		setPendingFile(file);
 		setConfirmAction("caddyfile");
-		e.target.value = "";
 	};
 
-	const handleFullFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
+	const handleFullFileChange = (file: File) => {
 		setPendingFile(file);
 		setConfirmAction("full");
-		e.target.value = "";
 	};
 
 	const handleConfirmImport = () => {
@@ -280,35 +273,21 @@ function ExportImportSection() {
 					snapshot will be created automatically before importing.
 				</p>
 				<div className="export-import-actions">
-					<input
-						ref={caddyfileInputRef}
-						type="file"
-						onChange={handleCaddyfileFileChange}
-						hidden
-					/>
-					<button
-						type="button"
+					<FileUploadButton
 						className="btn btn-ghost"
 						disabled={importing}
-						onClick={() => caddyfileInputRef.current?.click()}
+						onChange={handleCaddyfileFileChange}
 					>
 						Import Caddyfile
-					</button>
-					<input
-						ref={fullInputRef}
-						type="file"
+					</FileUploadButton>
+					<FileUploadButton
 						accept=".zip"
-						onChange={handleFullFileChange}
-						hidden
-					/>
-					<button
-						type="button"
 						className="btn btn-ghost"
 						disabled={importing}
-						onClick={() => fullInputRef.current?.click()}
+						onChange={handleFullFileChange}
 					>
 						Import Full Backup
-					</button>
+					</FileUploadButton>
 				</div>
 				<Feedback
 					msg={importFeedback.msg}

@@ -38,6 +38,8 @@ RUN addgroup -S kaji && adduser -S -G kaji kaji
 RUN mkdir -p /etc/caddy /data /config /etc/caddy-gui /var/log/caddy \
     && chown -R kaji:kaji /etc/caddy /data /config /etc/caddy-gui /var/log/caddy
 ENV CADDY_GUI_MODE=docker
+ENV XDG_DATA_HOME=/data
+ENV XDG_CONFIG_HOME=/config
 EXPOSE 80 443 8080
 USER kaji
 ENTRYPOINT ["kaji"]
