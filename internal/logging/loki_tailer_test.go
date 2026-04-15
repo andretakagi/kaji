@@ -143,8 +143,9 @@ func TestTailerUpdatesPositionStore(t *testing.T) {
 	<-done
 
 	offset := pos.Get(logPath)
-	if offset <= 0 {
-		t.Errorf("expected positive offset after reading, got %d", offset)
+	// "hello world\n" is exactly 12 bytes
+	if offset != 12 {
+		t.Errorf("expected offset 12 after reading 'hello world\\n', got %d", offset)
 	}
 }
 
@@ -335,6 +336,83 @@ func TestTailerAppendsAfterIdlePeriod(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for late arrival")
+	}
+
+	cancel()
+}
+
+func TestTailerRotationResetsPositionStore(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "test.log")
+	os.WriteFile(logPath, []byte("original\n"), 0644)
+
+	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
+	lines := make(chan TaggedLine, 100)
+	tailer := NewLokiTailer("test", logPath, pos, lines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	go tailer.Run(ctx)
+
+	select {
+	case <-lines:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for original line")
+	}
+
+	// Position should be at end of "original\n" (9 bytes)
+	if got := pos.Get(logPath); got != 9 {
+		t.Fatalf("expected offset 9 after reading original, got %d", got)
+	}
+
+	// Replace the file (new inode) to trigger rotation detection
+	os.Remove(logPath)
+	os.WriteFile(logPath, []byte("rotated\n"), 0644)
+
+	select {
+	case tl := <-lines:
+		if tl.Line != "rotated" {
+			t.Fatalf("got %q, want %q", tl.Line, "rotated")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for rotated line")
+	}
+
+	cancel()
+
+	// After rotation, position should reflect the new file's offset, not the old one
+	if got := pos.Get(logPath); got != 8 {
+		t.Errorf("expected offset 8 after rotation (len of 'rotated\\n'), got %d", got)
+	}
+}
+
+func TestTailerRetriesOnNonContextError(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "test.log")
+	os.WriteFile(logPath, []byte("secret\n"), 0000)
+
+	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
+	lines := make(chan TaggedLine, 100)
+	tailer := NewLokiTailer("test", logPath, pos, lines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	go tailer.Run(ctx)
+
+	// File is unreadable (0000), tailer should be retrying.
+	// Wait past one retry interval, then fix permissions.
+	time.Sleep(3 * time.Second)
+	os.Chmod(logPath, 0644)
+
+	select {
+	case tl := <-lines:
+		if tl.Line != "secret" {
+			t.Errorf("got %q, want %q", tl.Line, "secret")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for line after permission fix")
 	}
 
 	cancel()

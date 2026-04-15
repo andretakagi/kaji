@@ -685,6 +685,110 @@ func TestBackoffDoublesAndCaps(t *testing.T) {
 	}
 }
 
+func TestNormalizeLokiEndpoint(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"http://localhost:3100", "http://localhost:3100/loki/api/v1/push"},
+		{"http://localhost:3100/", "http://localhost:3100/loki/api/v1/push"},
+		{"http://localhost:3100///", "http://localhost:3100/loki/api/v1/push"},
+		{"http://localhost:3100/loki/api/v1/push", "http://localhost:3100/loki/api/v1/push"},
+		{"http://localhost:3100/loki/api/v1/push/", "http://localhost:3100/loki/api/v1/push"},
+		{"https://loki.example.com", "https://loki.example.com/loki/api/v1/push"},
+		{"https://loki.example.com/custom/prefix", "https://loki.example.com/custom/prefix/loki/api/v1/push"},
+	}
+
+	for _, tt := range tests {
+		got := normalizeLokiEndpoint(tt.input)
+		if got != tt.want {
+			t.Errorf("normalizeLokiEndpoint(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestPusherRecordSuccessSkipsNoSinkLabel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pusher.Run(ctx)
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"job": "kaji"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "no sink"}},
+			},
+			{
+				Labels:  map[string]string{"sink": "real"},
+				Entries: []LokiEntry{{Timestamp: "2", Line: "has sink"}},
+			},
+		},
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	cancel()
+
+	status := pusher.GetStatus()
+	if _, ok := status[""]; ok {
+		t.Error("should not create a status entry for empty sink")
+	}
+	s, ok := status["real"]
+	if !ok {
+		t.Fatal("expected status for sink 'real'")
+	}
+	if s.EntriesPushed != 1 {
+		t.Errorf("EntriesPushed: got %d, want 1", s.EntriesPushed)
+	}
+}
+
+func TestPusherRecordErrorSkipsNoSinkLabel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	batches := make(chan LokiBatch, 1)
+	pusher := NewLokiPusher(server.URL, "", "", batches)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go pusher.Run(ctx)
+
+	batches <- LokiBatch{
+		Streams: []LokiStream{
+			{
+				Labels:  map[string]string{"job": "kaji"},
+				Entries: []LokiEntry{{Timestamp: "1", Line: "no sink"}},
+			},
+			{
+				Labels:  map[string]string{"sink": "real"},
+				Entries: []LokiEntry{{Timestamp: "2", Line: "has sink"}},
+			},
+		},
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	cancel()
+
+	status := pusher.GetStatus()
+	if _, ok := status[""]; ok {
+		t.Error("should not create a status entry for empty sink")
+	}
+	s, ok := status["real"]
+	if !ok {
+		t.Fatal("expected status for sink 'real'")
+	}
+	if s.LastError == "" {
+		t.Error("expected LastError to be set for sink 'real'")
+	}
+}
+
 func TestSendTestEntrySuccess(t *testing.T) {
 	var gotBody []byte
 

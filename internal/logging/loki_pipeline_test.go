@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -255,6 +256,97 @@ func TestPipelineStopWhenNotRunning(t *testing.T) {
 
 	if p.IsRunning() {
 		t.Error("expected IsRunning() to be false")
+	}
+}
+
+func TestPipelineDrainTimeout(t *testing.T) {
+	// Server blocks long enough to exceed the 5s drain timeout, so the
+	// pusher will be stuck in sendRequest and Stop must force shutdown.
+	reqCtx, reqCancel := context.WithCancel(context.Background())
+	defer reqCancel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-reqCtx.Done()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer func() {
+		reqCancel()
+		server.Close()
+	}()
+
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "access.log")
+	if err := os.WriteFile(logFile, []byte("line one\n"), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	store := newTestPipelineConfig(server.URL, []string{"access"})
+	posPath := filepath.Join(dir, "positions.json")
+	resolver := func() map[string]string { return map[string]string{"access": logFile} }
+
+	p := NewLokiPipeline(store, posPath, resolver)
+	p.Start()
+	if !p.IsRunning() {
+		t.Fatal("expected pipeline to be running")
+	}
+
+	// Wait for the tailer to read and batcher to flush to the pusher
+	time.Sleep(3 * time.Second)
+
+	// Stop should complete within ~drainTimeout (5s) + some margin, not hang forever
+	done := make(chan struct{})
+	go func() {
+		p.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Stop() did not complete, drain timeout may not be working")
+	}
+
+	if p.IsRunning() {
+		t.Error("expected pipeline to be stopped after drain timeout")
+	}
+}
+
+func TestPipelinePositionsSavedOnStop(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "access.log")
+	content := "line one\nline two\n"
+	if err := os.WriteFile(logFile, []byte(content), 0644); err != nil {
+		t.Fatalf("writing log file: %v", err)
+	}
+
+	posPath := filepath.Join(dir, "positions.json")
+	store := newTestPipelineConfig(server.URL, []string{"access"})
+	resolver := func() map[string]string { return map[string]string{"access": logFile} }
+
+	p := NewLokiPipeline(store, posPath, resolver)
+	p.Start()
+	if !p.IsRunning() {
+		t.Fatal("expected pipeline to be running")
+	}
+
+	// Wait for tailer to read both lines
+	time.Sleep(3 * time.Second)
+
+	p.Stop()
+
+	// Load the positions file written on Stop and verify the offset
+	saved := NewPositionStore(posPath)
+	if err := saved.Load(); err != nil {
+		t.Fatalf("loading saved positions: %v", err)
+	}
+	offset := saved.Get(logFile)
+	if offset != int64(len(content)) {
+		t.Errorf("saved offset: got %d, want %d", offset, len(content))
 	}
 }
 
