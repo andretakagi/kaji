@@ -6,7 +6,7 @@ Kaji is a young project and there's a lot of ground to cover. The most valuable 
 
 ### Testing
 
-Kaji hasn't been tested across a wide range of setups yet. If you run Caddy in a homelab, we'd love for you to try Kaji and tell us what breaks or feels incomplete.
+Kaji hasn't been tested across a wide range of setups yet. If you run Caddy, we'd love for you to try Kaji and tell us what breaks or feels incomplete.
 
 Things to pay attention to:
 
@@ -15,6 +15,7 @@ Things to pay attention to:
 - **Config snapshots** - Can you snapshot, restore, and get back to a known-good state reliably?
 - **Caddyfile import/export** - Does importing your existing Caddyfile produce the right routes? Does exporting match what you'd expect?
 - **Logs and metrics** - Are log filters, pagination, and real-time streaming working? Do per-host metrics show up correctly?
+- **Loki push** - If you run Loki, does enabling log forwarding work? Do labels, flush interval, and tenant ID behave correctly? Does the connection indicator reflect actual status?
 - **Docker vs bare metal** - We support both, but edge cases likely exist in each mode. Note which you're running when reporting issues.
 - **Mobile** - The UI is meant to work on phones. If something is broken or awkward on a small screen, that's a bug.
 
@@ -31,7 +32,7 @@ Even vague reports like "the snapshot restore didn't seem to work" are useful at
 
 ### Feature gaps
 
-If you hit something Kaji should handle but doesn't, open an issue and describe the use case. We're keeping scope intentionally small, but real-world homelab needs inform what's worth adding.
+If you hit something Kaji should handle but doesn't, open an issue and describe the use case. We're keeping scope intentionally small, but real-world needs inform what's worth adding.
 
 ## Development
 

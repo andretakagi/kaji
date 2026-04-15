@@ -7,7 +7,7 @@
 
 A lightweight web GUI for [Caddy](https://caddyserver.com). Point subdomains at ports. No YAML, no Caddyfile editing, no CLI.
 
-Kaji is the **Nginx Proxy Manager of Caddy**: a simple, self-hosted dashboard for homelabbers who want automatic HTTPS reverse proxying without the config file gymnastics.
+Kaji gives you a clean dashboard for managing Caddy reverse proxy routes, TLS certificates, and logging - without editing config files. Single binary, works on bare metal or Docker.
 
 ## Features
 
@@ -15,7 +15,9 @@ Kaji is the **Nginx Proxy Manager of Caddy**: a simple, self-hosted dashboard fo
 - **Per-route toggles** - Force HTTPS, gzip/zstd compression, security headers, CORS, TLS skip verify, basic auth, access logging, WebSocket passthrough, and load balancing with multiple upstreams.
 - **IP allow/block lists** - Named whitelist and blacklist definitions with composable child lists. Cascade logic rebuilds affected routes when lists change.
 - **Config snapshots** - Automatic snapshots before config changes with manual snapshot support. Restore any previous state with one click.
-- **Logs and metrics** - Filter by level, host, or status code. Paginated history and real-time streaming. Configurable log sinks and per-host Prometheus metrics.
+- **Logs and metrics** - Filter by level, host, or status code. Paginated history and real-time streaming with configurable log sinks.
+- **Prometheus metrics** - Per-host request metrics with toggleable metric endpoints.
+- **Loki push** - Forward access logs to a Loki instance with configurable endpoint, labels, flush interval, and tenant ID.
 - **Caddyfile import/export** - Import existing Caddyfile configs or export current config as a Caddyfile.
 - **Cloudflare DNS** - Built-in `caddy-dns/cloudflare` module for DNS-01 ACME challenges. Supports wildcard certs and domains where HTTP-01 isn't viable.
 - **Auth and API keys** - Optional password auth with API key support for automation.
