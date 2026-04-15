@@ -139,6 +139,36 @@ func TestSignAndValidateToken(t *testing.T) {
 			t.Fatal("ValidateSignedToken accepted an expired token")
 		}
 	})
+
+	t.Run("future timestamp rejected", func(t *testing.T) {
+		issuedAt := strconv.FormatInt(time.Now().Unix()+3600, 10)
+		payload := token + "." + issuedAt
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(payload))
+		sig := hex.EncodeToString(mac.Sum(nil))
+		signed := token + "." + issuedAt + "." + sig
+		if ValidateSignedToken(signed, secret, 0) {
+			t.Fatal("ValidateSignedToken accepted a token issued in the future")
+		}
+	})
+
+	t.Run("non-hex signature rejected", func(t *testing.T) {
+		signed := token + ".1234567890.not-valid-hex!@#$"
+		if ValidateSignedToken(signed, secret, 0) {
+			t.Fatal("ValidateSignedToken accepted a non-hex signature")
+		}
+	})
+
+	t.Run("non-numeric issuedAt rejected", func(t *testing.T) {
+		payload := token + ".notanumber"
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(payload))
+		sig := hex.EncodeToString(mac.Sum(nil))
+		signed := token + ".notanumber." + sig
+		if ValidateSignedToken(signed, secret, 0) {
+			t.Fatal("ValidateSignedToken accepted a non-numeric issuedAt")
+		}
+	})
 }
 
 func TestShouldSecure(t *testing.T) {
@@ -219,6 +249,56 @@ func TestSessionCookie(t *testing.T) {
 		got := GetSessionToken(r2)
 		if got != token {
 			t.Errorf("GetSessionToken = %q, want %q", got, token)
+		}
+	})
+
+	t.Run("mode never sets Secure false", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.TLS = &tls.ConnectionState{}
+
+		SetSessionCookie(rec, r, token, DefaultSessionMaxAge, "never")
+
+		var found *http.Cookie
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == sessionCookieName {
+				found = c
+				break
+			}
+		}
+		if found == nil {
+			t.Fatal("session cookie not found")
+		}
+		if found.Secure {
+			t.Error("cookie should not be Secure when mode=never")
+		}
+	})
+
+	t.Run("cookie attributes", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.TLS = &tls.ConnectionState{}
+
+		SetSessionCookie(rec, r, token, DefaultSessionMaxAge, "always")
+
+		var found *http.Cookie
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == sessionCookieName {
+				found = c
+				break
+			}
+		}
+		if found == nil {
+			t.Fatal("session cookie not found")
+		}
+		if found.SameSite != http.SameSiteStrictMode {
+			t.Errorf("SameSite = %v, want SameSiteStrictMode", found.SameSite)
+		}
+		if found.Path != "/" {
+			t.Errorf("Path = %q, want /", found.Path)
+		}
+		if found.MaxAge != DefaultSessionMaxAge {
+			t.Errorf("MaxAge = %d, want %d", found.MaxAge, DefaultSessionMaxAge)
 		}
 	})
 
