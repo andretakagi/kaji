@@ -118,7 +118,9 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 
 	if autoSnapshot {
 		name := "pre-import-" + backup.Manifest.ExportedAt
-		ss.Create(name, "Auto-snapshot before full import", "auto", currentConfig)
+		if _, err := ss.Create(name, "Auto-snapshot before full import", "auto", currentConfig); err != nil {
+			return fmt.Errorf("creating pre-import snapshot: %w", err)
+		}
 	}
 
 	if err := cc.LoadConfig(backup.CaddyConfig); err != nil {
