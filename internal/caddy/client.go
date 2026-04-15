@@ -71,7 +71,7 @@ func (c *Client) IsReachable() bool {
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 	return true
 }
 
