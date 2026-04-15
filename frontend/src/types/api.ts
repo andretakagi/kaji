@@ -158,6 +158,7 @@ export interface ImportResponse {
 	snapshot_count?: number;
 	migrated_from?: string;
 	migration_log?: string[];
+	warnings?: string[];
 }
 
 export interface SetupImportFullResponse {

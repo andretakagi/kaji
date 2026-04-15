@@ -132,22 +132,24 @@ func ParseZIP(r io.Reader, size int64, runningVersion string) (*Backup, error) {
 	return &backup, nil
 }
 
-func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, autoSnapshot bool) error {
+func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, autoSnapshot bool) ([]string, error) {
 	currentConfig, err := cc.GetConfig()
 	if err != nil {
-		return fmt.Errorf("fetching current caddy config for rollback: %w", err)
+		return nil, fmt.Errorf("fetching current caddy config for rollback: %w", err)
 	}
 
 	if autoSnapshot {
 		name := "pre-import-" + backup.Manifest.ExportedAt
 		if _, err := ss.Create(name, "Auto-snapshot before full import", "auto", currentConfig); err != nil {
-			return fmt.Errorf("creating pre-import snapshot: %w", err)
+			return nil, fmt.Errorf("creating pre-import snapshot: %w", err)
 		}
 	}
 
 	if err := cc.LoadConfig(backup.CaddyConfig); err != nil {
-		return fmt.Errorf("loading caddy config: %w", err)
+		return nil, fmt.Errorf("loading caddy config: %w", err)
 	}
+
+	var warnings []string
 
 	if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
 		imported := backup.AppConfig
@@ -155,20 +157,115 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 		imported.SessionSecret = current.SessionSecret
 		imported.SessionMaxAge = current.SessionMaxAge
 		imported.SecureCookies = current.SecureCookies
+
+		warnings = reconcilePaths(&imported, &current)
+
 		return &imported, nil
 	}); err != nil {
 		cc.LoadConfig(currentConfig)
-		return fmt.Errorf("updating app config: %w", err)
+		return nil, fmt.Errorf("updating app config: %w", err)
 	}
 
 	if backup.Snapshots != nil {
 		if err := restoreSnapshots(ss, backup.Snapshots); err != nil {
 			cc.LoadConfig(currentConfig)
-			return fmt.Errorf("restoring snapshots: %w", err)
+			return nil, fmt.Errorf("restoring snapshots: %w", err)
 		}
 	}
 
-	return nil
+	return warnings, nil
+}
+
+// reconcilePaths validates machine-specific paths from the imported config
+// against the current filesystem. If an imported path doesn't exist, it falls
+// back to the current config's value (for existing installs) or the platform
+// default (for fresh setups). Returns warnings describing any adjustments.
+func reconcilePaths(imported *config.AppConfig, current *config.AppConfig) []string {
+	defaults := config.DefaultConfig()
+	var warnings []string
+
+	// caddy_config_path: check that the directory containing the config file exists
+	if imported.CaddyConfigPath != "" {
+		dir := filepath.Dir(imported.CaddyConfigPath)
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			original := imported.CaddyConfigPath
+			if current.CaddyConfigPath != "" && dirExists(filepath.Dir(current.CaddyConfigPath)) {
+				imported.CaddyConfigPath = current.CaddyConfigPath
+			} else {
+				imported.CaddyConfigPath = defaults.CaddyConfigPath
+			}
+			if imported.CaddyConfigPath != original {
+				warnings = append(warnings, fmt.Sprintf(
+					"Caddy config path adjusted from %s to %s (original path not found on this machine)",
+					original, imported.CaddyConfigPath,
+				))
+			}
+		}
+	}
+
+	// caddy_data_dir: only matters if explicitly set (empty uses auto-detection)
+	if imported.CaddyDataDir != "" {
+		if !dirExists(imported.CaddyDataDir) {
+			original := imported.CaddyDataDir
+			if current.CaddyDataDir != "" && dirExists(current.CaddyDataDir) {
+				imported.CaddyDataDir = current.CaddyDataDir
+			} else {
+				imported.CaddyDataDir = ""
+			}
+			adjusted := imported.CaddyDataDir
+			if adjusted == "" {
+				adjusted = "(auto-detect)"
+			}
+			warnings = append(warnings, fmt.Sprintf(
+				"Caddy data directory adjusted from %s to %s (original path not found on this machine)",
+				original, adjusted,
+			))
+		}
+	}
+
+	// log_file
+	if imported.LogFile != "" {
+		dir := filepath.Dir(imported.LogFile)
+		if !dirExists(dir) {
+			original := imported.LogFile
+			if current.LogFile != "" && dirExists(filepath.Dir(current.LogFile)) {
+				imported.LogFile = current.LogFile
+			} else {
+				imported.LogFile = defaults.LogFile
+			}
+			if imported.LogFile != original {
+				warnings = append(warnings, fmt.Sprintf(
+					"Log file path adjusted from %s to %s (original path not found on this machine)",
+					original, imported.LogFile,
+				))
+			}
+		}
+	}
+
+	// log_dir
+	if imported.LogDir != "" {
+		if !dirExists(imported.LogDir) {
+			original := imported.LogDir
+			if current.LogDir != "" && dirExists(current.LogDir) {
+				imported.LogDir = current.LogDir
+			} else {
+				imported.LogDir = defaults.LogDir
+			}
+			if imported.LogDir != original {
+				warnings = append(warnings, fmt.Sprintf(
+					"Log directory adjusted from %s to %s (original path not found on this machine)",
+					original, imported.LogDir,
+				))
+			}
+		}
+	}
+
+	return warnings
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func restoreSnapshots(ss *snapshot.Store, data *SnapshotData) error {

@@ -101,10 +101,12 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 					log.Printf("handleSetup: parse backup data: %v", err)
 					warnings = append(warnings, "failed to parse backup data: "+err.Error())
 				} else {
-					if err := export.Restore(&backup, cc, store, ss, false); err != nil {
+					restoreWarnings, err := export.Restore(&backup, cc, store, ss, false)
+					if err != nil {
 						log.Printf("handleSetup: restore backup: %v", err)
 						warnings = append(warnings, "failed to restore backup: "+err.Error())
 					}
+					warnings = append(warnings, restoreWarnings...)
 					store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
 						current.PasswordHash = newCfg.PasswordHash
 						current.SessionSecret = newCfg.SessionSecret

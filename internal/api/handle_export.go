@@ -136,7 +136,8 @@ func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 			return
 		}
 
-		if err := export.Restore(backup, cc, store, ss, true); err != nil {
+		restoreWarnings, err := export.Restore(backup, cc, store, ss, true)
+		if err != nil {
 			log.Printf("handleImportFull: %v", err)
 			writeError(w, "import failed: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -159,6 +160,9 @@ func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 		if len(backup.MigrationLog) > 0 {
 			resp["migrated_from"] = backup.Manifest.KajiVersion
 			resp["migration_log"] = backup.MigrationLog
+		}
+		if len(restoreWarnings) > 0 {
+			resp["warnings"] = restoreWarnings
 		}
 		writeJSON(w, resp)
 	}

@@ -231,6 +231,9 @@ function ExportImportSection() {
 			if (result.migrated_from && result.migration_log?.length) {
 				message += `\n\nMigrated from ${result.migrated_from}:\n${result.migration_log.map((c) => `  - ${c}`).join("\n")}`;
 			}
+			if (result.warnings?.length) {
+				message += `\n\nPath adjustments:\n${result.warnings.map((w) => `  - ${w}`).join("\n")}`;
+			}
 			return message;
 		});
 	};
