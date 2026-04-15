@@ -82,14 +82,17 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 			return
 		}
 
-		data, snapErr := buildSnapshotData(cc, store, version)
-		if snapErr != nil {
-			log.Printf("handleImportCaddyfile: pre-import snapshot: %v", snapErr)
-		} else {
-			name := "pre-import-" + time.Now().Format("2006-01-02T15:04:05")
-			if _, err := ss.Create(name, "Before Caddyfile import", "auto", data); err != nil {
-				log.Printf("handleImportCaddyfile: pre-import snapshot: %v", err)
-			}
+		data, err := buildSnapshotData(cc, store, version)
+		if err != nil {
+			log.Printf("handleImportCaddyfile: pre-import snapshot: %v", err)
+			writeError(w, "failed to create pre-import snapshot: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		name := "pre-import-" + time.Now().Format("2006-01-02T15:04:05")
+		if _, err := ss.Create(name, "Before Caddyfile import", "auto", data); err != nil {
+			log.Printf("handleImportCaddyfile: pre-import snapshot: %v", err)
+			writeError(w, "failed to create pre-import snapshot: "+err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		if err := cc.LoadConfig(adaptedJSON); err != nil {
