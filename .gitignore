@@ -25,6 +25,7 @@ docker-compose.override.yml
 # Environment / secrets
 .env
 .env.*
+!.env.example
 config.json
 
 # Docs (internal reference only)
