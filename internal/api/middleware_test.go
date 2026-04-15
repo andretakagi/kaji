@@ -15,6 +15,7 @@ import (
 
 	"github.com/andretakagi/kaji/internal/auth"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/export"
 )
 
 // okHandler is a minimal handler that writes 200 OK.
@@ -309,5 +310,184 @@ func TestAccessLogSkipsNonAPIPath(t *testing.T) {
 	}
 	if !strings.HasPrefix("/index.html", "/api/") && rec.Code != http.StatusOK {
 		t.Errorf("got %d, want 200", rec.Code)
+	}
+}
+
+// TestLimitRequestBodyLargeUploadPath verifies that /api/import/full gets the
+// larger MaxZIPSize limit instead of the default 1 MB limit.
+func TestLimitRequestBodyLargeUploadPath(t *testing.T) {
+	readBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := limitRequestBody(readBody)
+
+	// 2 MB body - exceeds default 1 MB but fits within MaxZIPSize (5 MB)
+	body := bytes.Repeat([]byte("x"), 2<<20)
+
+	for _, path := range []string{"/api/import/full", "/api/setup/import/full"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Errorf("got %d, want 200 (large upload path should allow >1 MB)", rec.Code)
+			}
+		})
+	}
+
+	// Same body on a regular path should be rejected
+	t.Run("regular path rejects same body", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/something", bytes.NewReader(body))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusRequestEntityTooLarge {
+			t.Errorf("got %d, want 413", rec.Code)
+		}
+	})
+}
+
+// TestLimitRequestBodyLargeUploadExceedsMax verifies that even large upload
+// paths reject bodies exceeding MaxZIPSize.
+func TestLimitRequestBodyLargeUploadExceedsMax(t *testing.T) {
+	readBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := limitRequestBody(readBody)
+
+	oversized := make([]byte, export.MaxZIPSize+1)
+	req := httptest.NewRequest(http.MethodPost, "/api/import/full", bytes.NewReader(oversized))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("got %d, want 413 (should reject bodies exceeding MaxZIPSize)", rec.Code)
+	}
+}
+
+// TestLimitRequestBodyPutAndPatch verifies that PUT and PATCH methods also
+// have their body size limited.
+func TestLimitRequestBodyPutAndPatch(t *testing.T) {
+	readBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := limitRequestBody(readBody)
+	oversized := bytes.Repeat([]byte("x"), (1<<20)+1)
+
+	for _, method := range []string{http.MethodPut, http.MethodPatch} {
+		t.Run(method, func(t *testing.T) {
+			req := httptest.NewRequest(method, "/api/settings", bytes.NewReader(oversized))
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != http.StatusRequestEntityTooLarge {
+				t.Errorf("%s: got %d, want 413", method, rec.Code)
+			}
+		})
+	}
+}
+
+// TestLimitRequestBodyDeleteMethod verifies that DELETE requests also have
+// body size limited.
+func TestLimitRequestBodyDeleteMethod(t *testing.T) {
+	readBody := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := limitRequestBody(readBody)
+	oversized := bytes.Repeat([]byte("x"), (1<<20)+1)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/routes/test", bytes.NewReader(oversized))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("DELETE: got %d, want 413", rec.Code)
+	}
+}
+
+// TestExtractBearerTokenEdgeCases tests extractBearerToken with various
+// Authorization header values.
+func TestExtractBearerTokenEdgeCases(t *testing.T) {
+	cases := []struct {
+		name      string
+		header    string
+		wantToken string
+		wantOK    bool
+	}{
+		{"empty header", "", "", false},
+		{"just bearer", "Bearer", "", false},
+		{"bearer with space no token", "Bearer ", "", false},
+		{"bearer lowercase", "bearer mytoken", "mytoken", true},
+		{"bearer mixed case", "BEARER mytoken", "mytoken", true},
+		{"bearer with extra spaces in token", "Bearer  token-with-leading-space", " token-with-leading-space", true},
+		{"basic auth ignored", "Basic dXNlcjpwYXNz", "", false},
+		{"short string", "Bear", "", false},
+		{"exactly 7 chars no match", "Bearerx", "", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+			token, ok := extractBearerToken(req)
+			if ok != tc.wantOK {
+				t.Errorf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if token != tc.wantToken {
+				t.Errorf("token = %q, want %q", token, tc.wantToken)
+			}
+		})
+	}
+}
+
+// TestHasBearerTokenEdgeCases tests hasBearerToken with edge-case headers.
+func TestHasBearerTokenEdgeCases(t *testing.T) {
+	cases := []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		{"empty", "", false},
+		{"just bearer keyword", "Bearer", false},
+		{"bearer with space only", "Bearer ", false},
+		{"valid bearer", "Bearer abc123", true},
+		{"basic auth", "Basic xyz", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+			got := hasBearerToken(req)
+			if got != tc.want {
+				t.Errorf("hasBearerToken = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
