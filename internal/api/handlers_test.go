@@ -59,7 +59,9 @@ func (fc *fakeCaddy) handler() http.Handler {
 			w.Write([]byte(`{}`))
 
 		case r.URL.Path == "/adapt" && r.Method == http.MethodPost:
-			w.Write([]byte(`{"result":{}}`))
+			caddyfileBytes, _ := io.ReadAll(r.Body)
+			result := fc.buildAdaptResult(string(caddyfileBytes))
+			w.Write(result)
 
 		case r.URL.Path == "/reverse_proxy/upstreams":
 			w.Write([]byte(`[]`))
@@ -168,6 +170,20 @@ func (fc *fakeCaddy) removeRouteFromConfig(id string) {
 		srv["routes"] = filtered
 		servers[srvName] = srv
 	}
+}
+
+// buildAdaptResult builds a minimal adapted JSON response from Caddyfile text.
+// This approximates what Caddy's real /adapt endpoint returns.
+func (fc *fakeCaddy) buildAdaptResult(caddyfileText string) []byte {
+	result := map[string]any{}
+
+	adminAddr := caddy.ParseCaddyfileAdminAddr(caddyfileText)
+	if adminAddr != "" {
+		result["admin"] = map[string]any{"listen": adminAddr}
+	}
+
+	data, _ := json.Marshal(map[string]any{"result": result})
+	return data
 }
 
 func (fc *fakeCaddy) getPath(path string) any {
@@ -1439,5 +1455,76 @@ func TestHandleSnapshotRestore(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &resp)
 	if resp["status"] != "ok" {
 		t.Errorf("snapshot restore status = %q, want ok", resp["status"])
+	}
+}
+
+// TestCaddyfileImportParity verifies that importing the same Caddyfile through
+// the setup flow and the settings flow produces the same app config. This
+// catches cases where a Caddyfile-derived setting (like admin URL) is handled
+// in one path but forgotten in the other.
+func TestCaddyfileImportParity(t *testing.T) {
+	caddyfile := "{\n\tadmin 10.0.0.1:2019\n}\n"
+
+	jsonBody := func(v any) string {
+		b, _ := json.Marshal(v)
+		return string(b)
+	}
+
+	// --- Setup flow: preview then submit ---
+	setupHarness := newTestHarness(t)
+
+	previewReq := httptest.NewRequest(http.MethodPost, "/api/setup/import/caddyfile",
+		strings.NewReader(jsonBody(map[string]string{"caddyfile": caddyfile})))
+	previewReq.Header.Set("Content-Type", "application/json")
+	previewRec := httptest.NewRecorder()
+	setupHarness.handler.ServeHTTP(previewRec, previewReq)
+	if previewRec.Code != http.StatusOK {
+		t.Fatalf("setup preview: got %d; body: %s", previewRec.Code, previewRec.Body.String())
+	}
+
+	var preview map[string]any
+	json.Unmarshal(previewRec.Body.Bytes(), &preview)
+
+	// Submit setup with the extracted settings (mimicking the frontend).
+	setupBody := map[string]any{
+		"password": "testpass",
+	}
+	if adminListen, ok := preview["admin_listen"].(string); ok && adminListen != "" {
+		setupBody["caddy_admin_url"] = "http://" + adminListen
+	}
+	if adaptedCfg, ok := preview["adapted_config"]; ok {
+		setupBody["caddyfile_json"] = adaptedCfg
+	}
+
+	setupReq := httptest.NewRequest(http.MethodPost, "/api/setup",
+		strings.NewReader(jsonBody(setupBody)))
+	setupReq.Header.Set("Content-Type", "application/json")
+	setupRec := httptest.NewRecorder()
+	setupHarness.handler.ServeHTTP(setupRec, setupReq)
+	if setupRec.Code != http.StatusOK {
+		t.Fatalf("setup submit: got %d; body: %s", setupRec.Code, setupRec.Body.String())
+	}
+
+	setupCfg := setupHarness.store.Get()
+
+	// --- Settings flow: direct import ---
+	settingsHarness := newTestHarness(t)
+	cookie := sessionCookie(settingsHarness.doSetup(t, "testpass"))
+
+	importReq := authedRequest(http.MethodPost, "/api/import/caddyfile",
+		jsonBody(map[string]string{"caddyfile": caddyfile}), cookie)
+	importRec := httptest.NewRecorder()
+	settingsHarness.handler.ServeHTTP(importRec, importReq)
+	if importRec.Code != http.StatusOK {
+		t.Fatalf("settings import: got %d; body: %s", importRec.Code, importRec.Body.String())
+	}
+
+	settingsCfg := settingsHarness.store.Get()
+
+	// --- Compare Caddyfile-derived app config fields ---
+	// When a new field is derived from imported Caddyfiles, add it here.
+	if setupCfg.CaddyAdminURL != settingsCfg.CaddyAdminURL {
+		t.Errorf("CaddyAdminURL mismatch: setup=%q, settings=%q",
+			setupCfg.CaddyAdminURL, settingsCfg.CaddyAdminURL)
 	}
 }
