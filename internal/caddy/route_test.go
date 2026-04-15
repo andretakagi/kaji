@@ -729,3 +729,282 @@ func TestParseRouteParamsLoadBalancingFirst(t *testing.T) {
 		t.Errorf("extra upstream[0] = %q, want localhost:8081", got.Toggles.LoadBalancing.Upstreams[0])
 	}
 }
+
+// --- IP filtering ---
+
+func TestBuildRouteIPFilteringBlacklist(t *testing.T) {
+	p := RouteParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.1", "192.168.1.0/24"},
+		IPListType: "blacklist",
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+
+	// First handler should be the IP filtering subroute
+	var sub struct {
+		Handler string `json:"handler"`
+		Routes  []struct {
+			Match []struct {
+				RemoteIP struct {
+					Ranges []string `json:"ranges"`
+				} `json:"remote_ip"`
+			} `json:"match"`
+			Handle []struct {
+				Handler    string `json:"handler"`
+				StatusCode string `json:"status_code"`
+			} `json:"handle"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(handlers[0], &sub); err != nil {
+		t.Fatalf("failed to parse IP filtering handler: %v", err)
+	}
+	if sub.Handler != "subroute" {
+		t.Fatalf("first handler = %q, want subroute", sub.Handler)
+	}
+	if len(sub.Routes) != 1 {
+		t.Fatalf("routes count = %d, want 1", len(sub.Routes))
+	}
+	if len(sub.Routes[0].Match) != 1 {
+		t.Fatalf("match count = %d, want 1", len(sub.Routes[0].Match))
+	}
+	ranges := sub.Routes[0].Match[0].RemoteIP.Ranges
+	if len(ranges) != 2 || ranges[0] != "10.0.0.1" || ranges[1] != "192.168.1.0/24" {
+		t.Errorf("ranges = %v, want [10.0.0.1 192.168.1.0/24]", ranges)
+	}
+	if sub.Routes[0].Handle[0].StatusCode != "403" {
+		t.Errorf("status_code = %q, want 403", sub.Routes[0].Handle[0].StatusCode)
+	}
+}
+
+func TestBuildRouteIPFilteringWhitelist(t *testing.T) {
+	p := RouteParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.0/8"},
+		IPListType: "whitelist",
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+
+	// Whitelist wraps the remote_ip matcher in a "not" block
+	var sub struct {
+		Handler string `json:"handler"`
+		Routes  []struct {
+			Match []map[string]json.RawMessage `json:"match"`
+			Handle []struct {
+				StatusCode string `json:"status_code"`
+			} `json:"handle"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(handlers[0], &sub); err != nil {
+		t.Fatalf("failed to parse IP filtering handler: %v", err)
+	}
+	if sub.Handler != "subroute" {
+		t.Fatalf("first handler = %q, want subroute", sub.Handler)
+	}
+	match := sub.Routes[0].Match[0]
+	notRaw, ok := match["not"]
+	if !ok {
+		t.Fatal("whitelist match should contain a 'not' key")
+	}
+	var nots []struct {
+		RemoteIP struct {
+			Ranges []string `json:"ranges"`
+		} `json:"remote_ip"`
+	}
+	if err := json.Unmarshal(notRaw, &nots); err != nil {
+		t.Fatalf("failed to parse not block: %v", err)
+	}
+	if len(nots) != 1 || len(nots[0].RemoteIP.Ranges) != 1 || nots[0].RemoteIP.Ranges[0] != "10.0.0.0/8" {
+		t.Errorf("not ranges = %v, want [[10.0.0.0/8]]", nots)
+	}
+	if sub.Routes[0].Handle[0].StatusCode != "403" {
+		t.Errorf("status_code = %q, want 403", sub.Routes[0].Handle[0].StatusCode)
+	}
+}
+
+func TestBuildRouteIPFilteringSkippedWhenEmpty(t *testing.T) {
+	p := RouteParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{},
+		IPListType: "blacklist",
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+	names := handlerNames(t, handlers)
+	if len(names) != 1 || names[0] != "reverse_proxy" {
+		t.Errorf("handlers = %v, want [reverse_proxy] when IPListIPs is empty", names)
+	}
+}
+
+func TestParseRouteParamsIPFilteringBlacklist(t *testing.T) {
+	p := RouteParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.1"},
+		IPListType: "blacklist",
+	}
+	raw, err := BuildRoute(p)
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+	got, err := ParseRouteParams(raw)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+	if !got.Toggles.IPFiltering.Enabled {
+		t.Error("IPFiltering.Enabled should be true")
+	}
+	if got.Toggles.IPFiltering.Type != "blacklist" {
+		t.Errorf("IPFiltering.Type = %q, want blacklist", got.Toggles.IPFiltering.Type)
+	}
+}
+
+func TestParseRouteParamsIPFilteringWhitelist(t *testing.T) {
+	p := RouteParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.0/8"},
+		IPListType: "whitelist",
+	}
+	raw, err := BuildRoute(p)
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+	got, err := ParseRouteParams(raw)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+	if !got.Toggles.IPFiltering.Enabled {
+		t.Error("IPFiltering.Enabled should be true")
+	}
+	if got.Toggles.IPFiltering.Type != "whitelist" {
+		t.Errorf("IPFiltering.Type = %q, want whitelist", got.Toggles.IPFiltering.Type)
+	}
+}
+
+// --- Caddyfile-adapted route structure ---
+
+func TestParseRouteParamsCaddyfileWrappedSubroute(t *testing.T) {
+	// Caddyfile-adapted routes wrap all handlers inside a single top-level
+	// subroute, with each handler in its own nested route.
+	caddyfileRoute := json.RawMessage(`{
+		"@id": "kaji_example_com",
+		"match": [{"host": ["example.com"]}],
+		"handle": [{
+			"handler": "subroute",
+			"routes": [
+				{
+					"handle": [{
+						"handler": "encode",
+						"encodings": {"gzip": {}, "zstd": {}},
+						"prefer": ["zstd", "gzip"]
+					}]
+				},
+				{
+					"handle": [{
+						"handler": "reverse_proxy",
+						"upstreams": [{"dial": "localhost:9000"}]
+					}]
+				}
+			]
+		}],
+		"terminal": true
+	}`)
+
+	got, err := ParseRouteParams(caddyfileRoute)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+	if got.Domain != "example.com" {
+		t.Errorf("Domain = %q, want example.com", got.Domain)
+	}
+	if got.Upstream != "localhost:9000" {
+		t.Errorf("Upstream = %q, want localhost:9000", got.Upstream)
+	}
+	if !got.Toggles.Compression {
+		t.Error("Compression should be detected from unwrapped subroute")
+	}
+}
+
+func TestParseRouteParamsCaddyfileForceHTTPSWithHandlers(t *testing.T) {
+	// Caddyfile-adapted route where ForceHTTPS subroute also contains
+	// additional handlers (like reverse_proxy) in non-redirect routes.
+	caddyfileRoute := json.RawMessage(`{
+		"@id": "kaji_app_com",
+		"match": [{"host": ["app.com"]}],
+		"handle": [{
+			"handler": "subroute",
+			"routes": [
+				{
+					"match": [{"protocol": "http"}],
+					"handle": [{
+						"handler": "static_response",
+						"status_code": "301",
+						"headers": {"Location": ["https://{http.request.host}{http.request.uri}"]}
+					}]
+				},
+				{
+					"handle": [{
+						"handler": "reverse_proxy",
+						"upstreams": [{"dial": "localhost:3000"}]
+					}]
+				}
+			]
+		}],
+		"terminal": true
+	}`)
+
+	got, err := ParseRouteParams(caddyfileRoute)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+	if !got.Toggles.ForceHTTPS {
+		t.Error("ForceHTTPS should be detected")
+	}
+	if got.Upstream != "localhost:3000" {
+		t.Errorf("Upstream = %q, want localhost:3000", got.Upstream)
+	}
+}
+
+// --- Malformed / empty JSON ---
+
+func TestParseRouteParamsEmptyInput(t *testing.T) {
+	_, err := ParseRouteParams(json.RawMessage(``))
+	if err == nil {
+		t.Error("expected error for empty input")
+	}
+}
+
+func TestParseRouteParamsInvalidJSON(t *testing.T) {
+	_, err := ParseRouteParams(json.RawMessage(`{not json`))
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestParseRouteParamsEmptyObject(t *testing.T) {
+	got, err := ParseRouteParams(json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Domain != "" {
+		t.Errorf("Domain = %q, want empty", got.Domain)
+	}
+	if got.Upstream != "" {
+		t.Errorf("Upstream = %q, want empty", got.Upstream)
+	}
+}
+
+func TestParseRouteParamsNoMatchNoHandle(t *testing.T) {
+	got, err := ParseRouteParams(json.RawMessage(`{"@id": "test_route"}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID != "test_route" {
+		t.Errorf("ID = %q, want test_route", got.ID)
+	}
+	if got.Domain != "" {
+		t.Errorf("Domain = %q, want empty", got.Domain)
+	}
+}
