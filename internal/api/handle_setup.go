@@ -25,7 +25,7 @@ func handleSetupStatus(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Password            string               `json:"password"`
@@ -101,7 +101,7 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 					log.Printf("handleSetup: parse backup data: %v", err)
 					warnings = append(warnings, "failed to parse backup data: "+err.Error())
 				} else {
-					restoreWarnings, err := export.Restore(&backup, cc, store, ss, false)
+					restoreWarnings, err := export.Restore(&backup, cc, store, ss, false, version)
 					if err != nil {
 						log.Printf("handleSetup: restore backup: %v", err)
 						warnings = append(warnings, "failed to restore backup: "+err.Error())

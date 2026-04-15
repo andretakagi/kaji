@@ -117,11 +117,11 @@ func TestParseZIPWithSnapshots(t *testing.T) {
 	}
 
 	data := buildTestZIP(t, map[string][]byte{
-		"kaji-export/manifest.json":          mustJSON(t, validManifest("1.0.0")),
-		"kaji-export/caddy.json":             validCaddyConfig(),
-		"kaji-export/config.json":            mustJSON(t, validAppConfig()),
-		"kaji-export/snapshots/index.json":   mustJSON(t, snapIndex),
-		"kaji-export/snapshots/snap1.json":   []byte(`{"routes":[]}`),
+		"kaji-export/manifest.json":        mustJSON(t, validManifest("1.0.0")),
+		"kaji-export/caddy.json":           validCaddyConfig(),
+		"kaji-export/config.json":          mustJSON(t, validAppConfig()),
+		"kaji-export/snapshots/index.json": mustJSON(t, snapIndex),
+		"kaji-export/snapshots/snap1.json": []byte(`{"routes":[]}`),
 	})
 
 	backup, err := ParseZIP(bytes.NewReader(data), int64(len(data)), "1.0.0")
@@ -248,7 +248,7 @@ func TestRestoreSnapshots(t *testing.T) {
 	dir := t.TempDir()
 	ss := snapshot.NewStore(dir)
 
-	existing, err := ss.Create("existing", "pre-existing", "manual", json.RawMessage(`{"old":true}`))
+	existing, err := ss.Create("existing", "pre-existing", "manual", &snapshot.Data{CaddyConfig: json.RawMessage(`{"old":true}`)})
 	if err != nil {
 		t.Fatalf("Create existing: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestRestoreSnapshotsDeduplicates(t *testing.T) {
 	dir := t.TempDir()
 	ss := snapshot.NewStore(dir)
 
-	existing, err := ss.Create("dupe", "original", "manual", json.RawMessage(`{"v":1}`))
+	existing, err := ss.Create("dupe", "original", "manual", &snapshot.Data{CaddyConfig: json.RawMessage(`{"v":1}`)})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

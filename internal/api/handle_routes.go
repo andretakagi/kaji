@@ -12,7 +12,7 @@ import (
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
 
-func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Server   string             `json:"server"`
@@ -81,7 +81,7 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, "Route created: "+req.Domain)
+		maybeAutoSnapshot(cc, ss, store, version, "Route created: "+req.Domain)
 
 		if err := cc.AddRoute(req.Server, route); err != nil {
 			caddyError(w, "handleCreateRoute", err)
@@ -99,7 +99,7 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 	}
 }
 
-func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		routeID := r.PathValue("id")
 		if routeID == "" {
@@ -136,7 +136,7 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		if info.domain != "" {
 			desc = "Route deleted: " + info.domain
 		}
-		maybeAutoSnapshot(cc, ss, desc)
+		maybeAutoSnapshot(cc, ss, store, version, desc)
 
 		if err := cc.DeleteByID(routeID); err != nil {
 			caddyError(w, "handleDeleteRoute", err)
@@ -163,7 +163,7 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 	}
 }
 
-func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		routeID := r.PathValue("id")
 		if routeID == "" {
@@ -232,7 +232,7 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		// Capture old sink before replacing
 		oldInfo := lookupRouteSink(cc, routeID)
 
-		maybeAutoSnapshot(cc, ss, "Route updated: "+req.Domain)
+		maybeAutoSnapshot(cc, ss, store, version, "Route updated: "+req.Domain)
 
 		server, err := cc.ReplaceRouteByID(routeID, route)
 		if err != nil {
@@ -258,7 +258,7 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 	}
 }
 
-func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ID string `json:"@id"`
@@ -300,7 +300,7 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, "Route disabled: "+req.ID)
+		maybeAutoSnapshot(cc, ss, store, version, "Route disabled: "+req.ID)
 
 		if err := cc.DeleteByID(req.ID); err != nil {
 			// Roll back: remove the entry we just saved
@@ -335,7 +335,7 @@ func handleDisableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 	}
 }
 
-func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ID string `json:"@id"`
@@ -378,7 +378,7 @@ func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, "Route enabled: "+req.ID)
+		maybeAutoSnapshot(cc, ss, store, version, "Route enabled: "+req.ID)
 
 		if err := cc.AddRoute(disabled.Server, disabled.Route); err != nil {
 			// Roll back: re-add the entry to the disabled list

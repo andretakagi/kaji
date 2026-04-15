@@ -54,7 +54,7 @@ func TestBuildZIPRoundTrip(t *testing.T) {
 
 	ssDir := t.TempDir()
 	ss := snapshot.NewStore(ssDir)
-	ss.Create("snap-a", "first snapshot", "manual", json.RawMessage(`{"snap":"a"}`))
+	ss.Create("snap-a", "first snapshot", "manual", &snapshot.Data{CaddyConfig: json.RawMessage(`{"snap":"a"}`)})
 
 	var buf bytes.Buffer
 	if err := BuildZIP(&buf, cc, store, ss, "1.2.3"); err != nil {
@@ -193,7 +193,7 @@ func TestBuildAndParseRoundTrip(t *testing.T) {
 
 	ssDir := t.TempDir()
 	ss := snapshot.NewStore(ssDir)
-	ss.Create("roundtrip", "test", "manual", json.RawMessage(`{"rt":true}`))
+	ss.Create("roundtrip", "test", "manual", &snapshot.Data{CaddyConfig: json.RawMessage(`{"rt":true}`)})
 
 	var buf bytes.Buffer
 	if err := BuildZIP(&buf, cc, store, ss, "1.0.0"); err != nil {

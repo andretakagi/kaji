@@ -132,15 +132,28 @@ func ParseZIP(r io.Reader, size int64, runningVersion string) (*Backup, error) {
 	return &backup, nil
 }
 
-func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, autoSnapshot bool) ([]string, error) {
+func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, autoSnapshot bool, version string) ([]string, error) {
 	currentConfig, err := cc.GetConfig()
 	if err != nil {
 		return nil, fmt.Errorf("fetching current caddy config for rollback: %w", err)
 	}
 
 	if autoSnapshot {
+		cfg := store.Get()
+		stripped := *cfg
+		stripped.PasswordHash = ""
+		stripped.SessionSecret = ""
+		stripped.SessionMaxAge = 0
+		stripped.SecureCookies = ""
+		appJSON, _ := json.Marshal(stripped)
+
+		data := &snapshot.Data{
+			KajiVersion: version,
+			CaddyConfig: currentConfig,
+			AppConfig:   json.RawMessage(appJSON),
+		}
 		name := "pre-import-" + backup.Manifest.ExportedAt
-		if _, err := ss.Create(name, "Auto-snapshot before full import", "auto", currentConfig); err != nil {
+		if _, err := ss.Create(name, "Auto-snapshot before full import", "auto", data); err != nil {
 			return nil, fmt.Errorf("creating pre-import snapshot: %w", err)
 		}
 	}

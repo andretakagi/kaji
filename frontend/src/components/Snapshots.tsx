@@ -64,8 +64,11 @@ export default function Snapshots() {
 
 	const handleRestore = (id: string) =>
 		restoreAction.run(async () => {
-			await restoreSnapshot(id);
+			const result = await restoreSnapshot(id);
 			await load();
+			if (result.legacy) {
+				return "Snapshot restored (Caddy config only - this is a legacy snapshot, app settings were not changed)";
+			}
 			return "Snapshot restored";
 		});
 
@@ -158,8 +161,8 @@ export default function Snapshots() {
 
 			{snapshots.length === 0 ? (
 				<div className="empty-state">
-					No snapshots yet. Snapshots capture a point-in-time copy of your entire Caddy
-					configuration, so you can restore it later if something goes wrong.
+					No snapshots yet. Snapshots capture a point-in-time copy of your Caddy configuration and
+					app settings, so you can restore everything if something goes wrong.
 				</div>
 			) : (
 				<div className="snapshot-list">
@@ -173,6 +176,11 @@ export default function Snapshots() {
 										{s.name}
 									</span>
 									<span className={`snapshot-badge ${s.type}`}>{s.type}</span>
+									{s.kaji_version ? (
+										<span className="snapshot-badge version">v{s.kaji_version}</span>
+									) : (
+										<span className="snapshot-badge legacy">caddy only</span>
+									)}
 									{isCurrent && <span className="snapshot-badge active">current</span>}
 									<span className="snapshot-time">{formatTime(s.created_at)}</span>
 								</div>

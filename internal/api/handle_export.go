@@ -49,7 +49,7 @@ func handleExportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 	}
 }
 
-func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store) http.HandlerFunc {
+func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Caddyfile string `json:"caddyfile"`
@@ -82,12 +82,12 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 			return
 		}
 
-		configData, err := cc.GetConfig()
-		if err != nil {
-			log.Printf("handleImportCaddyfile: pre-import snapshot: %v", err)
+		data, snapErr := buildSnapshotData(cc, store, version)
+		if snapErr != nil {
+			log.Printf("handleImportCaddyfile: pre-import snapshot: %v", snapErr)
 		} else {
 			name := "pre-import-" + time.Now().Format("2006-01-02T15:04:05")
-			if _, err := ss.Create(name, "Before Caddyfile import", "auto", configData); err != nil {
+			if _, err := ss.Create(name, "Before Caddyfile import", "auto", data); err != nil {
 				log.Printf("handleImportCaddyfile: pre-import snapshot: %v", err)
 			}
 		}
@@ -136,7 +136,7 @@ func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 			return
 		}
 
-		restoreWarnings, err := export.Restore(backup, cc, store, ss, true)
+		restoreWarnings, err := export.Restore(backup, cc, store, ss, true, version)
 		if err != nil {
 			log.Printf("handleImportFull: %v", err)
 			writeError(w, "import failed: "+err.Error(), http.StatusInternalServerError)

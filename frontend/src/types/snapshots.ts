@@ -4,6 +4,7 @@ export interface Snapshot {
 	description: string;
 	type: "auto" | "manual";
 	parent_id: string;
+	kaji_version?: string;
 	created_at: string;
 }
 

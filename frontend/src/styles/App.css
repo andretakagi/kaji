@@ -3240,6 +3240,19 @@ input:disabled + .toggle-slider {
 	border: 1px solid rgba(var(--accent-rgb), 0.25);
 }
 
+.snapshot-badge.version {
+	color: var(--text-muted);
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border);
+}
+
+.snapshot-badge.legacy {
+	color: var(--text-muted);
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border);
+	font-style: italic;
+}
+
 .snapshot-time {
 	font-size: 0.75rem;
 	color: var(--text-muted);

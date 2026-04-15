@@ -23,7 +23,7 @@ func handleGlobalTogglesGet(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleGlobalTogglesUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleGlobalTogglesUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var toggles caddy.GlobalToggles
 		if !decodeBody(w, r, &toggles) {
@@ -33,7 +33,7 @@ func handleGlobalTogglesUpdate(store *config.ConfigStore, cc *caddy.Client, ss *
 			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
-		maybeAutoSnapshot(cc, ss, "Global toggles updated")
+		maybeAutoSnapshot(cc, ss, store, version, "Global toggles updated")
 
 		if err := cc.SetGlobalToggles(&toggles); err != nil {
 			caddyError(w, "handleGlobalTogglesUpdate", err)
@@ -55,7 +55,7 @@ func handleACMEEmailGet(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleACMEEmailUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleACMEEmailUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Email string `json:"email"`
@@ -67,7 +67,7 @@ func handleACMEEmailUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
-		maybeAutoSnapshot(cc, ss, "ACME email updated")
+		maybeAutoSnapshot(cc, ss, store, version, "ACME email updated")
 
 		if err := cc.SetACMEEmail(req.Email); err != nil {
 			caddyError(w, "handleACMEEmailUpdate", err)
@@ -125,7 +125,7 @@ func handleDNSProviderGet(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Enabled  bool   `json:"enabled"`
@@ -134,7 +134,7 @@ func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *sn
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		maybeAutoSnapshot(cc, ss, "DNS provider updated")
+		maybeAutoSnapshot(cc, ss, store, version, "DNS provider updated")
 
 		if err := cc.SetDNSProvider(req.APIToken, req.Enabled); err != nil {
 			log.Printf("handleDNSProviderUpdate: %v", err)

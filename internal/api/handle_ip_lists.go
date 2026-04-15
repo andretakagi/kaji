@@ -118,7 +118,7 @@ func handleCreateIPList(store *config.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		listID := r.PathValue("id")
 		if listID == "" {
@@ -193,7 +193,7 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, "IP list updated: "+updated.Name)
+		maybeAutoSnapshot(cc, ss, store, version, "IP list updated: "+updated.Name)
 		if err := cascadeIPListChange(listID, store, cc); err != nil {
 			log.Printf("handleUpdateIPList: %v", err)
 			writeError(w, "IP list saved but some routes failed to update: "+err.Error(), http.StatusInternalServerError)
@@ -205,7 +205,7 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 	}
 }
 
-func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		listID := r.PathValue("id")
 		if listID == "" {
@@ -231,7 +231,7 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		// Find routes that use this list (directly or through composites)
 		affectedRoutes := findRoutesUsingList(listID, cfg.IPLists, store, cc)
 
-		maybeAutoSnapshot(cc, ss, "IP list deleted: "+listName)
+		maybeAutoSnapshot(cc, ss, store, version, "IP list deleted: "+listName)
 
 		// Remove list from config, clean up parent composites, remove route bindings
 		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
