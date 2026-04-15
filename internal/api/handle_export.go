@@ -199,11 +199,14 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 			return
 		}
 
+		routes := caddy.ExtractReviewRoutes(adaptedJSON)
+
 		writeJSON(w, map[string]any{
 			"acme_email":     settings.ACMEEmail,
 			"global_toggles": settings.Toggles,
 			"route_count":    settings.RouteCount,
 			"adapted_config": adaptedJSON,
+			"routes":         routes,
 		})
 	}
 }
@@ -245,6 +248,61 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 		if len(backup.MigrationLog) > 0 {
 			resp["migrated_from"] = backup.Manifest.KajiVersion
 			resp["migration_log"] = backup.MigrationLog
+		}
+
+		routes := caddy.ExtractReviewRoutes(backup.CaddyConfig)
+		for _, dr := range backup.AppConfig.DisabledRoutes {
+			params, err := caddy.ParseRouteParams(dr.Route)
+			if err != nil || params.Domain == "" {
+				continue
+			}
+			routes = append(routes, caddy.ReviewRoute{
+				Domain:   params.Domain,
+				Upstream: params.Upstream,
+				Enabled:  false,
+			})
+		}
+
+		type reviewIPList struct {
+			Name       string `json:"name"`
+			Type       string `json:"type"`
+			EntryCount int    `json:"entry_count"`
+		}
+		ipLists := make([]reviewIPList, 0, len(backup.AppConfig.IPLists))
+		for _, l := range backup.AppConfig.IPLists {
+			ipLists = append(ipLists, reviewIPList{
+				Name:       l.Name,
+				Type:       l.Type,
+				EntryCount: len(l.IPs),
+			})
+		}
+
+		type reviewSnapshot struct {
+			Name      string `json:"name"`
+			Type      string `json:"type"`
+			CreatedAt string `json:"created_at"`
+		}
+		var snapshots []reviewSnapshot
+		if backup.Snapshots != nil {
+			for _, s := range backup.Snapshots.Index.Snapshots {
+				snapshots = append(snapshots, reviewSnapshot{
+					Name:      s.Name,
+					Type:      s.Type,
+					CreatedAt: s.CreatedAt,
+				})
+			}
+		}
+
+		resp["review"] = map[string]any{
+			"routes": routes,
+			"logging": map[string]any{
+				"log_file":      backup.AppConfig.LogFile,
+				"log_dir":       backup.AppConfig.LogDir,
+				"loki_enabled":  backup.AppConfig.Loki.Enabled,
+				"loki_endpoint": backup.AppConfig.Loki.Endpoint,
+			},
+			"ip_lists":  ipLists,
+			"snapshots": snapshots,
 		}
 
 		writeJSON(w, resp)
