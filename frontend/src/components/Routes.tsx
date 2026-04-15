@@ -11,6 +11,7 @@ import {
 	fetchRouteIPListBindings,
 	updateRoute,
 } from "../api";
+import { useFormToggle } from "../hooks/useFormToggle";
 import { usePolledData } from "../hooks/usePolledData";
 import type { DisabledRoute, GlobalToggles, ParsedRoute, RouteToggles } from "../types/api";
 import type { CaddyConfig, CaddyHandler, CaddyRoute } from "../types/caddy";
@@ -234,11 +235,11 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 		errorPrefix: "Failed to load routes",
 	});
 
-	const [showForm, setShowForm] = useState(false);
 	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
 	const [domain, setDomain] = useState("");
 	const [upstream, setUpstream] = useState("");
 	const [formToggles, setFormToggles] = useState<RouteToggles>({ ...defaultToggles });
+	const form = useFormToggle({ onClose: () => setFormToggles({ ...defaultToggles }) });
 	const [warning, setWarning] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [deleting, setDeleting] = useState<string | null>(null);
@@ -313,8 +314,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 			}
 			setDomain("");
 			setUpstream("");
-			setFormToggles({ ...defaultToggles });
-			setShowForm(false);
+			form.close();
 			await loadRoutes().catch(() => {});
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to create route"));
@@ -396,12 +396,9 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 					type="button"
 					className="btn btn-primary add-route-btn"
 					disabled={!caddyRunning}
-					onClick={() => {
-						if (showForm) setFormToggles({ ...defaultToggles });
-						setShowForm(!showForm);
-					}}
+					onClick={form.toggle}
 				>
-					{showForm ? "Cancel" : "Add Route"}
+					{form.visible ? "Cancel" : "Add Route"}
 				</button>
 			</SectionHeader>
 
@@ -421,7 +418,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				</div>
 			)}
 
-			{showForm && (
+			{form.visible && (
 				<form className="add-route-form" onSubmit={handleAdd}>
 					<div className="form-row">
 						<div className="form-field">

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { createIPList, fetchIPLists } from "../api";
+import { useFormToggle } from "../hooks/useFormToggle";
+import { useIPInput } from "../hooks/useIPInput";
 import { usePolledData } from "../hooks/usePolledData";
 import type { IPList } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import { validateIPOrCIDR } from "../utils/validate";
 import { ErrorAlert } from "./ErrorAlert";
 import IPListCard from "./IPListCard";
 import LoadingState from "./LoadingState";
@@ -23,45 +24,27 @@ export default function IPLists() {
 		initialData: [] as IPList[],
 		errorPrefix: "Failed to load IP lists",
 	});
-	const [showForm, setShowForm] = useState(false);
-
 	const [newName, setNewName] = useState("");
 	const [newDesc, setNewDesc] = useState("");
 	const [newType, setNewType] = useState<"blacklist" | "whitelist">("blacklist");
 	const [newIps, setNewIps] = useState<string[]>([]);
-	const [newIpInput, setNewIpInput] = useState("");
-	const [newIpError, setNewIpError] = useState<string | null>(null);
 	const [newChildren, setNewChildren] = useState<string[]>([]);
 	const [creating, setCreating] = useState(false);
 	const [createError, setCreateError] = useState<string | null>(null);
+
+	const ipField = useIPInput(newIps, setNewIps);
 
 	function resetForm() {
 		setNewName("");
 		setNewDesc("");
 		setNewType("blacklist");
 		setNewIps([]);
-		setNewIpInput("");
-		setNewIpError(null);
+		ipField.reset();
 		setNewChildren([]);
 		setCreateError(null);
 	}
 
-	function addNewIp() {
-		const val = newIpInput.trim();
-		if (!val) return;
-		const err = validateIPOrCIDR(val);
-		if (err) {
-			setNewIpError(err);
-			return;
-		}
-		if (newIps.includes(val)) {
-			setNewIpError("Already in list");
-			return;
-		}
-		setNewIps((prev) => [...prev, val]);
-		setNewIpInput("");
-		setNewIpError(null);
-	}
+	const form = useFormToggle({ onClose: resetForm });
 
 	async function handleCreate(e: React.SubmitEvent) {
 		e.preventDefault();
@@ -79,8 +62,7 @@ export default function IPLists() {
 				ips: newIps,
 				children: newChildren,
 			});
-			resetForm();
-			setShowForm(false);
+			form.close();
 			await load();
 		} catch (err) {
 			setCreateError(getErrorMessage(err, "Failed to create list"));
@@ -102,21 +84,14 @@ export default function IPLists() {
 	return (
 		<div className="ip-lists">
 			<SectionHeader title="IP Lists">
-				<button
-					type="button"
-					className="btn btn-primary"
-					onClick={() => {
-						if (showForm) resetForm();
-						setShowForm(!showForm);
-					}}
-				>
-					{showForm ? "Cancel" : "New List"}
+				<button type="button" className="btn btn-primary" onClick={form.toggle}>
+					{form.visible ? "Cancel" : "New List"}
 				</button>
 			</SectionHeader>
 
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
 
-			{showForm && (
+			{form.visible && (
 				<form className="ip-list-create-form" onSubmit={handleCreate}>
 					<div className="form-row">
 						<div className="form-field">
@@ -162,7 +137,7 @@ export default function IPLists() {
 										{ip}
 										<button
 											type="button"
-											onClick={() => setNewIps((prev) => prev.filter((x) => x !== ip))}
+											onClick={() => ipField.remove(ip)}
 											aria-label={`Remove ${ip}`}
 										>
 											<svg
@@ -186,16 +161,13 @@ export default function IPLists() {
 							<input
 								type="text"
 								placeholder="192.168.1.0/24"
-								value={newIpInput}
+								value={ipField.input}
 								maxLength={45}
-								onChange={(e) => {
-									setNewIpInput(e.target.value);
-									setNewIpError(null);
-								}}
+								onChange={(e) => ipField.setInput(e.target.value)}
 								onKeyDown={(e) => {
 									if (e.key === "Enter") {
 										e.preventDefault();
-										addNewIp();
+										ipField.add();
 									}
 								}}
 								disabled={creating}
@@ -203,13 +175,13 @@ export default function IPLists() {
 							<button
 								type="button"
 								className="btn btn-ghost"
-								onClick={addNewIp}
+								onClick={ipField.add}
 								disabled={creating}
 							>
 								Add
 							</button>
 						</div>
-						{newIpError && <span className="ip-list-error">{newIpError}</span>}
+						{ipField.error && <span className="ip-list-error">{ipField.error}</span>}
 					</div>
 
 					<div className="ip-list-section">

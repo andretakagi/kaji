@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteIPList, fetchIPListUsage, updateIPList } from "../api";
 import { deepEqual } from "../deepEqual";
+import { useIPInput } from "../hooks/useIPInput";
 import type { IPList, IPListUsage } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import { validateIPOrCIDR } from "../utils/validate";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 
@@ -18,8 +18,7 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 	const [ips, setIps] = useState<string[]>(list.ips);
 	const [children, setChildren] = useState<string[]>(list.children);
 
-	const [ipInput, setIpInput] = useState("");
-	const [ipError, setIpError] = useState<string | null>(null);
+	const ipField = useIPInput(ips, setIps);
 
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
@@ -51,27 +50,6 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 		}
 	}, [list.id]);
 
-	function addIp() {
-		const val = ipInput.trim();
-		if (!val) return;
-		const err = validateIPOrCIDR(val);
-		if (err) {
-			setIpError(err);
-			return;
-		}
-		if (ips.includes(val)) {
-			setIpError("Already in list");
-			return;
-		}
-		setIps((prev) => [...prev, val]);
-		setIpInput("");
-		setIpError(null);
-	}
-
-	function removeIp(ip: string) {
-		setIps((prev) => prev.filter((x) => x !== ip));
-	}
-
 	function addChild(id: string) {
 		if (!id || children.includes(id)) return;
 		setChildren((prev) => [...prev, id]);
@@ -102,8 +80,7 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 	function handleDiscard() {
 		setIps(list.ips);
 		setChildren(list.children);
-		setIpInput("");
-		setIpError(null);
+		ipField.reset();
 		setSaveError(null);
 		setDeleteError(null);
 	}
@@ -165,7 +142,11 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 							{ips.map((ip) => (
 								<span key={ip} className="ip-chip">
 									{ip}
-									<button type="button" onClick={() => removeIp(ip)} aria-label={`Remove ${ip}`}>
+									<button
+										type="button"
+										onClick={() => ipField.remove(ip)}
+										aria-label={`Remove ${ip}`}
+									>
 										<svg
 											width="8"
 											height="8"
@@ -187,26 +168,23 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 						<input
 							type="text"
 							placeholder="192.168.1.0/24"
-							value={ipInput}
+							value={ipField.input}
 							maxLength={45}
-							onChange={(e) => {
-								setIpInput(e.target.value);
-								setIpError(null);
-							}}
+							onChange={(e) => ipField.setInput(e.target.value)}
 							onKeyDown={(e) => {
 								if (e.key === "Enter") {
 									e.preventDefault();
-									addIp();
+									ipField.add();
 								}
 							}}
 							onFocus={loadUsage}
 							disabled={saving}
 						/>
-						<button type="button" className="btn btn-ghost" onClick={addIp} disabled={saving}>
+						<button type="button" className="btn btn-ghost" onClick={ipField.add} disabled={saving}>
 							Add
 						</button>
 					</div>
-					{ipError && <span className="ip-list-error">{ipError}</span>}
+					{ipField.error && <span className="ip-list-error">{ipField.error}</span>}
 				</div>
 
 				<div className="ip-list-section">

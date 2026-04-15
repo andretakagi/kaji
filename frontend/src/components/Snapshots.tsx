@@ -3,6 +3,7 @@ import { createSnapshot, deleteSnapshot, fetchSnapshots, restoreSnapshot } from 
 import { cn } from "../cn";
 import { formatTime } from "../formatTime";
 import { useAsyncAction } from "../hooks/useAsyncAction";
+import { useFormToggle } from "../hooks/useFormToggle";
 import type { SnapshotIndex } from "../types/snapshots";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { ConfirmActionButton } from "./ConfirmActionButton";
@@ -20,11 +21,16 @@ export default function Snapshots() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 
-	// Create form
-	const [showCreate, setShowCreate] = useState(false);
 	const [createName, setCreateName] = useState("");
 	const [createDesc, setCreateDesc] = useState("");
 	const createAction = useAsyncAction();
+	const form = useFormToggle({
+		onOpen: () => {
+			setCreateName(defaultSnapshotName());
+			setCreateDesc("");
+			createAction.setFeedback({ msg: "", type: "success" });
+		},
+	});
 
 	const restoreAction = useAsyncAction();
 	const deleteAction = useAsyncAction();
@@ -49,7 +55,7 @@ export default function Snapshots() {
 	const handleCreate = () =>
 		createAction.run(async () => {
 			await createSnapshot(createName, createDesc);
-			setShowCreate(false);
+			form.close();
 			setCreateName("");
 			setCreateDesc("");
 			await load();
@@ -69,13 +75,6 @@ export default function Snapshots() {
 			await load();
 			return "Snapshot deleted";
 		});
-
-	const openCreate = () => {
-		setCreateName(defaultSnapshotName());
-		setCreateDesc("");
-		setShowCreate(true);
-		createAction.setFeedback({ msg: "", type: "success" });
-	};
 
 	if (loading) {
 		return <LoadingState label="snapshots" />;
@@ -101,7 +100,7 @@ export default function Snapshots() {
 	return (
 		<div className="snapshots">
 			<div className="snapshot-action-bar">
-				{showCreate ? (
+				{form.visible ? (
 					<div className="snapshot-create-form">
 						<div className="settings-field">
 							<label htmlFor="snapshot-name">Name</label>
@@ -140,7 +139,7 @@ export default function Snapshots() {
 								type="button"
 								className="btn btn-ghost"
 								disabled={createAction.saving}
-								onClick={() => setShowCreate(false)}
+								onClick={form.close}
 							>
 								Cancel
 							</button>
@@ -148,7 +147,7 @@ export default function Snapshots() {
 						<Feedback msg={createAction.feedback.msg} type={createAction.feedback.type} />
 					</div>
 				) : (
-					<button type="button" className="btn btn-primary" onClick={openCreate}>
+					<button type="button" className="btn btn-primary" onClick={form.open}>
 						Take Snapshot
 					</button>
 				)}
