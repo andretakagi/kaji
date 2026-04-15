@@ -1006,6 +1006,112 @@ func TestEnsureAccessLoggerExists(t *testing.T) {
 	}
 }
 
+func TestSetGlobalTogglesNoServers(t *testing.T) {
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/config/apps/http/servers", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("null"))
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.SetGlobalToggles(&GlobalToggles{AutoHTTPS: "off", PrometheusMetrics: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(captured) > 0 {
+		t.Errorf("expected no write requests when no servers exist, got %d", len(captured))
+	}
+}
+
+func TestSetDNSProviderDisableNoPolicies(t *testing.T) {
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("null"))
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.SetDNSProvider("", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(captured) > 0 {
+		t.Errorf("expected no write requests when disabling with no policies, got %d", len(captured))
+	}
+}
+
+func TestSetDNSProviderKeepExistingToken(t *testing.T) {
+	policies := []map[string]any{
+		{
+			"issuers": []map[string]any{
+				{
+					"module": "acme",
+					"challenges": map[string]any{
+						"dns": map[string]any{
+							"provider": map[string]any{
+								"name":      "cloudflare",
+								"api_token": "existingtoken123",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var captured []capturedRequest
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /config/apps/tls/automation/policies", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(policiesJSON(policies))
+	})
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPatch {
+			body, _ := io.ReadAll(r.Body)
+			captured = append(captured, capturedRequest{method: r.Method, path: r.URL.Path, body: body})
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	c := testClient(t, mux)
+	err := c.SetDNSProvider("", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(captured) == 0 {
+		t.Fatal("expected a PATCH request")
+	}
+	body := string(captured[0].body)
+	if !strings.Contains(body, "existingtoken123") {
+		t.Errorf("PATCH body should reuse existing token, got: %s", body)
+	}
+	if !strings.Contains(body, "cloudflare") {
+		t.Errorf("PATCH body missing cloudflare: %s", body)
+	}
+}
+
 func TestEnsureDefaultLoggerCreates(t *testing.T) {
 	var captured []capturedRequest
 
