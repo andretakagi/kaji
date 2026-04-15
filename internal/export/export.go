@@ -51,6 +51,8 @@ func BuildZIP(w io.Writer, cc *caddy.Client, store *config.ConfigStore, ss *snap
 	stripped := *cfg
 	stripped.PasswordHash = ""
 	stripped.SessionSecret = ""
+	stripped.SessionMaxAge = 0
+	stripped.SecureCookies = ""
 	if err := writeJSON(zw, "kaji-export/config.json", stripped); err != nil {
 		return err
 	}

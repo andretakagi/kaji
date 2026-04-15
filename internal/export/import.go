@@ -127,6 +127,8 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 		imported := backup.AppConfig
 		imported.PasswordHash = current.PasswordHash
 		imported.SessionSecret = current.SessionSecret
+		imported.SessionMaxAge = current.SessionMaxAge
+		imported.SecureCookies = current.SecureCookies
 		return &imported, nil
 	}); err != nil {
 		return fmt.Errorf("updating app config: %w", err)
