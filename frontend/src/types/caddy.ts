@@ -10,21 +10,9 @@ export interface CaddyMatch {
 	path?: string[];
 }
 
-export interface CaddyHandler {
-	handler:
-		| "reverse_proxy"
-		| "static_response"
-		| "file_server"
-		| "encode"
-		| "headers"
-		| "authentication"
-		| "subroute";
-	routes?: CaddyRoute[];
+export interface ReverseProxyHandler {
+	handler: "reverse_proxy";
 	upstreams?: CaddyUpstream[];
-	headers?: Record<string, string[]>;
-	response?: {
-		set?: Record<string, string[]>;
-	};
 	load_balancing?: {
 		selection_policy: {
 			policy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
@@ -41,12 +29,49 @@ export interface CaddyHandler {
 		protocol: string;
 		tls?: { insecure_skip_verify: boolean };
 	};
+}
+
+export interface HeadersHandler {
+	handler: "headers";
+	response?: {
+		set?: Record<string, string[]>;
+	};
+}
+
+export interface AuthenticationHandler {
+	handler: "authentication";
 	providers?: {
 		http_basic?: {
 			accounts?: { username: string; password: string }[];
 		};
 	};
 }
+
+export interface SubrouteHandler {
+	handler: "subroute";
+	routes?: CaddyRoute[];
+}
+
+export interface EncodeHandler {
+	handler: "encode";
+}
+
+export interface StaticResponseHandler {
+	handler: "static_response";
+}
+
+export interface FileServerHandler {
+	handler: "file_server";
+}
+
+export type CaddyHandler =
+	| ReverseProxyHandler
+	| HeadersHandler
+	| AuthenticationHandler
+	| SubrouteHandler
+	| EncodeHandler
+	| StaticResponseHandler
+	| FileServerHandler;
 
 export interface CaddyUpstream {
 	dial: string;

@@ -1,5 +1,5 @@
 import type { DisabledRoute, ParsedRoute, RouteToggles } from "../types/api";
-import type { CaddyHandler, CaddyRoute } from "../types/caddy";
+import type { CaddyHandler, CaddyRoute, ReverseProxyHandler } from "../types/caddy";
 
 export const defaultToggles: RouteToggles = {
 	enabled: true,
@@ -71,7 +71,7 @@ export function parseRoute(
 ): ParsedRoute {
 	const domain = route.match?.[0]?.host?.[0] ?? "";
 	const { handlers, forceHTTPS } = flattenHandlers(route.handle ?? []);
-	const rpHandler = handlers.find((h: CaddyHandler) => h.handler === "reverse_proxy");
+	const rpHandler = handlers.find((h): h is ReverseProxyHandler => h.handler === "reverse_proxy");
 	const upstream = rpHandler?.upstreams?.[0]?.dial ?? "";
 
 	const toggles: RouteToggles = { ...defaultToggles, enabled: false, force_https: forceHTTPS };
