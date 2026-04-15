@@ -157,6 +157,13 @@ export function validateCaddyfileResponse(data: unknown): CaddyfileResponse {
 	);
 }
 
+export function validateExportCaddyfile(data: unknown): string {
+	const result = assertValid<{ content: string }>("ExportCaddyfile", data, (d) =>
+		hasFields(d, { content: is.string }),
+	);
+	return result.content;
+}
+
 export function validateAdaptCaddyfileResponse(data: unknown): AdaptCaddyfileResponse {
 	return assertValid("AdaptCaddyfileResponse", data, (d) =>
 		hasFields(d, {
