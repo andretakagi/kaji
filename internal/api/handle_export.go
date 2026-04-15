@@ -119,8 +119,6 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 
 func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, export.MaxZIPSize)
-
 		backup, err := export.ParseZIP(r.Body, r.ContentLength, version)
 		if err != nil {
 			writeError(w, "invalid backup file: "+err.Error(), http.StatusBadRequest)
@@ -213,8 +211,6 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 
 func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, export.MaxZIPSize)
-
 		backup, err := export.ParseZIP(r.Body, r.ContentLength, version)
 		if err != nil {
 			writeError(w, "invalid backup file: "+err.Error(), http.StatusBadRequest)

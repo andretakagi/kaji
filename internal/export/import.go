@@ -28,7 +28,7 @@ type SnapshotData struct {
 	Files map[string]json.RawMessage `json:"files"`
 }
 
-const MaxZIPSize = 100 * 1024 * 1024 // 100 MB
+const MaxZIPSize = 5 * 1024 * 1024 // 5 MB
 
 func ParseZIP(r io.Reader, size int64, runningVersion string) (*Backup, error) {
 	if size > MaxZIPSize {
