@@ -89,15 +89,35 @@ func writeSnapshots(zw *zip.Writer, ss *snapshot.Store) error {
 		return nil
 	}
 
-	if err := writeJSON(zw, "kaji-export/snapshots/index.json", idx); err != nil {
-		return err
+	type readySnapshot struct {
+		entry snapshot.Snapshot
+		data  []byte
 	}
+
+	var ready []readySnapshot
 	for _, snap := range idx.Snapshots {
 		data, err := ss.ReadConfig(snap.ID)
 		if err != nil {
 			continue
 		}
-		if err := writeRaw(zw, "kaji-export/snapshots/"+snap.ID+".json", data); err != nil {
+		ready = append(ready, readySnapshot{entry: snap, data: data})
+	}
+
+	if len(ready) == 0 {
+		return nil
+	}
+
+	filtered := idx
+	filtered.Snapshots = make([]snapshot.Snapshot, len(ready))
+	for i, rs := range ready {
+		filtered.Snapshots[i] = rs.entry
+	}
+
+	if err := writeJSON(zw, "kaji-export/snapshots/index.json", filtered); err != nil {
+		return err
+	}
+	for _, rs := range ready {
+		if err := writeRaw(zw, "kaji-export/snapshots/"+rs.entry.ID+".json", rs.data); err != nil {
 			return err
 		}
 	}
