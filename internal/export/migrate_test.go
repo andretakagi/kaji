@@ -6,9 +6,9 @@ import (
 
 func TestParseVersion(t *testing.T) {
 	tests := []struct {
-		input              string
+		input               string
 		major, minor, patch int
-		wantErr            bool
+		wantErr             bool
 	}{
 		{"1.2.3", 1, 2, 3, false},
 		{"v1.2.3", 1, 2, 3, false},
