@@ -432,9 +432,11 @@ export function createSnapshot(name: string, description: string): Promise<Snaps
 export function restoreSnapshot(
 	id: string,
 ): Promise<{ status: string; legacy?: boolean; warnings?: string[] }> {
-	return request(`/api/snapshots/${encodeURIComponent(id)}/restore`, {
-		method: "POST",
-	});
+	return request(
+		`/api/snapshots/${encodeURIComponent(id)}/restore`,
+		{ method: "POST" },
+		validateStatusResponse,
+	);
 }
 
 export function updateSnapshot(
