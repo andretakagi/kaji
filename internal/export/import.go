@@ -157,7 +157,17 @@ func restoreSnapshots(ss *snapshot.Store, data *SnapshotData) error {
 
 	data.Index.AutoSnapshotEnabled = idx.AutoSnapshotEnabled
 	data.Index.AutoSnapshotLimit = idx.AutoSnapshotLimit
-	combined := append(idx.Snapshots, data.Index.Snapshots...)
+
+	existing := make(map[string]bool, len(idx.Snapshots))
+	for _, s := range idx.Snapshots {
+		existing[s.ID] = true
+	}
+	combined := idx.Snapshots
+	for _, s := range data.Index.Snapshots {
+		if !existing[s.ID] {
+			combined = append(combined, s)
+		}
+	}
 	data.Index.Snapshots = combined
 
 	return ss.ReplaceIndex(data.Index)
