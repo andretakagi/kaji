@@ -2,7 +2,6 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -349,29 +348,31 @@ func handleEnableRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			return
 		}
 
+		cfg := store.Get()
 		var disabled config.DisabledRoute
-		errNotFound := fmt.Errorf("route not found in disabled list")
+		found := false
+		for _, dr := range cfg.DisabledRoutes {
+			if dr.ID == req.ID {
+				disabled = dr
+				found = true
+				break
+			}
+		}
+		if !found {
+			writeError(w, "route not found in disabled list", http.StatusNotFound)
+			return
+		}
 
 		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
 			fresh := make([]config.DisabledRoute, 0, len(c.DisabledRoutes))
-			found := false
 			for _, dr := range c.DisabledRoutes {
-				if dr.ID == req.ID {
-					disabled = dr
-					found = true
-				} else {
+				if dr.ID != req.ID {
 					fresh = append(fresh, dr)
 				}
 			}
-			if !found {
-				return nil, errNotFound
-			}
 			c.DisabledRoutes = fresh
 			return &c, nil
-		}); errors.Is(err, errNotFound) {
-			writeError(w, "route not found in disabled list", http.StatusNotFound)
-			return
-		} else if err != nil {
+		}); err != nil {
 			log.Printf("handleEnableRoute: save config: %v", err)
 			writeError(w, "failed to remove route from disabled list", http.StatusInternalServerError)
 			return
