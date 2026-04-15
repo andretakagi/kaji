@@ -3,6 +3,8 @@ package api
 import (
 	"strings"
 	"testing"
+
+	"github.com/andretakagi/kaji/internal/config"
 )
 
 func TestValidateDomain(t *testing.T) {
@@ -197,4 +199,143 @@ func TestValidateLBStrategy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateIPOrCIDR(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"valid IPv4", "192.168.1.1", ""},
+		{"valid IPv6", "::1", ""},
+		{"valid IPv4 full", "10.0.0.1", ""},
+		{"valid CIDR v4", "192.168.0.0/24", ""},
+		{"valid CIDR v6", "fe80::/10", ""},
+		{"valid CIDR single host", "10.0.0.1/32", ""},
+		{"invalid IP", "999.999.999.999", "invalid IP address: 999.999.999.999"},
+		{"invalid CIDR bad mask", "192.168.0.0/33", "invalid CIDR: 192.168.0.0/33"},
+		{"invalid CIDR bad addr", "not.an.ip/24", "invalid CIDR: not.an.ip/24"},
+		{"garbage", "hello", "invalid IP address: hello"},
+		{"empty", "", "invalid IP address: "},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := validateIPOrCIDR(tc.input)
+			if got != tc.want {
+				t.Errorf("validateIPOrCIDR(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateIPListType(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"whitelist", "whitelist", ""},
+		{"blacklist", "blacklist", ""},
+		{"empty", "", "type must be whitelist or blacklist"},
+		{"allowlist", "allowlist", "type must be whitelist or blacklist"},
+		{"uppercase", "Whitelist", "type must be whitelist or blacklist"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := validateIPListType(tc.input)
+			if got != tc.want {
+				t.Errorf("validateIPListType(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateIPListName(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"valid", "My IP List", ""},
+		{"valid short", "a", ""},
+		{"empty", "", "name is required"},
+		{"whitespace only", "   ", "name is required"},
+		{"too long", strings.Repeat("a", 129), "name too long (max 128 characters)"},
+		{"max length", strings.Repeat("a", 128), ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := validateIPListName(tc.input)
+			if got != tc.want {
+				t.Errorf("validateIPListName(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateIPListChildren(t *testing.T) {
+	baseLists := []config.IPList{
+		{ID: "list-a", Name: "List A", Type: "whitelist", IPs: []string{"10.0.0.1"}},
+		{ID: "list-b", Name: "List B", Type: "whitelist", IPs: []string{"10.0.0.2"}},
+		{ID: "list-c", Name: "List C", Type: "blacklist", IPs: []string{"10.0.0.3"}},
+	}
+
+	t.Run("valid children", func(t *testing.T) {
+		got := validateIPListChildren([]string{"list-b"}, "whitelist", "list-a", baseLists)
+		if got != "" {
+			t.Errorf("expected no error, got %q", got)
+		}
+	})
+
+	t.Run("empty children", func(t *testing.T) {
+		got := validateIPListChildren([]string{}, "whitelist", "list-a", baseLists)
+		if got != "" {
+			t.Errorf("expected no error, got %q", got)
+		}
+	})
+
+	t.Run("self reference", func(t *testing.T) {
+		got := validateIPListChildren([]string{"list-a"}, "whitelist", "list-a", baseLists)
+		if got != "a list cannot include itself" {
+			t.Errorf("got %q, want 'a list cannot include itself'", got)
+		}
+	})
+
+	t.Run("child not found", func(t *testing.T) {
+		got := validateIPListChildren([]string{"nonexistent"}, "whitelist", "list-a", baseLists)
+		if !strings.Contains(got, "not found") {
+			t.Errorf("got %q, want 'not found'", got)
+		}
+	})
+
+	t.Run("type mismatch", func(t *testing.T) {
+		got := validateIPListChildren([]string{"list-c"}, "whitelist", "list-a", baseLists)
+		if !strings.Contains(got, "must match parent type") {
+			t.Errorf("got %q, want 'must match parent type'", got)
+		}
+	})
+
+	t.Run("circular reference", func(t *testing.T) {
+		// list-a -> list-b, now try to make list-b -> list-a
+		listsWithChildren := []config.IPList{
+			{ID: "list-a", Name: "List A", Type: "whitelist", Children: []string{"list-b"}},
+			{ID: "list-b", Name: "List B", Type: "whitelist"},
+		}
+		got := validateIPListChildren([]string{"list-a"}, "whitelist", "list-b", listsWithChildren)
+		if !strings.Contains(got, "circular reference") {
+			t.Errorf("got %q, want 'circular reference'", got)
+		}
+	})
+
+	t.Run("new list no circular check", func(t *testing.T) {
+		// For new lists (parentID=""), circular detection is skipped since the list doesn't exist yet
+		got := validateIPListChildren([]string{"list-a"}, "whitelist", "", baseLists)
+		if got != "" {
+			t.Errorf("expected no error for new list with valid child, got %q", got)
+		}
+	})
 }

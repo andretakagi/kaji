@@ -4,11 +4,16 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
@@ -504,6 +509,359 @@ func TestParseZIPMalformedCaddyJSONPassesThrough(t *testing.T) {
 	}
 	if string(backup.CaddyConfig) != `{not valid` {
 		t.Errorf("CaddyConfig = %s, want malformed content preserved as-is", backup.CaddyConfig)
+	}
+}
+
+// mockCaddyServer creates an httptest server that simulates Caddy's admin API
+// for Restore testing. It tracks /load calls and can be configured to reject them.
+type mockCaddyServer struct {
+	mu            sync.Mutex
+	currentConfig string
+	loadCalls     [][]byte
+	loadFailAt    int // if >= 0, the Nth /load call returns 400
+	srv           *httptest.Server
+}
+
+func newMockCaddy(t *testing.T, initialConfig string) (*mockCaddyServer, *caddy.Client) {
+	t.Helper()
+	m := &mockCaddyServer{
+		currentConfig: initialConfig,
+		loadFailAt:    -1,
+	}
+	m.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/config/":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(m.currentConfig))
+		case r.Method == http.MethodPost && r.URL.Path == "/load":
+			body, _ := io.ReadAll(r.Body)
+			callIdx := len(m.loadCalls)
+			m.loadCalls = append(m.loadCalls, body)
+			if m.loadFailAt == callIdx {
+				http.Error(w, "bad config", http.StatusBadRequest)
+				return
+			}
+			m.currentConfig = string(body)
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(m.srv.Close)
+	cc := caddy.NewClient(func() string { return m.srv.URL })
+	return m, cc
+}
+
+func TestRestoreHappyPath(t *testing.T) {
+	initialCaddyConfig := `{"apps":{"http":{"servers":{}}}}`
+	m, cc := newMockCaddy(t, initialCaddyConfig)
+
+	store := config.NewStore(&config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		PasswordHash:  "original-hash",
+		SessionSecret: "original-secret",
+		SessionMaxAge: 3600,
+		SecureCookies: "always",
+		APIKeyHash:    "original-apikey",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	})
+
+	snapDir := t.TempDir()
+	ss := snapshot.NewStore(snapDir)
+
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+	}
+
+	warnings, err := Restore(backup, cc, store, ss, false, "1.0.0")
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	// Caddy should have received one /load call with the backup config
+	m.mu.Lock()
+	if len(m.loadCalls) != 1 {
+		t.Errorf("expected 1 /load call, got %d", len(m.loadCalls))
+	}
+	m.mu.Unlock()
+
+	// Warnings may or may not exist depending on path existence, just verify no error
+	_ = warnings
+
+	// Credentials should be preserved from the original config
+	cfg := store.Get()
+	if cfg.PasswordHash != "original-hash" {
+		t.Errorf("PasswordHash = %q, want original-hash", cfg.PasswordHash)
+	}
+	if cfg.SessionSecret != "original-secret" {
+		t.Errorf("SessionSecret = %q, want original-secret", cfg.SessionSecret)
+	}
+	if cfg.APIKeyHash != "original-apikey" {
+		t.Errorf("APIKeyHash = %q, want original-apikey (PreserveCredentials)", cfg.APIKeyHash)
+	}
+}
+
+func TestRestoreCaddyLoadFailure(t *testing.T) {
+	m, cc := newMockCaddy(t, `{"apps":{}}`)
+	m.loadFailAt = 0
+
+	store := config.NewStore(&config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	})
+
+	snapDir := t.TempDir()
+	ss := snapshot.NewStore(snapDir)
+
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"bad":"config"}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+	}
+
+	_, err := Restore(backup, cc, store, ss, false, "1.0.0")
+	if err == nil {
+		t.Fatal("expected error when caddy rejects config")
+	}
+	if !strings.Contains(err.Error(), "loading caddy config") {
+		t.Errorf("error = %q, want 'loading caddy config'", err)
+	}
+}
+
+func TestRestoreConfigUpdateFailureRollsCaddyBack(t *testing.T) {
+	initialCaddyConfig := `{"apps":{"http":{"servers":{}}}}`
+	m, cc := newMockCaddy(t, initialCaddyConfig)
+
+	store := config.NewStore(&config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	})
+
+	snapDir := t.TempDir()
+	ss := snapshot.NewStore(snapDir)
+
+	// Import a config with empty CaddyAdminURL to trigger validation failure
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "",
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+	}
+
+	_, err := Restore(backup, cc, store, ss, false, "1.0.0")
+	if err == nil {
+		t.Fatal("expected error when config validation fails")
+	}
+	if !strings.Contains(err.Error(), "updating app config") {
+		t.Errorf("error = %q, want 'updating app config'", err)
+	}
+
+	// Caddy should have received 2 /load calls: backup config, then rollback
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.loadCalls) != 2 {
+		t.Fatalf("expected 2 /load calls (apply + rollback), got %d", len(m.loadCalls))
+	}
+	if string(m.loadCalls[1]) != initialCaddyConfig {
+		t.Errorf("rollback config = %s, want original config", m.loadCalls[1])
+	}
+}
+
+func TestRestoreWithAutoSnapshot(t *testing.T) {
+	_, cc := newMockCaddy(t, `{"apps":{}}`)
+
+	store := config.NewStore(&config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		PasswordHash:  "hash",
+		SessionSecret: "secret",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	})
+
+	snapDir := t.TempDir()
+	ss := snapshot.NewStore(snapDir)
+
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"apps":{}}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+	}
+
+	_, err := Restore(backup, cc, store, ss, true, "1.0.0")
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	idx := ss.GetIndex()
+	if len(idx.Snapshots) == 0 {
+		t.Fatal("expected auto-snapshot to be created, got none")
+	}
+	found := false
+	for _, s := range idx.Snapshots {
+		if strings.HasPrefix(s.Name, "pre-import-") && s.Type == "auto" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected a pre-import auto snapshot")
+	}
+}
+
+func TestRestoreNoAutoSnapshot(t *testing.T) {
+	_, cc := newMockCaddy(t, `{"apps":{}}`)
+
+	store := config.NewStore(&config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	})
+
+	snapDir := t.TempDir()
+	ss := snapshot.NewStore(snapDir)
+
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"apps":{}}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+	}
+
+	_, err := Restore(backup, cc, store, ss, false, "1.0.0")
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	idx := ss.GetIndex()
+	if len(idx.Snapshots) != 0 {
+		t.Errorf("expected no snapshots when autoSnapshot=false, got %d", len(idx.Snapshots))
+	}
+}
+
+func TestRestoreWithBackupSnapshots(t *testing.T) {
+	_, cc := newMockCaddy(t, `{"apps":{}}`)
+
+	store := config.NewStore(&config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	})
+
+	snapDir := t.TempDir()
+	ss := snapshot.NewStore(snapDir)
+
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"apps":{}}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+		Snapshots: &SnapshotData{
+			Index: snapshot.Index{
+				Snapshots: []snapshot.Snapshot{
+					{ID: "imported-snap", Name: "backup snapshot", Type: "manual", CreatedAt: "2025-01-01T00:00:00Z"},
+				},
+			},
+			Files: map[string]json.RawMessage{
+				"imported-snap": json.RawMessage(`{"caddy_config":{"apps":{}}}`),
+			},
+		},
+	}
+
+	_, err := Restore(backup, cc, store, ss, false, "1.0.0")
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	idx := ss.GetIndex()
+	found := false
+	for _, s := range idx.Snapshots {
+		if s.ID == "imported-snap" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("imported snapshot should be present after restore")
+	}
+
+	data, err := os.ReadFile(filepath.Join(snapDir, "imported-snap.json"))
+	if err != nil {
+		t.Fatalf("reading imported snapshot file: %v", err)
+	}
+	if string(data) != `{"caddy_config":{"apps":{}}}` {
+		t.Errorf("snapshot data = %s, want preserved content", data)
+	}
+}
+
+func TestRestoreSnapshotFailureRollsBack(t *testing.T) {
+	initialCaddyConfig := `{"apps":{}}`
+	m, cc := newMockCaddy(t, initialCaddyConfig)
+
+	originalAppConfig := &config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		LogFile:       "/original/log",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	}
+	store := config.NewStore(originalAppConfig)
+
+	// Use a path nested under a file (not a directory) so os.MkdirAll fails
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	os.WriteFile(blocker, []byte("not a directory"), 0600)
+	brokenSnapDir := filepath.Join(blocker, "snapshots", "deep")
+	ss := snapshot.NewStore(brokenSnapDir)
+
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"apps":{"new":true}}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+		Snapshots: &SnapshotData{
+			Index: snapshot.Index{
+				Snapshots: []snapshot.Snapshot{
+					{ID: "fail-snap", Name: "will fail", Type: "manual"},
+				},
+			},
+			Files: map[string]json.RawMessage{
+				"fail-snap": json.RawMessage(`{}`),
+			},
+		},
+	}
+
+	_, err := Restore(backup, cc, store, ss, false, "1.0.0")
+	if err == nil {
+		t.Fatal("expected error when snapshot restore fails")
+	}
+	if !strings.Contains(err.Error(), "restoring snapshots") {
+		t.Errorf("error = %q, want 'restoring snapshots'", err)
+	}
+
+	// Caddy should be rolled back (2 loads: apply + rollback)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.loadCalls) < 2 {
+		t.Fatalf("expected at least 2 /load calls, got %d", len(m.loadCalls))
+	}
+	lastLoad := string(m.loadCalls[len(m.loadCalls)-1])
+	if lastLoad != initialCaddyConfig {
+		t.Errorf("rollback config = %s, want original", lastLoad)
 	}
 }
 

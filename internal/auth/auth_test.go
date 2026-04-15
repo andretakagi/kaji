@@ -308,4 +308,63 @@ func TestSessionCookie(t *testing.T) {
 			t.Errorf("GetSessionToken with no cookie = %q, want empty", got)
 		}
 	})
+
+	t.Run("clear cookie", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.TLS = &tls.ConnectionState{}
+
+		ClearSessionCookie(rec, r, "always")
+
+		var found *http.Cookie
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == sessionCookieName {
+				found = c
+				break
+			}
+		}
+		if found == nil {
+			t.Fatal("session cookie not found after clear")
+		}
+		if found.Value != "" {
+			t.Errorf("cookie value = %q, want empty", found.Value)
+		}
+		if found.MaxAge != -1 {
+			t.Errorf("MaxAge = %d, want -1", found.MaxAge)
+		}
+		if !found.HttpOnly {
+			t.Error("cookie should be HttpOnly")
+		}
+		if !found.Secure {
+			t.Error("cookie should be Secure (mode=always)")
+		}
+		if found.SameSite != http.SameSiteStrictMode {
+			t.Errorf("SameSite = %v, want SameSiteStrictMode", found.SameSite)
+		}
+		if found.Path != "/" {
+			t.Errorf("Path = %q, want /", found.Path)
+		}
+	})
+
+	t.Run("clear cookie respects secure mode", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/", nil)
+		r.TLS = &tls.ConnectionState{}
+
+		ClearSessionCookie(rec, r, "never")
+
+		var found *http.Cookie
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == sessionCookieName {
+				found = c
+				break
+			}
+		}
+		if found == nil {
+			t.Fatal("session cookie not found after clear")
+		}
+		if found.Secure {
+			t.Error("cookie should not be Secure when mode=never")
+		}
+	})
 }

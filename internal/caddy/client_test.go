@@ -2,6 +2,7 @@ package caddy
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -900,6 +901,105 @@ func TestExtractReviewRoutesEmptyConfig(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("got %d routes, want 0", len(got))
+	}
+}
+
+func TestClientValidateConfigValid(t *testing.T) {
+	currentConfig := `{"apps":{"http":{"servers":{}}}}`
+	candidate := `{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`
+
+	var loadCalls []string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/config/":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(currentConfig))
+		case r.Method == http.MethodPost && r.URL.Path == "/load":
+			body, _ := io.ReadAll(r.Body)
+			loadCalls = append(loadCalls, string(body))
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	err := c.ValidateConfig([]byte(candidate))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(loadCalls) != 2 {
+		t.Fatalf("expected 2 /load calls (candidate + rollback), got %d", len(loadCalls))
+	}
+	if loadCalls[0] != candidate {
+		t.Errorf("first load call = %s, want candidate config", loadCalls[0])
+	}
+	if loadCalls[1] != currentConfig {
+		t.Errorf("second load call = %s, want original config restored", loadCalls[1])
+	}
+}
+
+func TestClientValidateConfigRejected(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/config/":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"apps":{}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/load":
+			http.Error(w, "invalid config", http.StatusBadRequest)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	err := c.ValidateConfig([]byte(`{"bad":"config"}`))
+	if err == nil {
+		t.Fatal("expected error for rejected config")
+	}
+	if !strings.Contains(err.Error(), "caddy rejected config") {
+		t.Errorf("error = %q, want 'caddy rejected config'", err)
+	}
+}
+
+func TestClientValidateConfigRollbackFailed(t *testing.T) {
+	callCount := 0
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/config/":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"apps":{}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/load":
+			callCount++
+			if callCount == 1 {
+				w.WriteHeader(http.StatusOK)
+			} else {
+				http.Error(w, "rollback failed", http.StatusInternalServerError)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	err := c.ValidateConfig([]byte(`{"apps":{}}`))
+	if err == nil {
+		t.Fatal("expected error for failed rollback")
+	}
+	if !errors.Is(err, ErrValidationRollbackFailed) {
+		t.Errorf("error should wrap ErrValidationRollbackFailed, got: %v", err)
+	}
+}
+
+func TestClientValidateConfigNotJSON(t *testing.T) {
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	err := c.ValidateConfig([]byte(`not json`))
+	if err == nil {
+		t.Fatal("expected error for non-JSON input")
+	}
+	if !strings.Contains(err.Error(), "not a JSON object") {
+		t.Errorf("error = %q, want 'not a JSON object'", err)
 	}
 }
 

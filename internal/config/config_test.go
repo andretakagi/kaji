@@ -533,6 +533,84 @@ func TestDefaultConfigCaddyLogDir(t *testing.T) {
 	}
 }
 
+func TestStripCredentials(t *testing.T) {
+	cfg := &AppConfig{
+		PasswordHash:  "hash123",
+		SessionSecret: "secret456",
+		SessionMaxAge: 3600,
+		SecureCookies: "always",
+		APIKeyHash:    "apikey789",
+		CaddyAdminURL: "http://localhost:2019",
+		LogFile:       "/var/log/caddy/access.log",
+	}
+
+	cfg.StripCredentials()
+
+	if cfg.PasswordHash != "" {
+		t.Errorf("PasswordHash = %q, want empty", cfg.PasswordHash)
+	}
+	if cfg.SessionSecret != "" {
+		t.Errorf("SessionSecret = %q, want empty", cfg.SessionSecret)
+	}
+	if cfg.SessionMaxAge != 0 {
+		t.Errorf("SessionMaxAge = %d, want 0", cfg.SessionMaxAge)
+	}
+	if cfg.SecureCookies != "" {
+		t.Errorf("SecureCookies = %q, want empty", cfg.SecureCookies)
+	}
+	if cfg.APIKeyHash != "" {
+		t.Errorf("APIKeyHash = %q, want empty", cfg.APIKeyHash)
+	}
+	if cfg.CaddyAdminURL != "http://localhost:2019" {
+		t.Error("StripCredentials should not modify non-credential fields")
+	}
+	if cfg.LogFile != "/var/log/caddy/access.log" {
+		t.Error("StripCredentials should not modify non-credential fields")
+	}
+}
+
+func TestPreserveCredentials(t *testing.T) {
+	imported := &AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		PasswordHash:  "",
+		SessionSecret: "",
+		SessionMaxAge: 0,
+		SecureCookies: "",
+		APIKeyHash:    "",
+		LogFile:       "/imported/log",
+	}
+
+	current := &AppConfig{
+		PasswordHash:  "current-hash",
+		SessionSecret: "current-secret",
+		SessionMaxAge: 7200,
+		SecureCookies: "never",
+		APIKeyHash:    "current-apikey",
+		LogFile:       "/current/log",
+	}
+
+	imported.PreserveCredentials(current)
+
+	if imported.PasswordHash != "current-hash" {
+		t.Errorf("PasswordHash = %q, want %q", imported.PasswordHash, "current-hash")
+	}
+	if imported.SessionSecret != "current-secret" {
+		t.Errorf("SessionSecret = %q, want %q", imported.SessionSecret, "current-secret")
+	}
+	if imported.SessionMaxAge != 7200 {
+		t.Errorf("SessionMaxAge = %d, want 7200", imported.SessionMaxAge)
+	}
+	if imported.SecureCookies != "never" {
+		t.Errorf("SecureCookies = %q, want %q", imported.SecureCookies, "never")
+	}
+	if imported.APIKeyHash != "current-apikey" {
+		t.Errorf("APIKeyHash = %q, want %q", imported.APIKeyHash, "current-apikey")
+	}
+	if imported.LogFile != "/imported/log" {
+		t.Error("PreserveCredentials should not modify non-credential fields")
+	}
+}
+
 func TestNewStoreNoDiskWrite(t *testing.T) {
 	dir := t.TempDir()
 	phantom := filepath.Join(dir, "should-not-exist.json")

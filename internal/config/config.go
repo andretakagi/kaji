@@ -75,6 +75,7 @@ func (c *AppConfig) StripCredentials() {
 	c.SessionSecret = ""
 	c.SessionMaxAge = 0
 	c.SecureCookies = ""
+	c.APIKeyHash = ""
 }
 
 func (c *AppConfig) PreserveCredentials(from *AppConfig) {
@@ -82,6 +83,7 @@ func (c *AppConfig) PreserveCredentials(from *AppConfig) {
 	c.SessionSecret = from.SessionSecret
 	c.SessionMaxAge = from.SessionMaxAge
 	c.SecureCookies = from.SecureCookies
+	c.APIKeyHash = from.APIKeyHash
 }
 
 func DefaultConfig() *AppConfig {
