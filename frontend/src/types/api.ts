@@ -155,6 +155,7 @@ export interface IPListUsage {
 export interface ImportResponse {
 	status: string;
 	route_count?: number;
+	snapshot_count?: number;
 }
 
 export interface SetupImportFullResponse {

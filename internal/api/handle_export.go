@@ -130,8 +130,17 @@ func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 
 		persistCaddyConfig(cc, store)
 
+		snapshotCount := 0
+		if backup.Snapshots != nil {
+			snapshotCount = len(backup.Snapshots.Index.Snapshots)
+		}
+
+		routeCount := caddy.CountRoutes(backup.CaddyConfig)
+
 		writeJSON(w, map[string]any{
-			"status": "ok",
+			"status":         "ok",
+			"route_count":    routeCount,
+			"snapshot_count": snapshotCount,
 		})
 	}
 }

@@ -46,6 +46,20 @@ type caddyConfigPartial struct {
 	} `json:"apps"`
 }
 
+// CountRoutes returns the total number of routes across all servers in a raw
+// Caddy JSON config. Returns 0 if the config can't be parsed.
+func CountRoutes(raw json.RawMessage) int {
+	var cfg caddyConfigPartial
+	if json.Unmarshal(raw, &cfg) != nil {
+		return 0
+	}
+	n := 0
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		n += len(srv.Routes)
+	}
+	return n
+}
+
 type Client struct {
 	baseURL    func() string
 	httpClient *http.Client

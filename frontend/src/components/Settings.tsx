@@ -214,8 +214,21 @@ function ExportImportSection() {
 				await importCaddyfile(text);
 				return "Caddyfile imported successfully";
 			}
-			await importFull(file);
-			return "Full backup imported successfully. Reload to see changes.";
+			const result = await importFull(file);
+			const parts = ["Full backup imported"];
+			if (result.route_count !== undefined) {
+				parts.push(
+					`${result.route_count} ${result.route_count === 1 ? "route" : "routes"}`,
+				);
+			}
+			if (result.snapshot_count) {
+				parts.push(
+					`${result.snapshot_count} ${result.snapshot_count === 1 ? "snapshot" : "snapshots"}`,
+				);
+			}
+			return parts.length > 1
+				? `${parts[0]}: ${parts.slice(1).join(", ")}. Reload to see changes.`
+				: `${parts[0]} successfully. Reload to see changes.`;
 		});
 	};
 
