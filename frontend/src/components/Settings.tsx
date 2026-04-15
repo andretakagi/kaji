@@ -315,7 +315,7 @@ export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boo
 		if (caddyRunning && !loading) {
 			load();
 		}
-	}, [caddyRunning]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [caddyRunning, load, loading]);
 
 	if (loading) {
 		return <div className="empty-state settings-loading">Loading settings...</div>;
