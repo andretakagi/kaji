@@ -45,35 +45,3 @@ export function usePolledData<T>({
 
 	return { data, setData, loading, error, setError, reload: load } as const;
 }
-
-interface UsePolledEffectOptions {
-	effect: () => Promise<void>;
-	errorPrefix: string;
-	enabled?: boolean;
-}
-
-export function usePolledEffect({ effect, errorPrefix, enabled = true }: UsePolledEffectOptions) {
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState("");
-	const effectRef = useRef(effect);
-	effectRef.current = effect;
-
-	const load = useCallback(async () => {
-		try {
-			await effectRef.current();
-		} catch (err) {
-			setError(getErrorMessage(err, errorPrefix));
-		} finally {
-			setLoading(false);
-		}
-	}, [errorPrefix]);
-
-	useEffect(() => {
-		if (!enabled) return;
-		load();
-		const id = setInterval(load, POLL_INTERVAL);
-		return () => clearInterval(id);
-	}, [load, enabled]);
-
-	return { loading, error, setError, reload: load } as const;
-}
