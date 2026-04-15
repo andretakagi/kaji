@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-	adaptCaddyfile,
-	fetchDefaultCaddyfile,
-	setupImportFull,
-	submitSetup,
-	updateDNSProvider,
-} from "../api";
+import { adaptCaddyfile, setupImportFull, submitSetup, updateDNSProvider } from "../api";
 import { cn } from "../cn";
 import {
 	type AdaptCaddyfileResponse,
@@ -269,7 +263,16 @@ function Setup({
 					)}
 					{step === 0 && !setupDone && <span />}
 					{step < lastStep ? (
-						<button type="button" className="btn btn-primary" onClick={handleNext}>
+						<button
+							type="button"
+							className="btn btn-primary"
+							onClick={handleNext}
+							disabled={
+								step === 1 &&
+								((data.importMode === "caddyfile" && !data.importedSettings) ||
+									(data.importMode === "full" && !data.backupSummary))
+							}
+						>
 							Next
 						</button>
 					) : (
@@ -422,19 +425,8 @@ function StepImport({
 	setError: (msg: string) => void;
 }) {
 	const [parsing, setParsing] = useState(false);
-	const [loadedDefault, setLoadedDefault] = useState(false);
 	const caddyfileInputRef = useRef<HTMLInputElement>(null);
 	const backupInputRef = useRef<HTMLInputElement>(null);
-
-	useEffect(() => {
-		if (data.importMode !== "caddyfile" || loadedDefault || data.caddyfileText) return;
-		setLoadedDefault(true);
-		fetchDefaultCaddyfile()
-			.then((res) => {
-				if (res.content) update("caddyfileText", res.content);
-			})
-			.catch(() => {});
-	}, [loadedDefault, data.caddyfileText, data.importMode, update]);
 
 	const handleModeChange = (mode: "none" | "caddyfile" | "full") => {
 		update("importMode", mode);
@@ -450,25 +442,16 @@ function StepImport({
 		}
 	};
 
-	const handleCaddyfileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleCaddyfileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
-		const reader = new FileReader();
-		reader.onload = () => {
-			update("caddyfileText", reader.result as string);
-			update("adaptedConfig", null);
-			update("importedSettings", null);
-		};
-		reader.onerror = () => setError("Failed to read file.");
-		reader.readAsText(file);
-	};
-
-	const handleParseCaddyfile = async () => {
-		if (!data.caddyfileText.trim()) return;
+		e.target.value = "";
 		setParsing(true);
 		setError("");
 		try {
-			const result = await adaptCaddyfile(data.caddyfileText);
+			const text = await file.text();
+			const result = await adaptCaddyfile(text);
+			update("caddyfileText", text);
 			update("adaptedConfig", result.adapted_config);
 			update("importedSettings", result);
 			update("reviewData", { routes: result.routes ?? [] });
@@ -504,14 +487,6 @@ function StepImport({
 			update("backupData", null);
 		} finally {
 			setParsing(false);
-		}
-	};
-
-	const handleCaddyfileTextChange = (text: string) => {
-		update("caddyfileText", text);
-		if (data.importedSettings) {
-			update("adaptedConfig", null);
-			update("importedSettings", null);
 		}
 	};
 
@@ -554,17 +529,6 @@ function StepImport({
 
 			{data.importMode === "caddyfile" && (
 				<>
-					<div className="auth-field">
-						<label htmlFor="setup-caddyfile">Caddyfile</label>
-						<textarea
-							id="setup-caddyfile"
-							className="setup-import-textarea"
-							value={data.caddyfileText}
-							onChange={(e) => handleCaddyfileTextChange(e.target.value)}
-							placeholder={"example.com {\n    reverse_proxy localhost:3000\n}"}
-							spellCheck={false}
-						/>
-					</div>
 					<div className="setup-import-actions">
 						<input
 							ref={caddyfileInputRef}
@@ -575,18 +539,11 @@ function StepImport({
 						/>
 						<button
 							type="button"
-							className="btn btn-ghost"
-							onClick={() => caddyfileInputRef.current?.click()}
-						>
-							Upload File
-						</button>
-						<button
-							type="button"
 							className="btn btn-primary"
-							onClick={handleParseCaddyfile}
-							disabled={parsing || !data.caddyfileText.trim()}
+							onClick={() => caddyfileInputRef.current?.click()}
+							disabled={parsing}
 						>
-							{parsing ? "Parsing..." : "Parse Caddyfile"}
+							{parsing ? "Parsing..." : "Choose Caddyfile"}
 						</button>
 					</div>
 					{data.importedSettings && (
