@@ -1163,3 +1163,26 @@ func TestEnsureDefaultLoggerCreates(t *testing.T) {
 		t.Error("expected POST to logging/logs/default")
 	}
 }
+
+func TestMaskToken(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty", input: "", want: "****"},
+		{name: "one_char", input: "a", want: "****"},
+		{name: "four_chars", input: "abcd", want: "****"},
+		{name: "five_chars", input: "abcde", want: "*bcde"},
+		{name: "long_token", input: "cf_1234567890abcdef", want: "***************cdef"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := maskToken(tt.input)
+			if got != tt.want {
+				t.Errorf("maskToken(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

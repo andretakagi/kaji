@@ -1,11 +1,17 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/andretakagi/kaji/internal/auth"
+	"github.com/andretakagi/kaji/internal/caddy"
+	"github.com/andretakagi/kaji/internal/config"
 )
 
 func TestParseIntParam(t *testing.T) {
@@ -196,4 +202,200 @@ func TestValidateLogFilePaths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWriteJSON(t *testing.T) {
+	rec := httptest.NewRecorder()
+	writeJSON(rec, map[string]string{"key": "value"})
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	var got map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if got["key"] != "value" {
+		t.Errorf("body key = %q, want %q", got["key"], "value")
+	}
+}
+
+func TestWriteError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	writeError(rec, "something broke", http.StatusBadRequest)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	var got map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+	if got["error"] != "something broke" {
+		t.Errorf("error = %q, want %q", got["error"], "something broke")
+	}
+}
+
+func TestWriteRawJSON(t *testing.T) {
+	raw := []byte(`{"already":"encoded"}`)
+	rec := httptest.NewRecorder()
+	writeRawJSON(rec, raw)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	if rec.Body.String() != string(raw) {
+		t.Errorf("body = %q, want %q", rec.Body.String(), string(raw))
+	}
+}
+
+func TestDecodeBody(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		body := strings.NewReader(`{"name":"test"}`)
+		req := httptest.NewRequest(http.MethodPost, "/", body)
+		rec := httptest.NewRecorder()
+
+		var got struct{ Name string }
+		ok := decodeBody(rec, req, &got)
+		if !ok {
+			t.Fatal("decodeBody returned false for valid JSON")
+		}
+		if got.Name != "test" {
+			t.Errorf("Name = %q, want %q", got.Name, "test")
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		body := strings.NewReader(`not json`)
+		req := httptest.NewRequest(http.MethodPost, "/", body)
+		rec := httptest.NewRecorder()
+
+		var got struct{ Name string }
+		ok := decodeBody(rec, req, &got)
+		if ok {
+			t.Fatal("decodeBody returned true for invalid JSON")
+		}
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400", rec.Code)
+		}
+		var errResp map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &errResp); err != nil {
+			t.Fatalf("failed to parse error response: %v", err)
+		}
+		if errResp["error"] != "invalid request body" {
+			t.Errorf("error = %q, want %q", errResp["error"], "invalid request body")
+		}
+	})
+}
+
+func TestCaddyError(t *testing.T) {
+	t.Run("unreachable", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		caddyError(rec, "test", errors.New("dial tcp: connection unreachable"))
+
+		if rec.Code != http.StatusBadGateway {
+			t.Errorf("status = %d, want 502", rec.Code)
+		}
+		var got map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if !strings.Contains(got["error"], "unreachable") {
+			t.Errorf("error = %q, want message about unreachable", got["error"])
+		}
+	})
+
+	t.Run("caddy_json_error", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		caddyError(rec, "test", errors.New(`caddy rejected config (status 400): {"error":"invalid listener address"}`))
+
+		if rec.Code != http.StatusBadGateway {
+			t.Errorf("status = %d, want 502", rec.Code)
+		}
+		var got map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if got["error"] != "invalid listener address" {
+			t.Errorf("error = %q, want %q", got["error"], "invalid listener address")
+		}
+	})
+}
+
+func TestSessionMaxAge(t *testing.T) {
+	t.Run("custom", func(t *testing.T) {
+		cfg := &config.AppConfig{SessionMaxAge: 3600}
+		if got := sessionMaxAge(cfg); got != 3600 {
+			t.Errorf("sessionMaxAge = %d, want 3600", got)
+		}
+	})
+
+	t.Run("zero_uses_default", func(t *testing.T) {
+		cfg := &config.AppConfig{SessionMaxAge: 0}
+		if got := sessionMaxAge(cfg); got != auth.DefaultSessionMaxAge {
+			t.Errorf("sessionMaxAge = %d, want %d", got, auth.DefaultSessionMaxAge)
+		}
+	})
+
+	t.Run("negative_uses_default", func(t *testing.T) {
+		cfg := &config.AppConfig{SessionMaxAge: -1}
+		if got := sessionMaxAge(cfg); got != auth.DefaultSessionMaxAge {
+			t.Errorf("sessionMaxAge = %d, want %d", got, auth.DefaultSessionMaxAge)
+		}
+	})
+}
+
+func TestHashBasicAuthPassword(t *testing.T) {
+	t.Run("password_provided", func(t *testing.T) {
+		ba := &caddy.BasicAuth{Password: "secret"}
+		if err := hashBasicAuthPassword(ba, ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ba.PasswordHash == "" {
+			t.Error("PasswordHash should be set")
+		}
+		if ba.Password != "" {
+			t.Error("Password should be cleared after hashing")
+		}
+	})
+
+	t.Run("no_password_with_fallback", func(t *testing.T) {
+		ba := &caddy.BasicAuth{}
+		if err := hashBasicAuthPassword(ba, "existing-hash"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ba.PasswordHash != "existing-hash" {
+			t.Errorf("PasswordHash = %q, want %q", ba.PasswordHash, "existing-hash")
+		}
+	})
+
+	t.Run("no_password_no_fallback", func(t *testing.T) {
+		ba := &caddy.BasicAuth{}
+		err := hashBasicAuthPassword(ba, "")
+		if err == nil {
+			t.Fatal("expected error when no password and no fallback")
+		}
+		if !strings.Contains(err.Error(), "password is required") {
+			t.Errorf("error = %q, want message about password required", err)
+		}
+	})
+
+	t.Run("existing_hash_preserved", func(t *testing.T) {
+		ba := &caddy.BasicAuth{PasswordHash: "already-set"}
+		if err := hashBasicAuthPassword(ba, "fallback"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if ba.PasswordHash != "already-set" {
+			t.Errorf("PasswordHash = %q, want %q (should not be overwritten)", ba.PasswordHash, "already-set")
+		}
+	})
 }
