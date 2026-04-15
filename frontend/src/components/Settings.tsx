@@ -153,7 +153,7 @@ function APIKeySection() {
 	);
 }
 
-function ExportImportSection() {
+function ExportImportSection({ onImport }: { onImport: () => void }) {
 	const { saving: exporting, feedback: exportFeedback, run: runExport } = useAsyncAction();
 	const { saving: importing, feedback: importFeedback, run: runImport } = useAsyncAction();
 	const [confirmAction, setConfirmAction] = useState<null | "caddyfile" | "full">(null);
@@ -205,9 +205,11 @@ function ExportImportSection() {
 			if (action === "caddyfile") {
 				const text = await file.text();
 				await importCaddyfile(text);
+				onImport();
 				return "Caddyfile imported successfully";
 			}
 			const result = await importFull(file);
+			onImport();
 			const parts = ["Full backup imported"];
 			if (result.route_count !== undefined) {
 				parts.push(`${result.route_count} ${result.route_count === 1 ? "route" : "routes"}`);
@@ -513,7 +515,11 @@ export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boo
 
 			<SnapshotSettings />
 
-			{!caddyRunning ? <CaddyOffSection title="Export & Import" /> : <ExportImportSection />}
+			{!caddyRunning ? (
+				<CaddyOffSection title="Export & Import" />
+			) : (
+				<ExportImportSection onImport={load} />
+			)}
 
 			{failedSections.has("advanced") ? (
 				<section className="settings-section settings-section-failed">

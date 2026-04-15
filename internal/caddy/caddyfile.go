@@ -9,10 +9,10 @@ import (
 )
 
 type CaddyfileSettings struct {
-	ACMEEmail    string        `json:"acme_email"`
-	AdminListen  string        `json:"admin_listen"`
-	Toggles      GlobalToggles `json:"global_toggles"`
-	RouteCount   int           `json:"route_count"`
+	ACMEEmail   string        `json:"acme_email"`
+	AdminListen string        `json:"admin_listen"`
+	Toggles     GlobalToggles `json:"global_toggles"`
+	RouteCount  int           `json:"route_count"`
 }
 
 func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, error) {
@@ -57,6 +57,52 @@ func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, 
 		Toggles:     toggles,
 		RouteCount:  routeCount,
 	}, nil
+}
+
+// ParseCaddyfileAdminAddr extracts the admin listen address from raw Caddyfile
+// text. Caddy's /adapt endpoint often omits the admin block from its output,
+// so this parses the source text directly as a fallback.
+func ParseCaddyfileAdminAddr(caddyfileText string) string {
+	lines := strings.Split(caddyfileText, "\n")
+	inGlobal := false
+	depth := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		if !inGlobal {
+			if trimmed == "{" {
+				inGlobal = true
+				depth = 1
+				continue
+			}
+			return ""
+		}
+
+		if depth == 1 {
+			fields := strings.Fields(trimmed)
+			if len(fields) >= 2 && fields[0] == "admin" && fields[1] != "off" && fields[1] != "{" {
+				return fields[1]
+			}
+		}
+
+		for _, ch := range trimmed {
+			if ch == '{' {
+				depth++
+			} else if ch == '}' {
+				depth--
+			}
+		}
+
+		if depth <= 0 {
+			return ""
+		}
+	}
+
+	return ""
 }
 
 type caddyfileLogWriter struct {

@@ -70,6 +70,7 @@ export interface ImportReview {
 
 export interface AdaptCaddyfileResponse {
 	acme_email: string;
+	admin_listen?: string;
 	global_toggles: GlobalToggles;
 	route_count: number;
 	adapted_config: CaddyConfig;

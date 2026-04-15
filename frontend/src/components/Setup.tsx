@@ -140,8 +140,10 @@ function Setup({
 				return;
 			}
 
+			const adminListen = data.importedSettings?.admin_listen;
 			const res = await submitSetup({
 				password: data.authEnabled ? data.password : undefined,
+				caddy_admin_url: adminListen ? `http://${adminListen}` : undefined,
 				acme_email: data.acmeEmail || undefined,
 				global_toggles: data.globalToggles,
 				caddyfile_json:

@@ -105,8 +105,16 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 			log.Printf("handleImportCaddyfile: extract settings: %v", err)
 		}
 
-		if settings != nil && settings.AdminListen != "" {
-			adminURL := "http://" + settings.AdminListen
+		adminListen := ""
+		if settings != nil {
+			adminListen = settings.AdminListen
+		}
+		if adminListen == "" {
+			adminListen = caddy.ParseCaddyfileAdminAddr(req.Caddyfile)
+		}
+
+		if adminListen != "" {
+			adminURL := "http://" + adminListen
 			if err := store.Update(func(cur config.AppConfig) (*config.AppConfig, error) {
 				cur.CaddyAdminURL = adminURL
 				return &cur, nil
@@ -209,6 +217,11 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 
 		routes := caddy.ExtractReviewRoutes(adaptedJSON)
 
+		adminListen := settings.AdminListen
+		if adminListen == "" {
+			adminListen = caddy.ParseCaddyfileAdminAddr(req.Caddyfile)
+		}
+
 		resp := map[string]any{
 			"acme_email":     settings.ACMEEmail,
 			"global_toggles": settings.Toggles,
@@ -216,8 +229,8 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 			"adapted_config": adaptedJSON,
 			"routes":         routes,
 		}
-		if settings.AdminListen != "" {
-			resp["admin_listen"] = settings.AdminListen
+		if adminListen != "" {
+			resp["admin_listen"] = adminListen
 		}
 		writeJSON(w, resp)
 	}
