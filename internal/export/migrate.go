@@ -36,8 +36,11 @@ func RunMigrations(configMap map[string]any, fromVersion string) ([]string, erro
 			return nil, fmt.Errorf("comparing versions: %w", err)
 		}
 		if cmp < 0 {
-			changes := m.Fn(configMap)
-			allChanges = append(allChanges, changes...)
+			for _, c := range m.Fn(configMap) {
+				if c != "" {
+					allChanges = append(allChanges, c)
+				}
+			}
 		}
 	}
 	return allChanges, nil

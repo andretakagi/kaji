@@ -251,6 +251,40 @@ func TestSetNestedDefault(t *testing.T) {
 	}
 }
 
+func TestRunMigrationsOmitsEmptyStrings(t *testing.T) {
+	origMigrations := migrations
+	defer func() { migrations = origMigrations }()
+
+	migrations = []Migration{
+		{
+			Before:  "1.1.0",
+			Summary: "mixed results",
+			Fn: func(m map[string]any) []string {
+				return []string{
+					setDefault(m, "new_field", true),
+					setDefault(m, "already_exists", "ignored"),
+					removeField(m, "gone"),
+					renameField(m, "missing", "also_missing"),
+				}
+			},
+		},
+	}
+
+	configMap := map[string]any{"already_exists": "keep"}
+	changes, err := RunMigrations(configMap, "1.0.0")
+	if err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Errorf("expected 1 non-empty change, got %d: %v", len(changes), changes)
+	}
+	for i, c := range changes {
+		if c == "" {
+			t.Errorf("changes[%d] is empty", i)
+		}
+	}
+}
+
 func TestSetNestedDefaultExistingNonMap(t *testing.T) {
 	m := map[string]any{"x": "string_value"}
 	msg := setNestedDefault(m, []string{"x", "y"}, 1)
