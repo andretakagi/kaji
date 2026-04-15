@@ -187,5 +187,8 @@ func routesUsingDomain(configJSON []byte, domain string) []string {
 			}
 		}
 	}
+	if routes == nil {
+		routes = []string{}
+	}
 	return routes
 }
