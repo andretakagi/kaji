@@ -111,12 +111,14 @@ func ParseZIP(r io.Reader, size int64) (*Backup, error) {
 }
 
 func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, autoSnapshot bool) error {
+	currentConfig, err := cc.GetConfig()
+	if err != nil {
+		return fmt.Errorf("fetching current caddy config for rollback: %w", err)
+	}
+
 	if autoSnapshot {
-		currentConfig, err := cc.GetConfig()
-		if err == nil {
-			name := "pre-import-" + backup.Manifest.ExportedAt
-			ss.Create(name, "Auto-snapshot before full import", "auto", currentConfig)
-		}
+		name := "pre-import-" + backup.Manifest.ExportedAt
+		ss.Create(name, "Auto-snapshot before full import", "auto", currentConfig)
 	}
 
 	if err := cc.LoadConfig(backup.CaddyConfig); err != nil {
@@ -131,11 +133,13 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 		imported.SecureCookies = current.SecureCookies
 		return &imported, nil
 	}); err != nil {
+		cc.LoadConfig(currentConfig)
 		return fmt.Errorf("updating app config: %w", err)
 	}
 
 	if backup.Snapshots != nil {
 		if err := restoreSnapshots(ss, backup.Snapshots); err != nil {
+			cc.LoadConfig(currentConfig)
 			return fmt.Errorf("restoring snapshots: %w", err)
 		}
 	}
