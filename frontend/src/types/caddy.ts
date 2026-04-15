@@ -64,14 +64,35 @@ export interface FileServerHandler {
 	handler: "file_server";
 }
 
-export type CaddyHandler =
-	| ReverseProxyHandler
-	| HeadersHandler
-	| AuthenticationHandler
-	| SubrouteHandler
-	| EncodeHandler
-	| StaticResponseHandler
-	| FileServerHandler;
+export interface CaddyHandler {
+	handler: string;
+	upstreams?: CaddyUpstream[];
+	load_balancing?: {
+		selection_policy: {
+			policy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
+		};
+	};
+	health_checks?: {
+		passive?: {
+			fail_duration: string;
+			max_fails: number;
+		};
+	};
+	flush_interval?: number;
+	transport?: {
+		protocol: string;
+		tls?: { insecure_skip_verify: boolean };
+	};
+	response?: {
+		set?: Record<string, string[]>;
+	};
+	providers?: {
+		http_basic?: {
+			accounts?: { username: string; password: string }[];
+		};
+	};
+	routes?: CaddyRoute[];
+}
 
 export interface CaddyUpstream {
 	dial: string;
