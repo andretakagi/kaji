@@ -256,16 +256,25 @@ func TestBatcherEmptyFlush(t *testing.T) {
 	batcher := NewLokiBatcher(lines, batches, 1024*1024, 100*time.Millisecond, map[string]string{"job": "kaji"})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go batcher.Run(ctx)
+	done := make(chan struct{})
+	go func() {
+		batcher.Run(ctx)
+		close(done)
+	}()
 
 	// Wait longer than flush interval with no lines
 	time.Sleep(300 * time.Millisecond)
 	cancel()
 
 	select {
-	case <-batches:
-		t.Error("should not produce a batch when no lines were received")
-	default:
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("batcher did not stop")
+	}
+
+	// Channel is now closed. Drain it - any real batches would be buffered before close.
+	for batch := range batches {
+		t.Errorf("should not produce a batch when no lines were received, got %d streams", len(batch.Streams))
 	}
 }
 
