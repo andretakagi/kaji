@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -34,12 +35,17 @@ func handleExportCaddyfile(cc *caddy.Client, store *config.ConfigStore) http.Han
 
 func handleExportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var buf bytes.Buffer
+		if err := export.BuildZIP(&buf, cc, store, ss, version); err != nil {
+			log.Printf("handleExportFull: %v", err)
+			writeError(w, "failed to build export", http.StatusInternalServerError)
+			return
+		}
+
 		filename := fmt.Sprintf("kaji-export-%s.zip", time.Now().Format("2006-01-02"))
 		w.Header().Set("Content-Type", "application/zip")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-		if err := export.BuildZIP(w, cc, store, ss, version); err != nil {
-			log.Printf("handleExportFull: %v", err)
-		}
+		w.Write(buf.Bytes())
 	}
 }
 
