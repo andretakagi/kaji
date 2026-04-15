@@ -7,7 +7,7 @@
 		<meta name="theme-color" content="#1a1d28" />
 		<script>
 			(() => {
-				var t = localStorage.getItem("theme") || "dark";
+				var t = localStorage.getItem("theme") || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
 				document.documentElement.setAttribute("data-theme", t);
 				var cs = document.querySelector('meta[name="color-scheme"]');
 				if (cs) cs.setAttribute("content", t);

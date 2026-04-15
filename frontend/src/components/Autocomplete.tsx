@@ -23,6 +23,7 @@ export default function Autocomplete({
 	const [activeIndex, setActiveIndex] = useState(-1);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
+	const idPrefix = id ? `${id}-opt` : "autocomplete-opt";
 
 	const filtered = useMemo(() => {
 		if (!value) return options;
@@ -94,7 +95,7 @@ export default function Autocomplete({
 				aria-expanded={showDropdown}
 				aria-autocomplete="list"
 				aria-activedescendant={
-					showDropdown && activeIndex >= 0 ? `autocomplete-opt-${activeIndex}` : undefined
+					showDropdown && activeIndex >= 0 ? `${idPrefix}-${activeIndex}` : undefined
 				}
 			/>
 			{value && (
@@ -116,7 +117,7 @@ export default function Autocomplete({
 					{filtered.map((option, i) => (
 						<div
 							key={option}
-							id={`autocomplete-opt-${i}`}
+							id={`${idPrefix}-${i}`}
 							role="option"
 							tabIndex={-1}
 							aria-selected={i === activeIndex}

@@ -197,9 +197,10 @@ function CertCard({
 }) {
 	const title = (
 		<>
-			<span className={cn("cert-status-dot", `cert-${cert.status}`)} />
+			<span className={cn("cert-status-dot", `cert-${cert.status}`)} aria-hidden="true" />
 			<span className="cert-domain">{cert.domain}</span>
 			<span className={cn("cert-expiry-text", `cert-${cert.status}`)}>{expiryText(cert)}</span>
+			<span className="sr-only">{expiryText(cert)}</span>
 		</>
 	);
 

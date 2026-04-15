@@ -300,8 +300,13 @@ function ExportImportSection({ onImport }: { onImport: () => void }) {
 
 			{confirmAction && (
 				<div className="confirm-dialog-overlay">
-					<div className="confirm-dialog">
-						<h4>Confirm Import</h4>
+					<div
+						className="confirm-dialog"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="confirm-import-title"
+					>
+						<h4 id="confirm-import-title">Confirm Import</h4>
 						<p>
 							{confirmAction === "full"
 								? "This will replace all current settings, routes, and configuration with the backup. A snapshot of the current state will be created first."

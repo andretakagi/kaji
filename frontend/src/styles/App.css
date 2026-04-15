@@ -72,6 +72,8 @@
 	--badge-blacklist-rgb: 220, 80, 80;
 	--badge-whitelist: #50b478;
 	--badge-whitelist-rgb: 80, 180, 120;
+
+	--bg-tertiary: rgba(75, 58, 112, 0.08);
 }
 
 [data-theme="light"] {
@@ -104,6 +106,8 @@
 	--badge-blacklist-rgb: 196, 64, 64;
 	--badge-whitelist: #2e8b57;
 	--badge-whitelist-rgb: 46, 139, 87;
+
+	--bg-tertiary: rgba(124, 95, 191, 0.06);
 }
 
 *,
@@ -1165,8 +1169,12 @@ input:disabled + .toggle-slider {
 }
 
 .setup-import-textarea:focus {
-	outline: none;
 	border-color: var(--accent-hover);
+}
+
+.setup-import-textarea:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -1px;
 }
 
 .setup-import-actions {
@@ -1282,7 +1290,7 @@ input:disabled + .toggle-slider {
 }
 
 .setup-review-status.on {
-	color: var(--success, #6ec97a);
+	color: var(--green);
 }
 
 .setup-review-status.off {
@@ -3301,8 +3309,13 @@ input:disabled + .toggle-slider {
 
 .snapshot-create-form textarea:focus,
 .snapshot-edit-form textarea:focus {
-	outline: none;
 	border-color: var(--accent);
+}
+
+.snapshot-create-form textarea:focus-visible,
+.snapshot-edit-form textarea:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -1px;
 }
 
 .snapshot-create-actions,

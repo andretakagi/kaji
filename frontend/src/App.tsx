@@ -219,12 +219,11 @@ function App() {
 				<header className="app-header">
 					<h1 className="sr-only">Kaji</h1>
 					{statusKnown && (
-						<div className="status-widget">
+						<div className="status-widget" role="status" aria-live="polite">
 							<span className="status-widget-caddy">Caddy</span>
 							<span
 								className={cn("status-beacon", running ? "running" : "stopped")}
-								role="status"
-								aria-label={`Caddy is ${running ? "running" : "stopped"}`}
+								aria-hidden="true"
 							/>
 							<span className={cn("status-label", running ? "running" : "stopped")}>
 								{running ? "Running" : "Stopped"}

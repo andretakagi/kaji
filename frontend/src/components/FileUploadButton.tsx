@@ -24,7 +24,15 @@ export default function FileUploadButton({
 
 	return (
 		<>
-			<input ref={inputRef} type="file" accept={accept} onChange={handleChange} hidden />
+			<input
+				ref={inputRef}
+				type="file"
+				accept={accept}
+				onChange={handleChange}
+				hidden
+				aria-hidden="true"
+				tabIndex={-1}
+			/>
 			<button
 				type="button"
 				className={className}

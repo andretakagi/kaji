@@ -202,9 +202,7 @@ export function LokiSettings() {
 						</div>
 					</div>
 					<div className="settings-field">
-						<span className="settings-field-hint" style={{ fontWeight: 500, color: "var(--text)" }}>
-							Labels
-						</span>
+						<span className="settings-subsection-title">Labels</span>
 						<div className="loki-labels">
 							<div className="loki-label-row loki-label-fixed">
 								<input type="text" value="job" disabled />
