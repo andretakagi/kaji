@@ -224,9 +224,14 @@ function ExportImportSection() {
 					`${result.snapshot_count} ${result.snapshot_count === 1 ? "snapshot" : "snapshots"}`,
 				);
 			}
-			return parts.length > 1
-				? `${parts[0]}: ${parts.slice(1).join(", ")}. Reload to see changes.`
-				: `${parts[0]} successfully. Reload to see changes.`;
+			let message =
+				parts.length > 1
+					? `${parts[0]}: ${parts.slice(1).join(", ")}. Reload to see changes.`
+					: `${parts[0]} successfully. Reload to see changes.`;
+			if (result.migrated_from && result.migration_log?.length) {
+				message += `\n\nMigrated from ${result.migrated_from}:\n${result.migration_log.map((c) => `  - ${c}`).join("\n")}`;
+			}
+			return message;
 		});
 	};
 

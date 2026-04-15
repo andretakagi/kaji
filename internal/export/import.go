@@ -16,10 +16,11 @@ import (
 )
 
 type Backup struct {
-	Manifest    Manifest         `json:"manifest"`
-	CaddyConfig json.RawMessage  `json:"caddy_config"`
-	AppConfig   config.AppConfig `json:"app_config"`
-	Snapshots   *SnapshotData    `json:"snapshots,omitempty"`
+	Manifest     Manifest         `json:"manifest"`
+	CaddyConfig  json.RawMessage  `json:"caddy_config"`
+	AppConfig    config.AppConfig `json:"app_config"`
+	Snapshots    *SnapshotData    `json:"snapshots,omitempty"`
+	MigrationLog []string         `json:"migration_log,omitempty"`
 }
 
 type SnapshotData struct {
@@ -29,7 +30,7 @@ type SnapshotData struct {
 
 const MaxZIPSize = 100 * 1024 * 1024 // 100 MB
 
-func ParseZIP(r io.Reader, size int64) (*Backup, error) {
+func ParseZIP(r io.Reader, size int64, runningVersion string) (*Backup, error) {
 	if size > MaxZIPSize {
 		return nil, fmt.Errorf("zip file too large (max %d MB)", MaxZIPSize/(1024*1024))
 	}
@@ -88,9 +89,30 @@ func ParseZIP(r io.Reader, size int64) (*Backup, error) {
 	if !ok {
 		return nil, fmt.Errorf("missing config.json")
 	}
-	if err := json.Unmarshal(configData, &backup.AppConfig); err != nil {
+
+	if err := CheckVersion(backup.Manifest.KajiVersion, runningVersion); err != nil {
+		return nil, err
+	}
+
+	var configMap map[string]any
+	if err := json.Unmarshal(configData, &configMap); err != nil {
 		return nil, fmt.Errorf("parsing config.json: %w", err)
 	}
+
+	migrationLog, err := RunMigrations(configMap, backup.Manifest.KajiVersion)
+	if err != nil {
+		return nil, fmt.Errorf("migrating config: %w", err)
+	}
+
+	migratedData, err := json.Marshal(configMap)
+	if err != nil {
+		return nil, fmt.Errorf("re-encoding migrated config: %w", err)
+	}
+	if err := json.Unmarshal(migratedData, &backup.AppConfig); err != nil {
+		return nil, fmt.Errorf("parsing migrated config: %w", err)
+	}
+
+	backup.MigrationLog = migrationLog
 
 	if indexData, ok := files["snapshots/index.json"]; ok {
 		backup.Snapshots = &SnapshotData{

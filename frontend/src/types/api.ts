@@ -156,6 +156,8 @@ export interface ImportResponse {
 	status: string;
 	route_count?: number;
 	snapshot_count?: number;
+	migrated_from?: string;
+	migration_log?: string[];
 }
 
 export interface SetupImportFullResponse {
@@ -173,4 +175,6 @@ export interface SetupImportFullResponse {
 		disabled_routes: number;
 		snapshot_count: number;
 	};
+	migrated_from?: string;
+	migration_log?: string[];
 }

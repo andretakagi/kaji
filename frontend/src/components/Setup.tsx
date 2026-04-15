@@ -632,6 +632,18 @@ function StepImport({
 									<strong>Configured</strong>
 								</div>
 							)}
+							{data.backupSummary.migration_log && data.backupSummary.migration_log.length > 0 && (
+								<div className="setup-import-migration">
+									<span className="setup-import-migration-label">
+										Migrated from {data.backupSummary.migrated_from}
+									</span>
+									<ul className="setup-import-migration-list">
+										{data.backupSummary.migration_log.map((change) => (
+											<li key={change}>{change}</li>
+										))}
+									</ul>
+								</div>
+							)}
 						</div>
 					)}
 				</>

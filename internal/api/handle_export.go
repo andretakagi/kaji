@@ -117,11 +117,11 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 	}
 }
 
-func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store) http.HandlerFunc {
+func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, export.MaxZIPSize)
 
-		backup, err := export.ParseZIP(r.Body, r.ContentLength)
+		backup, err := export.ParseZIP(r.Body, r.ContentLength, version)
 		if err != nil {
 			writeError(w, "invalid backup file: "+err.Error(), http.StatusBadRequest)
 			return
@@ -151,11 +151,16 @@ func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 
 		routeCount := caddy.CountRoutes(backup.CaddyConfig)
 
-		writeJSON(w, map[string]any{
+		resp := map[string]any{
 			"status":         "ok",
 			"route_count":    routeCount,
 			"snapshot_count": snapshotCount,
-		})
+		}
+		if len(backup.MigrationLog) > 0 {
+			resp["migrated_from"] = backup.Manifest.KajiVersion
+			resp["migration_log"] = backup.MigrationLog
+		}
+		writeJSON(w, resp)
 	}
 }
 
@@ -199,11 +204,11 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 	}
 }
 
-func handleSetupImportFull(cc *caddy.Client) http.HandlerFunc {
+func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, export.MaxZIPSize)
 
-		backup, err := export.ParseZIP(r.Body, r.ContentLength)
+		backup, err := export.ParseZIP(r.Body, r.ContentLength, version)
 		if err != nil {
 			writeError(w, "invalid backup file: "+err.Error(), http.StatusBadRequest)
 			return
@@ -232,6 +237,10 @@ func handleSetupImportFull(cc *caddy.Client) http.HandlerFunc {
 			resp["acme_email"] = settings.ACMEEmail
 			resp["global_toggles"] = settings.Toggles
 			resp["route_count"] = settings.RouteCount
+		}
+		if len(backup.MigrationLog) > 0 {
+			resp["migrated_from"] = backup.Manifest.KajiVersion
+			resp["migration_log"] = backup.MigrationLog
 		}
 
 		writeJSON(w, resp)
