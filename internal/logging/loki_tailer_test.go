@@ -193,21 +193,34 @@ func TestTailerDetectsFileRotation(t *testing.T) {
 	os.WriteFile(logPath, []byte("old\n"), 0644)
 
 	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
-	lines := make(chan TaggedLine) // unbuffered: tailer blocks after reading the line
+	lines := make(chan TaggedLine, 10)
 	tailer := NewLokiTailer("test", logPath, pos, lines)
+	tailer.afterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	// Replace the file after the scanner finishes reading "old" but before
+	// the inode comparison. This guarantees the tailer still has the old fd
+	// open when it compares inodes, which is the exact scenario rotation
+	// detection must handle.
+	rotated := make(chan struct{})
+	tailer.onScanComplete = func() {
+		select {
+		case <-rotated:
+		default:
+			os.Remove(logPath)
+			os.WriteFile(logPath, []byte("rotated content\n"), 0644)
+			close(rotated)
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	go tailer.Run(ctx)
 
-	// The tailer reads "old" and blocks on the unbuffered send.
-	// Replace the file (new inode) while the tailer still holds the old fd.
-	time.Sleep(500 * time.Millisecond)
-	os.Remove(logPath)
-	os.WriteFile(logPath, []byte("rotated content\n"), 0644)
-
-	// Unblock the tailer by receiving the old line
 	select {
 	case tl := <-lines:
 		if tl.Line != "old" {
@@ -236,16 +249,17 @@ func TestTailerWaitsForFileCreation(t *testing.T) {
 	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
 	lines := make(chan TaggedLine, 100)
 	tailer := NewLokiTailer("test", logPath, pos, lines)
+	tailer.afterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	go tailer.Run(ctx)
 
-	// File doesn't exist yet, tailer should be polling
-	time.Sleep(500 * time.Millisecond)
-
-	// Now create the file
 	os.WriteFile(logPath, []byte("delayed line\n"), 0644)
 
 	select {
@@ -305,6 +319,11 @@ func TestTailerAppendsAfterIdlePeriod(t *testing.T) {
 	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
 	lines := make(chan TaggedLine, 100)
 	tailer := NewLokiTailer("test", logPath, pos, lines)
+	tailer.afterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -319,8 +338,6 @@ func TestTailerAppendsAfterIdlePeriod(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for initial line")
 	}
-
-	time.Sleep(5 * time.Second)
 
 	f, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -395,15 +412,17 @@ func TestTailerRetriesOnNonContextError(t *testing.T) {
 	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
 	lines := make(chan TaggedLine, 100)
 	tailer := NewLokiTailer("test", logPath, pos, lines)
+	tailer.afterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	go tailer.Run(ctx)
 
-	// File is unreadable (0000), tailer should be retrying.
-	// Wait past one retry interval, then fix permissions.
-	time.Sleep(3 * time.Second)
 	os.Chmod(logPath, 0644)
 
 	select {

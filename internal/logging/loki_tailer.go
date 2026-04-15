@@ -18,19 +18,22 @@ type TaggedLine struct {
 }
 
 type LokiTailer struct {
-	sink   string
-	path   string
-	pos    *PositionStore
-	lines  chan<- TaggedLine
-	offset int64
+	sink           string
+	path           string
+	pos            *PositionStore
+	lines          chan<- TaggedLine
+	offset         int64
+	afterFunc      func(time.Duration) <-chan time.Time
+	onScanComplete func() // test hook: called after scanner finishes, before inode check
 }
 
 func NewLokiTailer(sink, path string, pos *PositionStore, lines chan<- TaggedLine) *LokiTailer {
 	return &LokiTailer{
-		sink:  sink,
-		path:  path,
-		pos:   pos,
-		lines: lines,
+		sink:      sink,
+		path:      path,
+		pos:       pos,
+		lines:     lines,
+		afterFunc: time.After,
 	}
 }
 
@@ -47,7 +50,7 @@ func (t *LokiTailer) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(tailerRetryInterval):
+		case <-t.afterFunc(tailerRetryInterval):
 		}
 	}
 }
@@ -61,7 +64,7 @@ func (t *LokiTailer) tailFile(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(tailerRetryInterval):
+		case <-t.afterFunc(tailerRetryInterval):
 		}
 	}
 
@@ -107,6 +110,10 @@ func (t *LokiTailer) tailFile(ctx context.Context) error {
 	}
 	if err := scanner.Err(); err != nil {
 		return err
+	}
+
+	if t.onScanComplete != nil {
+		t.onScanComplete()
 	}
 
 	fdInfo, err := f.Stat()

@@ -34,7 +34,13 @@ func TestPusherSendsGzippedJSON(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -44,10 +50,13 @@ func TestPusherSendsGzippedJSON(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	// Give pusher time to process
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	if gotHeaders.Get("Content-Type") != "application/json" {
 		t.Errorf("Content-Type: got %q, want application/json", gotHeaders.Get("Content-Type"))
@@ -86,7 +95,13 @@ func TestPusherSendsBearerToken(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "secret-token", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -96,9 +111,13 @@ func TestPusherSendsBearerToken(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	if gotAuth != "Bearer secret-token" {
 		t.Errorf("Authorization: got %q, want %q", gotAuth, "Bearer secret-token")
@@ -118,7 +137,13 @@ func TestPusherSendsTenantID(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "my-tenant", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -128,9 +153,13 @@ func TestPusherSendsTenantID(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	if gotTenant != "my-tenant" {
 		t.Errorf("X-Scope-OrgID: got %q, want %q", gotTenant, "my-tenant")
@@ -151,7 +180,13 @@ func TestPusherOmitsAuthHeadersWhenEmpty(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -161,9 +196,13 @@ func TestPusherOmitsAuthHeadersWhenEmpty(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	if hasAuth {
 		t.Error("Authorization header should be absent when bearerToken is empty")
@@ -183,7 +222,13 @@ func TestPusherRecordsSuccessStatus(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -193,9 +238,13 @@ func TestPusherRecordsSuccessStatus(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	status := pusher.GetStatus()
 	s, ok := status["access"]
@@ -223,7 +272,13 @@ func TestPusherRecordsErrorOnBadRequest(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -233,9 +288,13 @@ func TestPusherRecordsErrorOnBadRequest(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	status := pusher.GetStatus()
 	s, ok := status["test"]
@@ -263,7 +322,13 @@ func TestPusherDropsBatchOnBadRequestNoRetry(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -273,9 +338,13 @@ func TestPusherDropsBatchOnBadRequestNoRetry(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	count := atomic.LoadInt32(&requestCount)
 	if count != 1 {
@@ -293,9 +362,14 @@ func TestPusherAccumulatesEntryCount(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
 
-	// Send two batches for the same sink
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
+
 	for i := 0; i < 2; i++ {
 		batches <- LokiBatch{
 			Streams: []LokiStream{
@@ -306,9 +380,13 @@ func TestPusherAccumulatesEntryCount(t *testing.T) {
 			},
 		}
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	status := pusher.GetStatus()
 	if status["access"].EntriesPushed != 2 {
@@ -326,7 +404,13 @@ func TestPusherGetStatusReturnsSnapshot(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -336,9 +420,13 @@ func TestPusherGetStatusReturnsSnapshot(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	snap1 := pusher.GetStatus()
 	snap2 := pusher.GetStatus()
@@ -365,9 +453,20 @@ func TestPusherRetryThenSucceed(t *testing.T) {
 
 	batches := make(chan LokiBatch, 1)
 	pusher := NewLokiPusher(server.URL, "", "", batches)
+	pusher.afterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -377,10 +476,13 @@ func TestPusherRetryThenSucceed(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	// Wait for retry loop to complete (500ms + 1s backoff + request time)
-	time.Sleep(3 * time.Second)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not finish")
+	}
 
 	count := atomic.LoadInt32(&attempts)
 	if count != 3 {
@@ -411,8 +513,13 @@ func TestPusherRetriesOnServerError(t *testing.T) {
 
 	batches := make(chan LokiBatch, 1)
 	pusher := NewLokiPusher(server.URL, "", "", batches)
+	pusher.afterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	done := make(chan struct{})
@@ -429,16 +536,12 @@ func TestPusherRetriesOnServerError(t *testing.T) {
 			},
 		},
 	}
-
-	// Let it retry for 3 seconds, then cancel and close batches
-	time.Sleep(3 * time.Second)
-	cancel()
 	close(batches)
 
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
-		t.Fatal("pusher did not stop after cancellation")
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop after exhausting retries")
 	}
 
 	count := atomic.LoadInt32(&attempts)
@@ -465,6 +568,15 @@ func TestPusherRetryCancelledDuringBackoff(t *testing.T) {
 	batches := make(chan LokiBatch, 1)
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
+	backoffStarted := make(chan struct{}, 1)
+	pusher.afterFunc = func(d time.Duration) <-chan time.Time {
+		select {
+		case backoffStarted <- struct{}{}:
+		default:
+		}
+		return make(chan time.Time)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -481,8 +593,12 @@ func TestPusherRetryCancelledDuringBackoff(t *testing.T) {
 		},
 	}
 
-	// Wait for the first attempt to complete, then cancel during backoff and close batches
-	time.Sleep(1 * time.Second)
+	select {
+	case <-backoffStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not enter backoff")
+	}
+
 	cancel()
 	close(batches)
 
@@ -571,7 +687,13 @@ func TestPusherRecordsErrorForAllSinksInBatch(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -585,9 +707,13 @@ func TestPusherRecordsErrorForAllSinksInBatch(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	status := pusher.GetStatus()
 	for _, sink := range []string{"a", "b"} {
@@ -615,7 +741,13 @@ func TestPusherRecordsSuccessForAllSinksInBatch(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -629,9 +761,13 @@ func TestPusherRecordsSuccessForAllSinksInBatch(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	status := pusher.GetStatus()
 	for _, tc := range []struct {
@@ -717,7 +853,13 @@ func TestPusherRecordSuccessSkipsNoSinkLabel(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -731,9 +873,13 @@ func TestPusherRecordSuccessSkipsNoSinkLabel(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	status := pusher.GetStatus()
 	if _, ok := status[""]; ok {
@@ -758,7 +904,13 @@ func TestPusherRecordErrorSkipsNoSinkLabel(t *testing.T) {
 	pusher := NewLokiPusher(server.URL, "", "", batches)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go pusher.Run(ctx)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		pusher.Run(ctx)
+		close(done)
+	}()
 
 	batches <- LokiBatch{
 		Streams: []LokiStream{
@@ -772,9 +924,13 @@ func TestPusherRecordErrorSkipsNoSinkLabel(t *testing.T) {
 			},
 		},
 	}
+	close(batches)
 
-	time.Sleep(500 * time.Millisecond)
-	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("pusher did not stop")
+	}
 
 	status := pusher.GetStatus()
 	if _, ok := status[""]; ok {

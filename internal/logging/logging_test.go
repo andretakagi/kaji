@@ -29,7 +29,7 @@ func TestTailFileFollowsAppendedLines(t *testing.T) {
 		t.Fatalf("creating log file: %v", err)
 	}
 
-	// Write initial content before TailFile starts (should be skipped since it
+	// Write initial content before tailFile starts (should be skipped since it
 	// seeks to end).
 	if _, err := f.WriteString("pre-existing line\n"); err != nil {
 		t.Fatalf("writing initial content: %v", err)
@@ -38,16 +38,33 @@ func TestTailFileFollowsAppendedLines(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// First afterFunc call proves the tailer has opened, seeked, and scanned
+	// once (finding nothing new). Write data after that signal so we know the
+	// seek-to-end has already happened.
+	polled := make(chan struct{}, 1)
+	afterFunc := func(d time.Duration) <-chan time.Time {
+		select {
+		case polled <- struct{}{}:
+		default:
+		}
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
 	lines := make(chan string, 100)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- TailFile(ctx, logFile, lines)
+		errCh <- tailFile(ctx, logFile, lines, afterFunc)
 	}()
 
-	// Give TailFile time to open and seek
-	time.Sleep(500 * time.Millisecond)
+	select {
+	case <-polled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for tailer to start polling")
+	}
 
-	// Append lines after TailFile has started
+	// Append lines after tailFile has seeked to end
 	if _, err := f.WriteString("line one\n"); err != nil {
 		t.Fatalf("appending line: %v", err)
 	}
@@ -95,13 +112,31 @@ func TestTailFileStopsOnContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	lines := make(chan string, 10)
 
+	// Block in afterFunc until the test cancels the context, ensuring the
+	// tailer is actively polling when cancellation happens.
+	polled := make(chan struct{}, 1)
+	afterFunc := func(d time.Duration) <-chan time.Time {
+		select {
+		case polled <- struct{}{}:
+		default:
+		}
+		// Block until context is cancelled
+		<-ctx.Done()
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- TailFile(ctx, logFile, lines)
+		errCh <- tailFile(ctx, logFile, lines, afterFunc)
 	}()
 
-	// Give it time to start polling
-	time.Sleep(500 * time.Millisecond)
+	select {
+	case <-polled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for tailer to start polling")
+	}
 	cancel()
 
 	select {
@@ -110,7 +145,7 @@ func TestTailFileStopsOnContextCancel(t *testing.T) {
 			t.Errorf("expected context.Canceled, got %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for TailFile to return after cancel")
+		t.Fatal("timed out waiting for tailFile to return after cancel")
 	}
 }
 

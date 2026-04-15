@@ -167,7 +167,7 @@ func TestBatcherAssignsTimestamps(t *testing.T) {
 }
 
 func TestBatcherFlushesPendingOnCancel(t *testing.T) {
-	lines := make(chan TaggedLine, 100)
+	lines := make(chan TaggedLine)
 	batches := make(chan LokiBatch, 10)
 
 	batcher := NewLokiBatcher(lines, batches, 1024*1024, 10*time.Minute, map[string]string{"job": "kaji"})
@@ -181,9 +181,6 @@ func TestBatcherFlushesPendingOnCancel(t *testing.T) {
 	}()
 
 	lines <- TaggedLine{Sink: "default", Line: "pending line"}
-
-	// Give batcher time to receive the line before cancelling
-	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	select {
@@ -204,7 +201,7 @@ func TestBatcherFlushesPendingOnCancel(t *testing.T) {
 }
 
 func TestBatcherFlushesPendingOnChannelClose(t *testing.T) {
-	lines := make(chan TaggedLine, 100)
+	lines := make(chan TaggedLine)
 	batches := make(chan LokiBatch, 10)
 
 	batcher := NewLokiBatcher(lines, batches, 1024*1024, 10*time.Minute, map[string]string{"job": "kaji"})
@@ -216,8 +213,6 @@ func TestBatcherFlushesPendingOnChannelClose(t *testing.T) {
 	}()
 
 	lines <- TaggedLine{Sink: "default", Line: "pending line"}
-
-	time.Sleep(50 * time.Millisecond)
 	close(lines)
 
 	select {
@@ -262,8 +257,12 @@ func TestBatcherEmptyFlush(t *testing.T) {
 		close(done)
 	}()
 
-	// Wait longer than flush interval with no lines
-	time.Sleep(300 * time.Millisecond)
+	select {
+	case batch := <-batches:
+		t.Errorf("should not produce a batch when no lines were received, got %d streams", len(batch.Streams))
+	case <-time.After(300 * time.Millisecond):
+	}
+
 	cancel()
 
 	select {
@@ -272,7 +271,6 @@ func TestBatcherEmptyFlush(t *testing.T) {
 		t.Fatal("batcher did not stop")
 	}
 
-	// Channel is now closed. Drain it - any real batches would be buffered before close.
 	for batch := range batches {
 		t.Errorf("should not produce a batch when no lines were received, got %d streams", len(batch.Streams))
 	}
