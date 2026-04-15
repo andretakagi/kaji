@@ -161,6 +161,9 @@ export interface ImportResponse {
 export interface SetupImportFullResponse {
 	status: string;
 	backup_data: Record<string, unknown>;
+	acme_email?: string;
+	global_toggles?: GlobalToggles;
+	route_count?: number;
 	summary: {
 		auth_enabled: boolean;
 		has_api_key: boolean;

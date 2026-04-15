@@ -475,6 +475,8 @@ function StepImport({
 			const result = await setupImportFull(file);
 			update("backupSummary", result);
 			update("backupData", result.backup_data);
+			if (result.acme_email) update("acmeEmail", result.acme_email);
+			if (result.global_toggles) update("globalToggles", result.global_toggles);
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to parse backup file"));
 			update("backupSummary", null);

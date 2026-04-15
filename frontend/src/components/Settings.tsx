@@ -217,9 +217,7 @@ function ExportImportSection() {
 			const result = await importFull(file);
 			const parts = ["Full backup imported"];
 			if (result.route_count !== undefined) {
-				parts.push(
-					`${result.route_count} ${result.route_count === 1 ? "route" : "routes"}`,
-				);
+				parts.push(`${result.route_count} ${result.route_count === 1 ? "route" : "routes"}`);
 			}
 			if (result.snapshot_count) {
 				parts.push(

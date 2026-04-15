@@ -206,7 +206,7 @@ func handleSetupImportFull(cc *caddy.Client) http.HandlerFunc {
 			snapshotCount = len(backup.Snapshots.Index.Snapshots)
 		}
 
-		writeJSON(w, map[string]any{
+		resp := map[string]any{
 			"status":      "ok",
 			"backup_data": backup,
 			"summary": map[string]any{
@@ -218,6 +218,14 @@ func handleSetupImportFull(cc *caddy.Client) http.HandlerFunc {
 				"disabled_routes": len(backup.AppConfig.DisabledRoutes),
 				"snapshot_count":  snapshotCount,
 			},
-		})
+		}
+
+		if settings, err := caddy.ExtractCaddyfileSettings(backup.CaddyConfig); err == nil {
+			resp["acme_email"] = settings.ACMEEmail
+			resp["global_toggles"] = settings.Toggles
+			resp["route_count"] = settings.RouteCount
+		}
+
+		writeJSON(w, resp)
 	}
 }
