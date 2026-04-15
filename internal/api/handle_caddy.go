@@ -15,6 +15,8 @@ import (
 	"github.com/andretakagi/kaji/internal/system"
 )
 
+const caddyReadyTimeout = 10 * time.Second
+
 func handleStatus(mgr system.CaddyManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		running, err := mgr.Status()
@@ -34,7 +36,7 @@ func handleStart(mgr system.CaddyManager, cc *caddy.Client, store *config.Config
 			writeError(w, "failed to start caddy", http.StatusInternalServerError)
 			return
 		}
-		if err := cc.WaitReady(10 * time.Second); err != nil {
+		if err := cc.WaitReady(caddyReadyTimeout); err != nil {
 			log.Printf("handleStart: caddy started but admin API not ready: %v", err)
 			writeError(w, "caddy process started but admin API is not responding", http.StatusBadGateway)
 			return
@@ -63,7 +65,7 @@ func handleRestart(mgr system.CaddyManager, cc *caddy.Client, store *config.Conf
 			writeError(w, "failed to restart caddy", http.StatusInternalServerError)
 			return
 		}
-		if err := cc.WaitReady(10 * time.Second); err != nil {
+		if err := cc.WaitReady(caddyReadyTimeout); err != nil {
 			log.Printf("handleRestart: caddy restarted but admin API not ready: %v", err)
 			writeError(w, "caddy process restarted but admin API is not responding", http.StatusBadGateway)
 			return

@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+const (
+	clientTimeout     = 10 * time.Second
+	readyPollInterval = 500 * time.Millisecond
+)
+
 // caddyServer holds the subset of a Caddy server's config that Kaji reads.
 // JSON unmarshaling silently ignores fields not listed here, so callers only
 // use the fields they need.
@@ -49,7 +54,7 @@ type Client struct {
 func NewClient(urlFunc func() string) *Client {
 	return &Client{
 		baseURL:    urlFunc,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: &http.Client{Timeout: clientTimeout},
 	}
 }
 
@@ -78,7 +83,7 @@ func (c *Client) WaitReady(timeout time.Duration) error {
 		if c.IsReachable() {
 			return nil
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(readyPollInterval)
 	}
 	return fmt.Errorf("caddy admin API at %s not reachable after %s", c.url(), timeout)
 }

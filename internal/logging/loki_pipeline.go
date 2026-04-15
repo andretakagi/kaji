@@ -9,6 +9,11 @@ import (
 	"github.com/andretakagi/kaji/internal/config"
 )
 
+const (
+	positionSaveInterval = 10 * time.Second
+	drainTimeout         = 5 * time.Second
+)
+
 type SinkResolver func() map[string]string
 
 type tailerHandle struct {
@@ -113,7 +118,7 @@ func (p *LokiPipeline) Start() {
 	}()
 	go func() {
 		defer p.wg.Done()
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(positionSaveInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -184,7 +189,7 @@ func (p *LokiPipeline) Stop() {
 	}()
 	select {
 	case <-drainDone:
-	case <-time.After(5 * time.Second):
+	case <-time.After(drainTimeout):
 		log.Println("loki pipeline: drain deadline exceeded, forcing shutdown")
 		p.cancel()
 	}

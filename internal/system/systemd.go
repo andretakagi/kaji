@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"time"
 )
 
 type SystemdManager struct {
@@ -16,7 +15,7 @@ func (s *SystemdManager) Start() error {
 	if err := exec.Command("systemctl", "start", "caddy").Run(); err != nil {
 		return fmt.Errorf("systemctl start caddy: %w", err)
 	}
-	if err := WaitForAdminAPI(adminURL(s.AdminURL), 5*time.Second); err != nil {
+	if err := WaitForAdminAPI(adminURL(s.AdminURL), adminReadyTimeout); err != nil {
 		return fmt.Errorf("caddy started but admin API not reachable: %w", err)
 	}
 	return nil
@@ -33,7 +32,7 @@ func (s *SystemdManager) Restart() error {
 	if err := exec.Command("systemctl", "restart", "caddy").Run(); err != nil {
 		return fmt.Errorf("systemctl restart caddy: %w", err)
 	}
-	if err := WaitForAdminAPI(adminURL(s.AdminURL), 5*time.Second); err != nil {
+	if err := WaitForAdminAPI(adminURL(s.AdminURL), adminReadyTimeout); err != nil {
 		return fmt.Errorf("caddy restarted but admin API not reachable: %w", err)
 	}
 	return nil

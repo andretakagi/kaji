@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+const (
+	crashDetectDelay = 500 * time.Millisecond
+	stopGraceTimeout = 5 * time.Second
+)
+
 type ProcessManager struct {
 	AdminURL string
 	mu       sync.Mutex
@@ -57,7 +62,7 @@ func (p *ProcessManager) Start() error {
 			return fmt.Errorf("caddy exited immediately: %w", err)
 		}
 		return fmt.Errorf("caddy exited immediately")
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(crashDetectDelay):
 	}
 
 	// Wait for the admin API to become reachable
@@ -69,8 +74,8 @@ func (p *ProcessManager) Start() error {
 }
 
 func (p *ProcessManager) waitForAdminAPI() error {
-	client := &http.Client{Timeout: 1 * time.Second}
-	deadline := time.Now().Add(5 * time.Second)
+	client := &http.Client{Timeout: adminPollTimeout}
+	deadline := time.Now().Add(adminReadyTimeout)
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(adminURL(p.AdminURL) + "/config/")
 		if err == nil {
@@ -87,10 +92,10 @@ func (p *ProcessManager) waitForAdminAPI() error {
 				return fmt.Errorf("caddy exited: %w", err)
 			}
 			return fmt.Errorf("caddy exited unexpectedly")
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(adminPollInterval):
 		}
 	}
-	return fmt.Errorf("timed out after 5s")
+	return fmt.Errorf("timed out after %s", adminReadyTimeout)
 }
 
 func (p *ProcessManager) Stop() error {
@@ -115,7 +120,7 @@ func (p *ProcessManager) Stop() error {
 	select {
 	case <-done:
 		return nil
-	case <-time.After(5 * time.Second):
+	case <-time.After(stopGraceTimeout):
 		p.mu.Lock()
 		if p.cmd != nil {
 			syscall.Kill(-pgid, syscall.SIGKILL)
@@ -143,7 +148,7 @@ func (p *ProcessManager) Status() (bool, error) {
 	// No managed process, but Caddy may already be running (e.g. after
 	// a syscall.Exec restart where we lost the child reference). Check
 	// the admin API to find out.
-	client := &http.Client{Timeout: 1 * time.Second}
+	client := &http.Client{Timeout: adminPollTimeout}
 	resp, err := client.Get(adminURL(p.AdminURL) + "/config/")
 	if err != nil {
 		return false, nil

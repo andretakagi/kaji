@@ -17,8 +17,10 @@ import (
 const lokiPushPath = "/loki/api/v1/push"
 
 const (
-	initialBackoff = 500 * time.Millisecond
-	maxBackoff     = 5 * time.Minute
+	initialBackoff     = 500 * time.Millisecond
+	maxBackoff         = 5 * time.Minute
+	pushHTTPTimeout    = 30 * time.Second
+	pushRequestTimeout = 10 * time.Second
 )
 
 func nextBackoff(current time.Duration) time.Duration {
@@ -65,7 +67,7 @@ func NewLokiPusher(
 		bearerToken: bearerToken,
 		tenantID:    tenantID,
 		batches:     batches,
-		client:      &http.Client{Timeout: 30 * time.Second},
+		client:      &http.Client{Timeout: pushHTTPTimeout},
 		afterFunc:   time.After,
 		status:      make(map[string]*SinkStatus),
 	}
@@ -270,7 +272,7 @@ func SendLokiTestEntry(endpoint, bearerToken, tenantID string) error {
 		return fmt.Errorf("gzip close: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), pushRequestTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, normalizeLokiEndpoint(endpoint), &buf)
@@ -286,7 +288,7 @@ func SendLokiTestEntry(endpoint, bearerToken, tenantID string) error {
 		req.Header.Set("X-Scope-OrgID", tenantID)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: pushRequestTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

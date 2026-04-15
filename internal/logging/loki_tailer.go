@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const tailerRetryInterval = 2 * time.Second
+
 type TaggedLine struct {
 	Sink string
 	Line string
@@ -45,7 +47,7 @@ func (t *LokiTailer) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(2 * time.Second):
+		case <-time.After(tailerRetryInterval):
 		}
 	}
 }
@@ -59,7 +61,7 @@ func (t *LokiTailer) tailFile(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(2 * time.Second):
+		case <-time.After(tailerRetryInterval):
 		}
 	}
 

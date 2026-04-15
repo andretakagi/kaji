@@ -23,6 +23,14 @@ import (
 	"github.com/andretakagi/kaji/internal/system"
 )
 
+const (
+	serverReadTimeout  = 15 * time.Second
+	serverWriteTimeout = 30 * time.Second
+	serverIdleTimeout  = 60 * time.Second
+	shutdownTimeout    = 10 * time.Second
+	caddyReadyTimeout  = 10 * time.Second
+)
+
 var version = "1.5.0"
 
 //go:embed dist/*
@@ -112,7 +120,7 @@ func main() {
 	lokiPipeline := logging.NewLokiPipeline(store, positionsPath, resolveSinks)
 
 	if configExists {
-		if err := caddyClient.WaitReady(10 * time.Second); err != nil {
+		if err := caddyClient.WaitReady(caddyReadyTimeout); err != nil {
 			log.Printf("Caddy admin API not reachable, skipping config restore: %v", err)
 		} else {
 			cfg := store.Get()
@@ -148,9 +156,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  serverReadTimeout,
+		WriteTimeout: serverWriteTimeout,
+		IdleTimeout:  serverIdleTimeout,
 	}
 
 	quit := make(chan os.Signal, 1)
@@ -166,7 +174,7 @@ func main() {
 	<-quit
 	log.Println("Shutting down...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	lokiPipeline.Stop()

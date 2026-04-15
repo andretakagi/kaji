@@ -10,7 +10,12 @@ import (
 	"time"
 )
 
-const defaultAdminURL = "http://localhost:2019"
+const (
+	defaultAdminURL   = "http://localhost:2019"
+	adminPollTimeout  = 1 * time.Second
+	adminPollInterval = 200 * time.Millisecond
+	adminReadyTimeout = 5 * time.Second
+)
 
 type CaddyManager interface {
 	Start() error
@@ -39,7 +44,7 @@ func adminURL(configured string) string {
 // Polls until the admin API responds or timeout. Called after starting
 // Caddy so we don't try to load config before it's ready.
 func WaitForAdminAPI(adminURL string, timeout time.Duration) error {
-	client := &http.Client{Timeout: 1 * time.Second}
+	client := &http.Client{Timeout: adminPollTimeout}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(adminURL + "/config/")
@@ -47,7 +52,7 @@ func WaitForAdminAPI(adminURL string, timeout time.Duration) error {
 			resp.Body.Close()
 			return nil
 		}
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(adminPollInterval)
 	}
 	return fmt.Errorf("caddy admin API not reachable after %s", timeout)
 }

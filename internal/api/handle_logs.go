@@ -22,6 +22,11 @@ import (
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
 
+const (
+	logFilePollInterval  = 2 * time.Second
+	sseKeepaliveInterval = 15 * time.Second
+)
+
 func handleLogs(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
@@ -108,7 +113,7 @@ func handleLogStream(store *config.ConfigStore) http.HandlerFunc {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(2 * time.Second):
+			case <-time.After(logFilePollInterval):
 			}
 		}
 
@@ -117,7 +122,7 @@ func handleLogStream(store *config.ConfigStore) http.HandlerFunc {
 			errCh <- logging.TailFile(ctx, logFile, lines)
 		}()
 
-		ticker := time.NewTicker(15 * time.Second)
+		ticker := time.NewTicker(sseKeepaliveInterval)
 		defer ticker.Stop()
 
 		for {
