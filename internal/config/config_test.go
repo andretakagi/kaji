@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -367,5 +368,160 @@ func TestPathFallback(t *testing.T) {
 	t.Setenv("KAJI_CONFIG_PATH", "")
 	if got := Path(); got != fallbackConfigPath {
 		t.Errorf("Path() = %q, want %q", got, fallbackConfigPath)
+	}
+}
+
+func TestUpdateFnError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	initial := DefaultConfig()
+	if err := SaveTo(initial, path); err != nil {
+		t.Fatalf("seeding config: %v", err)
+	}
+	store := NewStoreWithPath(initial, path)
+
+	wantErr := "something broke"
+	err := store.Update(func(current AppConfig) (*AppConfig, error) {
+		return nil, fmt.Errorf("%s", wantErr)
+	})
+	if err == nil {
+		t.Fatal("expected error from Update, got nil")
+	}
+	if !strings.Contains(err.Error(), wantErr) {
+		t.Errorf("error %q should contain %q", err.Error(), wantErr)
+	}
+
+	cfg := store.Get()
+	if cfg.LogFile != initial.LogFile {
+		t.Errorf("config mutated after failed Update: LogFile = %q, want %q", cfg.LogFile, initial.LogFile)
+	}
+}
+
+func TestUpdateInvalidConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	initial := DefaultConfig()
+	if err := SaveTo(initial, path); err != nil {
+		t.Fatalf("seeding config: %v", err)
+	}
+	store := NewStoreWithPath(initial, path)
+
+	err := store.Update(func(current AppConfig) (*AppConfig, error) {
+		next := current
+		next.CaddyAdminURL = ""
+		return &next, nil
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	if !strings.Contains(err.Error(), "config validation") {
+		t.Errorf("error %q should mention config validation", err.Error())
+	}
+
+	cfg := store.Get()
+	if cfg.CaddyAdminURL != initial.CaddyAdminURL {
+		t.Errorf("config mutated after invalid Update: CaddyAdminURL = %q, want %q", cfg.CaddyAdminURL, initial.CaddyAdminURL)
+	}
+}
+
+func TestUpdateDiskPersistence(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	initial := DefaultConfig()
+	if err := SaveTo(initial, path); err != nil {
+		t.Fatalf("seeding config: %v", err)
+	}
+	store := NewStoreWithPath(initial, path)
+
+	err := store.Update(func(current AppConfig) (*AppConfig, error) {
+		next := current
+		next.LogFile = "/updated/access.log"
+		return &next, nil
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	loaded, err := LoadFrom(path)
+	if err != nil {
+		t.Fatalf("LoadFrom after Update: %v", err)
+	}
+	if loaded.LogFile != "/updated/access.log" {
+		t.Errorf("persisted LogFile = %q, want /updated/access.log", loaded.LogFile)
+	}
+}
+
+func TestLoadFromMergesDefaults(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	partial := `{"caddy_admin_url": "http://localhost:2019"}`
+	if err := os.WriteFile(path, []byte(partial), 0600); err != nil {
+		t.Fatalf("writing partial config: %v", err)
+	}
+
+	cfg, err := LoadFrom(path)
+	if err != nil {
+		t.Fatalf("LoadFrom: %v", err)
+	}
+
+	defaults := DefaultConfig()
+	if cfg.LogFile != defaults.LogFile {
+		t.Errorf("LogFile = %q, want default %q", cfg.LogFile, defaults.LogFile)
+	}
+	if cfg.CaddyConfigPath != defaults.CaddyConfigPath {
+		t.Errorf("CaddyConfigPath = %q, want default %q", cfg.CaddyConfigPath, defaults.CaddyConfigPath)
+	}
+	if cfg.Loki.BatchSize != defaults.Loki.BatchSize {
+		t.Errorf("Loki.BatchSize = %d, want default %d", cfg.Loki.BatchSize, defaults.Loki.BatchSize)
+	}
+	if cfg.Loki.FlushIntervalSeconds != defaults.Loki.FlushIntervalSeconds {
+		t.Errorf("Loki.FlushIntervalSeconds = %d, want default %d", cfg.Loki.FlushIntervalSeconds, defaults.Loki.FlushIntervalSeconds)
+	}
+}
+
+func TestDefaultConfigCaddyLogDir(t *testing.T) {
+	t.Setenv("CADDY_LOG_DIR", "/custom/logs")
+	cfg := DefaultConfig()
+	if cfg.LogDir != "/custom/logs/" {
+		t.Errorf("LogDir = %q, want /custom/logs/ (trailing slash added)", cfg.LogDir)
+	}
+
+	t.Setenv("CADDY_LOG_DIR", "/already/trailing/")
+	cfg = DefaultConfig()
+	if cfg.LogDir != "/already/trailing/" {
+		t.Errorf("LogDir = %q, want /already/trailing/", cfg.LogDir)
+	}
+
+	if cfg.LogFile != "/var/log/caddy/access.log" {
+		t.Errorf("LogFile = %q, want /var/log/caddy/access.log (env should not affect LogFile)", cfg.LogFile)
+	}
+}
+
+func TestNewStoreNoDiskWrite(t *testing.T) {
+	dir := t.TempDir()
+	phantom := filepath.Join(dir, "should-not-exist.json")
+
+	initial := DefaultConfig()
+	store := NewStore(initial)
+
+	err := store.Update(func(current AppConfig) (*AppConfig, error) {
+		next := current
+		next.LogFile = "/changed"
+		return &next, nil
+	})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	if store.Get().LogFile != "/changed" {
+		t.Errorf("in-memory LogFile = %q, want /changed", store.Get().LogFile)
+	}
+
+	if _, err := os.Stat(phantom); err == nil {
+		t.Error("NewStore should not write to disk, but file exists")
 	}
 }
