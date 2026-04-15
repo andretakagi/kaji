@@ -289,3 +289,13 @@ func (p *LokiPipeline) GetPusher() *LokiPusher {
 	defer p.mu.Unlock()
 	return p.pusher
 }
+
+func (p *LokiPipeline) GetTailerNames() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	names := make([]string, 0, len(p.tailers))
+	for name := range p.tailers {
+		names = append(names, name)
+	}
+	return names
+}

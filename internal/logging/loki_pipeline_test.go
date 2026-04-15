@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -120,7 +121,21 @@ func TestPipelineStartAndStop(t *testing.T) {
 		t.Error("expected GetStatus() running to be true after Start()")
 	}
 
-	time.Sleep(3 * time.Second)
+	deadline := time.After(10 * time.Second)
+	for {
+		pusher := p.GetPusher()
+		if pusher != nil {
+			status := pusher.GetStatus()
+			if s, ok := status["access"]; ok && s.EntriesPushed >= 2 {
+				break
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for lines to be pushed")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 
 	p.Stop()
 
@@ -262,10 +277,12 @@ func TestPipelineStopWhenNotRunning(t *testing.T) {
 func TestPipelineDrainTimeout(t *testing.T) {
 	// Server blocks long enough to exceed the 5s drain timeout, so the
 	// pusher will be stuck in sendRequest and Stop must force shutdown.
+	var requestReceived int32
 	reqCtx, reqCancel := context.WithCancel(context.Background())
 	defer reqCancel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.StoreInt32(&requestReceived, 1)
 		<-reqCtx.Done()
 		w.WriteHeader(http.StatusNoContent)
 	}))
@@ -290,8 +307,14 @@ func TestPipelineDrainTimeout(t *testing.T) {
 		t.Fatal("expected pipeline to be running")
 	}
 
-	// Wait for the tailer to read and batcher to flush to the pusher
-	time.Sleep(3 * time.Second)
+	deadline := time.After(10 * time.Second)
+	for atomic.LoadInt32(&requestReceived) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for request to reach server")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 
 	// Stop should complete within ~drainTimeout (5s) + some margin, not hang forever
 	done := make(chan struct{})
@@ -334,8 +357,21 @@ func TestPipelinePositionsSavedOnStop(t *testing.T) {
 		t.Fatal("expected pipeline to be running")
 	}
 
-	// Wait for tailer to read both lines
-	time.Sleep(3 * time.Second)
+	deadline := time.After(10 * time.Second)
+	for {
+		pusher := p.GetPusher()
+		if pusher != nil {
+			status := pusher.GetStatus()
+			if s, ok := status["access"]; ok && s.EntriesPushed >= 2 {
+				break
+			}
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for lines to be pushed")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 
 	p.Stop()
 
@@ -454,14 +490,13 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 	}
 
 	// Should have one tailer (access)
-	p.mu.Lock()
-	if len(p.tailers) != 1 {
-		t.Errorf("expected 1 tailer, got %d", len(p.tailers))
+	names := p.GetTailerNames()
+	if len(names) != 1 {
+		t.Errorf("expected 1 tailer, got %d", len(names))
 	}
-	if _, ok := p.tailers["access"]; !ok {
-		t.Error("expected 'access' tailer to exist")
+	if names[0] != "access" {
+		t.Errorf("expected 'access' tailer, got %q", names[0])
 	}
-	p.mu.Unlock()
 
 	// Reconfigure to have both access and error sinks
 	if err := store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
@@ -480,14 +515,20 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 	}
 	p.Reconfigure()
 
-	p.mu.Lock()
-	if len(p.tailers) != 2 {
-		t.Errorf("expected 2 tailers after adding error sink, got %d", len(p.tailers))
+	names = p.GetTailerNames()
+	if len(names) != 2 {
+		t.Errorf("expected 2 tailers after adding error sink, got %d", len(names))
 	}
-	if _, ok := p.tailers["error"]; !ok {
+	tailerSet := make(map[string]bool, len(names))
+	for _, n := range names {
+		tailerSet[n] = true
+	}
+	if !tailerSet["access"] {
+		t.Error("expected 'access' tailer to exist after reconfigure")
+	}
+	if !tailerSet["error"] {
 		t.Error("expected 'error' tailer to exist after reconfigure")
 	}
-	p.mu.Unlock()
 
 	// Reconfigure to remove access, keep only error
 	if err := store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
@@ -506,15 +547,11 @@ func TestReconfigureAddsAndRemovesTailers(t *testing.T) {
 	}
 	p.Reconfigure()
 
-	p.mu.Lock()
-	if len(p.tailers) != 1 {
-		t.Errorf("expected 1 tailer after removing access sink, got %d", len(p.tailers))
+	names = p.GetTailerNames()
+	if len(names) != 1 {
+		t.Errorf("expected 1 tailer after removing access sink, got %d", len(names))
 	}
-	if _, ok := p.tailers["access"]; ok {
-		t.Error("expected 'access' tailer to be removed after reconfigure")
+	if len(names) == 1 && names[0] != "error" {
+		t.Errorf("expected 'error' tailer, got %q", names[0])
 	}
-	if _, ok := p.tailers["error"]; !ok {
-		t.Error("expected 'error' tailer to still exist after reconfigure")
-	}
-	p.mu.Unlock()
 }
