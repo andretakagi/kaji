@@ -2,6 +2,8 @@ package snapshot
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -311,6 +313,57 @@ func TestLoadEmptyDir(t *testing.T) {
 	}
 	if idx.CurrentID != "" {
 		t.Errorf("expected empty CurrentID, got %q", idx.CurrentID)
+	}
+}
+
+func TestDeleteNonexistent(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	s.Create("keep", "", "manual", cfg("k"))
+
+	if err := s.Delete("no-such-id"); err == nil {
+		t.Error("Delete on nonexistent ID should return error")
+	}
+}
+
+func TestUpdateNonexistent(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	if err := s.Update("no-such-id", "name", "desc"); err == nil {
+		t.Error("Update on nonexistent ID should return error")
+	}
+}
+
+func TestLoadCorruptIndex(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte("not json{{{"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewStore(dir)
+	if err := s.Load(); err == nil {
+		t.Error("Load with corrupt index should return error")
+	}
+}
+
+func TestLoadNormalizesAutoSnapshotLimit(t *testing.T) {
+	dir := t.TempDir()
+	idx := Index{AutoSnapshotLimit: 0, Snapshots: []Snapshot{}}
+	data, _ := json.Marshal(idx)
+	if err := os.WriteFile(filepath.Join(dir, "index.json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewStore(dir)
+	if err := s.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	got := s.GetIndex()
+	if got.AutoSnapshotLimit != 50 {
+		t.Errorf("AutoSnapshotLimit = %d, want 50", got.AutoSnapshotLimit)
 	}
 }
 
