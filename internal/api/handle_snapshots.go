@@ -3,6 +3,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -76,6 +77,15 @@ func handleSnapshotRestore(ss *snapshot.Store, cc *caddy.Client, store *config.C
 		data, err := ss.ReadData(id)
 		if err != nil {
 			writeError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		if err := cc.ValidateConfig(data.CaddyConfig); err != nil {
+			if errors.Is(err, caddy.ErrValidationRollbackFailed) {
+				caddyError(w, "handleSnapshotRestore", err)
+				return
+			}
+			writeError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
