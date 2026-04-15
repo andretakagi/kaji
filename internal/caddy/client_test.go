@@ -9,6 +9,54 @@ import (
 	"testing"
 )
 
+func TestCountRoutes(t *testing.T) {
+	cases := []struct {
+		name string
+		json string
+		want int
+	}{
+		{
+			name: "invalid JSON",
+			json: "not json",
+			want: 0,
+		},
+		{
+			name: "empty config",
+			json: `{}`,
+			want: 0,
+		},
+		{
+			name: "no servers",
+			json: `{"apps":{"http":{"servers":{}}}}`,
+			want: 0,
+		},
+		{
+			name: "single server with routes",
+			json: `{"apps":{"http":{"servers":{"srv0":{"routes":[{},{}]}}}}}`,
+			want: 2,
+		},
+		{
+			name: "multiple servers",
+			json: `{"apps":{"http":{"servers":{"srv0":{"routes":[{},{}]},"srv1":{"routes":[{}]}}}}}`,
+			want: 3,
+		},
+		{
+			name: "server with empty routes",
+			json: `{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`,
+			want: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := CountRoutes(json.RawMessage(tc.json))
+			if got != tc.want {
+				t.Errorf("CountRoutes() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 func testClient(t *testing.T, handler http.Handler) *Client {
 	t.Helper()
 	srv := httptest.NewServer(handler)

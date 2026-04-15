@@ -351,6 +351,147 @@ func TestConcurrentOps(t *testing.T) {
 	}
 }
 
+func TestUpdateSettingsEnableAutoSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	if s.IsAutoEnabled() {
+		t.Error("auto snapshots should be disabled by default")
+	}
+
+	if err := s.UpdateSettings(true, 10); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	if !s.IsAutoEnabled() {
+		t.Error("auto snapshots should be enabled after UpdateSettings(true, ...)")
+	}
+
+	idx := s.GetIndex()
+	if idx.AutoSnapshotLimit != 10 {
+		t.Errorf("AutoSnapshotLimit = %d, want 10", idx.AutoSnapshotLimit)
+	}
+}
+
+func TestUpdateSettingsDisableAutoSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	if err := s.UpdateSettings(true, 5); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	if err := s.UpdateSettings(false, 5); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+
+	if s.IsAutoEnabled() {
+		t.Error("auto snapshots should be disabled after UpdateSettings(false, ...)")
+	}
+}
+
+func TestUpdateSettingsIgnoresZeroLimit(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	if err := s.UpdateSettings(true, 20); err != nil {
+		t.Fatalf("set limit 20: %v", err)
+	}
+
+	// Passing limit=0 should not change the existing limit
+	if err := s.UpdateSettings(true, 0); err != nil {
+		t.Fatalf("set limit 0: %v", err)
+	}
+
+	idx := s.GetIndex()
+	if idx.AutoSnapshotLimit != 20 {
+		t.Errorf("AutoSnapshotLimit = %d, want 20 (zero should be ignored)", idx.AutoSnapshotLimit)
+	}
+}
+
+func TestUpdateSettingsPrunesOnEnable(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	s.idx.AutoSnapshotEnabled = false
+	s.idx.AutoSnapshotLimit = 50
+
+	// Create 5 auto snapshots without pruning (auto is disabled, but Create
+	// calls prune for auto-type snapshots regardless)
+	for i := 0; i < 5; i++ {
+		time.Sleep(2 * time.Millisecond)
+		if _, err := s.Create(fmt.Sprintf("auto-%d", i), "", "auto", cfg("x")); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+	}
+
+	// Now enable with a limit of 2, which should prune down
+	if err := s.UpdateSettings(true, 2); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	idx := s.GetIndex()
+	autoCount := 0
+	for _, snap := range idx.Snapshots {
+		if snap.Type == "auto" {
+			autoCount++
+		}
+	}
+	if autoCount > 2 {
+		t.Errorf("auto snapshot count = %d after enabling with limit 2, want <= 2", autoCount)
+	}
+}
+
+func TestUpdateSettingsNoPruneOnDisable(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	s.idx.AutoSnapshotEnabled = true
+	s.idx.AutoSnapshotLimit = 50
+
+	for i := 0; i < 5; i++ {
+		time.Sleep(2 * time.Millisecond)
+		if _, err := s.Create(fmt.Sprintf("auto-%d", i), "", "auto", cfg("x")); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+	}
+
+	// Disable with limit 2 - should NOT prune because enabled=false
+	if err := s.UpdateSettings(false, 2); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	idx := s.GetIndex()
+	autoCount := 0
+	for _, snap := range idx.Snapshots {
+		if snap.Type == "auto" {
+			autoCount++
+		}
+	}
+	if autoCount != 5 {
+		t.Errorf("auto snapshot count = %d, want 5 (no pruning when disabling)", autoCount)
+	}
+}
+
+func TestUpdateSettingsPersistsToDisk(t *testing.T) {
+	dir := t.TempDir()
+	s1 := NewStore(dir)
+
+	if err := s1.UpdateSettings(true, 15); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	s2 := NewStore(dir)
+	if err := s2.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	idx := s2.GetIndex()
+	if !idx.AutoSnapshotEnabled {
+		t.Error("AutoSnapshotEnabled not persisted")
+	}
+	if idx.AutoSnapshotLimit != 15 {
+		t.Errorf("AutoSnapshotLimit = %d, want 15 (not persisted)", idx.AutoSnapshotLimit)
+	}
+}
+
 func TestLoadEmptyDir(t *testing.T) {
 	dir := t.TempDir()
 	s := NewStore(dir)

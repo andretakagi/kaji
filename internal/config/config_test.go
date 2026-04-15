@@ -10,6 +10,28 @@ import (
 	"testing"
 )
 
+func TestExistsTrue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("KAJI_CONFIG_PATH", path)
+
+	if !Exists() {
+		t.Error("Exists() = false, want true when config file exists")
+	}
+}
+
+func TestExistsFalse(t *testing.T) {
+	t.Setenv("KAJI_CONFIG_PATH", "/nonexistent/path/config.json")
+
+	if Exists() {
+		t.Error("Exists() = true, want false when config file does not exist")
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 

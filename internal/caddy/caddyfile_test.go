@@ -93,6 +93,84 @@ func assertNotContains(t *testing.T, s, sub, label string) {
 	}
 }
 
+func TestParseCaddyfileAdminAddr(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "empty input",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "no global block",
+			input: "example.com {\n\treverse_proxy localhost:8080\n}",
+			want:  "",
+		},
+		{
+			name:  "admin with address",
+			input: "{\n\tadmin 127.0.0.1:2019\n}\n\nexample.com {\n\treverse_proxy localhost:8080\n}",
+			want:  "127.0.0.1:2019",
+		},
+		{
+			name:  "admin off is ignored",
+			input: "{\n\tadmin off\n}\n",
+			want:  "",
+		},
+		{
+			name:  "admin with sub-block brace is ignored",
+			input: "{\n\tadmin {\n\t\torigins localhost\n\t}\n}\n",
+			want:  "",
+		},
+		{
+			name:  "admin at custom port",
+			input: "{\n\tadmin :9999\n}\n",
+			want:  ":9999",
+		},
+		{
+			name:  "comment-only lines are skipped",
+			input: "{\n\t# this is a comment\n\tadmin 0.0.0.0:2019\n}\n",
+			want:  "0.0.0.0:2019",
+		},
+		{
+			name:  "blank lines are skipped",
+			input: "{\n\n\n\tadmin 10.0.0.1:2020\n}\n",
+			want:  "10.0.0.1:2020",
+		},
+		{
+			name:  "non-brace first non-empty line means no global block",
+			input: "example.com\nreverse_proxy localhost:8080\n",
+			want:  "",
+		},
+		{
+			name:  "admin inside nested block at depth > 1 is ignored",
+			input: "{\n\tlog {\n\t\tadmin localhost:2019\n\t}\n}\n",
+			want:  "",
+		},
+		{
+			name:  "admin address after other directives",
+			input: "{\n\temail admin@example.com\n\tadmin unix//run/caddy.sock\n}\n",
+			want:  "unix//run/caddy.sock",
+		},
+		{
+			name:  "global block closes before admin found",
+			input: "{\n\temail admin@example.com\n}\n",
+			want:  "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ParseCaddyfileAdminAddr(tc.input)
+			if got != tc.want {
+				t.Errorf("ParseCaddyfileAdminAddr() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestGenerateCaddyfileMinimal verifies a route with no toggles produces a
 // minimal site block with only a reverse_proxy directive.
 func TestGenerateCaddyfileMinimal(t *testing.T) {
