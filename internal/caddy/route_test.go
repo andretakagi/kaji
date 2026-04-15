@@ -186,6 +186,15 @@ func TestBuildRouteCompression(t *testing.T) {
 	if _, ok := enc.Encodings["zstd"]; !ok {
 		t.Error("encode handler missing zstd")
 	}
+	wantPrefer := []string{"zstd", "gzip"}
+	if len(enc.Prefer) != len(wantPrefer) {
+		t.Fatalf("prefer length = %d, want %d", len(enc.Prefer), len(wantPrefer))
+	}
+	for i, v := range wantPrefer {
+		if enc.Prefer[i] != v {
+			t.Errorf("prefer[%d] = %q, want %q", i, enc.Prefer[i], v)
+		}
+	}
 }
 
 func TestBuildRouteSecurityHeaders(t *testing.T) {
@@ -204,11 +213,16 @@ func TestBuildRouteSecurityHeaders(t *testing.T) {
 	if err := json.Unmarshal(h, &hdr); err != nil {
 		t.Fatalf("failed to parse headers handler: %v", err)
 	}
-	if _, ok := hdr.Response.Set["Strict-Transport-Security"]; !ok {
-		t.Error("missing Strict-Transport-Security header")
-	}
-	if _, ok := hdr.Response.Set["X-Content-Type-Options"]; !ok {
-		t.Error("missing X-Content-Type-Options header")
+	for _, name := range []string{
+		"Strict-Transport-Security",
+		"X-Content-Type-Options",
+		"X-Frame-Options",
+		"Referrer-Policy",
+		"Permissions-Policy",
+	} {
+		if _, ok := hdr.Response.Set[name]; !ok {
+			t.Errorf("missing %s header", name)
+		}
 	}
 }
 
@@ -321,7 +335,14 @@ func TestBuildRouteCORSMultiOrigin(t *testing.T) {
 		t.Fatalf("failed to parse CORS subroute: %v", err)
 	}
 	if len(subRoute.Routes) != 2 {
-		t.Errorf("expected 2 CORS routes, got %d", len(subRoute.Routes))
+		t.Fatalf("expected 2 CORS routes, got %d", len(subRoute.Routes))
+	}
+	wantOrigins := []string{"https://a.example.com", "https://b.example.com"}
+	for i, route := range subRoute.Routes {
+		got := route.Match[0].Header["Origin"]
+		if len(got) != 1 || got[0] != wantOrigins[i] {
+			t.Errorf("route[%d] Origin = %v, want [%s]", i, got, wantOrigins[i])
+		}
 	}
 }
 
@@ -700,6 +721,12 @@ func TestParseRouteParamsLoadBalancingRoundRobin(t *testing.T) {
 	}
 	if len(got.Toggles.LoadBalancing.Upstreams) != 2 {
 		t.Fatalf("extra upstreams count = %d, want 2", len(got.Toggles.LoadBalancing.Upstreams))
+	}
+	wantUpstreams := []string{"localhost:8081", "localhost:8082"}
+	for i, want := range wantUpstreams {
+		if got.Toggles.LoadBalancing.Upstreams[i] != want {
+			t.Errorf("Upstreams[%d] = %q, want %q", i, got.Toggles.LoadBalancing.Upstreams[i], want)
+		}
 	}
 }
 
