@@ -36,11 +36,44 @@ export interface SetupResponse {
 	dns_error?: string;
 }
 
+export interface ReviewRoute {
+	domain: string;
+	upstream: string;
+	enabled: boolean;
+}
+
+export interface ReviewLogging {
+	log_file: string;
+	log_dir: string;
+	loki_enabled: boolean;
+	loki_endpoint: string;
+}
+
+export interface ReviewIPList {
+	name: string;
+	type: string;
+	entry_count: number;
+}
+
+export interface ReviewSnapshot {
+	name: string;
+	type: string;
+	created_at: string;
+}
+
+export interface ImportReview {
+	routes: ReviewRoute[];
+	logging?: ReviewLogging;
+	ip_lists?: ReviewIPList[];
+	snapshots?: ReviewSnapshot[];
+}
+
 export interface AdaptCaddyfileResponse {
 	acme_email: string;
 	global_toggles: GlobalToggles;
 	route_count: number;
 	adapted_config: Record<string, unknown>;
+	routes?: ReviewRoute[];
 }
 
 export interface LoginRequest {
@@ -178,4 +211,5 @@ export interface SetupImportFullResponse {
 	};
 	migrated_from?: string;
 	migration_log?: string[];
+	review?: ImportReview;
 }
