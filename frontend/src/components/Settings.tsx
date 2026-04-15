@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	exportCaddyfile,
+	exportFull,
 	fetchAdvancedSettings,
 	fetchAPIKeyStatus,
 	fetchAuthStatus,
 	fetchCaddyDataDir,
 	generateAPIKey,
+	importCaddyfile,
+	importFull,
 	revokeAPIKey,
 	updateAdvancedSettings,
 	updateCaddyDataDir,
@@ -149,11 +152,16 @@ function APIKeySection() {
 	);
 }
 
-function ExportCaddyfileSection() {
-	const { saving, feedback, run } = useAsyncAction();
+function ExportImportSection() {
+	const { saving: exporting, feedback: exportFeedback, run: runExport } = useAsyncAction();
+	const { saving: importing, feedback: importFeedback, run: runImport } = useAsyncAction();
+	const [confirmAction, setConfirmAction] = useState<null | "caddyfile" | "full">(null);
+	const [pendingFile, setPendingFile] = useState<File | null>(null);
+	const caddyfileInputRef = useRef<HTMLInputElement>(null);
+	const fullInputRef = useRef<HTMLInputElement>(null);
 
-	const handleExport = () =>
-		run(async () => {
+	const handleExportCaddyfile = () =>
+		runExport(async () => {
 			const content = await exportCaddyfile();
 			const blob = new Blob([content], { type: "application/octet-stream" });
 			const url = URL.createObjectURL(blob);
@@ -162,24 +170,155 @@ function ExportCaddyfileSection() {
 			a.download = "Caddyfile";
 			a.click();
 			URL.revokeObjectURL(url);
-			return "Downloaded";
+			return "Downloaded Caddyfile";
 		});
+
+	const handleExportFull = () =>
+		runExport(async () => {
+			const blob = await exportFull();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `kaji-export-${new Date().toISOString().slice(0, 10)}.zip`;
+			a.click();
+			URL.revokeObjectURL(url);
+			return "Downloaded full backup";
+		});
+
+	const handleCaddyfileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		setPendingFile(file);
+		setConfirmAction("caddyfile");
+		e.target.value = "";
+	};
+
+	const handleFullFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		setPendingFile(file);
+		setConfirmAction("full");
+		e.target.value = "";
+	};
+
+	const handleConfirmImport = () => {
+		const action = confirmAction;
+		const file = pendingFile;
+		setConfirmAction(null);
+		setPendingFile(null);
+		if (!file || !action) return;
+
+		runImport(async () => {
+			if (action === "caddyfile") {
+				const text = await file.text();
+				await importCaddyfile(text);
+				return "Caddyfile imported successfully";
+			}
+			await importFull(file);
+			return "Full backup imported successfully. Reload to see changes.";
+		});
+	};
+
+	const handleCancelImport = () => {
+		setConfirmAction(null);
+		setPendingFile(null);
+	};
 
 	return (
 		<section className="settings-section">
-			<h3>Export Caddyfile</h3>
-			<p className="settings-description">
-				Download the current Caddy configuration as a Caddyfile.
-			</p>
-			<button
-				type="button"
-				className="btn btn-primary settings-save-btn"
-				disabled={saving}
-				onClick={handleExport}
-			>
-				{saving ? "Exporting..." : "Export"}
-			</button>
-			<Feedback msg={feedback.msg} type={feedback.type} className="settings-feedback" />
+			<h3>Export & Import</h3>
+
+			<div className="export-import-group">
+				<p className="settings-description">Export your configuration for backup or migration.</p>
+				<div className="export-import-actions">
+					<button
+						type="button"
+						className="btn btn-primary"
+						disabled={exporting}
+						onClick={handleExportCaddyfile}
+					>
+						{exporting ? "Exporting..." : "Export Caddyfile"}
+					</button>
+					<button
+						type="button"
+						className="btn btn-primary"
+						disabled={exporting}
+						onClick={handleExportFull}
+					>
+						{exporting ? "Exporting..." : "Export Full Backup"}
+					</button>
+				</div>
+				<Feedback
+					msg={exportFeedback.msg}
+					type={exportFeedback.type}
+					className="settings-feedback"
+				/>
+			</div>
+
+			<div className="export-import-group">
+				<p className="settings-description">
+					Import a Caddyfile or full backup. This will override your current configuration. A
+					snapshot will be created automatically before importing.
+				</p>
+				<div className="export-import-actions">
+					<input
+						ref={caddyfileInputRef}
+						type="file"
+						accept=".caddyfile,.Caddyfile,text/*"
+						onChange={handleCaddyfileFileChange}
+						hidden
+					/>
+					<button
+						type="button"
+						className="btn btn-ghost"
+						disabled={importing}
+						onClick={() => caddyfileInputRef.current?.click()}
+					>
+						Import Caddyfile
+					</button>
+					<input
+						ref={fullInputRef}
+						type="file"
+						accept=".zip"
+						onChange={handleFullFileChange}
+						hidden
+					/>
+					<button
+						type="button"
+						className="btn btn-ghost"
+						disabled={importing}
+						onClick={() => fullInputRef.current?.click()}
+					>
+						Import Full Backup
+					</button>
+				</div>
+				<Feedback
+					msg={importFeedback.msg}
+					type={importFeedback.type}
+					className="settings-feedback"
+				/>
+			</div>
+
+			{confirmAction && (
+				<div className="confirm-dialog-overlay">
+					<div className="confirm-dialog">
+						<h4>Confirm Import</h4>
+						<p>
+							{confirmAction === "full"
+								? "This will replace all current settings, routes, and configuration with the backup. A snapshot of the current state will be created first."
+								: "This will load the Caddyfile into Caddy, replacing the current route configuration. A snapshot of the current state will be created first."}
+						</p>
+						<div className="confirm-dialog-actions">
+							<button type="button" className="btn btn-ghost" onClick={handleCancelImport}>
+								Cancel
+							</button>
+							<button type="button" className="btn btn-danger" onClick={handleConfirmImport}>
+								{importing ? "Importing..." : "Import"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</section>
 	);
 }
@@ -375,7 +514,7 @@ export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boo
 
 			<SnapshotSettings />
 
-			{!caddyRunning ? <CaddyOffSection title="Export Caddyfile" /> : <ExportCaddyfileSection />}
+			{!caddyRunning ? <CaddyOffSection title="Export & Import" /> : <ExportImportSection />}
 
 			{failedSections.has("advanced") ? (
 				<section className="settings-section settings-section-failed">

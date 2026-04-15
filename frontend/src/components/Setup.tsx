@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { adaptCaddyfile, fetchDefaultCaddyfile, submitSetup, updateDNSProvider } from "../api";
+import {
+	adaptCaddyfile,
+	fetchDefaultCaddyfile,
+	setupImportFull,
+	submitSetup,
+	updateDNSProvider,
+} from "../api";
+import { cn } from "../cn";
 import {
 	type AdaptCaddyfileResponse,
 	DEFAULT_GLOBAL_TOGGLES,
 	type GlobalToggles,
+	type SetupImportFullResponse,
 	type SetupStatus,
 } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
@@ -24,9 +32,12 @@ interface WizardData {
 	authEnabled: boolean;
 	password: string;
 	confirmPassword: string;
+	importMode: "none" | "caddyfile" | "full";
 	caddyfileText: string;
 	adaptedConfig: Record<string, unknown> | null;
 	importedSettings: AdaptCaddyfileResponse | null;
+	backupSummary: SetupImportFullResponse | null;
+	backupData: Record<string, unknown> | null;
 	acmeEmail: string;
 	globalToggles: GlobalToggles;
 	challengeType: ChallengeType;
@@ -53,9 +64,12 @@ function Setup({
 		authEnabled: true,
 		password: "",
 		confirmPassword: "",
+		importMode: "none",
 		caddyfileText: "",
 		adaptedConfig: null,
 		importedSettings: null,
+		backupSummary: null,
+		backupData: null,
 		acmeEmail: "",
 		globalToggles: { ...DEFAULT_GLOBAL_TOGGLES },
 		challengeType: "http-01",
@@ -129,11 +143,13 @@ function Setup({
 				password: data.authEnabled ? data.password : undefined,
 				acme_email: data.acmeEmail || undefined,
 				global_toggles: data.globalToggles,
-				caddyfile_json: data.adaptedConfig || undefined,
+				caddyfile_json:
+					data.importMode === "caddyfile" ? data.adaptedConfig || undefined : undefined,
 				dns_challenge_token:
 					data.challengeType === "cloudflare" && data.dnsToken ? data.dnsToken : undefined,
 				auto_snapshot_enabled: data.autoSnapshot,
 				auto_snapshot_limit: data.snapshotLimit,
+				backup_data: data.importMode === "full" ? data.backupData || undefined : undefined,
 			});
 
 			setSetupDone(true);
@@ -391,21 +407,33 @@ function StepImport({
 }) {
 	const [parsing, setParsing] = useState(false);
 	const [loadedDefault, setLoadedDefault] = useState(false);
-	const fileInputRef = useRef<HTMLInputElement>(null);
+	const caddyfileInputRef = useRef<HTMLInputElement>(null);
+	const backupInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (loadedDefault || data.caddyfileText) return;
+		if (data.importMode !== "caddyfile" || loadedDefault || data.caddyfileText) return;
 		setLoadedDefault(true);
 		fetchDefaultCaddyfile()
 			.then((res) => {
-				if (res.content) {
-					update("caddyfileText", res.content);
-				}
+				if (res.content) update("caddyfileText", res.content);
 			})
 			.catch(() => {});
-	}, [loadedDefault, data.caddyfileText, update]);
+	}, [loadedDefault, data.caddyfileText, data.importMode, update]);
 
-	const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+	const handleModeChange = (mode: "none" | "caddyfile" | "full") => {
+		update("importMode", mode);
+		setError("");
+		if (mode !== "caddyfile") {
+			update("adaptedConfig", null);
+			update("importedSettings", null);
+		}
+		if (mode !== "full") {
+			update("backupSummary", null);
+			update("backupData", null);
+		}
+	};
+
+	const handleCaddyfileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
 		const reader = new FileReader();
@@ -414,13 +442,11 @@ function StepImport({
 			update("adaptedConfig", null);
 			update("importedSettings", null);
 		};
-		reader.onerror = () => {
-			setError("Failed to read file.");
-		};
+		reader.onerror = () => setError("Failed to read file.");
 		reader.readAsText(file);
 	};
 
-	const handleParse = async () => {
+	const handleParseCaddyfile = async () => {
 		if (!data.caddyfileText.trim()) return;
 		setParsing(true);
 		setError("");
@@ -428,9 +454,7 @@ function StepImport({
 			const result = await adaptCaddyfile(data.caddyfileText);
 			update("adaptedConfig", result.adapted_config);
 			update("importedSettings", result);
-			if (result.acme_email) {
-				update("acmeEmail", result.acme_email);
-			}
+			if (result.acme_email) update("acmeEmail", result.acme_email);
 			update("globalToggles", result.global_toggles);
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to parse Caddyfile"));
@@ -441,7 +465,26 @@ function StepImport({
 		}
 	};
 
-	const handleTextChange = (text: string) => {
+	const handleBackupUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		e.target.value = "";
+		setParsing(true);
+		setError("");
+		try {
+			const result = await setupImportFull(file);
+			update("backupSummary", result);
+			update("backupData", result.backup_data);
+		} catch (err) {
+			setError(getErrorMessage(err, "Failed to parse backup file"));
+			update("backupSummary", null);
+			update("backupData", null);
+		} finally {
+			setParsing(false);
+		}
+	};
+
+	const handleCaddyfileTextChange = (text: string) => {
 		update("caddyfileText", text);
 		if (data.importedSettings) {
 			update("adaptedConfig", null);
@@ -451,20 +494,33 @@ function StepImport({
 
 	return (
 		<>
-			<p className="setup-step-description">
-				Import an existing Caddyfile to bring in your routes and settings. This step is optional.
-			</p>
+			<p className="setup-step-description">Import an existing configuration or start fresh.</p>
 
-			<div className="auth-field">
-				<label htmlFor="setup-caddyfile">Caddyfile</label>
-				<textarea
-					id="setup-caddyfile"
-					className="setup-import-textarea"
-					value={data.caddyfileText}
-					onChange={(e) => handleTextChange(e.target.value)}
-					placeholder={"example.com {\n    reverse_proxy localhost:3000\n}"}
-					spellCheck={false}
-				/>
+			<div className="setup-import-modes">
+				<button
+					type="button"
+					className={cn("setup-import-mode-btn", data.importMode === "none" && "active")}
+					onClick={() => handleModeChange("none")}
+				>
+					<strong>Start Fresh</strong>
+					<span>Begin with a clean configuration</span>
+				</button>
+				<button
+					type="button"
+					className={cn("setup-import-mode-btn", data.importMode === "caddyfile" && "active")}
+					onClick={() => handleModeChange("caddyfile")}
+				>
+					<strong>Import Caddyfile</strong>
+					<span>Bring in routes from an existing Caddyfile</span>
+				</button>
+				<button
+					type="button"
+					className={cn("setup-import-mode-btn", data.importMode === "full" && "active")}
+					onClick={() => handleModeChange("full")}
+				>
+					<strong>Import Full Backup</strong>
+					<span>Restore a complete Kaji backup</span>
+				</button>
 			</div>
 
 			{error && (
@@ -473,48 +529,110 @@ function StepImport({
 				</div>
 			)}
 
-			<div className="setup-import-actions">
-				<input
-					ref={fileInputRef}
-					type="file"
-					accept=".caddyfile,.Caddyfile,text/*"
-					onChange={handleFileUpload}
-					hidden
-				/>
-				<button
-					type="button"
-					className="btn btn-ghost"
-					onClick={() => fileInputRef.current?.click()}
-				>
-					Upload File
-				</button>
-				<button
-					type="button"
-					className="btn btn-primary"
-					onClick={handleParse}
-					disabled={parsing || !data.caddyfileText.trim()}
-				>
-					{parsing ? "Parsing..." : "Parse Caddyfile"}
-				</button>
-			</div>
-
-			{data.importedSettings && (
-				<div className="setup-import-result">
-					<div className="setup-import-result-item">
-						<span>Routes found</span>
-						<strong>{data.importedSettings.route_count}</strong>
+			{data.importMode === "caddyfile" && (
+				<>
+					<div className="auth-field">
+						<label htmlFor="setup-caddyfile">Caddyfile</label>
+						<textarea
+							id="setup-caddyfile"
+							className="setup-import-textarea"
+							value={data.caddyfileText}
+							onChange={(e) => handleCaddyfileTextChange(e.target.value)}
+							placeholder={"example.com {\n    reverse_proxy localhost:3000\n}"}
+							spellCheck={false}
+						/>
 					</div>
-					{data.importedSettings.acme_email && (
-						<div className="setup-import-result-item">
-							<span>ACME email</span>
-							<strong>{data.importedSettings.acme_email}</strong>
+					<div className="setup-import-actions">
+						<input
+							ref={caddyfileInputRef}
+							type="file"
+							accept=".caddyfile,.Caddyfile,text/*"
+							onChange={handleCaddyfileUpload}
+							hidden
+						/>
+						<button
+							type="button"
+							className="btn btn-ghost"
+							onClick={() => caddyfileInputRef.current?.click()}
+						>
+							Upload File
+						</button>
+						<button
+							type="button"
+							className="btn btn-primary"
+							onClick={handleParseCaddyfile}
+							disabled={parsing || !data.caddyfileText.trim()}
+						>
+							{parsing ? "Parsing..." : "Parse Caddyfile"}
+						</button>
+					</div>
+					{data.importedSettings && (
+						<div className="setup-import-result">
+							<div className="setup-import-result-item">
+								<span>Routes found</span>
+								<strong>{data.importedSettings.route_count}</strong>
+							</div>
+							{data.importedSettings.acme_email && (
+								<div className="setup-import-result-item">
+									<span>ACME email</span>
+									<strong>{data.importedSettings.acme_email}</strong>
+								</div>
+							)}
+							<div className="setup-import-result-item">
+								<span>Auto HTTPS</span>
+								<strong>{data.importedSettings.global_toggles.auto_https}</strong>
+							</div>
 						</div>
 					)}
-					<div className="setup-import-result-item">
-						<span>Auto HTTPS</span>
-						<strong>{data.importedSettings.global_toggles.auto_https}</strong>
+				</>
+			)}
+
+			{data.importMode === "full" && (
+				<>
+					<div className="setup-import-actions">
+						<input
+							ref={backupInputRef}
+							type="file"
+							accept=".zip"
+							onChange={handleBackupUpload}
+							hidden
+						/>
+						<button
+							type="button"
+							className="btn btn-primary"
+							onClick={() => backupInputRef.current?.click()}
+							disabled={parsing}
+						>
+							{parsing ? "Reading backup..." : "Choose Backup File"}
+						</button>
 					</div>
-				</div>
+					{data.backupSummary && (
+						<div className="setup-import-result">
+							<div className="setup-import-result-item">
+								<span>Caddy config</span>
+								<strong>Included</strong>
+							</div>
+							<div className="setup-import-result-item">
+								<span>IP lists</span>
+								<strong>{data.backupSummary.summary.ip_lists}</strong>
+							</div>
+							<div className="setup-import-result-item">
+								<span>Disabled routes</span>
+								<strong>{data.backupSummary.summary.disabled_routes}</strong>
+							</div>
+							<div className="setup-import-result-item">
+								<span>Snapshots</span>
+								<strong>{data.backupSummary.summary.snapshot_count}</strong>
+							</div>
+							{data.backupSummary.summary.loki_enabled && (
+								<div className="setup-import-result-item">
+									<span>Loki</span>
+									<strong>Configured</strong>
+								</div>
+							)}
+						</div>
+					)}
+				</>
 			)}
 		</>
 	);

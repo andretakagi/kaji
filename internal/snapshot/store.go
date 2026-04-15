@@ -224,6 +224,17 @@ func (s *Store) IsAutoEnabled() bool {
 	return s.idx.AutoSnapshotEnabled
 }
 
+func (s *Store) Dir() string {
+	return s.dir
+}
+
+func (s *Store) ReplaceIndex(idx Index) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.idx = idx
+	return s.saveIndex()
+}
+
 // prune removes the oldest auto snapshots when the count exceeds the limit.
 // Never prunes manual snapshots or the current snapshot. Must be called with
 // mu held.

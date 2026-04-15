@@ -110,7 +110,8 @@ var publicPaths = map[string]bool{
 
 var setupOnlyPaths = map[string]bool{
 	"/api/setup":                   true,
-	"/api/setup/adapt-caddyfile":   true,
+	"/api/setup/import/caddyfile":  true,
+	"/api/setup/import/full":       true,
 	"/api/setup/default-caddyfile": true,
 }
 

@@ -1339,7 +1339,7 @@ func TestHandleCaddyfileExport(t *testing.T) {
 	setupRec := th.doSetup(t, "testpass")
 	cookie := sessionCookie(setupRec)
 
-	req := authedRequest(http.MethodGet, "/api/caddyfile", "", cookie)
+	req := authedRequest(http.MethodGet, "/api/export/caddyfile", "", cookie)
 	rec := httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
 

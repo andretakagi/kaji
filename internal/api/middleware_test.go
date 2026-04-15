@@ -58,7 +58,7 @@ func TestRequireAuthSetupOnlyPaths(t *testing.T) {
 
 	paths := []string{
 		"/api/setup",
-		"/api/setup/adapt-caddyfile",
+		"/api/setup/import/caddyfile",
 		"/api/setup/default-caddyfile",
 	}
 

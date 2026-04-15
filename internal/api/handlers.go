@@ -33,7 +33,8 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 
 	mux.HandleFunc("GET /api/setup/status", handleSetupStatus(cc))
 	mux.HandleFunc("POST /api/setup", handleSetup(store, cc, ss))
-	mux.HandleFunc("POST /api/setup/adapt-caddyfile", handleAdaptCaddyfile(cc))
+	mux.HandleFunc("POST /api/setup/import/caddyfile", handleSetupImportCaddyfile(cc))
+	mux.HandleFunc("POST /api/setup/import/full", handleSetupImportFull(cc))
 	mux.HandleFunc("GET /api/setup/default-caddyfile", handleDefaultCaddyfile())
 
 	mux.HandleFunc("GET /api/auth/status", handleAuthStatus(store))
@@ -60,7 +61,10 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(store, cc))
 	mux.HandleFunc("PUT /api/logs/config", handleLogConfigUpdate(store, cc, ss))
 	mux.HandleFunc("GET /api/logs/access-domains", handleAccessDomains(cc))
-	mux.HandleFunc("GET /api/caddyfile", handleCaddyfileExport(cc, store))
+	mux.HandleFunc("GET /api/export/caddyfile", handleExportCaddyfile(cc, store))
+	mux.HandleFunc("GET /api/export/full", handleExportFull(cc, store, ss, version))
+	mux.HandleFunc("POST /api/import/caddyfile", handleImportCaddyfile(cc, store, ss))
+	mux.HandleFunc("POST /api/import/full", handleImportFull(cc, store, ss))
 	mux.HandleFunc("GET /api/settings/global-toggles", handleGlobalTogglesGet(cc))
 	mux.HandleFunc("PUT /api/settings/global-toggles", handleGlobalTogglesUpdate(store, cc, ss))
 	mux.HandleFunc("GET /api/settings/acme-email", handleACMEEmailGet(cc))

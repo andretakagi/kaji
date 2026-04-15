@@ -27,6 +27,7 @@ export interface SetupRequest {
 	dns_challenge_token?: string;
 	auto_snapshot_enabled?: boolean;
 	auto_snapshot_limit?: number;
+	backup_data?: Record<string, unknown>;
 }
 
 export interface SetupResponse {
@@ -149,4 +150,23 @@ export interface IPList {
 export interface IPListUsage {
 	routes: { id: string; domain: string }[];
 	composite_lists: { id: string; name: string }[];
+}
+
+export interface ImportResponse {
+	status: string;
+	route_count?: number;
+}
+
+export interface SetupImportFullResponse {
+	status: string;
+	backup_data: Record<string, unknown>;
+	summary: {
+		auth_enabled: boolean;
+		has_api_key: boolean;
+		caddy_admin_url: string;
+		loki_enabled: boolean;
+		ip_lists: number;
+		disabled_routes: number;
+		snapshot_count: number;
+	};
 }

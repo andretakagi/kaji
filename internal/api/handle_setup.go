@@ -12,6 +12,7 @@ import (
 	"github.com/andretakagi/kaji/internal/auth"
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/export"
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
 
@@ -35,6 +36,7 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 			DNSChallengeToken   string               `json:"dns_challenge_token"`
 			AutoSnapshotEnabled *bool                `json:"auto_snapshot_enabled"`
 			AutoSnapshotLimit   *int                 `json:"auto_snapshot_limit"`
+			BackupData          json.RawMessage      `json:"backup_data"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -93,7 +95,24 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 		var dnsError string
 
 		{
-			if len(req.CaddyfileJSON) > 0 {
+			if len(req.BackupData) > 0 {
+				var backup export.Backup
+				if err := json.Unmarshal(req.BackupData, &backup); err != nil {
+					log.Printf("handleSetup: parse backup data: %v", err)
+					warnings = append(warnings, "failed to parse backup data: "+err.Error())
+				} else {
+					if err := export.Restore(&backup, cc, store, ss, false); err != nil {
+						log.Printf("handleSetup: restore backup: %v", err)
+						warnings = append(warnings, "failed to restore backup: "+err.Error())
+					}
+					store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
+						current.PasswordHash = newCfg.PasswordHash
+						current.SessionSecret = newCfg.SessionSecret
+						current.AuthEnabled = newCfg.AuthEnabled
+						return &current, nil
+					})
+				}
+			} else if len(req.CaddyfileJSON) > 0 {
 				if err := cc.LoadConfig(req.CaddyfileJSON); err != nil {
 					log.Printf("handleSetup: load caddyfile config: %v", err)
 					warnings = append(warnings, "failed to load Caddyfile config: "+err.Error())
@@ -168,46 +187,6 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 			resp["dns_error"] = dnsError
 		}
 		writeJSON(w, resp)
-	}
-}
-
-func handleAdaptCaddyfile(cc *caddy.Client) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Caddyfile string `json:"caddyfile"`
-		}
-		if !decodeBody(w, r, &req) {
-			return
-		}
-		if strings.TrimSpace(req.Caddyfile) == "" {
-			writeError(w, "caddyfile content is required", http.StatusBadRequest)
-			return
-		}
-
-		adaptedJSON, err := cc.AdaptCaddyfile(req.Caddyfile)
-		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "unreachable") {
-				writeError(w, "Caddy must be running to parse a Caddyfile", http.StatusBadGateway)
-				return
-			}
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-
-		settings, err := caddy.ExtractCaddyfileSettings(adaptedJSON)
-		if err != nil {
-			log.Printf("handleAdaptCaddyfile: extract settings: %v", err)
-			writeError(w, "failed to extract settings from adapted config", http.StatusInternalServerError)
-			return
-		}
-
-		writeJSON(w, map[string]any{
-			"acme_email":     settings.ACMEEmail,
-			"global_toggles": settings.Toggles,
-			"route_count":    settings.RouteCount,
-			"adapted_config": adaptedJSON,
-		})
 	}
 }
 

@@ -2651,6 +2651,109 @@ input:disabled + .toggle-slider {
 }
 
 /* ========================================================================
+   Export & Import
+   ======================================================================== */
+
+.export-import-group {
+	margin-top: 1rem;
+}
+
+.export-import-group + .export-import-group {
+	margin-top: 1.25rem;
+	padding-top: 1.25rem;
+	border-top: 1px solid var(--border);
+}
+
+.export-import-actions {
+	display: flex;
+	gap: 0.625rem;
+	margin-top: 0.625rem;
+	flex-wrap: wrap;
+}
+
+.confirm-dialog-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.5);
+	backdrop-filter: blur(2px);
+}
+
+.confirm-dialog {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 1.5rem;
+	max-width: 28rem;
+	width: calc(100% - 2rem);
+}
+
+.confirm-dialog h4 {
+	margin: 0 0 0.75rem;
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+}
+
+.confirm-dialog p {
+	margin: 0 0 1.25rem;
+	font-size: 0.8125rem;
+	line-height: 1.5;
+	color: var(--text-secondary);
+}
+
+.confirm-dialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.625rem;
+}
+
+.setup-import-modes {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+.setup-import-mode-btn {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	padding: 0.875rem 1rem;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	cursor: pointer;
+	text-align: left;
+	transition:
+		border-color 0.15s,
+		background 0.15s;
+}
+
+.setup-import-mode-btn:hover {
+	border-color: var(--text-secondary);
+}
+
+.setup-import-mode-btn.active {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+.setup-import-mode-btn strong {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--text);
+}
+
+.setup-import-mode-btn span {
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+}
+
+/* ========================================================================
    Mobile
    ======================================================================== */
 

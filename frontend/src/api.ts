@@ -8,9 +8,11 @@ import type {
 	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
+	ImportResponse,
 	IPList,
 	IPListUsage,
 	LoginRequest,
+	SetupImportFullResponse,
 	SetupRequest,
 	SetupResponse,
 	SetupStatus,
@@ -136,7 +138,7 @@ export function submitSetup(req: SetupRequest): Promise<SetupResponse> {
 
 export function adaptCaddyfile(caddyfile: string): Promise<AdaptCaddyfileResponse> {
 	return request(
-		"/api/setup/adapt-caddyfile",
+		"/api/setup/import/caddyfile",
 		{ method: "POST", ...jsonBody({ caddyfile }) },
 		validateAdaptCaddyfileResponse,
 	);
@@ -304,13 +306,64 @@ export function updateAdvancedSettings(settings: {
 }
 
 export async function exportCaddyfile(): Promise<string> {
-	const res = await fetch("/api/caddyfile", { credentials: "include" });
+	const res = await fetch("/api/export/caddyfile", { credentials: "include" });
 	if (!res.ok) {
 		const body = await res.text();
 		throw new Error(body || `Export failed (${res.status})`);
 	}
 	const data = await res.json();
 	return data.content;
+}
+
+export async function exportFull(): Promise<Blob> {
+	const res = await fetch("/api/export/full", { credentials: "include" });
+	if (!res.ok) {
+		const body = await res.text();
+		throw new Error(body || `Export failed (${res.status})`);
+	}
+	return res.blob();
+}
+
+export async function importCaddyfile(caddyfile: string): Promise<ImportResponse> {
+	const res = await fetch("/api/import/caddyfile", {
+		method: "POST",
+		credentials: "include",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ caddyfile }),
+	});
+	if (!res.ok) {
+		const body = await res.text();
+		throw new Error(body || `Import failed (${res.status})`);
+	}
+	return res.json();
+}
+
+export async function importFull(file: File): Promise<ImportResponse> {
+	const res = await fetch("/api/import/full", {
+		method: "POST",
+		credentials: "include",
+		headers: { "Content-Type": "application/zip" },
+		body: file,
+	});
+	if (!res.ok) {
+		const body = await res.text();
+		throw new Error(body || `Import failed (${res.status})`);
+	}
+	return res.json();
+}
+
+export async function setupImportFull(file: File): Promise<SetupImportFullResponse> {
+	const res = await fetch("/api/setup/import/full", {
+		method: "POST",
+		credentials: "include",
+		headers: { "Content-Type": "application/zip" },
+		body: file,
+	});
+	if (!res.ok) {
+		const body = await res.text();
+		throw new Error(body || `Import failed (${res.status})`);
+	}
+	return res.json();
 }
 
 export async function fetchLogConfig(): Promise<CaddyLoggingConfig> {
