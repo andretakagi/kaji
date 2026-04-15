@@ -222,3 +222,128 @@ func TestBuildAndParseRoundTrip(t *testing.T) {
 		t.Errorf("snapshot count = %d, want 1", len(backup.Snapshots.Index.Snapshots))
 	}
 }
+
+func TestFullStateSnapshotRoundTrip(t *testing.T) {
+	caddyConfig := json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`)
+	cc := fakeCaddyServer(t, caddyConfig)
+
+	appCfg := &config.AppConfig{
+		AuthEnabled:   true,
+		PasswordHash:  "secret",
+		CaddyAdminURL: "http://localhost:2019",
+		Loki: config.LokiConfig{
+			BatchSize:            1048576,
+			FlushIntervalSeconds: 5,
+		},
+		IPLists: []config.IPList{
+			{ID: "list1", Name: "blocklist", Type: "deny", IPs: []string{"10.0.0.1"}},
+		},
+	}
+	store := config.NewStore(appCfg)
+
+	ssDir := t.TempDir()
+	ss := snapshot.NewStore(ssDir)
+
+	// Create a full-state snapshot (new envelope format with app config and version).
+	snapAppCfg := json.RawMessage(`{"auth_enabled":true,"caddy_admin_url":"http://localhost:2019"}`)
+	ss.Create("full-state", "with app config", "manual", &snapshot.Data{
+		KajiVersion: "1.5.0",
+		CaddyConfig: json.RawMessage(`{"apps":{"http":{}}}`),
+		AppConfig:   snapAppCfg,
+	})
+
+	var buf bytes.Buffer
+	if err := BuildZIP(&buf, cc, store, ss, "1.5.0"); err != nil {
+		t.Fatalf("BuildZIP: %v", err)
+	}
+
+	// Import the ZIP on a fresh snapshot store.
+	data := buf.Bytes()
+	backup, err := ParseZIP(bytes.NewReader(data), int64(len(data)), "1.5.0")
+	if err != nil {
+		t.Fatalf("ParseZIP: %v", err)
+	}
+
+	if backup.Snapshots == nil {
+		t.Fatal("snapshots should be present")
+	}
+
+	importDir := t.TempDir()
+	importSS := snapshot.NewStore(importDir)
+	if err := restoreSnapshots(importSS, backup.Snapshots); err != nil {
+		t.Fatalf("restoreSnapshots: %v", err)
+	}
+
+	// Read the imported snapshot and verify the envelope survived.
+	idx := importSS.GetIndex()
+	if len(idx.Snapshots) != 1 {
+		t.Fatalf("snapshot count = %d, want 1", len(idx.Snapshots))
+	}
+
+	snap := idx.Snapshots[0]
+	if snap.KajiVersion != "1.5.0" {
+		t.Errorf("imported snapshot KajiVersion = %q, want 1.5.0", snap.KajiVersion)
+	}
+
+	d, err := importSS.ReadData(snap.ID)
+	if err != nil {
+		t.Fatalf("ReadData: %v", err)
+	}
+	if d.KajiVersion != "1.5.0" {
+		t.Errorf("envelope KajiVersion = %q, want 1.5.0", d.KajiVersion)
+	}
+	if d.AppConfig == nil {
+		t.Fatal("envelope AppConfig should not be nil")
+	}
+
+	var gotApp map[string]any
+	json.Unmarshal(d.AppConfig, &gotApp)
+	if gotApp["auth_enabled"] != true {
+		t.Error("AppConfig auth_enabled should survive export/import round-trip")
+	}
+}
+
+func TestLegacySnapshotSurvivesExportImport(t *testing.T) {
+	caddyConfig := json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`)
+
+	snapIndex := snapshot.Index{
+		CurrentID: "legacy1",
+		Snapshots: []snapshot.Snapshot{
+			{ID: "legacy1", Name: "old-snap", Type: "manual", CreatedAt: "2025-01-01T00:00:00Z"},
+		},
+	}
+
+	zipData := buildTestZIP(t, map[string][]byte{
+		"kaji-export/manifest.json":          mustJSON(t, validManifest("1.0.0")),
+		"kaji-export/caddy.json":             caddyConfig,
+		"kaji-export/config.json":            mustJSON(t, validAppConfig()),
+		"kaji-export/snapshots/index.json":   mustJSON(t, snapIndex),
+		"kaji-export/snapshots/legacy1.json": []byte(`{"apps":{"http":{"servers":{}}}}`),
+	})
+
+	backup, err := ParseZIP(bytes.NewReader(zipData), int64(len(zipData)), "1.5.0")
+	if err != nil {
+		t.Fatalf("ParseZIP: %v", err)
+	}
+
+	importDir := t.TempDir()
+	importSS := snapshot.NewStore(importDir)
+	if err := restoreSnapshots(importSS, backup.Snapshots); err != nil {
+		t.Fatalf("restoreSnapshots: %v", err)
+	}
+
+	// The legacy snapshot should be readable via ReadData and detected as legacy.
+	d, err := importSS.ReadData("legacy1")
+	if err != nil {
+		t.Fatalf("ReadData: %v", err)
+	}
+	if d.KajiVersion != "" {
+		t.Errorf("legacy snapshot KajiVersion = %q, want empty", d.KajiVersion)
+	}
+	if d.AppConfig != nil {
+		t.Error("legacy snapshot should have nil AppConfig")
+	}
+	if d.CaddyConfig == nil {
+		t.Fatal("legacy snapshot should still have CaddyConfig")
+	}
+}
