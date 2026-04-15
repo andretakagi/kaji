@@ -2,11 +2,16 @@ package api
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/andretakagi/kaji/internal/auth"
 	"github.com/andretakagi/kaji/internal/config"
@@ -128,15 +133,22 @@ func TestRequireAuthExpiredSession(t *testing.T) {
 		AuthEnabled:   true,
 		PasswordHash:  "$2a$10$placeholder",
 		SessionSecret: secret,
-		SessionMaxAge: 1, // 1 second - token issued "in the past" will expire
+		SessionMaxAge: 1,
 	})
 	h := requireAuth(store, okHandler)
 
-	// Build a token with a fake issuedAt far in the past so it is expired.
-	// Format: token.issuedAt.sig - use a crafted string with wrong sig so it
-	// hits the signature check (returns false) which also returns 401.
+	// Construct a validly signed token with issuedAt one hour in the past,
+	// so it exceeds the 1-second SessionMaxAge.
+	token := "abc123"
+	issuedAt := strconv.FormatInt(time.Now().Unix()-3600, 10)
+	payload := token + "." + issuedAt
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	signed := token + "." + issuedAt + "." + sig
+
 	req := httptest.NewRequest(http.MethodGet, "/api/routes", nil)
-	req.AddCookie(&http.Cookie{Name: "kaji_session", Value: "token.1.invalidsig"})
+	req.AddCookie(&http.Cookie{Name: "kaji_session", Value: signed})
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 

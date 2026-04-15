@@ -1,11 +1,15 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 )
 
 func TestHashAndCheckPassword(t *testing.T) {
@@ -121,6 +125,18 @@ func TestSignAndValidateToken(t *testing.T) {
 		signed := SignToken(token, secret)
 		if !ValidateSignedToken(signed, secret, 1) {
 			t.Fatal("ValidateSignedToken rejected a fresh token with maxAge=1")
+		}
+	})
+
+	t.Run("expired token rejected", func(t *testing.T) {
+		issuedAt := strconv.FormatInt(time.Now().Unix()-3600, 10)
+		payload := token + "." + issuedAt
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(payload))
+		sig := hex.EncodeToString(mac.Sum(nil))
+		signed := token + "." + issuedAt + "." + sig
+		if ValidateSignedToken(signed, secret, 60) {
+			t.Fatal("ValidateSignedToken accepted an expired token")
 		}
 	})
 }
