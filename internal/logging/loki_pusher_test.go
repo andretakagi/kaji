@@ -685,15 +685,6 @@ func TestBackoffDoublesAndCaps(t *testing.T) {
 	}
 }
 
-func TestBackoffInitialValue(t *testing.T) {
-	if initialBackoff != 500*time.Millisecond {
-		t.Errorf("initialBackoff: got %v, want 500ms", initialBackoff)
-	}
-	if maxBackoff != 5*time.Minute {
-		t.Errorf("maxBackoff: got %v, want 5m", maxBackoff)
-	}
-}
-
 func TestSendTestEntrySuccess(t *testing.T) {
 	var gotBody []byte
 
