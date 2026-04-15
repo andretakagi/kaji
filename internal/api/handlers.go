@@ -115,10 +115,7 @@ func buildSnapshotData(cc *caddy.Client, store *config.ConfigStore, version stri
 
 	cfg := store.Get()
 	stripped := *cfg
-	stripped.PasswordHash = ""
-	stripped.SessionSecret = ""
-	stripped.SessionMaxAge = 0
-	stripped.SecureCookies = ""
+	stripped.StripCredentials()
 
 	appConfigJSON, err := json.Marshal(stripped)
 	if err != nil {

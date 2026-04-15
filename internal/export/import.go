@@ -141,10 +141,7 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 	if autoSnapshot {
 		cfg := store.Get()
 		stripped := *cfg
-		stripped.PasswordHash = ""
-		stripped.SessionSecret = ""
-		stripped.SessionMaxAge = 0
-		stripped.SecureCookies = ""
+		stripped.StripCredentials()
 		appJSON, _ := json.Marshal(stripped)
 
 		data := &snapshot.Data{
@@ -166,10 +163,7 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 
 	if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
 		imported := backup.AppConfig
-		imported.PasswordHash = current.PasswordHash
-		imported.SessionSecret = current.SessionSecret
-		imported.SessionMaxAge = current.SessionMaxAge
-		imported.SecureCookies = current.SecureCookies
+		imported.PreserveCredentials(&current)
 
 		warnings = reconcilePaths(&imported, &current)
 

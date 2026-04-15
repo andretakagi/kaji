@@ -133,10 +133,7 @@ func handleSnapshotRestore(ss *snapshot.Store, cc *caddy.Client, store *config.C
 			}
 
 			if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
-				imported.PasswordHash = current.PasswordHash
-				imported.SessionSecret = current.SessionSecret
-				imported.SessionMaxAge = current.SessionMaxAge
-				imported.SecureCookies = current.SecureCookies
+				imported.PreserveCredentials(&current)
 				return &imported, nil
 			}); err != nil {
 				log.Printf("handleSnapshotRestore: update app config: %v", err)

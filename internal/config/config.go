@@ -70,6 +70,20 @@ type AppConfig struct {
 	RouteIPLists    map[string]string `json:"route_ip_lists"`
 }
 
+func (c *AppConfig) StripCredentials() {
+	c.PasswordHash = ""
+	c.SessionSecret = ""
+	c.SessionMaxAge = 0
+	c.SecureCookies = ""
+}
+
+func (c *AppConfig) PreserveCredentials(from *AppConfig) {
+	c.PasswordHash = from.PasswordHash
+	c.SessionSecret = from.SessionSecret
+	c.SessionMaxAge = from.SessionMaxAge
+	c.SecureCookies = from.SecureCookies
+}
+
 func DefaultConfig() *AppConfig {
 	logDir := "/var/log/caddy/"
 	if v := os.Getenv("CADDY_LOG_DIR"); v != "" {
