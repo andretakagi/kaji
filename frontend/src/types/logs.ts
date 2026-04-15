@@ -1,5 +1,5 @@
 export interface CaddyLogEntry {
-	level: "debug" | "info" | "warn" | "error";
+	level: "debug" | "info" | "warn" | "error" | "panic" | "fatal";
 	ts: number;
 	logger: string;
 	msg: string;
