@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchConfig, fetchLogs } from "../api";
 import { cn } from "../cn";
+import { RequireCaddy, useCaddyStatus } from "../contexts/CaddyContext";
 import { formatTime } from "../formatTime";
 import type { CaddyLogEntry, LogQueryParams } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
@@ -34,7 +35,8 @@ function statusClass(code: number): string {
 	return "s5xx";
 }
 
-export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
+export default function Logs() {
+	const { caddyRunning } = useCaddyStatus();
 	const [historyEntries, setHistoryEntries] = useState<CaddyLogEntry[]>([]);
 	const [streamEntries, setStreamEntries] = useState<CaddyLogEntry[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -174,9 +176,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 				<div className="section-header">
 					<h2>Logs</h2>
 				</div>
-				<div className="caddy-offline" role="status">
-					Caddy is not running. Start it to view logs.
-				</div>
+				<RequireCaddy message="Start it to view logs." />
 			</div>
 		);
 	}
@@ -189,7 +189,7 @@ export default function Logs({ caddyRunning }: { caddyRunning: boolean }) {
 
 	return (
 		<div className="logs">
-			<LogConfigList caddyRunning={caddyRunning} />
+			<LogConfigList />
 
 			<div className="section-header">
 				<h2>

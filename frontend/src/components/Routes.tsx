@@ -11,6 +11,7 @@ import {
 	fetchRouteIPListBindings,
 	updateRoute,
 } from "../api";
+import { RequireCaddy, useCaddyStatus } from "../contexts/CaddyContext";
 import { useFormToggle } from "../hooks/useFormToggle";
 import { usePolledData } from "../hooks/usePolledData";
 import type { DisabledRoute, GlobalToggles, ParsedRoute, RouteToggles } from "../types/api";
@@ -172,7 +173,8 @@ function parseDisabledRoute(dr: DisabledRoute): ParsedRoute {
 	return parsed;
 }
 
-export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
+export default function Routes() {
+	const { caddyRunning } = useCaddyStatus();
 	const fetchRoutes = async (): Promise<ParsedRoute[]> => {
 		const parsed: ParsedRoute[] = [];
 
@@ -402,11 +404,7 @@ export default function Routes({ caddyRunning }: { caddyRunning: boolean }) {
 				</button>
 			</SectionHeader>
 
-			{!caddyRunning && (
-				<div className="caddy-offline" role="status">
-					Caddy is not running. Start it to manage routes.
-				</div>
-			)}
+			<RequireCaddy message="Start it to manage routes." />
 
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
 			{warning && (

@@ -7,6 +7,7 @@ import {
 	renewCertificate,
 } from "../api";
 import { cn } from "../cn";
+import { RequireCaddy, useCaddyStatus } from "../contexts/CaddyContext";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { usePolledData } from "../hooks/usePolledData";
 import type { CertInfo } from "../types/certs";
@@ -31,7 +32,8 @@ function expiryText(cert: CertInfo): string {
 	return `Expires in ${cert.days_left} days`;
 }
 
-export default function Certificates({ caddyRunning }: { caddyRunning: boolean }) {
+export default function Certificates() {
+	const { caddyRunning } = useCaddyStatus();
 	const {
 		data: certs,
 		loading,
@@ -91,9 +93,7 @@ export default function Certificates({ caddyRunning }: { caddyRunning: boolean }
 	};
 
 	if (!caddyRunning) {
-		return (
-			<div className="empty-state">Caddy is not running. Start Caddy to view certificates.</div>
-		);
+		return <RequireCaddy message="Start Caddy to view certificates." />;
 	}
 
 	if (loading) {

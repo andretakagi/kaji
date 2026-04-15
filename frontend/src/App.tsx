@@ -20,6 +20,7 @@ import Routes from "./components/Routes";
 import Settings from "./components/Settings";
 import Setup from "./components/Setup";
 import Snapshots from "./components/Snapshots";
+import { CaddyProvider } from "./contexts/CaddyContext";
 import { getErrorMessage } from "./utils/getErrorMessage";
 import "./styles/App.css";
 
@@ -283,14 +284,16 @@ function App() {
 					className="service-error"
 				/>
 
-				<main id="main-content" className="app-content">
-					{view === "routes" && <Routes caddyRunning={running} />}
-					{view === "ip-lists" && <IPLists />}
-					{view === "certificates" && <Certificates caddyRunning={running} />}
-					{view === "logs" && <Logs caddyRunning={running} />}
-					{view === "snapshots" && <Snapshots />}
-					{view === "settings" && <Settings onAuthChange={setAuthEnabled} caddyRunning={running} />}
-				</main>
+				<CaddyProvider running={running}>
+					<main id="main-content" className="app-content">
+						{view === "routes" && <Routes />}
+						{view === "ip-lists" && <IPLists />}
+						{view === "certificates" && <Certificates />}
+						{view === "logs" && <Logs />}
+						{view === "snapshots" && <Snapshots />}
+						{view === "settings" && <Settings onAuthChange={setAuthEnabled} />}
+					</main>
+				</CaddyProvider>
 
 				<nav className="app-nav app-nav-mobile" aria-label="Main navigation, mobile">
 					{navItems.map((item) => (

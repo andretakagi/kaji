@@ -11,6 +11,7 @@ import {
 	updateCaddyDataDir,
 } from "../api";
 import { cn } from "../cn";
+import { useCaddyStatus } from "../contexts/CaddyContext";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import AuthSection from "./AuthSection";
@@ -247,13 +248,8 @@ function AdvancedSection({
 	);
 }
 
-export default function Settings({
-	onAuthChange,
-	caddyRunning,
-}: {
-	onAuthChange: (enabled: boolean) => void;
-	caddyRunning: boolean;
-}) {
+export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boolean) => void }) {
+	const { caddyRunning } = useCaddyStatus();
 	const [authEnabled, setAuthEnabled] = useState(false);
 	const [advanced, setAdvanced] = useState({
 		caddy_admin_url: "http://localhost:2019",
@@ -373,11 +369,7 @@ export default function Settings({
 
 			{!caddyRunning ? <CaddyOffSection title="HTTPS" /> : <HttpsSettingsSection />}
 
-			{!caddyRunning ? (
-				<CaddyOffSection title="Metrics" />
-			) : (
-				<MetricsSettings caddyRunning={caddyRunning} />
-			)}
+			{!caddyRunning ? <CaddyOffSection title="Metrics" /> : <MetricsSettings />}
 
 			{!caddyRunning ? <CaddyOffSection title="Loki Integration" /> : <LokiSettings />}
 

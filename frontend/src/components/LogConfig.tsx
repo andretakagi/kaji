@@ -6,6 +6,7 @@ import {
 	updateLogConfig,
 	updateLokiConfig,
 } from "../api";
+import { useCaddyStatus } from "../contexts/CaddyContext";
 import { deepEqual } from "../deepEqual";
 import type { Feedback } from "../hooks/useAsyncAction";
 import type { CaddyLoggingConfig, CaddyLogSink, LokiConfig } from "../types/logs";
@@ -431,7 +432,8 @@ function domainsForSink(
 	return result;
 }
 
-export function LogConfigList({ caddyRunning }: { caddyRunning: boolean }) {
+export function LogConfigList() {
+	const { caddyRunning } = useCaddyStatus();
 	const [editConfig, setEditConfig] = useState<CaddyLoggingConfig>({ logs: {} });
 	const [savedConfig, setSavedConfig] = useState<CaddyLoggingConfig>({ logs: {} });
 	const editConfigRef = useRef(editConfig);

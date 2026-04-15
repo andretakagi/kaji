@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import { fetchGlobalToggles, updateGlobalToggles } from "../api";
+import { useCaddyStatus } from "../contexts/CaddyContext";
 import { useSettingsSection } from "../hooks/useSettingsSection";
 import type { GlobalToggles } from "../types/api";
 import Feedback from "./Feedback";
 import { Toggle } from "./Toggle";
 
-export function MetricsSettings({ caddyRunning }: { caddyRunning: boolean }) {
+export function MetricsSettings() {
+	const { caddyRunning } = useCaddyStatus();
 	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } =
 		useSettingsSection({ prometheus: false, perHost: false });
 	const togglesRef = useRef<GlobalToggles | null>(null);
