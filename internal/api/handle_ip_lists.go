@@ -114,7 +114,13 @@ func handleCreateIPList(store *config.ConfigStore) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, newList)
+		cfg = store.Get()
+		resolved, err := caddy.ResolveIPList(newList.ID, cfg.IPLists)
+		count := 0
+		if err == nil {
+			count = len(resolved)
+		}
+		writeJSON(w, listWithCount{IPList: newList, ResolvedCount: count})
 	}
 }
 
@@ -201,7 +207,13 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		}
 		persistCaddyConfig(cc, store)
 
-		writeJSON(w, updated)
+		cfg = store.Get()
+		resolved, err := caddy.ResolveIPList(updated.ID, cfg.IPLists)
+		count := 0
+		if err == nil {
+			count = len(resolved)
+		}
+		writeJSON(w, listWithCount{IPList: updated, ResolvedCount: count})
 	}
 }
 
