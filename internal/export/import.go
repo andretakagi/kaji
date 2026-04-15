@@ -142,7 +142,10 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 		cfg := store.Get()
 		stripped := *cfg
 		stripped.StripCredentials()
-		appJSON, _ := json.Marshal(stripped)
+		appJSON, err := json.Marshal(stripped)
+		if err != nil {
+			return nil, fmt.Errorf("marshaling app config for snapshot: %w", err)
+		}
 
 		data := &snapshot.Data{
 			KajiVersion: version,
