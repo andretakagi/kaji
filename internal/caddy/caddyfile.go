@@ -9,15 +9,25 @@ import (
 )
 
 type CaddyfileSettings struct {
-	ACMEEmail  string        `json:"acme_email"`
-	Toggles    GlobalToggles `json:"global_toggles"`
-	RouteCount int           `json:"route_count"`
+	ACMEEmail    string        `json:"acme_email"`
+	AdminListen  string        `json:"admin_listen"`
+	Toggles      GlobalToggles `json:"global_toggles"`
+	RouteCount   int           `json:"route_count"`
 }
 
 func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, error) {
 	cfg, err := parseCaddyfileConfig(adaptedJSON, "")
 	if err != nil {
 		return nil, fmt.Errorf("parsing adapted caddyfile config: %w", err)
+	}
+
+	var top struct {
+		Admin *struct {
+			Listen string `json:"listen"`
+		} `json:"admin"`
+	}
+	if err := json.Unmarshal(adaptedJSON, &top); err != nil {
+		return nil, fmt.Errorf("parsing admin config: %w", err)
 	}
 
 	toggles := GlobalToggles{
@@ -36,10 +46,16 @@ func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, 
 		routeCount += len(srv.Routes)
 	}
 
+	adminListen := ""
+	if top.Admin != nil && top.Admin.Listen != "" {
+		adminListen = top.Admin.Listen
+	}
+
 	return &CaddyfileSettings{
-		ACMEEmail:  cfg.ACMEEmail,
-		Toggles:    toggles,
-		RouteCount: routeCount,
+		ACMEEmail:   cfg.ACMEEmail,
+		AdminListen: adminListen,
+		Toggles:     toggles,
+		RouteCount:  routeCount,
 	}, nil
 }
 
