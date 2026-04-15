@@ -82,7 +82,15 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, "Before Caddyfile import")
+		configData, err := cc.GetConfig()
+		if err != nil {
+			log.Printf("handleImportCaddyfile: pre-import snapshot: %v", err)
+		} else {
+			name := "pre-import-" + time.Now().Format("2006-01-02T15:04:05")
+			if _, err := ss.Create(name, "Before Caddyfile import", "auto", configData); err != nil {
+				log.Printf("handleImportCaddyfile: pre-import snapshot: %v", err)
+			}
+		}
 
 		if err := cc.LoadConfig(adaptedJSON); err != nil {
 			log.Printf("handleImportCaddyfile: load config: %v", err)
