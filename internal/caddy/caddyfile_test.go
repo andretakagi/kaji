@@ -534,3 +534,313 @@ func TestExtractCaddyfileSettingsTogglesParsed(t *testing.T) {
 		t.Errorf("RouteCount = %d, want 1", settings.RouteCount)
 	}
 }
+
+// buildFullConfigWithLogging extends buildFullConfig by injecting a logging
+// section into the top-level Caddy JSON config.
+func buildFullConfigWithLogging(t *testing.T, base json.RawMessage, logging map[string]any) json.RawMessage {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(base, &m); err != nil {
+		t.Fatalf("failed to unmarshal base config: %v", err)
+	}
+	m["logging"] = map[string]any{"logs": logging}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("failed to marshal config with logging: %v", err)
+	}
+	return json.RawMessage(data)
+}
+
+// buildMultiServerConfig creates a Caddy JSON config with multiple named
+// servers, each containing one route.
+func buildMultiServerConfig(t *testing.T, servers map[string]json.RawMessage) json.RawMessage {
+	t.Helper()
+	srvMap := make(map[string]any)
+	for name, route := range servers {
+		srvMap[name] = map[string]any{
+			"routes": []json.RawMessage{route},
+		}
+	}
+	cfg := map[string]any{
+		"apps": map[string]any{
+			"http": map[string]any{
+				"servers": srvMap,
+			},
+		},
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal multi-server config: %v", err)
+	}
+	return json.RawMessage(data)
+}
+
+// TestGenerateCaddyfileLogFileWriter verifies that a named logger with a file
+// writer and roll settings produces the correct global log block.
+func TestGenerateCaddyfileLogFileWriter(t *testing.T) {
+	base := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "", false, false)
+	cfg := buildFullConfigWithLogging(t, base, map[string]any{
+		"mylog": map[string]any{
+			"writer": map[string]any{
+				"output":        "file",
+				"filename":      "/var/log/caddy/app.log",
+				"roll_size_mb":  50,
+				"roll_keep":     3,
+				"roll_keep_for": 3600000000000 * 24 * 7, // 7 days in nanoseconds
+			},
+			"level": "WARN",
+		},
+	})
+
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "log mylog {", "named logger block")
+	assertContains(t, out, "output file /var/log/caddy/app.log {", "file output with roll block")
+	assertContains(t, out, "roll_size 50MiB", "roll_size")
+	assertContains(t, out, "roll_keep 3", "roll_keep")
+	assertContains(t, out, "roll_keep_for 168h", "roll_keep_for 7 days")
+	assertContains(t, out, "level WARN", "log level")
+}
+
+// TestGenerateCaddyfileLogStdout verifies that a logger with stdout output
+// produces `output stdout` without a nested block.
+func TestGenerateCaddyfileLogStdout(t *testing.T) {
+	base := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "", false, false)
+	cfg := buildFullConfigWithLogging(t, base, map[string]any{
+		"console": map[string]any{
+			"writer": map[string]any{
+				"output": "stdout",
+			},
+			"encoder": map[string]any{
+				"format": "console",
+			},
+			"level": "DEBUG",
+		},
+	})
+
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "log console {", "named logger block")
+	assertContains(t, out, "output stdout", "stdout output")
+	assertContains(t, out, "format console", "console encoder")
+	assertContains(t, out, "level DEBUG", "debug level")
+}
+
+// TestGenerateCaddyfileLogIncludeExclude verifies that include/exclude
+// filters appear in the global log block.
+func TestGenerateCaddyfileLogIncludeExclude(t *testing.T) {
+	base := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "", false, false)
+	cfg := buildFullConfigWithLogging(t, base, map[string]any{
+		"filtered": map[string]any{
+			"writer": map[string]any{
+				"output": "stderr",
+			},
+			"level":   "INFO",
+			"include": []string{"http.log.access"},
+			"exclude": []string{"http.log.access.srv0"},
+		},
+	})
+
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "log filtered {", "named logger block")
+	assertContains(t, out, "output stderr", "stderr output")
+	assertContains(t, out, "include http.log.access", "include filter")
+	assertContains(t, out, "exclude http.log.access.srv0", "exclude filter")
+}
+
+// TestGenerateCaddyfileLogDefaultWithExtras verifies that a default logger
+// with extras (not just DEBUG level) gets written as a full log block.
+func TestGenerateCaddyfileLogDefaultWithExtras(t *testing.T) {
+	base := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "", false, false)
+	cfg := buildFullConfigWithLogging(t, base, map[string]any{
+		"default": map[string]any{
+			"writer": map[string]any{
+				"output":   "file",
+				"filename": "/var/log/caddy/default.log",
+			},
+			"level": "DEBUG",
+		},
+	})
+
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	// Default logger with extras should use bare "log {" (no name)
+	assertContains(t, out, "log {", "default logger block (no name)")
+	assertContains(t, out, "output file /var/log/caddy/default.log", "default file output")
+}
+
+// TestGenerateCaddyfileLogFileNoRollSettings verifies that a file writer
+// without roll settings produces a simple one-line output directive.
+func TestGenerateCaddyfileLogFileNoRollSettings(t *testing.T) {
+	base := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "", false, false)
+	cfg := buildFullConfigWithLogging(t, base, map[string]any{
+		"simple": map[string]any{
+			"writer": map[string]any{
+				"output":   "file",
+				"filename": "/var/log/caddy/simple.log",
+			},
+			"level": "ERROR",
+		},
+	})
+
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "output file /var/log/caddy/simple.log\n", "simple file output (no roll block)")
+	assertNotContains(t, out, "roll_size", "no roll_size")
+	assertNotContains(t, out, "roll_keep", "no roll_keep")
+}
+
+// TestGenerateCaddyfileCORSMultiOrigin verifies that multiple allowed origins
+// produce per-origin matchers with Vary headers.
+func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
+	raw, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			CORS: CORSOpts{
+				Enabled:        true,
+				AllowedOrigins: []string{"https://a.example.com", "https://b.example.com"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "@cors0 header Origin https://a.example.com", "cors0 matcher")
+	assertContains(t, out, "@cors1 header Origin https://b.example.com", "cors1 matcher")
+	assertContains(t, out, `header @cors0 Access-Control-Allow-Origin "https://a.example.com"`, "cors0 origin header")
+	assertContains(t, out, `header @cors1 Access-Control-Allow-Origin "https://b.example.com"`, "cors1 origin header")
+	assertContains(t, out, `header @cors0 Vary "Origin"`, "cors0 vary")
+	assertContains(t, out, `header @cors1 Vary "Origin"`, "cors1 vary")
+	assertContains(t, out, "Access-Control-Allow-Methods", "CORS methods")
+	assertContains(t, out, "Access-Control-Allow-Headers", "CORS headers")
+
+	// Should NOT contain wildcard origin
+	assertNotContains(t, out, `Allow-Origin "*"`, "no wildcard when multi-origin")
+}
+
+// TestGenerateCaddyfileMultipleServers verifies that routes from multiple
+// servers all appear in the output in deterministic (alphabetical) order.
+func TestGenerateCaddyfileMultipleServers(t *testing.T) {
+	route1, err := BuildRoute(RouteParams{
+		Domain:   "alpha.example.com",
+		Upstream: "localhost:8001",
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+	route2, err := BuildRoute(RouteParams{
+		Domain:   "beta.example.com",
+		Upstream: "localhost:8002",
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	// Name servers in reverse alphabetical order to verify sorting
+	cfg := buildMultiServerConfig(t, map[string]json.RawMessage{
+		"srv1": route2,
+		"srv0": route1,
+	})
+
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "alpha.example.com {", "srv0 route")
+	assertContains(t, out, "beta.example.com {", "srv1 route")
+
+	// srv0 (alpha) must appear before srv1 (beta) due to alphabetical sort
+	alphaIdx := strings.Index(out, "alpha.example.com {")
+	betaIdx := strings.Index(out, "beta.example.com {")
+	if alphaIdx < 0 || betaIdx < 0 {
+		t.Fatal("expected both server routes in output")
+	}
+	if alphaIdx > betaIdx {
+		t.Error("srv0 (alpha) should appear before srv1 (beta) due to sorted server names")
+	}
+}
+
+// TestGenerateCaddyfileAccessLog verifies that a route with AccessLog set
+// and a kaji_access logger produces a per-site log block with the writer.
+func TestGenerateCaddyfileAccessLog(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	srvWithLogs := map[string]any{
+		"routes": []json.RawMessage{route},
+		"logs": map[string]any{
+			"logger_names": map[string]string{
+				"example.com": "kaji_access",
+			},
+		},
+	}
+	cfg := map[string]any{
+		"apps": map[string]any{
+			"http": map[string]any{
+				"servers": map[string]any{
+					"srv0": srvWithLogs,
+				},
+			},
+		},
+		"logging": map[string]any{
+			"logs": map[string]any{
+				"kaji_access": map[string]any{
+					"writer": map[string]any{
+						"output":   "file",
+						"filename": "/var/log/caddy/access.log",
+					},
+				},
+			},
+		},
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal config: %v", err)
+	}
+
+	out, err := GenerateCaddyfile(json.RawMessage(data), "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "example.com {", "site block")
+	assertContains(t, out, "reverse_proxy localhost:8080", "reverse_proxy")
+
+	// Per-site access log block should appear inside the site block
+	assertContains(t, out, "log {", "per-site log block")
+	assertContains(t, out, "output file /var/log/caddy/access.log", "access log file path")
+	assertContains(t, out, "format json", "access log json format")
+
+	// kaji_access should NOT appear as a global log block
+	assertNotContains(t, out, "log kaji_access", "kaji_access not in global blocks")
+}
