@@ -11,6 +11,7 @@ import {
 	type AdaptCaddyfileResponse,
 	DEFAULT_GLOBAL_TOGGLES,
 	type GlobalToggles,
+	type ImportReview,
 	type SetupImportFullResponse,
 	type SetupStatus,
 } from "../types/api";
@@ -22,9 +23,6 @@ const themeOptions = [
 	{ value: "dark", label: "Dark" },
 	{ value: "light", label: "Light" },
 ] as const;
-
-const STEP_LABELS = ["Auth", "Import", "Settings"];
-const LAST_STEP = STEP_LABELS.length - 1;
 
 type ChallengeType = "http-01" | "cloudflare";
 
@@ -38,6 +36,7 @@ interface WizardData {
 	importedSettings: AdaptCaddyfileResponse | null;
 	backupSummary: SetupImportFullResponse | null;
 	backupData: Record<string, unknown> | null;
+	reviewData: ImportReview | null;
 	acmeEmail: string;
 	globalToggles: GlobalToggles;
 	challengeType: ChallengeType;
@@ -70,6 +69,7 @@ function Setup({
 		importedSettings: null,
 		backupSummary: null,
 		backupData: null,
+		reviewData: null,
 		acmeEmail: "",
 		globalToggles: { ...DEFAULT_GLOBAL_TOGGLES },
 		challengeType: "http-01",
@@ -81,6 +81,12 @@ function Setup({
 	const update = useCallback(<K extends keyof WizardData>(key: K, value: WizardData[K]) => {
 		setData((prev) => ({ ...prev, [key]: value }));
 	}, []);
+
+	const hasReview = data.importMode !== "none" && data.reviewData !== null;
+	const stepLabels = hasReview
+		? ["Auth", "Import", "Review", "Settings"]
+		: ["Auth", "Import", "Settings"];
+	const lastStep = stepLabels.length - 1;
 
 	useEffect(() => {
 		let active = true;
@@ -182,11 +188,18 @@ function Setup({
 		}
 	};
 
-	const stepContent = [
-		<StepAuth key="auth" data={data} update={update} />,
-		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
-		<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
-	];
+	const stepContent = hasReview
+		? [
+				<StepAuth key="auth" data={data} update={update} />,
+				<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
+				<StepReview key="review" data={data} />,
+				<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
+			]
+		: [
+				<StepAuth key="auth" data={data} update={update} />,
+				<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
+				<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
+			];
 
 	if (!caddyReady) {
 		return (
@@ -228,9 +241,11 @@ function Setup({
 
 	return (
 		<div className="auth-wrapper">
-			<div className={`auth-card${step === LAST_STEP ? " auth-card-wide" : ""}`}>
+			<div
+				className={`auth-card${step === lastStep || (hasReview && step === 2) ? " auth-card-wide" : ""}`}
+			>
 				<h1>Kaji</h1>
-				<StepIndicator current={step} />
+				<StepIndicator current={step} labels={stepLabels} />
 
 				{error && step !== 1 && (
 					<div className="inline-error auth-error" role="alert">
@@ -252,7 +267,7 @@ function Setup({
 						</button>
 					)}
 					{step === 0 && !setupDone && <span />}
-					{step < LAST_STEP ? (
+					{step < lastStep ? (
 						<button type="button" className="btn btn-primary" onClick={handleNext}>
 							Next
 						</button>
@@ -272,10 +287,10 @@ function Setup({
 	);
 }
 
-function StepIndicator({ current }: { current: number }) {
+function StepIndicator({ current, labels }: { current: number; labels: string[] }) {
 	return (
 		<div className="setup-steps">
-			{STEP_LABELS.map((label, i) => {
+			{labels.map((label, i) => {
 				let cls = "setup-step";
 				if (i === current) cls += " active";
 				else if (i < current) cls += " completed";
@@ -423,6 +438,7 @@ function StepImport({
 	const handleModeChange = (mode: "none" | "caddyfile" | "full") => {
 		update("importMode", mode);
 		setError("");
+		update("reviewData", null);
 		if (mode !== "caddyfile") {
 			update("adaptedConfig", null);
 			update("importedSettings", null);
@@ -454,6 +470,7 @@ function StepImport({
 			const result = await adaptCaddyfile(data.caddyfileText);
 			update("adaptedConfig", result.adapted_config);
 			update("importedSettings", result);
+			update("reviewData", { routes: result.routes ?? [] });
 			if (result.acme_email) update("acmeEmail", result.acme_email);
 			update("globalToggles", result.global_toggles);
 		} catch (err) {
@@ -475,6 +492,9 @@ function StepImport({
 			const result = await setupImportFull(file);
 			update("backupSummary", result);
 			update("backupData", result.backup_data);
+			if (result.review) {
+				update("reviewData", result.review);
+			}
 			if (result.acme_email) update("acmeEmail", result.acme_email);
 			if (result.global_toggles) update("globalToggles", result.global_toggles);
 		} catch (err) {
@@ -649,6 +669,114 @@ function StepImport({
 				</>
 			)}
 		</>
+	);
+}
+
+function StepReview({ data }: { data: WizardData }) {
+	const review = data.reviewData;
+	if (!review) return null;
+
+	const isFull = data.importMode === "full";
+
+	return (
+		<div className="setup-review">
+			{review.routes.length > 0 && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">Routes</h3>
+					<div className="setup-review-table">
+						<div className="setup-review-table-header">
+							<span>Domain</span>
+							<span>Upstream</span>
+							<span>Status</span>
+						</div>
+						{review.routes.map((route) => (
+							<div
+								key={`${route.domain}-${route.enabled}`}
+								className={cn("setup-review-table-row", !route.enabled && "disabled")}
+							>
+								<span className="setup-review-domain">{route.domain}</span>
+								<span className="setup-review-upstream">{route.upstream}</span>
+								<span className={cn("setup-review-status", route.enabled ? "on" : "off")}>
+									{route.enabled ? "Enabled" : "Disabled"}
+								</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
+			{isFull && review.logging && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">Logging</h3>
+					<div className="setup-review-list">
+						{review.logging.log_file && (
+							<div className="setup-review-list-item">
+								<span>Log file</span>
+								<span className="setup-review-value">{review.logging.log_file}</span>
+							</div>
+						)}
+						{review.logging.log_dir && (
+							<div className="setup-review-list-item">
+								<span>Log directory</span>
+								<span className="setup-review-value">{review.logging.log_dir}</span>
+							</div>
+						)}
+						<div className="setup-review-list-item">
+							<span>Loki</span>
+							<span className="setup-review-value">
+								{review.logging.loki_enabled ? review.logging.loki_endpoint : "Not configured"}
+							</span>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{isFull && review.ip_lists && review.ip_lists.length > 0 && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">IP Lists</h3>
+					<div className="setup-review-table">
+						<div className="setup-review-table-header">
+							<span>Name</span>
+							<span>Type</span>
+							<span>Entries</span>
+						</div>
+						{review.ip_lists.map((list) => (
+							<div key={list.name} className="setup-review-table-row">
+								<span>{list.name}</span>
+								<span className="setup-review-badge">{list.type}</span>
+								<span>{list.entry_count}</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
+			{isFull && review.snapshots && review.snapshots.length > 0 && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">Snapshots</h3>
+					<div className="setup-review-table">
+						<div className="setup-review-table-header">
+							<span>Name</span>
+							<span>Type</span>
+							<span>Date</span>
+						</div>
+						{review.snapshots.map((snap) => (
+							<div key={snap.name + snap.created_at} className="setup-review-table-row">
+								<span>{snap.name}</span>
+								<span className="setup-review-badge">{snap.type}</span>
+								<span>
+									{new Date(snap.created_at).toLocaleDateString(undefined, {
+										year: "numeric",
+										month: "short",
+										day: "numeric",
+									})}
+								</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+		</div>
 	);
 }
 
