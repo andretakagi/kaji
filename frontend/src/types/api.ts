@@ -1,4 +1,4 @@
-import type { CaddyRoute } from "./caddy";
+import type { CaddyConfig, CaddyRoute } from "./caddy";
 
 export interface CaddyStatus {
 	running: boolean;
@@ -23,7 +23,7 @@ export interface SetupRequest {
 	caddy_admin_url?: string;
 	acme_email?: string;
 	global_toggles?: GlobalToggles;
-	caddyfile_json?: Record<string, unknown>;
+	caddyfile_json?: CaddyConfig;
 	dns_challenge_token?: string;
 	auto_snapshot_enabled?: boolean;
 	auto_snapshot_limit?: number;
@@ -72,7 +72,7 @@ export interface AdaptCaddyfileResponse {
 	acme_email: string;
 	global_toggles: GlobalToggles;
 	route_count: number;
-	adapted_config: Record<string, unknown>;
+	adapted_config: CaddyConfig;
 	routes?: ReviewRoute[];
 }
 

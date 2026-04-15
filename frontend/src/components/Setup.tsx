@@ -15,6 +15,7 @@ import {
 	type SetupImportFullResponse,
 	type SetupStatus,
 } from "../types/api";
+import type { CaddyConfig } from "../types/caddy";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validatePassword } from "../utils/validate";
 import { Toggle } from "./Toggle";
@@ -32,7 +33,7 @@ interface WizardData {
 	confirmPassword: string;
 	importMode: "none" | "caddyfile" | "full";
 	caddyfileText: string;
-	adaptedConfig: Record<string, unknown> | null;
+	adaptedConfig: CaddyConfig | null;
 	importedSettings: AdaptCaddyfileResponse | null;
 	backupSummary: SetupImportFullResponse | null;
 	backupData: Record<string, unknown> | null;
