@@ -306,6 +306,10 @@ func TestConfigStoreConcurrent(t *testing.T) {
 			cfg := store.Get()
 			if cfg == nil {
 				t.Errorf("Get returned nil")
+				return
+			}
+			if cfg.CaddyAdminURL != "http://localhost:2019" {
+				t.Errorf("Get returned unexpected CaddyAdminURL = %q", cfg.CaddyAdminURL)
 			}
 		}()
 	}
@@ -315,11 +319,14 @@ func TestConfigStoreConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = store.Update(func(current AppConfig) (*AppConfig, error) {
+			err := store.Update(func(current AppConfig) (*AppConfig, error) {
 				next := current
 				next.LogFile = "/tmp/caddy.log"
 				return &next, nil
 			})
+			if err != nil {
+				t.Errorf("Update: %v", err)
+			}
 		}()
 	}
 
@@ -328,6 +335,9 @@ func TestConfigStoreConcurrent(t *testing.T) {
 	cfg := store.Get()
 	if cfg == nil {
 		t.Fatal("store.Get() returned nil after concurrent access")
+	}
+	if cfg.LogFile != "/tmp/caddy.log" {
+		t.Errorf("LogFile = %q after concurrent writes, want /tmp/caddy.log", cfg.LogFile)
 	}
 }
 

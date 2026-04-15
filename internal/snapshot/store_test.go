@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -162,6 +163,10 @@ func TestDeleteReparentsChildren(t *testing.T) {
 			t.Errorf("c.ParentID = %q after deleting b, want %q", snap.ParentID, a.ID)
 		}
 	}
+
+	if _, err := os.Stat(filepath.Join(dir, b.ID+".json")); !os.IsNotExist(err) {
+		t.Error("deleted snapshot data file still exists on disk")
+	}
 }
 
 func TestDeleteRejectsCurrent(t *testing.T) {
@@ -204,6 +209,10 @@ func TestPruneRemovesOldestAuto(t *testing.T) {
 			t.Error("oldest auto snapshot should have been pruned")
 		}
 	}
+
+	if _, err := os.Stat(filepath.Join(dir, ids[0]+".json")); !os.IsNotExist(err) {
+		t.Error("pruned snapshot data file still exists on disk")
+	}
 }
 
 func TestPruneKeepsManual(t *testing.T) {
@@ -223,14 +232,28 @@ func TestPruneKeepsManual(t *testing.T) {
 
 	idx := s.GetIndex()
 	found := false
+	autoCount := 0
 	for _, snap := range idx.Snapshots {
 		if snap.ID == manualSnap.ID {
 			found = true
-			break
+		}
+		if snap.Type == "auto" {
+			autoCount++
 		}
 	}
 	if !found {
 		t.Error("manual snapshot should not be pruned")
+	}
+	if _, err := os.Stat(filepath.Join(dir, manualSnap.ID+".json")); err != nil {
+		t.Error("manual snapshot data file should still exist on disk")
+	}
+
+	// One auto snapshot was pruned (3 created, limit 2). Verify its file is gone.
+	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
+	// Remaining: index.json + manual + 2 auto = 4 files
+	wantFiles := 1 + 1 + autoCount
+	if len(files) != wantFiles {
+		t.Errorf("disk has %d .json files, want %d (index + manual + %d auto)", len(files), wantFiles, autoCount)
 	}
 }
 
@@ -263,6 +286,12 @@ func TestRemoveDescendants(t *testing.T) {
 	if d.ParentID != a.ID {
 		t.Errorf("d.ParentID = %q, want %q", d.ParentID, a.ID)
 	}
+
+	for _, id := range []string{b.ID, c.ID} {
+		if _, err := os.Stat(filepath.Join(dir, id+".json")); !os.IsNotExist(err) {
+			t.Errorf("descendant %s data file still exists on disk", id)
+		}
+	}
 }
 
 func TestConcurrentOps(t *testing.T) {
@@ -272,9 +301,11 @@ func TestConcurrentOps(t *testing.T) {
 	const goroutines = 10
 	var wg sync.WaitGroup
 
-	// Seed a snapshot so Delete/SetCurrent have something to work with.
-	first, _ := s.Create("seed", "", "manual", cfg("seed"))
-	_ = first
+	if _, err := s.Create("seed", "", "manual", cfg("seed")); err != nil {
+		t.Fatalf("seeding snapshot: %v", err)
+	}
+
+	errs := make(chan error, goroutines)
 
 	wg.Add(goroutines)
 	for i := 0; i < goroutines; i++ {
@@ -282,21 +313,42 @@ func TestConcurrentOps(t *testing.T) {
 			defer wg.Done()
 			snap, err := s.Create("concurrent", "", "auto", cfg("c"))
 			if err != nil {
+				errs <- fmt.Errorf("goroutine %d: Create: %w", n, err)
 				return
 			}
-			s.GetIndex()
-			// Try to delete a non-current snapshot if possible.
+			if snap.ID == "" {
+				errs <- fmt.Errorf("goroutine %d: Create returned empty ID", n)
+				return
+			}
 			idx := s.GetIndex()
+			if len(idx.Snapshots) == 0 {
+				errs <- fmt.Errorf("goroutine %d: GetIndex returned zero snapshots", n)
+				return
+			}
+			// Delete can legitimately fail under contention (already deleted,
+			// is current, etc.) so we don't check its error here.
 			for _, existing := range idx.Snapshots {
 				if existing.ID != idx.CurrentID {
 					s.Delete(existing.ID)
 					break
 				}
 			}
-			_ = snap
 		}(i)
 	}
 	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Error(err)
+	}
+
+	idx := s.GetIndex()
+	if len(idx.Snapshots) == 0 {
+		t.Error("expected at least one snapshot after concurrent ops")
+	}
+	if idx.CurrentID == "" {
+		t.Error("CurrentID is empty after concurrent ops")
+	}
 }
 
 func TestLoadEmptyDir(t *testing.T) {
