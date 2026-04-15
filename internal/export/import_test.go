@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/andretakagi/kaji/internal/config"
@@ -395,5 +396,197 @@ func TestReconcilePathsEmptyFieldsSkipped(t *testing.T) {
 	warnings := reconcilePaths(imported, current)
 	if len(warnings) != 0 {
 		t.Errorf("expected no warnings for empty paths, got %v", warnings)
+	}
+}
+
+func TestReconcilePathsFallsBackToDefaults(t *testing.T) {
+	imported := &config.AppConfig{
+		CaddyConfigPath: "/nonexistent-a/caddy.json",
+		LogFile:         "/nonexistent-a/access.log",
+		LogDir:          "/nonexistent-a/logdir",
+		CaddyDataDir:    "/nonexistent-a/data",
+	}
+	current := &config.AppConfig{
+		CaddyConfigPath: "/nonexistent-b/caddy.json",
+		LogFile:         "/nonexistent-b/access.log",
+		LogDir:          "/nonexistent-b/logdir",
+		CaddyDataDir:    "/nonexistent-b/data",
+	}
+
+	warnings := reconcilePaths(imported, current)
+
+	defaults := config.DefaultConfig()
+	if imported.CaddyConfigPath != defaults.CaddyConfigPath {
+		t.Errorf("CaddyConfigPath = %q, want default %q", imported.CaddyConfigPath, defaults.CaddyConfigPath)
+	}
+	if imported.LogFile != defaults.LogFile {
+		t.Errorf("LogFile = %q, want default %q", imported.LogFile, defaults.LogFile)
+	}
+	if imported.LogDir != defaults.LogDir {
+		t.Errorf("LogDir = %q, want default %q", imported.LogDir, defaults.LogDir)
+	}
+	if imported.CaddyDataDir != "" {
+		t.Errorf("CaddyDataDir = %q, want empty (auto-detect)", imported.CaddyDataDir)
+	}
+	if len(warnings) != 4 {
+		t.Errorf("warning count = %d, want 4", len(warnings))
+	}
+}
+
+func TestRestoreSnapshotsPreservesAutoSettings(t *testing.T) {
+	dir := t.TempDir()
+	ss := snapshot.NewStore(dir)
+	ss.UpdateSettings(true, 25)
+
+	importData := &SnapshotData{
+		Index: snapshot.Index{
+			AutoSnapshotEnabled: false,
+			AutoSnapshotLimit:   100,
+			Snapshots: []snapshot.Snapshot{
+				{ID: "s1", Name: "imported", Type: "manual", CreatedAt: "2025-01-01T00:00:00Z"},
+			},
+		},
+		Files: map[string]json.RawMessage{
+			"s1": json.RawMessage(`{"data":true}`),
+		},
+	}
+
+	if err := restoreSnapshots(ss, importData); err != nil {
+		t.Fatalf("restoreSnapshots: %v", err)
+	}
+
+	idx := ss.GetIndex()
+	if !idx.AutoSnapshotEnabled {
+		t.Error("AutoSnapshotEnabled should be preserved as true from current index")
+	}
+	if idx.AutoSnapshotLimit != 25 {
+		t.Errorf("AutoSnapshotLimit = %d, want 25 (preserved from current index)", idx.AutoSnapshotLimit)
+	}
+}
+
+func TestParseZIPSecondSizeGuard(t *testing.T) {
+	oversized := make([]byte, MaxZIPSize+1)
+	_, err := ParseZIP(bytes.NewReader(oversized), MaxZIPSize, "1.0.0")
+	if err == nil {
+		t.Fatal("expected error when actual data exceeds MaxZIPSize despite declared size within limit")
+	}
+	if !strings.Contains(err.Error(), "too large") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "too large")
+	}
+}
+
+func TestParseZIPMalformedConfigJSON(t *testing.T) {
+	data := buildTestZIP(t, map[string][]byte{
+		"kaji-export/manifest.json": mustJSON(t, validManifest("1.0.0")),
+		"kaji-export/caddy.json":    validCaddyConfig(),
+		"kaji-export/config.json":   []byte(`{not valid`),
+	})
+
+	_, err := ParseZIP(bytes.NewReader(data), int64(len(data)), "1.0.0")
+	if err == nil {
+		t.Fatal("expected error for malformed config.json")
+	}
+	if !strings.Contains(err.Error(), "parsing config.json") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "parsing config.json")
+	}
+}
+
+func TestParseZIPMalformedCaddyJSONPassesThrough(t *testing.T) {
+	data := buildTestZIP(t, map[string][]byte{
+		"kaji-export/manifest.json": mustJSON(t, validManifest("1.0.0")),
+		"kaji-export/caddy.json":    []byte(`{not valid`),
+		"kaji-export/config.json":   mustJSON(t, validAppConfig()),
+	})
+
+	backup, err := ParseZIP(bytes.NewReader(data), int64(len(data)), "1.0.0")
+	if err != nil {
+		t.Fatalf("ParseZIP should succeed with malformed caddy.json: %v", err)
+	}
+	if string(backup.CaddyConfig) != `{not valid` {
+		t.Errorf("CaddyConfig = %s, want malformed content preserved as-is", backup.CaddyConfig)
+	}
+}
+
+func TestParseZIPErrorMessages(t *testing.T) {
+	validMfst := mustJSON(t, validManifest("1.0.0"))
+	validCaddy := validCaddyConfig()
+	validCfg := mustJSON(t, validAppConfig())
+
+	tests := []struct {
+		name    string
+		files   map[string][]byte
+		version string
+		wantSub string
+	}{
+		{
+			name: "missing manifest",
+			files: map[string][]byte{
+				"kaji-export/caddy.json":  validCaddy,
+				"kaji-export/config.json": validCfg,
+			},
+			version: "1.0.0",
+			wantSub: "missing manifest.json",
+		},
+		{
+			name: "missing caddy.json",
+			files: map[string][]byte{
+				"kaji-export/manifest.json": validMfst,
+				"kaji-export/config.json":   validCfg,
+			},
+			version: "1.0.0",
+			wantSub: "missing caddy.json",
+		},
+		{
+			name: "missing config.json",
+			files: map[string][]byte{
+				"kaji-export/manifest.json": validMfst,
+				"kaji-export/caddy.json":    validCaddy,
+			},
+			version: "1.0.0",
+			wantSub: "missing config.json",
+		},
+		{
+			name: "unsupported manifest version",
+			files: map[string][]byte{
+				"kaji-export/manifest.json": mustJSON(t, Manifest{Version: 0, ExportedAt: "x", KajiVersion: "1.0.0"}),
+				"kaji-export/caddy.json":    validCaddy,
+				"kaji-export/config.json":   validCfg,
+			},
+			version: "1.0.0",
+			wantSub: "unsupported manifest version",
+		},
+		{
+			name: "malformed manifest JSON",
+			files: map[string][]byte{
+				"kaji-export/manifest.json": []byte(`{bad`),
+				"kaji-export/caddy.json":    validCaddy,
+				"kaji-export/config.json":   validCfg,
+			},
+			version: "1.0.0",
+			wantSub: "parsing manifest.json",
+		},
+		{
+			name: "newer backup version",
+			files: map[string][]byte{
+				"kaji-export/manifest.json": mustJSON(t, validManifest("2.0.0")),
+				"kaji-export/caddy.json":    validCaddy,
+				"kaji-export/config.json":   validCfg,
+			},
+			version: "1.0.0",
+			wantSub: "upgrade before importing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := buildTestZIP(t, tt.files)
+			_, err := ParseZIP(bytes.NewReader(data), int64(len(data)), tt.version)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.wantSub) {
+				t.Errorf("error = %q, want substring %q", err.Error(), tt.wantSub)
+			}
+		})
 	}
 }
