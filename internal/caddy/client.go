@@ -170,6 +170,33 @@ func (c *Client) LoadConfig(configJSON []byte) error {
 	return nil
 }
 
+var ErrValidationRollbackFailed = errors.New("config validation passed but rollback failed")
+
+// ValidateConfig checks that configJSON is loadable by Caddy without permanently
+// applying it. It loads the candidate config, then immediately restores the
+// previous config. If Caddy rejects the candidate, the running config is unchanged.
+func (c *Client) ValidateConfig(configJSON []byte) error {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(configJSON, &obj); err != nil {
+		return fmt.Errorf("invalid caddy config: not a JSON object")
+	}
+
+	current, err := c.GetConfig()
+	if err != nil {
+		return fmt.Errorf("reading current config for validation: %w", err)
+	}
+
+	if err := c.LoadConfig(configJSON); err != nil {
+		return fmt.Errorf("caddy rejected config: %w", err)
+	}
+
+	if err := c.LoadConfig(current); err != nil {
+		return fmt.Errorf("%w: %v", ErrValidationRollbackFailed, err)
+	}
+
+	return nil
+}
+
 func (c *Client) GetRouteByID(id string) (json.RawMessage, error) {
 	body, err := c.doGet(c.url() + "/id/" + url.PathEscape(id))
 	if err != nil {

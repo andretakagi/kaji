@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -66,6 +67,15 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 			return
 		}
 
+		if err := cc.ValidateConfig(adaptedJSON); err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, caddy.ErrValidationRollbackFailed) {
+				status = http.StatusInternalServerError
+			}
+			writeError(w, err.Error(), status)
+			return
+		}
+
 		maybeAutoSnapshot(cc, ss, "Before Caddyfile import")
 
 		if err := cc.LoadConfig(adaptedJSON); err != nil {
@@ -100,6 +110,15 @@ func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 		backup, err := export.ParseZIP(r.Body, r.ContentLength)
 		if err != nil {
 			writeError(w, "invalid backup file: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := cc.ValidateConfig(backup.CaddyConfig); err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, caddy.ErrValidationRollbackFailed) {
+				status = http.StatusInternalServerError
+			}
+			writeError(w, err.Error(), status)
 			return
 		}
 
