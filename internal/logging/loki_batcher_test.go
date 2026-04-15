@@ -345,15 +345,40 @@ func TestMarshalLokiBatchMultipleStreams(t *testing.T) {
 		t.Fatalf("MarshalLokiBatch: %v", err)
 	}
 
+	type parsedStream struct {
+		Stream map[string]string `json:"stream"`
+		Values [][]string        `json:"values"`
+	}
 	var parsed struct {
-		Streams []json.RawMessage `json:"streams"`
+		Streams []parsedStream `json:"streams"`
 	}
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
 	if len(parsed.Streams) != 2 {
-		t.Errorf("expected 2 streams, got %d", len(parsed.Streams))
+		t.Fatalf("expected 2 streams, got %d", len(parsed.Streams))
+	}
+
+	bySink := map[string]parsedStream{}
+	for _, s := range parsed.Streams {
+		bySink[s.Stream["sink"]] = s
+	}
+
+	streamA, ok := bySink["a"]
+	if !ok {
+		t.Fatal("missing stream with sink=a")
+	}
+	if len(streamA.Values) != 1 || streamA.Values[0][0] != "1" || streamA.Values[0][1] != "a1" {
+		t.Errorf("stream a: unexpected values %v", streamA.Values)
+	}
+
+	streamB, ok := bySink["b"]
+	if !ok {
+		t.Fatal("missing stream with sink=b")
+	}
+	if len(streamB.Values) != 1 || streamB.Values[0][0] != "2" || streamB.Values[0][1] != "b1" {
+		t.Errorf("stream b: unexpected values %v", streamB.Values)
 	}
 }
 
