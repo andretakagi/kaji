@@ -2,6 +2,7 @@ package logging
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,11 +124,11 @@ func TestReverseScannerChunkBoundary(t *testing.T) {
 	// Write enough lines so that total content exceeds chunkSize, forcing
 	// the scanner to read multiple chunks and handle a line that straddles
 	// a chunk boundary.
-	lineContent := strings.Repeat("x", 1000)
+	padding := strings.Repeat("x", 1000)
 	var lines []string
 	// chunkSize is 32*1024 = 32768 bytes; 40 lines * ~1001 bytes = ~40 KB > 32 KB
 	for i := 0; i < 40; i++ {
-		lines = append(lines, lineContent)
+		lines = append(lines, fmt.Sprintf("line-%03d-%s", i, padding))
 	}
 	path := writeLogFile(t, lines)
 
@@ -153,10 +154,10 @@ func TestReverseScannerChunkBoundary(t *testing.T) {
 	if len(got) != len(lines) {
 		t.Fatalf("expected %d lines, got %d", len(lines), len(got))
 	}
-	// All lines have the same content; verify each one is correct.
 	for i, line := range got {
-		if line != lineContent {
-			t.Errorf("line %d has unexpected content (len %d)", i, len(line))
+		expected := lines[len(lines)-1-i]
+		if line != expected {
+			t.Errorf("line %d: got %q, want %q", i, line[:20], expected[:20])
 		}
 	}
 }
