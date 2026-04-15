@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
@@ -26,6 +28,21 @@ func (m *testManager) Restart() error        { return nil }
 func (m *testManager) Status() (bool, error) { return true, nil }
 
 var _ system.CaddyManager = (*testManager)(nil)
+
+// errManager is a CaddyManager where each method returns a configurable error.
+type errManager struct {
+	startErr   error
+	stopErr    error
+	restartErr error
+	statusErr  error
+}
+
+func (m *errManager) Start() error          { return m.startErr }
+func (m *errManager) Stop() error           { return m.stopErr }
+func (m *errManager) Restart() error        { return m.restartErr }
+func (m *errManager) Status() (bool, error) { return false, m.statusErr }
+
+var _ system.CaddyManager = (*errManager)(nil)
 
 // fakeCaddy is an in-memory Caddy admin API that stores config as nested maps.
 // It handles the paths the handlers actually hit during tests.
@@ -282,6 +299,14 @@ type testHarness struct {
 
 func newTestHarness(t *testing.T) *testHarness {
 	t.Helper()
+	return newTestHarnessWithManager(t, &testManager{}, "")
+}
+
+// newTestHarnessWithManager builds a test harness with a custom CaddyManager.
+// If caddyURL is non-empty, the Caddy client points there instead of a live
+// fake server (useful for testing unreachable-API branches).
+func newTestHarnessWithManager(t *testing.T, mgr system.CaddyManager, caddyURL string) *testHarness {
+	t.Helper()
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -289,17 +314,21 @@ func newTestHarness(t *testing.T) *testHarness {
 
 	store := config.NewStoreWithPath(config.DefaultConfig(), configPath)
 
-	fc := newFakeCaddy()
-	caddySrv := httptest.NewServer(fc.handler())
-	t.Cleanup(caddySrv.Close)
+	var caddySrv *httptest.Server
+	if caddyURL == "" {
+		fc := newFakeCaddy()
+		caddySrv = httptest.NewServer(fc.handler())
+		t.Cleanup(caddySrv.Close)
+		caddyURL = caddySrv.URL
+	}
 
-	cc := caddy.NewClient(func() string { return caddySrv.URL })
+	cc := caddy.NewClient(func() string { return caddyURL })
 	snapDir := filepath.Join(tmpDir, "snapshots")
 	ss := snapshot.NewStore(snapDir)
 
 	mux := http.NewServeMux()
 	pipeline := logging.NewLokiPipeline(store, filepath.Join(tmpDir, "positions.json"), func() map[string]string { return nil })
-	h := RegisterRoutes(mux, store, &testManager{}, cc, ss, pipeline, "test")
+	h := RegisterRoutes(mux, store, mgr, cc, ss, pipeline, "test")
 
 	return &testHarness{
 		handler:  h,
@@ -590,8 +619,8 @@ func TestHandleSettingsACMEEmail(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to parse acme email response: %v", err)
 	}
-	if _, ok := resp["email"]; !ok {
-		t.Error("acme email response missing email field")
+	if resp["email"] != "" {
+		t.Errorf("email = %v, want empty string (no email configured)", resp["email"])
 	}
 }
 
@@ -759,8 +788,21 @@ func TestHandleSnapshotCreateAndList(t *testing.T) {
 		t.Fatalf("failed to parse list snapshots response: %v", err)
 	}
 	snapshots, ok := listResp["snapshots"].([]any)
-	if !ok || len(snapshots) == 0 {
-		t.Error("list snapshots should contain at least one entry")
+	if !ok || len(snapshots) != 1 {
+		t.Fatalf("expected 1 snapshot, got %d", len(snapshots))
+	}
+	entry, ok := snapshots[0].(map[string]any)
+	if !ok {
+		t.Fatal("snapshot entry is not an object")
+	}
+	if entry["name"] != "test-snapshot" {
+		t.Errorf("listed snapshot name = %v, want test-snapshot", entry["name"])
+	}
+	if entry["description"] != "test description" {
+		t.Errorf("listed snapshot description = %v, want test description", entry["description"])
+	}
+	if entry["id"] != snapResp["id"] {
+		t.Errorf("listed snapshot id = %v, want %v", entry["id"], snapResp["id"])
 	}
 }
 
@@ -790,7 +832,35 @@ func TestHandleSnapshotUpdate(t *testing.T) {
 	th.handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("update snapshot: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("update snapshot: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify the update took effect by listing
+	req = authedRequest(http.MethodGet, "/api/snapshots", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	var listResp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("failed to parse list response: %v", err)
+	}
+	snapshots := listResp["snapshots"].([]any)
+	found := false
+	for _, s := range snapshots {
+		entry := s.(map[string]any)
+		if entry["id"] == snapID {
+			if entry["name"] != "renamed" {
+				t.Errorf("updated snapshot name = %v, want renamed", entry["name"])
+			}
+			if entry["description"] != "updated desc" {
+				t.Errorf("updated snapshot description = %v, want updated desc", entry["description"])
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("snapshot %s not found in list after update", snapID)
 	}
 }
 
@@ -827,7 +897,23 @@ func TestHandleSnapshotDelete(t *testing.T) {
 	th.handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("delete snapshot: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("delete snapshot: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify the deleted snapshot is gone
+	req = authedRequest(http.MethodGet, "/api/snapshots", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	var listResp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("failed to parse list response: %v", err)
+	}
+	for _, s := range listResp["snapshots"].([]any) {
+		entry := s.(map[string]any)
+		if entry["id"] == firstID {
+			t.Errorf("snapshot %s should have been deleted but still appears in list", firstID)
+		}
 	}
 }
 
@@ -891,6 +977,14 @@ func TestHandleCaddyStatus(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("caddy status: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]bool
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse caddy status response: %v", err)
+	}
+	if !resp["running"] {
+		t.Error("caddy status running = false, want true")
 	}
 }
 
@@ -1062,6 +1156,107 @@ func TestHandleCaddyRestart(t *testing.T) {
 	}
 	if resp["status"] != "ok" {
 		t.Errorf("caddy restart status = %q, want ok", resp["status"])
+	}
+}
+
+// --- Caddy service control error tests ---
+
+func TestHandleCaddyStatusError(t *testing.T) {
+	mgr := &errManager{statusErr: errors.New("dbus timeout")}
+	th := newTestHarnessWithManager(t, mgr, "")
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/caddy/status", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("caddy status error: got %d, want 500; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCaddyStartError(t *testing.T) {
+	mgr := &errManager{startErr: errors.New("systemctl start failed")}
+	th := newTestHarnessWithManager(t, mgr, "")
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/caddy/start", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("caddy start error: got %d, want 500; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCaddyStartWaitReadyError(t *testing.T) {
+	orig := caddyReadyTimeout
+	caddyReadyTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { caddyReadyTimeout = orig })
+
+	// Use a live fake Caddy for setup, then kill it so WaitReady fails.
+	th := newTestHarnessWithManager(t, &testManager{}, "")
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+	th.caddySrv.Close()
+
+	req := authedRequest(http.MethodPost, "/api/caddy/start", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("caddy start wait-ready: got %d, want 502; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCaddyStopError(t *testing.T) {
+	mgr := &errManager{stopErr: errors.New("systemctl stop failed")}
+	th := newTestHarnessWithManager(t, mgr, "")
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/caddy/stop", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("caddy stop error: got %d, want 500; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCaddyRestartError(t *testing.T) {
+	mgr := &errManager{restartErr: errors.New("systemctl restart failed")}
+	th := newTestHarnessWithManager(t, mgr, "")
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/caddy/restart", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("caddy restart error: got %d, want 500; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCaddyRestartWaitReadyError(t *testing.T) {
+	orig := caddyReadyTimeout
+	caddyReadyTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { caddyReadyTimeout = orig })
+
+	th := newTestHarnessWithManager(t, &testManager{}, "")
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+	th.caddySrv.Close()
+
+	req := authedRequest(http.MethodPost, "/api/caddy/restart", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("caddy restart wait-ready: got %d, want 502; body: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -1324,6 +1519,17 @@ func TestHandleDNSProviderGetAndUpdate(t *testing.T) {
 	if resp["enabled"] != true {
 		t.Errorf("dns provider enabled = %v, want true", resp["enabled"])
 	}
+	token, _ := resp["api_token"].(string)
+	if token == "testtoken123" {
+		t.Error("GET response should mask api_token, but returned raw value")
+	}
+	if token == "" {
+		t.Error("GET response missing api_token field")
+	}
+	// Token "testtoken123" (12 chars) should be masked as "********n123"
+	if token != "********n123" {
+		t.Errorf("masked api_token = %q, want ********n123", token)
+	}
 }
 
 // --- Config proxy and load tests ---
@@ -1342,7 +1548,15 @@ func TestHandleConfigProxy(t *testing.T) {
 	}
 
 	if !json.Valid(rec.Body.Bytes()) {
-		t.Error("config proxy response is not valid JSON")
+		t.Fatal("config proxy response is not valid JSON")
+	}
+
+	var cfg map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("failed to parse config proxy response: %v", err)
+	}
+	if _, ok := cfg["apps"]; !ok {
+		t.Error("config proxy response missing apps key")
 	}
 }
 
@@ -1434,6 +1648,21 @@ func TestHandleLogsNoFile(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("logs no file: got %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse logs response: %v", err)
+	}
+	entries, ok := resp["entries"].([]any)
+	if !ok {
+		t.Fatal("logs response missing entries array")
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected 0 log entries, got %d", len(entries))
+	}
+	if resp["has_more"] != false {
+		t.Errorf("has_more = %v, want false", resp["has_more"])
+	}
 }
 
 func TestHandleLogConfigGet(t *testing.T) {
@@ -1453,8 +1682,15 @@ func TestHandleLogConfigGet(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to parse log config response: %v", err)
 	}
-	if _, ok := resp["logs"]; !ok {
-		t.Error("log config response missing logs field")
+	logs, ok := resp["logs"]
+	if !ok {
+		t.Fatal("log config response missing logs field")
+	}
+	if _, ok := logs.(map[string]any); !ok {
+		t.Fatalf("logs field is %T, want map", logs)
+	}
+	if _, ok := resp["log_dir"]; !ok {
+		t.Error("log config response missing log_dir field")
 	}
 }
 
@@ -1469,6 +1705,14 @@ func TestHandleAccessDomains(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("access domains: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var domains map[string]map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &domains); err != nil {
+		t.Fatalf("failed to parse access domains response: %v", err)
+	}
+	if len(domains) != 0 {
+		t.Errorf("expected empty access domains map, got %d servers", len(domains))
 	}
 }
 

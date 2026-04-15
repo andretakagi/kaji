@@ -15,7 +15,7 @@ import (
 	"github.com/andretakagi/kaji/internal/system"
 )
 
-const caddyReadyTimeout = 10 * time.Second
+var caddyReadyTimeout = 10 * time.Second
 
 func handleStatus(mgr system.CaddyManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
