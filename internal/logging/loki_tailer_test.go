@@ -148,12 +148,12 @@ func TestTailerUpdatesPositionStore(t *testing.T) {
 	}
 }
 
-func TestTailerDetectsFileRotation(t *testing.T) {
+func TestTailerDetectsTruncationAtOpen(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "test.log")
 	os.WriteFile(logPath, []byte("old line one\nold line two\n"), 0644)
 
-	// Set offset beyond what a new file would have
+	// Set offset beyond what the file contains
 	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
 	pos.Set(logPath, 1000)
 
@@ -179,10 +179,52 @@ func TestTailerDetectsFileRotation(t *testing.T) {
 	cancel()
 
 	if len(got) != 2 {
-		t.Fatalf("expected 2 lines after rotation detection, got %d", len(got))
+		t.Fatalf("expected 2 lines after truncation detection, got %d", len(got))
 	}
 	if got[0] != "old line one" {
 		t.Errorf("expected to re-read from start, got %q", got[0])
+	}
+}
+
+func TestTailerDetectsFileRotation(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "test.log")
+	os.WriteFile(logPath, []byte("old\n"), 0644)
+
+	pos := NewPositionStore(filepath.Join(dir, "positions.json"))
+	lines := make(chan TaggedLine) // unbuffered: tailer blocks after reading the line
+	tailer := NewLokiTailer("test", logPath, pos, lines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	go tailer.Run(ctx)
+
+	// The tailer reads "old" and blocks on the unbuffered send.
+	// Replace the file (new inode) while the tailer still holds the old fd.
+	time.Sleep(500 * time.Millisecond)
+	os.Remove(logPath)
+	os.WriteFile(logPath, []byte("rotated content\n"), 0644)
+
+	// Unblock the tailer by receiving the old line
+	select {
+	case tl := <-lines:
+		if tl.Line != "old" {
+			t.Fatalf("got %q, want %q", tl.Line, "old")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for old line")
+	}
+
+	// The new file is larger than the old offset, so without inode detection
+	// the tailer would seek past the start and read garbled content.
+	select {
+	case tl := <-lines:
+		if tl.Line != "rotated content" {
+			t.Fatalf("got %q, want %q", tl.Line, "rotated content")
+		}
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for line after rotation")
 	}
 }
 
