@@ -23,7 +23,7 @@ import (
 	"github.com/andretakagi/kaji/internal/system"
 )
 
-var version = "1.4.0"
+var version = "1.5.0"
 
 //go:embed dist/*
 var frontendFiles embed.FS

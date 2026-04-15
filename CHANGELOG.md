@@ -2,6 +2,17 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [1.5.0] - 2026-04-14
+
+### Added
+- Loki log push - forward access logs to a Loki instance with configurable endpoint, labels, flush interval, and tenant ID
+- Unified log viewer combining history and real-time streaming into a single view
+- Log rotation detection so tailing recovers when Caddy rotates log files
+- Contributing guide for early testers
+
+### Fixed
+- Loki endpoint URL auto-appends `/loki/api/v1/push` if omitted
+
 ## [1.4.0] - 2026-04-13
 
 ### Added
