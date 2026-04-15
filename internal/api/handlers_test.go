@@ -357,7 +357,9 @@ func TestHandleSetup(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse setup response: %v", err)
+	}
 	if resp["status"] != "ok" {
 		t.Errorf("setup response status = %v, want ok", resp["status"])
 	}
@@ -462,7 +464,9 @@ func TestHandleRouteCreateAndDelete(t *testing.T) {
 	}
 
 	var createResp map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &createResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &createResp); err != nil {
+		t.Fatalf("failed to parse create route response: %v", err)
+	}
 	routeID, ok := createResp["@id"].(string)
 	if !ok || routeID == "" {
 		t.Fatal("create route did not return @id")
@@ -493,7 +497,9 @@ func TestHandleRouteUpdate(t *testing.T) {
 	}
 
 	var createResp map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &createResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &createResp); err != nil {
+		t.Fatalf("failed to parse create route response: %v", err)
+	}
 	routeID := createResp["@id"].(string)
 
 	updateBody := `{"domain":"update-test.com","upstream":"127.0.0.1:4000"}`
@@ -638,7 +644,9 @@ func TestHandleAPIKeyLifecycle(t *testing.T) {
 	}
 
 	var genResp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &genResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &genResp); err != nil {
+		t.Fatalf("failed to parse api key generate response: %v", err)
+	}
 	if genResp["api_key"] == "" {
 		t.Fatal("api key generate did not return a key")
 	}
@@ -653,7 +661,9 @@ func TestHandleAPIKeyLifecycle(t *testing.T) {
 	}
 
 	var statusResp map[string]bool
-	json.Unmarshal(rec.Body.Bytes(), &statusResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("failed to parse api key status response: %v", err)
+	}
 	if !statusResp["has_api_key"] {
 		t.Error("api key status: expected has_api_key=true after generate")
 	}
@@ -672,7 +682,9 @@ func TestHandleAPIKeyLifecycle(t *testing.T) {
 	rec = httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
 
-	json.Unmarshal(rec.Body.Bytes(), &statusResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("failed to parse api key status response: %v", err)
+	}
 	if statusResp["has_api_key"] {
 		t.Error("api key status: expected has_api_key=false after revoke")
 	}
@@ -689,7 +701,9 @@ func TestHandleAPIKeyAuth(t *testing.T) {
 	th.handler.ServeHTTP(rec, req)
 
 	var genResp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &genResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &genResp); err != nil {
+		t.Fatalf("failed to parse api key generate response: %v", err)
+	}
 	apiKey := genResp["api_key"]
 
 	// Use the API key to make an authenticated request
@@ -721,7 +735,9 @@ func TestHandleSnapshotCreateAndList(t *testing.T) {
 	}
 
 	var snapResp map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &snapResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &snapResp); err != nil {
+		t.Fatalf("failed to parse create snapshot response: %v", err)
+	}
 	if snapResp["id"] == nil || snapResp["id"] == "" {
 		t.Error("create snapshot did not return an id")
 	}
@@ -739,7 +755,9 @@ func TestHandleSnapshotCreateAndList(t *testing.T) {
 	}
 
 	var listResp map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &listResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+		t.Fatalf("failed to parse list snapshots response: %v", err)
+	}
 	snapshots, ok := listResp["snapshots"].([]any)
 	if !ok || len(snapshots) == 0 {
 		t.Error("list snapshots should contain at least one entry")
@@ -760,7 +778,9 @@ func TestHandleSnapshotUpdate(t *testing.T) {
 	}
 
 	var snap map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &snap)
+	if err := json.Unmarshal(rec.Body.Bytes(), &snap); err != nil {
+		t.Fatalf("failed to parse create snapshot response: %v", err)
+	}
 	snapID := snap["id"].(string)
 
 	// Update
@@ -788,7 +808,9 @@ func TestHandleSnapshotDelete(t *testing.T) {
 	}
 
 	var firstSnap map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &firstSnap)
+	if err := json.Unmarshal(rec.Body.Bytes(), &firstSnap); err != nil {
+		t.Fatalf("failed to parse create snapshot response: %v", err)
+	}
 	firstID := firstSnap["id"].(string)
 
 	// Create second (becomes current)
@@ -848,7 +870,9 @@ func TestHandleVersion(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse version response: %v", err)
+	}
 	if resp["version"] != "test" {
 		t.Errorf("version = %q, want %q", resp["version"], "test")
 	}
@@ -884,7 +908,9 @@ func TestHandleSetupStatus(t *testing.T) {
 	}
 
 	var resp map[string]bool
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse setup status response: %v", err)
+	}
 	if !resp["is_first_run"] {
 		t.Error("expected is_first_run=true before setup")
 	}
@@ -895,7 +921,9 @@ func TestHandleSetupStatus(t *testing.T) {
 	rec = httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
 
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse setup status response: %v", err)
+	}
 	if resp["is_first_run"] {
 		t.Error("expected is_first_run=false after setup")
 	}
@@ -961,7 +989,9 @@ func TestHandleDisabledRoutes(t *testing.T) {
 	}
 
 	var routes []any
-	json.Unmarshal(rec.Body.Bytes(), &routes)
+	if err := json.Unmarshal(rec.Body.Bytes(), &routes); err != nil {
+		t.Fatalf("failed to parse disabled routes response: %v", err)
+	}
 	if len(routes) != 0 {
 		t.Errorf("expected 0 disabled routes, got %d", len(routes))
 	}
@@ -983,7 +1013,9 @@ func TestHandleCaddyStart(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse caddy start response: %v", err)
+	}
 	if resp["status"] != "ok" {
 		t.Errorf("caddy start status = %q, want ok", resp["status"])
 	}
@@ -1003,7 +1035,9 @@ func TestHandleCaddyStop(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse caddy stop response: %v", err)
+	}
 	if resp["status"] != "ok" {
 		t.Errorf("caddy stop status = %q, want ok", resp["status"])
 	}
@@ -1023,7 +1057,9 @@ func TestHandleCaddyRestart(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse caddy restart response: %v", err)
+	}
 	if resp["status"] != "ok" {
 		t.Errorf("caddy restart status = %q, want ok", resp["status"])
 	}
@@ -1067,7 +1103,9 @@ func TestHandleRouteDisableAndEnable(t *testing.T) {
 	}
 
 	var disabled []map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &disabled)
+	if err := json.Unmarshal(rec.Body.Bytes(), &disabled); err != nil {
+		t.Fatalf("failed to parse disabled routes response: %v", err)
+	}
 	if len(disabled) != 1 {
 		t.Fatalf("expected 1 disabled route, got %d", len(disabled))
 	}
@@ -1088,7 +1126,9 @@ func TestHandleRouteDisableAndEnable(t *testing.T) {
 	th.handler.ServeHTTP(rec, req)
 
 	var disabledAfter []any
-	json.Unmarshal(rec.Body.Bytes(), &disabledAfter)
+	if err := json.Unmarshal(rec.Body.Bytes(), &disabledAfter); err != nil {
+		t.Fatalf("failed to parse disabled routes response: %v", err)
+	}
 	if len(disabledAfter) != 0 {
 		t.Errorf("expected 0 disabled routes after enable, got %d", len(disabledAfter))
 	}
@@ -1145,7 +1185,9 @@ func TestHandleGlobalTogglesUpdate(t *testing.T) {
 	}
 
 	var toggles map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &toggles)
+	if err := json.Unmarshal(rec.Body.Bytes(), &toggles); err != nil {
+		t.Fatalf("failed to parse global toggles response: %v", err)
+	}
 	if toggles["auto_https"] != "off" {
 		t.Errorf("auto_https = %v, want off", toggles["auto_https"])
 	}
@@ -1210,7 +1252,9 @@ func TestHandleAdvancedGetAndUpdate(t *testing.T) {
 	}
 
 	var getResp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &getResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &getResp); err != nil {
+		t.Fatalf("failed to parse advanced settings response: %v", err)
+	}
 	if _, ok := getResp["caddy_admin_url"]; !ok {
 		t.Fatal("advanced get response missing caddy_admin_url")
 	}
@@ -1228,7 +1272,9 @@ func TestHandleAdvancedGetAndUpdate(t *testing.T) {
 	rec = httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
 
-	json.Unmarshal(rec.Body.Bytes(), &getResp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &getResp); err != nil {
+		t.Fatalf("failed to parse advanced settings response: %v", err)
+	}
 	if getResp["caddy_admin_url"] != "http://localhost:2020" {
 		t.Errorf("caddy_admin_url = %q, want http://localhost:2020", getResp["caddy_admin_url"])
 	}
@@ -1272,7 +1318,9 @@ func TestHandleDNSProviderGetAndUpdate(t *testing.T) {
 	}
 
 	var resp map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse dns provider response: %v", err)
+	}
 	if resp["enabled"] != true {
 		t.Errorf("dns provider enabled = %v, want true", resp["enabled"])
 	}
@@ -1440,7 +1488,9 @@ func TestHandleSnapshotRestore(t *testing.T) {
 	}
 
 	var snap map[string]any
-	json.Unmarshal(rec.Body.Bytes(), &snap)
+	if err := json.Unmarshal(rec.Body.Bytes(), &snap); err != nil {
+		t.Fatalf("failed to parse create snapshot response: %v", err)
+	}
 	snapID := snap["id"].(string)
 
 	req = authedRequest(http.MethodPost, "/api/snapshots/"+snapID+"/restore", "", cookie)
@@ -1452,7 +1502,9 @@ func TestHandleSnapshotRestore(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse snapshot restore response: %v", err)
+	}
 	if resp["status"] != "ok" {
 		t.Errorf("snapshot restore status = %q, want ok", resp["status"])
 	}
@@ -1483,7 +1535,9 @@ func TestCaddyfileImportParity(t *testing.T) {
 	}
 
 	var preview map[string]any
-	json.Unmarshal(previewRec.Body.Bytes(), &preview)
+	if err := json.Unmarshal(previewRec.Body.Bytes(), &preview); err != nil {
+		t.Fatalf("failed to parse setup preview response: %v", err)
+	}
 
 	// Submit setup with the extracted settings (mimicking the frontend).
 	setupBody := map[string]any{
