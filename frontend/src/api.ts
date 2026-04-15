@@ -50,6 +50,7 @@ import {
 	validateExportCaddyfile,
 	validateGenerateAPIKey,
 	validateGlobalToggles,
+	validateImportResponse,
 	validateIPListSingle,
 	validateIPLists,
 	validateIPListUsage,
@@ -59,6 +60,7 @@ import {
 	validateLokiStatus,
 	validateLokiTestResult,
 	validateRouteIPListBindings,
+	validateSetupImportFullResponse,
 	validateSetupResponse,
 	validateSetupStatus,
 	validateSnapshot,
@@ -332,26 +334,27 @@ export async function exportFull(): Promise<Blob> {
 }
 
 export function importCaddyfile(caddyfile: string): Promise<ImportResponse> {
-	return request("/api/import/caddyfile", {
-		method: "POST",
-		...jsonBody({ caddyfile }),
-	});
+	return request(
+		"/api/import/caddyfile",
+		{ method: "POST", ...jsonBody({ caddyfile }) },
+		validateImportResponse,
+	);
 }
 
 export function importFull(file: File): Promise<ImportResponse> {
-	return request("/api/import/full", {
-		method: "POST",
-		headers: { "Content-Type": "application/zip" },
-		body: file,
-	});
+	return request(
+		"/api/import/full",
+		{ method: "POST", headers: { "Content-Type": "application/zip" }, body: file },
+		validateImportResponse,
+	);
 }
 
 export function setupImportFull(file: File): Promise<SetupImportFullResponse> {
-	return request("/api/setup/import/full", {
-		method: "POST",
-		headers: { "Content-Type": "application/zip" },
-		body: file,
-	});
+	return request(
+		"/api/setup/import/full",
+		{ method: "POST", headers: { "Content-Type": "application/zip" }, body: file },
+		validateSetupImportFullResponse,
+	);
 }
 
 export async function fetchLogConfig(): Promise<CaddyLoggingConfig> {
