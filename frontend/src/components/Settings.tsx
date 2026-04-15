@@ -315,13 +315,11 @@ export default function Settings({
 		load();
 	}, [load]);
 
-	const [prevCaddyRunning, setPrevCaddyRunning] = useState(caddyRunning);
-	if (caddyRunning !== prevCaddyRunning) {
-		setPrevCaddyRunning(caddyRunning);
+	useEffect(() => {
 		if (caddyRunning && !loading) {
 			load();
 		}
-	}
+	}, [caddyRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	if (loading) {
 		return <div className="empty-state settings-loading">Loading settings...</div>;

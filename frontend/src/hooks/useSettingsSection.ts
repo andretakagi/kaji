@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { deepEqual } from "../deepEqual";
 import { useAsyncAction } from "./useAsyncAction";
 
 export function useSettingsSection<T>(initial: T) {
@@ -15,9 +16,7 @@ export function useSettingsSection<T>(initial: T) {
 
 	const markLoaded = useCallback(() => setLoaded(true), []);
 
-	const dirty = Object.keys(saved as Record<string, unknown>).some(
-		(k) => (values as Record<string, unknown>)[k] !== (saved as Record<string, unknown>)[k],
-	);
+	const dirty = !deepEqual(values, saved);
 
 	const save = (fn: (current: T) => Promise<string | undefined>) =>
 		action.run(async () => {
