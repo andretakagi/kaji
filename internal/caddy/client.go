@@ -60,6 +60,34 @@ func CountRoutes(raw json.RawMessage) int {
 	return n
 }
 
+type ReviewRoute struct {
+	Domain   string `json:"domain"`
+	Upstream string `json:"upstream"`
+	Enabled  bool   `json:"enabled"`
+}
+
+func ExtractReviewRoutes(raw json.RawMessage) []ReviewRoute {
+	routes := []ReviewRoute{}
+	var cfg caddyConfigPartial
+	if json.Unmarshal(raw, &cfg) != nil {
+		return routes
+	}
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		for _, routeRaw := range srv.Routes {
+			params, err := ParseRouteParams(routeRaw)
+			if err != nil || params.Domain == "" {
+				continue
+			}
+			routes = append(routes, ReviewRoute{
+				Domain:   params.Domain,
+				Upstream: params.Upstream,
+				Enabled:  true,
+			})
+		}
+	}
+	return routes
+}
+
 type Client struct {
 	baseURL    func() string
 	httpClient *http.Client
