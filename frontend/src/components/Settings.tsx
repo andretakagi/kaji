@@ -469,11 +469,13 @@ export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boo
 		load();
 	}, [load]);
 
+	const prevCaddyRunning = useRef(caddyRunning);
 	useEffect(() => {
-		if (caddyRunning && !loading) {
+		if (caddyRunning && !prevCaddyRunning.current) {
 			load();
 		}
-	}, [caddyRunning, load, loading]);
+		prevCaddyRunning.current = caddyRunning;
+	}, [caddyRunning, load]);
 
 	if (loading) {
 		return <div className="empty-state settings-loading">Loading settings...</div>;
