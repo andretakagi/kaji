@@ -151,8 +151,6 @@ func parseCertFile(path, issuerKey, domain string) (*CertInfo, error) {
 	switch {
 	case now.After(cert.NotAfter):
 		status = "expired"
-	case daysLeft < 7:
-		status = "critical"
 	case daysLeft <= 30:
 		status = "expiring"
 	default:
@@ -179,10 +177,8 @@ func statusPriority(status string) int {
 		return -1
 	case "expired":
 		return 0
-	case "critical":
-		return 1
 	case "expiring":
-		return 2
+		return 1
 	case "valid":
 		return 3
 	default:

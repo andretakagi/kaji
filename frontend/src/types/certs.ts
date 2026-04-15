@@ -5,7 +5,7 @@ export interface CertInfo {
 	not_before: string;
 	not_after: string;
 	days_left: number;
-	status: "valid" | "expiring" | "critical" | "expired" | "missing";
+	status: "valid" | "expiring" | "expired" | "missing";
 	managed: boolean;
 	issuer_key: string;
 	fingerprint: string;
