@@ -1,11 +1,14 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -300,6 +303,35 @@ type testHarness struct {
 func newTestHarness(t *testing.T) *testHarness {
 	t.Helper()
 	return newTestHarnessWithManager(t, &testManager{}, "")
+}
+
+func newTestHarnessWithVersion(t *testing.T, version string) *testHarness {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+	t.Setenv("KAJI_CONFIG_PATH", configPath)
+
+	store := config.NewStoreWithPath(config.DefaultConfig(), configPath)
+
+	fc := newFakeCaddy()
+	caddySrv := httptest.NewServer(fc.handler())
+	t.Cleanup(caddySrv.Close)
+
+	cc := caddy.NewClient(func() string { return caddySrv.URL })
+	snapDir := filepath.Join(tmpDir, "snapshots")
+	ss := snapshot.NewStore(snapDir)
+
+	mux := http.NewServeMux()
+	pipeline := logging.NewLokiPipeline(store, filepath.Join(tmpDir, "positions.json"), func() map[string]string { return nil })
+	h := RegisterRoutes(mux, store, &testManager{}, cc, ss, pipeline, version)
+
+	return &testHarness{
+		handler:  h,
+		store:    store,
+		ss:       ss,
+		caddySrv: caddySrv,
+	}
 }
 
 // newTestHarnessWithManager builds a test harness with a custom CaddyManager.
@@ -1824,5 +1856,877 @@ func TestCaddyfileImportParity(t *testing.T) {
 	if setupCfg.CaddyAdminURL != settingsCfg.CaddyAdminURL {
 		t.Errorf("CaddyAdminURL mismatch: setup=%q, settings=%q",
 			setupCfg.CaddyAdminURL, settingsCfg.CaddyAdminURL)
+	}
+}
+
+// --- IP list tests ---
+
+func TestHandleIPListCreateAndList(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// List should be empty initially
+	req := authedRequest(http.MethodGet, "/api/ip-lists", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list ip lists (empty): got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var emptyList []any
+	if err := json.Unmarshal(rec.Body.Bytes(), &emptyList); err != nil {
+		t.Fatalf("failed to parse empty ip lists response: %v", err)
+	}
+	if len(emptyList) != 0 {
+		t.Errorf("expected 0 ip lists, got %d", len(emptyList))
+	}
+
+	// Create an IP list
+	createBody := `{"name":"test-blocklist","description":"blocks bad IPs","type":"blacklist","ips":["10.0.0.1","192.168.1.0/24"]}`
+	req = authedRequest(http.MethodPost, "/api/ip-lists", createBody, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create ip list: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("failed to parse create ip list response: %v", err)
+	}
+	if created["id"] == nil || created["id"] == "" {
+		t.Fatal("create ip list did not return an id")
+	}
+	if created["name"] != "test-blocklist" {
+		t.Errorf("name = %v, want test-blocklist", created["name"])
+	}
+	if created["description"] != "blocks bad IPs" {
+		t.Errorf("description = %v, want blocks bad IPs", created["description"])
+	}
+	if created["type"] != "blacklist" {
+		t.Errorf("type = %v, want blacklist", created["type"])
+	}
+	ips, ok := created["ips"].([]any)
+	if !ok || len(ips) != 2 {
+		t.Fatalf("expected 2 ips, got %v", created["ips"])
+	}
+	if ips[0] != "10.0.0.1" || ips[1] != "192.168.1.0/24" {
+		t.Errorf("ips = %v, want [10.0.0.1, 192.168.1.0/24]", ips)
+	}
+
+	// List should now have one entry
+	req = authedRequest(http.MethodGet, "/api/ip-lists", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list ip lists: got %d, want 200", rec.Code)
+	}
+
+	var lists []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &lists); err != nil {
+		t.Fatalf("failed to parse ip lists response: %v", err)
+	}
+	if len(lists) != 1 {
+		t.Fatalf("expected 1 ip list, got %d", len(lists))
+	}
+	if lists[0]["name"] != "test-blocklist" {
+		t.Errorf("listed name = %v, want test-blocklist", lists[0]["name"])
+	}
+	resolvedCount, _ := lists[0]["resolved_count"].(float64)
+	if resolvedCount != 2 {
+		t.Errorf("resolved_count = %v, want 2", resolvedCount)
+	}
+}
+
+func TestHandleIPListCreateValidation(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Missing name
+	req := authedRequest(http.MethodPost, "/api/ip-lists", `{"name":"","type":"whitelist"}`, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("empty name: got %d, want 400", rec.Code)
+	}
+
+	// Invalid type
+	req = authedRequest(http.MethodPost, "/api/ip-lists", `{"name":"test","type":"invalid"}`, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid type: got %d, want 400", rec.Code)
+	}
+
+	// Invalid IP
+	req = authedRequest(http.MethodPost, "/api/ip-lists", `{"name":"test","type":"whitelist","ips":["not-an-ip"]}`, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid IP: got %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleIPListUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Create
+	createBody := `{"name":"orig-list","type":"whitelist","ips":["10.0.0.1"]}`
+	req := authedRequest(http.MethodPost, "/api/ip-lists", createBody, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("failed to parse create response: %v", err)
+	}
+	listID := created["id"].(string)
+
+	// Update
+	updateBody := `{"name":"renamed-list","ips":["10.0.0.2","10.0.0.3"]}`
+	req = authedRequest(http.MethodPut, "/api/ip-lists/"+listID, updateBody, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var updated map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("failed to parse update response: %v", err)
+	}
+	if updated["name"] != "renamed-list" {
+		t.Errorf("updated name = %v, want renamed-list", updated["name"])
+	}
+	updatedIPs, _ := updated["ips"].([]any)
+	if len(updatedIPs) != 2 {
+		t.Errorf("updated ips count = %d, want 2", len(updatedIPs))
+	}
+}
+
+func TestHandleIPListUpdateNotFound(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPut, "/api/ip-lists/nonexistent", `{"name":"test"}`, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("update nonexistent: got %d, want 404; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleIPListDelete(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Create
+	createBody := `{"name":"delete-me","type":"blacklist","ips":["10.0.0.1"]}`
+	req := authedRequest(http.MethodPost, "/api/ip-lists", createBody, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: got %d, want 200", rec.Code)
+	}
+
+	var created map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &created)
+	listID := created["id"].(string)
+
+	// Delete
+	req = authedRequest(http.MethodDelete, "/api/ip-lists/"+listID, "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse delete response: %v", err)
+	}
+	if resp["status"] != "ok" {
+		t.Errorf("delete status = %q, want ok", resp["status"])
+	}
+
+	// Verify gone
+	req = authedRequest(http.MethodGet, "/api/ip-lists", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	var lists []any
+	json.Unmarshal(rec.Body.Bytes(), &lists)
+	if len(lists) != 0 {
+		t.Errorf("expected 0 ip lists after delete, got %d", len(lists))
+	}
+}
+
+func TestHandleIPListDeleteNotFound(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodDelete, "/api/ip-lists/nonexistent", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("delete nonexistent: got %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleIPListUsage(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Create a list
+	createBody := `{"name":"usage-list","type":"whitelist","ips":["10.0.0.1"]}`
+	req := authedRequest(http.MethodPost, "/api/ip-lists", createBody, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: got %d, want 200", rec.Code)
+	}
+
+	var created map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &created)
+	listID := created["id"].(string)
+
+	// Check usage (no routes bound)
+	req = authedRequest(http.MethodGet, "/api/ip-lists/"+listID+"/usage", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("usage: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var usage map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &usage); err != nil {
+		t.Fatalf("failed to parse usage response: %v", err)
+	}
+	routes, ok := usage["routes"].([]any)
+	if !ok {
+		t.Fatal("usage response missing routes array")
+	}
+	if len(routes) != 0 {
+		t.Errorf("expected 0 routes using list, got %d", len(routes))
+	}
+	composites, ok := usage["composite_lists"].([]any)
+	if !ok {
+		t.Fatal("usage response missing composite_lists array")
+	}
+	if len(composites) != 0 {
+		t.Errorf("expected 0 composite lists, got %d", len(composites))
+	}
+}
+
+func TestHandleRouteIPListBindings(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/ip-lists/bindings", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bindings: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var bindings map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &bindings); err != nil {
+		t.Fatalf("failed to parse bindings response: %v", err)
+	}
+	if len(bindings) != 0 {
+		t.Errorf("expected empty bindings map, got %d entries", len(bindings))
+	}
+}
+
+// --- Certificate tests ---
+
+func TestHandleCertificatesList(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Point data dir to an empty temp dir so no certs are found
+	tmpCertDir := t.TempDir()
+	th.store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		c.CaddyDataDir = tmpCertDir
+		return &c, nil
+	})
+
+	req := authedRequest(http.MethodGet, "/api/certificates", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("certificates list: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var certs []any
+	if err := json.Unmarshal(rec.Body.Bytes(), &certs); err != nil {
+		t.Fatalf("failed to parse certificates response: %v", err)
+	}
+}
+
+func TestHandleCertificateRenewNotFound(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	tmpCertDir := t.TempDir()
+	th.store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		c.CaddyDataDir = tmpCertDir
+		return &c, nil
+	})
+
+	body := `{"issuer_key":"acme-v02","domain":"nonexistent.com"}`
+	req := authedRequest(http.MethodPost, "/api/certificates/renew", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("renew nonexistent cert: got %d, want 404; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCertificateRenewValidation(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Missing fields
+	body := `{"issuer_key":"","domain":""}`
+	req := authedRequest(http.MethodPost, "/api/certificates/renew", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("renew empty fields: got %d, want 400", rec.Code)
+	}
+
+	// Path traversal
+	body = `{"issuer_key":"../etc","domain":"test.com"}`
+	req = authedRequest(http.MethodPost, "/api/certificates/renew", body, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("renew path traversal: got %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleCertificateDeleteValidation(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Backslash in issuer
+	req := authedRequest(http.MethodDelete, "/api/certificates/bad\\issuer/test.com", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("delete backslash issuer: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCertificateDownloadNotFound(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	tmpCertDir := t.TempDir()
+	th.store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		c.CaddyDataDir = tmpCertDir
+		return &c, nil
+	})
+
+	req := authedRequest(http.MethodGet, "/api/certificates/acme-v02/nonexistent.com/download", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("download nonexistent cert: got %d, want 404; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCertificateDownloadSuccess(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Create a fake cert file in the expected directory structure.
+	// CertFilePath builds: dataDir/certificates/issuerKey/domain/domain.crt
+	tmpCertDir := t.TempDir()
+	certDir := filepath.Join(tmpCertDir, "certificates", "acme-v02", "example.com")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	certContent := "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n"
+	if err := os.WriteFile(filepath.Join(certDir, "example.com.crt"), []byte(certContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	th.store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		c.CaddyDataDir = tmpCertDir
+		return &c, nil
+	})
+
+	req := authedRequest(http.MethodGet, "/api/certificates/acme-v02/example.com/download", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("download cert: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/x-pem-file" {
+		t.Errorf("Content-Type = %q, want application/x-pem-file", ct)
+	}
+	if !strings.Contains(rec.Header().Get("Content-Disposition"), "example.com.crt") {
+		t.Errorf("Content-Disposition missing filename: %q", rec.Header().Get("Content-Disposition"))
+	}
+	if rec.Body.String() != certContent {
+		t.Errorf("body = %q, want cert content", rec.Body.String())
+	}
+}
+
+// --- Loki tests ---
+
+func TestHandleLokiStatus(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/loki/status", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("loki status: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse loki status response: %v", err)
+	}
+	if _, ok := resp["running"]; !ok {
+		t.Error("loki status missing running field")
+	}
+	if _, ok := resp["sinks"]; !ok {
+		t.Error("loki status missing sinks field")
+	}
+}
+
+func TestHandleLokiConfigGetAndUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Get default config
+	req := authedRequest(http.MethodGet, "/api/loki/config", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("loki config get: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var lokiCfg map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &lokiCfg); err != nil {
+		t.Fatalf("failed to parse loki config response: %v", err)
+	}
+	if lokiCfg["enabled"] != false {
+		t.Errorf("loki enabled = %v, want false", lokiCfg["enabled"])
+	}
+
+	// Update config
+	updateBody := `{"enabled":true,"endpoint":"http://loki:3100/loki/api/v1/push","bearer_token":"","tenant_id":"","labels":{},"batch_size":100,"flush_interval_seconds":5,"sinks":[]}`
+	req = authedRequest(http.MethodPut, "/api/loki/config", updateBody, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("loki config update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var updateResp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &updateResp); err != nil {
+		t.Fatalf("failed to parse loki config update response: %v", err)
+	}
+	if updateResp["status"] != "ok" {
+		t.Errorf("loki config update status = %q, want ok", updateResp["status"])
+	}
+
+	// Verify persisted
+	cfg := th.store.Get()
+	if !cfg.Loki.Enabled {
+		t.Error("loki should be enabled after update")
+	}
+	if cfg.Loki.Endpoint != "http://loki:3100/loki/api/v1/push" {
+		t.Errorf("loki endpoint = %q, want http://loki:3100/loki/api/v1/push", cfg.Loki.Endpoint)
+	}
+}
+
+func TestHandleLokiTestNoEndpoint(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Default config has a Loki endpoint - clear it so we test the empty path
+	th.store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		c.Loki.Endpoint = ""
+		return &c, nil
+	})
+
+	req := authedRequest(http.MethodPost, "/api/loki/test", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("loki test: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse loki test response: %v", err)
+	}
+	if resp["success"] != false {
+		t.Errorf("loki test success = %v, want false (no endpoint configured)", resp["success"])
+	}
+	msg, _ := resp["message"].(string)
+	if !strings.Contains(msg, "No Loki endpoint") {
+		t.Errorf("loki test message = %q, want message about no endpoint", msg)
+	}
+}
+
+// --- Export/Import tests ---
+
+func TestHandleExportFull(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/export/full", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("export full: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	if ct := rec.Header().Get("Content-Type"); ct != "application/zip" {
+		t.Errorf("Content-Type = %q, want application/zip", ct)
+	}
+	if !strings.Contains(rec.Header().Get("Content-Disposition"), "kaji-export-") {
+		t.Errorf("Content-Disposition missing expected filename: %q", rec.Header().Get("Content-Disposition"))
+	}
+
+	// Verify it's a valid ZIP
+	_, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
+	if err != nil {
+		t.Fatalf("response is not a valid ZIP: %v", err)
+	}
+}
+
+// buildTestZIP creates a minimal valid export ZIP for import testing.
+func buildTestZIP(t *testing.T, kajiVersion string) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	writeZIPFile := func(name string, data []byte) {
+		t.Helper()
+		f, err := zw.Create("kaji-export/" + name)
+		if err != nil {
+			t.Fatalf("create %s in zip: %v", name, err)
+		}
+		if _, err := f.Write(data); err != nil {
+			t.Fatalf("write %s in zip: %v", name, err)
+		}
+	}
+
+	manifest, _ := json.Marshal(map[string]any{
+		"version":      1,
+		"exported_at":  time.Now().UTC().Format(time.RFC3339),
+		"kaji_version": kajiVersion,
+	})
+	writeZIPFile("manifest.json", manifest)
+
+	caddyConfig, _ := json.Marshal(map[string]any{"apps": map[string]any{}})
+	writeZIPFile("caddy.json", caddyConfig)
+
+	appConfig, _ := json.Marshal(config.DefaultConfig())
+	writeZIPFile("config.json", appConfig)
+
+	zw.Close()
+	return &buf
+}
+
+func TestHandleImportFull(t *testing.T) {
+	th := newTestHarnessWithVersion(t, "1.0.0")
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	zipBuf := buildTestZIP(t, "1.0.0")
+	req := authedRequest(http.MethodPost, "/api/import/full", "", cookie)
+	req.Body = io.NopCloser(zipBuf)
+	req.ContentLength = int64(zipBuf.Len())
+	req.Header.Set("Content-Type", "application/zip")
+
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import full: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse import full response: %v", err)
+	}
+	if resp["status"] != "ok" {
+		t.Errorf("import status = %v, want ok", resp["status"])
+	}
+	if _, ok := resp["route_count"]; !ok {
+		t.Error("import response missing route_count")
+	}
+	if _, ok := resp["snapshot_count"]; !ok {
+		t.Error("import response missing snapshot_count")
+	}
+}
+
+func TestHandleImportFullInvalidZIP(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPost, "/api/import/full", "", cookie)
+	req.Body = io.NopCloser(strings.NewReader("not a zip"))
+	req.ContentLength = 9
+	req.Header.Set("Content-Type", "application/zip")
+
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("import invalid zip: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleSetupImportFull(t *testing.T) {
+	th := newTestHarnessWithVersion(t, "1.0.0")
+
+	// SetupImportFull doesn't require auth (it's part of the setup flow)
+	zipBuf := buildTestZIP(t, "1.0.0")
+	req := httptest.NewRequest(http.MethodPost, "/api/setup/import/full", zipBuf)
+	req.ContentLength = int64(zipBuf.Len())
+	req.Header.Set("Content-Type", "application/zip")
+
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("setup import full: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse setup import full response: %v", err)
+	}
+	if resp["status"] != "ok" {
+		t.Errorf("status = %v, want ok", resp["status"])
+	}
+	if _, ok := resp["backup_data"]; !ok {
+		t.Error("response missing backup_data")
+	}
+	summary, ok := resp["summary"].(map[string]any)
+	if !ok {
+		t.Fatal("response missing summary object")
+	}
+	if _, ok := summary["snapshot_count"]; !ok {
+		t.Error("summary missing snapshot_count")
+	}
+}
+
+// --- Log config update test ---
+
+func TestHandleLogConfigUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Get the current log dir so we can build a valid file path
+	cfg := th.store.Get()
+	logDir := cfg.LogDir
+	if logDir == "" {
+		logDir = "/var/log/kaji"
+	}
+
+	body := `{"logs":{"default":{"writer":{"output":"discard"}}}}`
+	req := authedRequest(http.MethodPut, "/api/logs/config", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("log config update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse log config update response: %v", err)
+	}
+	if resp["status"] != "ok" {
+		t.Errorf("log config update status = %q, want ok", resp["status"])
+	}
+}
+
+func TestHandleLogConfigUpdateInvalidJSON(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodPut, "/api/logs/config", "not json", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid JSON: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// --- Caddy data dir tests ---
+
+func TestHandleCaddyDataDirGet(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	req := authedRequest(http.MethodGet, "/api/settings/caddy-data-dir", "", cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("caddy data dir get: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse caddy data dir response: %v", err)
+	}
+	if resp["caddy_data_dir"] == "" {
+		t.Error("caddy_data_dir is empty, expected a resolved path")
+	}
+	if resp["is_override"] != "false" {
+		t.Errorf("is_override = %q, want false (no override set)", resp["is_override"])
+	}
+}
+
+func TestHandleCaddyDataDirUpdate(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	tmpDir := t.TempDir()
+	body := `{"caddy_data_dir":"` + tmpDir + `"}`
+	req := authedRequest(http.MethodPut, "/api/settings/caddy-data-dir", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("caddy data dir update: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse update response: %v", err)
+	}
+	if resp["status"] != "ok" {
+		t.Errorf("update status = %q, want ok", resp["status"])
+	}
+
+	// Verify persisted and now marked as override
+	req = authedRequest(http.MethodGet, "/api/settings/caddy-data-dir", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to parse get response: %v", err)
+	}
+	if resp["caddy_data_dir"] != tmpDir {
+		t.Errorf("caddy_data_dir = %q, want %q", resp["caddy_data_dir"], tmpDir)
+	}
+	if resp["is_override"] != "true" {
+		t.Errorf("is_override = %q, want true", resp["is_override"])
+	}
+}
+
+func TestHandleCaddyDataDirUpdateInvalidPath(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"caddy_data_dir":"/nonexistent/path/that/does/not/exist"}`
+	req := authedRequest(http.MethodPut, "/api/settings/caddy-data-dir", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid path: got %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCaddyDataDirUpdateClear(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	// Set an override first
+	tmpDir := t.TempDir()
+	body := `{"caddy_data_dir":"` + tmpDir + `"}`
+	req := authedRequest(http.MethodPut, "/api/settings/caddy-data-dir", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("set override: got %d, want 200", rec.Code)
+	}
+
+	// Clear the override by setting empty string
+	body = `{"caddy_data_dir":""}`
+	req = authedRequest(http.MethodPut, "/api/settings/caddy-data-dir", body, cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("clear override: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify cleared
+	req = authedRequest(http.MethodGet, "/api/settings/caddy-data-dir", "", cookie)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	var resp map[string]string
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["is_override"] != "false" {
+		t.Errorf("is_override = %q after clear, want false", resp["is_override"])
 	}
 }
