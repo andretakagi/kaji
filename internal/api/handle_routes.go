@@ -152,7 +152,7 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			}
 			if info.sink != "" {
 				if referenced, err := cc.IsSinkReferenced(info.sink); err == nil && !referenced {
-					if err := cc.DeleteConfigPath("logging/logs/" + info.sink); err != nil {
+					if err := cc.DeleteConfigPath(caddy.LogSinkPath(info.sink)); err != nil {
 						log.Printf("handleDeleteRoute: remove unused log sink: %v", err)
 					}
 				}
@@ -248,7 +248,7 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 		if oldInfo.sink != "" && oldInfo.sink != req.Toggles.AccessLog {
 			if referenced, err := cc.IsSinkReferenced(oldInfo.sink); err == nil && !referenced {
-				if err := cc.DeleteConfigPath("logging/logs/" + oldInfo.sink); err != nil {
+				if err := cc.DeleteConfigPath(caddy.LogSinkPath(oldInfo.sink)); err != nil {
 					log.Printf("handleUpdateRoute: remove unused log sink: %v", err)
 				}
 			}

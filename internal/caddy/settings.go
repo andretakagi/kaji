@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -107,7 +106,7 @@ func (c *Client) GetGlobalToggles() (*GlobalToggles, error) {
 }
 
 func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
-	raw, err := c.GetConfigPath("apps/http/servers")
+	raw, err := c.GetConfigPath(httpServersPath)
 	if err != nil {
 		raw = nil
 	}
@@ -120,15 +119,13 @@ func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 	}
 
 	for name := range servers {
-		base := "apps/http/servers/" + name
-
 		switch t.AutoHTTPS {
 		case "off":
 			data, err := json.Marshal(map[string]bool{"disable": true})
 			if err != nil {
 				return fmt.Errorf("failed to marshal auto_https config: %w", err)
 			}
-			if err := c.SetConfigPath(base+"/automatic_https", data); err != nil {
+			if err := c.SetConfigPath(serverAutoHTTPSPath(name), data); err != nil {
 				return fmt.Errorf("setting auto_https for server %s: %w", name, err)
 			}
 		case "disable_redirects":
@@ -136,11 +133,11 @@ func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 			if err != nil {
 				return fmt.Errorf("failed to marshal auto_https config: %w", err)
 			}
-			if err := c.SetConfigPath(base+"/automatic_https", data); err != nil {
+			if err := c.SetConfigPath(serverAutoHTTPSPath(name), data); err != nil {
 				return fmt.Errorf("setting auto_https for server %s: %w", name, err)
 			}
 		default:
-			_ = c.DeleteConfigPath(base + "/automatic_https")
+			_ = c.DeleteConfigPath(serverAutoHTTPSPath(name))
 		}
 
 		if t.PrometheusMetrics {
@@ -152,11 +149,11 @@ func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 			if err != nil {
 				return fmt.Errorf("failed to marshal metrics config: %w", err)
 			}
-			if err := c.SetConfigPath(base+"/metrics", data); err != nil {
+			if err := c.SetConfigPath(serverMetricsPath(name), data); err != nil {
 				return fmt.Errorf("setting metrics for server %s: %w", name, err)
 			}
 		} else {
-			_ = c.DeleteConfigPath(base + "/metrics")
+			_ = c.DeleteConfigPath(serverMetricsPath(name))
 		}
 	}
 
@@ -222,7 +219,7 @@ func acmeEmailFromPolicies(policies []tlsPolicy) string {
 }
 
 func (c *Client) GetACMEEmail() (string, error) {
-	raw, err := c.GetConfigPath("apps/tls/automation/policies")
+	raw, err := c.GetConfigPath(tlsPoliciesPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "unreachable") {
 			return "", err
@@ -239,7 +236,7 @@ func (c *Client) GetACMEEmail() (string, error) {
 }
 
 func (c *Client) SetACMEEmail(email string) error {
-	raw, err := c.GetConfigPath("apps/tls/automation/policies")
+	raw, err := c.GetConfigPath(tlsPoliciesPath)
 	if err != nil {
 		automation := map[string]any{
 			"policies": []map[string]any{
@@ -250,7 +247,7 @@ func (c *Client) SetACMEEmail(email string) error {
 				},
 			},
 		}
-		if err := c.SetConfigCascade("apps/tls/automation", automation); err != nil {
+		if err := c.SetConfigCascade(tlsAutomationPath, automation); err != nil {
 			return fmt.Errorf("failed to bootstrap TLS config: %w", err)
 		}
 		return nil
@@ -279,7 +276,7 @@ func (c *Client) SetACMEEmail(email string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal ACME issuers: %w", err)
 		}
-		return c.PatchConfigPath("apps/tls/automation/policies/"+strconv.Itoa(i)+"/issuers", data)
+		return c.PatchConfigPath(tlsPolicyIssuersPath(i), data)
 	}
 
 	// No catch-all found - append a new policy
@@ -292,11 +289,11 @@ func (c *Client) SetACMEEmail(email string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal TLS policy: %w", err)
 	}
-	return c.SetConfigPath("apps/tls/automation/policies/", data)
+	return c.SetConfigPath(tlsPoliciesPath+"/", data)
 }
 
 func (c *Client) GetDNSProvider() (*DNSProviderResult, error) {
-	raw, err := c.GetConfigPath("apps/tls/automation/policies")
+	raw, err := c.GetConfigPath(tlsPoliciesPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "unreachable") {
 			return nil, err
@@ -328,7 +325,7 @@ func (c *Client) GetDNSProvider() (*DNSProviderResult, error) {
 }
 
 func (c *Client) SetDNSProvider(apiToken string, enabled bool) error {
-	raw, err := c.GetConfigPath("apps/tls/automation/policies")
+	raw, err := c.GetConfigPath(tlsPoliciesPath)
 	if err != nil {
 		if !enabled {
 			return nil
@@ -352,7 +349,7 @@ func (c *Client) SetDNSProvider(apiToken string, enabled bool) error {
 				},
 			},
 		}
-		return c.SetConfigCascade("apps/tls/automation", automation)
+		return c.SetConfigCascade(tlsAutomationPath, automation)
 	}
 
 	var policies []json.RawMessage
@@ -408,7 +405,7 @@ func (c *Client) SetDNSProvider(apiToken string, enabled bool) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal issuers: %w", err)
 		}
-		return c.PatchConfigPath("apps/tls/automation/policies/"+strconv.Itoa(i)+"/issuers", data)
+		return c.PatchConfigPath(tlsPolicyIssuersPath(i), data)
 	}
 
 	if !enabled {
@@ -434,11 +431,11 @@ func (c *Client) SetDNSProvider(apiToken string, enabled bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal TLS policy: %w", err)
 	}
-	return c.SetConfigPath("apps/tls/automation/policies/", data)
+	return c.SetConfigPath(tlsPoliciesPath+"/", data)
 }
 
 func (c *Client) EnsureAccessLogger() error {
-	if existing, err := c.GetConfigPath("logging/logs/kaji_access"); err == nil && len(existing) > 0 {
+	if existing, err := c.GetConfigPath(LogSinkPath("kaji_access")); err == nil && len(existing) > 0 {
 		return nil
 	}
 	if err := c.ensureLoggingLogs(); err != nil {
@@ -454,11 +451,11 @@ func (c *Client) EnsureAccessLogger() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal access logger config: %w", err)
 	}
-	return c.SetConfigPath("logging/logs/kaji_access", data)
+	return c.SetConfigPath(LogSinkPath("kaji_access"), data)
 }
 
 func (c *Client) EnsureDefaultLogger() error {
-	if existing, err := c.GetConfigPath("logging/logs/default"); err == nil && len(existing) > 0 {
+	if existing, err := c.GetConfigPath(LogSinkPath("default")); err == nil && len(existing) > 0 {
 		return nil
 	}
 	if err := c.ensureLoggingLogs(); err != nil {
@@ -473,15 +470,15 @@ func (c *Client) EnsureDefaultLogger() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal default logger config: %w", err)
 	}
-	return c.SetConfigPath("logging/logs/default", data)
+	return c.SetConfigPath(LogSinkPath("default"), data)
 }
 
 func (c *Client) ensureLoggingLogs() error {
-	if _, err := c.GetConfigPath("logging/logs"); err == nil {
+	if _, err := c.GetConfigPath(loggingLogsPath); err == nil {
 		return nil
 	}
 	// Try setting via the config path API first.
-	if err := c.SetConfigCascade("logging/logs", map[string]any{}); err == nil {
+	if err := c.SetConfigCascade(loggingLogsPath, map[string]any{}); err == nil {
 		return nil
 	}
 	// Cascade failed - Caddy can't create top-level keys via the path API

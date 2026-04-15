@@ -188,13 +188,13 @@ func (c *Client) DeleteByID(id string) error {
 // AddRoute appends a route to the given server's route list.
 // If the server doesn't exist yet, it bootstraps the minimal structure first.
 func (c *Client) AddRoute(server string, route json.RawMessage) error {
-	routesPath := "apps/http/servers/" + server + "/routes"
+	routesPath := serverRoutesPath(server)
 	if _, err := c.GetConfigPath(routesPath); err != nil {
 		srv := map[string]any{
 			"listen": []string{":443"},
 			"routes": []json.RawMessage{},
 		}
-		if err := c.SetConfigCascade("apps/http/servers/"+server, srv); err != nil {
+		if err := c.SetConfigCascade(serverPath(server), srv); err != nil {
 			return fmt.Errorf("failed to bootstrap http app for server %q: %w", server, err)
 		}
 	}
@@ -269,7 +269,7 @@ func (c *Client) ReplaceRouteByID(id string, newRoute json.RawMessage) (string, 
 			if json.Unmarshal(route, &r) != nil || r.ID != id {
 				continue
 			}
-			path := fmt.Sprintf("apps/http/servers/%s/routes/%d", serverName, i)
+			path := serverRoutePath(serverName, i)
 			if err := c.PatchConfigPath(path, newRoute); err != nil {
 				return "", fmt.Errorf("patching route %q: %w", id, err)
 			}
@@ -281,7 +281,7 @@ func (c *Client) ReplaceRouteByID(id string, newRoute json.RawMessage) (string, 
 
 func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 	if sinkName != "" {
-		raw, getErr := c.GetConfigPath("logging/logs/" + sinkName)
+		raw, getErr := c.GetConfigPath(LogSinkPath(sinkName))
 		if getErr != nil {
 			if err := c.ensureLoggingLogs(); err != nil {
 				return fmt.Errorf("bootstrapping logging config: %w", err)
@@ -294,7 +294,7 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 			if err != nil {
 				return fmt.Errorf("marshaling logger config: %w", err)
 			}
-			if err := c.SetConfigPath("logging/logs/"+sinkName, data); err != nil {
+			if err := c.SetConfigPath(LogSinkPath(sinkName), data); err != nil {
 				return fmt.Errorf("creating %s logger: %w", sinkName, err)
 			}
 		} else if sinkName == "kaji_access" {
@@ -312,14 +312,14 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 					if err != nil {
 						return fmt.Errorf("marshaling kaji_access update: %w", err)
 					}
-					if err := c.SetConfigPath("logging/logs/kaji_access", data); err != nil {
+					if err := c.SetConfigPath(LogSinkPath("kaji_access"), data); err != nil {
 						return fmt.Errorf("re-enabling kaji_access writer: %w", err)
 					}
 				}
 			}
 		}
 
-		logNamesPath := "apps/http/servers/" + server + "/logs/logger_names"
+		logNamesPath := serverLoggerNamesPath(server)
 		if err := c.EnsureConfigPath(logNamesPath); err != nil {
 			return fmt.Errorf("bootstrapping server logs config: %w", err)
 		}
@@ -329,13 +329,13 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 			return fmt.Errorf("marshaling logger name: %w", err)
 		}
 		return c.SetConfigPath(
-			"apps/http/servers/"+server+"/logs/logger_names/"+domain,
+			serverLoggerNamePath(server, domain),
 			name,
 		)
 	}
 
 	if err := c.DeleteConfigPath(
-		"apps/http/servers/" + server + "/logs/logger_names/" + domain,
+		serverLoggerNamePath(server, domain),
 	); err != nil {
 		log.Printf("SetRouteAccessLog: removing %s logger_names entry: %v", domain, err)
 	}
@@ -343,7 +343,7 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 }
 
 func (c *Client) GetAccessLogDomains(server string) (map[string]string, error) {
-	raw, err := c.GetConfigPath("apps/http/servers/" + server + "/logs/logger_names")
+	raw, err := c.GetConfigPath(serverLoggerNamesPath(server))
 	if err != nil {
 		return nil, nil
 	}
@@ -388,7 +388,7 @@ func (c *Client) ClearDomainsForSink(sinkName string) error {
 		for domain, logger := range serverDomains {
 			if logger == sinkName {
 				if err := c.DeleteConfigPath(
-					"apps/http/servers/" + server + "/logs/logger_names/" + domain,
+					serverLoggerNamePath(server, domain),
 				); err != nil {
 					errs = append(errs, err)
 				}
