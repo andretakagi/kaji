@@ -33,7 +33,7 @@ func fakeCaddyServer(t *testing.T, caddyConfig json.RawMessage) *caddy.Client {
 }
 
 func TestBuildZIPRoundTrip(t *testing.T) {
-	caddyConfig := json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`)
+	caddyConfig := json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[{"match":[{"host":["example.com"]}],"handle":[{"handler":"reverse_proxy","upstreams":[{"dial":"localhost:3000"}]}]}]}}}}}`)
 	cc := fakeCaddyServer(t, caddyConfig)
 
 	appCfg := &config.AppConfig{
@@ -49,6 +49,13 @@ func TestBuildZIPRoundTrip(t *testing.T) {
 			BatchSize:            1048576,
 			FlushIntervalSeconds: 5,
 		},
+		IPLists: []config.IPList{
+			{ID: "list1", Name: "blocklist", Type: "deny", IPs: []string{"10.0.0.1"}},
+		},
+		DisabledRoutes: []config.DisabledRoute{
+			{ID: "route-abc", Server: "srv0", DisabledAt: "2025-01-01T00:00:00Z"},
+		},
+		RouteIPLists: map[string]string{"route-abc": "list1"},
 	}
 	store := config.NewStore(appCfg)
 
@@ -92,12 +99,27 @@ func TestBuildZIPRoundTrip(t *testing.T) {
 		t.Errorf("kaji_version = %q, want 1.2.3", manifest.KajiVersion)
 	}
 
-	if _, ok := files["kaji-export/caddy.json"]; !ok {
-		t.Error("caddy.json missing from zip")
+	caddyData, ok := files["kaji-export/caddy.json"]
+	if !ok {
+		t.Fatal("caddy.json missing from zip")
+	}
+	var gotCaddy json.RawMessage
+	if err := json.Unmarshal(caddyData, &gotCaddy); err != nil {
+		t.Fatalf("caddy.json is not valid JSON: %v", err)
+	}
+	// Re-marshal both to compare without whitespace differences.
+	wantCompact, _ := json.Marshal(caddyConfig)
+	gotCompact, _ := json.Marshal(gotCaddy)
+	if string(gotCompact) != string(wantCompact) {
+		t.Errorf("caddy.json content = %s, want %s", gotCompact, wantCompact)
 	}
 
-	if _, ok := files["kaji-export/Caddyfile"]; !ok {
-		t.Error("Caddyfile missing from zip")
+	caddyfileData, ok := files["kaji-export/Caddyfile"]
+	if !ok {
+		t.Fatal("Caddyfile missing from zip")
+	}
+	if !bytes.Contains(caddyfileData, []byte("example.com")) {
+		t.Errorf("Caddyfile should contain route host; got %s", caddyfileData)
 	}
 
 	configData, ok := files["kaji-export/config.json"]
@@ -125,6 +147,21 @@ func TestBuildZIPRoundTrip(t *testing.T) {
 	}
 	if exportedCfg.CaddyAdminURL != "http://localhost:2019" {
 		t.Errorf("CaddyAdminURL = %q, want http://localhost:2019", exportedCfg.CaddyAdminURL)
+	}
+	if exportedCfg.Loki.BatchSize != 1048576 {
+		t.Errorf("Loki.BatchSize = %d, want 1048576", exportedCfg.Loki.BatchSize)
+	}
+	if exportedCfg.Loki.FlushIntervalSeconds != 5 {
+		t.Errorf("Loki.FlushIntervalSeconds = %d, want 5", exportedCfg.Loki.FlushIntervalSeconds)
+	}
+	if len(exportedCfg.IPLists) != 1 || exportedCfg.IPLists[0].ID != "list1" {
+		t.Errorf("IPLists not preserved: got %+v", exportedCfg.IPLists)
+	}
+	if len(exportedCfg.DisabledRoutes) != 1 || exportedCfg.DisabledRoutes[0].ID != "route-abc" {
+		t.Errorf("DisabledRoutes not preserved: got %+v", exportedCfg.DisabledRoutes)
+	}
+	if exportedCfg.RouteIPLists["route-abc"] != "list1" {
+		t.Errorf("RouteIPLists not preserved: got %+v", exportedCfg.RouteIPLists)
 	}
 
 	if _, ok := files["kaji-export/snapshots/index.json"]; !ok {
