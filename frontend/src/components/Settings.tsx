@@ -283,7 +283,6 @@ function ExportImportSection() {
 					<input
 						ref={caddyfileInputRef}
 						type="file"
-						accept=".caddyfile,.Caddyfile,text/*"
 						onChange={handleCaddyfileFileChange}
 						hidden
 					/>

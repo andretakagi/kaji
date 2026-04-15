@@ -37,6 +37,9 @@ CLAUDE.md
 .clauderc
 .claude.*
 
+# Test fixtures
+Caddyfile
+
 # Build artifacts
 *.out
 coverage/
