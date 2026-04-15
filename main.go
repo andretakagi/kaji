@@ -31,7 +31,7 @@ const (
 	caddyReadyTimeout  = 10 * time.Second
 )
 
-var version = "1.5.0"
+var version = "1.6.0"
 
 //go:embed dist/*
 var frontendFiles embed.FS

@@ -817,7 +817,7 @@ func TestBuildRouteIPFilteringWhitelist(t *testing.T) {
 	var sub struct {
 		Handler string `json:"handler"`
 		Routes  []struct {
-			Match []map[string]json.RawMessage `json:"match"`
+			Match  []map[string]json.RawMessage `json:"match"`
 			Handle []struct {
 				StatusCode string `json:"status_code"`
 			} `json:"handle"`

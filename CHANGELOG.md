@@ -2,6 +2,22 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [1.6.0] - 2026-04-15
+
+### Added
+- Full backup and restore - export entire system state as a ZIP and import on another instance, with version-aware migration and automatic rollback on failure
+- Snapshots now capture full system state (Caddy config, app settings, Kaji version) instead of just Caddy JSON. Legacy snapshots are detected and still work.
+- Import review step in setup wizard showing routes and settings before applying
+- Caddyfile import during setup pre-fills ACME email and global toggles from the backup
+
+### Changed
+- Certificate status simplified to three tiers: expired, expiring, valid
+
+### Fixed
+- Settings page could enter an infinite render loop
+- Global body size limit blocked backup imports over 1MB
+- Caddyfile import could leave the admin URL out of sync
+
 ## [1.5.0] - 2026-04-14
 
 ### Added
