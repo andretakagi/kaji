@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/andretakagi/kaji/internal/caddy"
@@ -81,23 +82,9 @@ func handleCreateIPList(store *config.ConfigStore) http.HandlerFunc {
 
 		cfg := store.Get()
 
-		// Validate children exist and are the same type
-		for _, childID := range req.Children {
-			found := false
-			for _, existing := range cfg.IPLists {
-				if existing.ID == childID {
-					found = true
-					if existing.Type != req.Type {
-						writeError(w, fmt.Sprintf("child list %q is type %q, must match parent type %q", existing.Name, existing.Type, req.Type), http.StatusBadRequest)
-						return
-					}
-					break
-				}
-			}
-			if !found {
-				writeError(w, fmt.Sprintf("child list %q not found", childID), http.StatusBadRequest)
-				return
-			}
+		if msg := validateIPListChildren(req.Children, req.Type, "", cfg.IPLists); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
 		}
 
 		now := time.Now().UTC().Format(time.RFC3339)
@@ -175,40 +162,8 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
-		// Validate children exist, are the same type, and don't create circular refs
-		for _, childID := range req.Children {
-			if childID == listID {
-				writeError(w, "a list cannot include itself", http.StatusBadRequest)
-				return
-			}
-			childFound := false
-			for _, l := range cfg.IPLists {
-				if l.ID == childID {
-					childFound = true
-					if l.Type != existing.Type {
-						writeError(w, fmt.Sprintf("child list %q is type %q, must match parent type %q", l.Name, l.Type, existing.Type), http.StatusBadRequest)
-						return
-					}
-					break
-				}
-			}
-			if !childFound {
-				writeError(w, fmt.Sprintf("child list %q not found", childID), http.StatusBadRequest)
-				return
-			}
-		}
-
-		// Check for circular references by temporarily applying the update and resolving
-		tempLists := make([]config.IPList, len(cfg.IPLists))
-		copy(tempLists, cfg.IPLists)
-		for i := range tempLists {
-			if tempLists[i].ID == listID {
-				tempLists[i].Children = req.Children
-				break
-			}
-		}
-		if _, err := caddy.ResolveIPList(listID, tempLists); err != nil {
-			writeError(w, fmt.Sprintf("circular reference: %v", err), http.StatusBadRequest)
+		if msg := validateIPListChildren(req.Children, existing.Type, listID, cfg.IPLists); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
 
@@ -239,7 +194,11 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		}
 
 		maybeAutoSnapshot(cc, ss, "IP list updated: "+updated.Name)
-		cascadeIPListChange(listID, store, cc)
+		if err := cascadeIPListChange(listID, store, cc); err != nil {
+			log.Printf("handleUpdateIPList: %v", err)
+			writeError(w, "IP list saved but some routes failed to update: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		persistCaddyConfig(cc, store)
 
 		writeJSON(w, updated)
@@ -313,8 +272,16 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		}
 
 		// Rebuild affected routes (they'll lose their IP filtering since the list is gone)
+		var rebuildErrs []string
 		for _, ar := range affectedRoutes {
-			rebuildRoute(ar.RouteID, store, cc)
+			if err := rebuildRoute(ar.RouteID, store, cc); err != nil {
+				rebuildErrs = append(rebuildErrs, fmt.Sprintf("route %s: %v", ar.RouteID, err))
+			}
+		}
+		if len(rebuildErrs) > 0 {
+			log.Printf("handleDeleteIPList: %d route(s) failed to rebuild: %v", len(rebuildErrs), rebuildErrs)
+			writeError(w, "IP list deleted but some routes failed to update: "+strings.Join(rebuildErrs, "; "), http.StatusInternalServerError)
+			return
 		}
 		if len(affectedRoutes) > 0 {
 			persistCaddyConfig(cc, store)

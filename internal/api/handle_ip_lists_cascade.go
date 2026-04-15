@@ -2,7 +2,9 @@
 package api
 
 import (
+	"fmt"
 	"log"
+	"strings"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
@@ -83,28 +85,34 @@ func findRoutesUsingList(listID string, allLists []config.IPList, store *config.
 }
 
 // cascadeIPListChange finds all routes affected by a change to the given IP list
-// and rebuilds each one with the updated resolved IPs.
-func cascadeIPListChange(listID string, store *config.ConfigStore, cc *caddy.Client) {
+// and rebuilds each one with the updated resolved IPs. Returns an error
+// describing which routes failed to rebuild, if any.
+func cascadeIPListChange(listID string, store *config.ConfigStore, cc *caddy.Client) error {
 	cfg := store.Get()
 	affected := findRoutesUsingList(listID, cfg.IPLists, store, cc)
+	var errs []string
 	for _, ar := range affected {
-		rebuildRoute(ar.RouteID, store, cc)
+		if err := rebuildRoute(ar.RouteID, store, cc); err != nil {
+			errs = append(errs, fmt.Sprintf("route %s: %v", ar.RouteID, err))
+		}
 	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to cascade to %d route(s): %s", len(errs), strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // rebuildRoute reads a route from Caddy, re-resolves its IP list, rebuilds it,
 // and replaces it in place.
-func rebuildRoute(routeID string, store *config.ConfigStore, cc *caddy.Client) {
+func rebuildRoute(routeID string, store *config.ConfigStore, cc *caddy.Client) error {
 	raw, err := cc.GetRouteByID(routeID)
 	if err != nil {
-		log.Printf("rebuildRoute: failed to get route %s: %v", routeID, err)
-		return
+		return fmt.Errorf("get route: %w", err)
 	}
 
 	params, err := caddy.ParseRouteParams(raw)
 	if err != nil {
-		log.Printf("rebuildRoute: failed to parse route %s: %v", routeID, err)
-		return
+		return fmt.Errorf("parse route: %w", err)
 	}
 
 	cfg := store.Get()
@@ -133,13 +141,11 @@ func rebuildRoute(routeID string, store *config.ConfigStore, cc *caddy.Client) {
 
 	route, err := caddy.BuildRoute(params)
 	if err != nil {
-		log.Printf("rebuildRoute: failed to build route %s: %v", routeID, err)
-		return
+		return fmt.Errorf("build route: %w", err)
 	}
 
 	if _, err := cc.ReplaceRouteByID(routeID, route); err != nil {
-		log.Printf("rebuildRoute: failed to replace route %s: %v", routeID, err)
-		return
+		return fmt.Errorf("replace route: %w", err)
 	}
 
 	// Re-set access log config since the route was replaced
@@ -150,4 +156,5 @@ func rebuildRoute(routeID string, store *config.ConfigStore, cc *caddy.Client) {
 		}
 	}
 
+	return nil
 }

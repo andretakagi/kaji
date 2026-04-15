@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/andretakagi/kaji/internal/caddy"
+	"github.com/andretakagi/kaji/internal/config"
 )
 
 func validateDomain(domain string) string {
@@ -175,6 +176,46 @@ func validateIPListName(name string) string {
 	if len(name) > 128 {
 		return "name too long (max 128 characters)"
 	}
+	return ""
+}
+
+// validateIPListChildren checks that all child IDs exist, match the parent type,
+// and won't create circular references. parentID should be empty for new lists.
+func validateIPListChildren(children []string, parentType string, parentID string, allLists []config.IPList) string {
+	for _, childID := range children {
+		if childID == parentID && parentID != "" {
+			return "a list cannot include itself"
+		}
+		childFound := false
+		for _, l := range allLists {
+			if l.ID == childID {
+				childFound = true
+				if l.Type != parentType {
+					return fmt.Sprintf("child list %q is type %q, must match parent type %q", l.Name, l.Type, parentType)
+				}
+				break
+			}
+		}
+		if !childFound {
+			return fmt.Sprintf("child list %q not found", childID)
+		}
+	}
+
+	// Check for circular references when updating an existing list
+	if parentID != "" && len(children) > 0 {
+		tempLists := make([]config.IPList, len(allLists))
+		copy(tempLists, allLists)
+		for i := range tempLists {
+			if tempLists[i].ID == parentID {
+				tempLists[i].Children = children
+				break
+			}
+		}
+		if _, err := caddy.ResolveIPList(parentID, tempLists); err != nil {
+			return fmt.Sprintf("circular reference: %v", err)
+		}
+	}
+
 	return ""
 }
 
