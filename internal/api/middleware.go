@@ -11,6 +11,7 @@ import (
 
 	"github.com/andretakagi/kaji/internal/auth"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/export"
 )
 
 type responseRecorder struct {
@@ -110,17 +111,27 @@ var publicPaths = map[string]bool{
 
 var setupOnlyPaths = map[string]bool{
 	"/api/setup":                   true,
-	"/api/setup/adapt-caddyfile":   true,
+	"/api/setup/import/caddyfile":  true,
+	"/api/setup/import/full":       true,
 	"/api/setup/default-caddyfile": true,
 }
 
 const maxRequestBodySize = 1 << 20 // 1 MB
 
+var largeUploadPaths = map[string]bool{
+	"/api/import/full":       true,
+	"/api/setup/import/full": true,
+}
+
 func limitRequestBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+			limit := int64(maxRequestBodySize)
+			if largeUploadPaths[r.URL.Path] {
+				limit = export.MaxZIPSize
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		next.ServeHTTP(w, r)
 	})

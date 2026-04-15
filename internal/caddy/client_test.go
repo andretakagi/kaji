@@ -749,3 +749,117 @@ func TestClientIsSinkReferencedFalse(t *testing.T) {
 		t.Error("IsSinkReferenced = true, want false")
 	}
 }
+
+func buildCaddyConfig(t *testing.T, servers map[string][]RouteParams) json.RawMessage {
+	t.Helper()
+	srvMap := make(map[string]any, len(servers))
+	for name, params := range servers {
+		routes := make([]json.RawMessage, 0, len(params))
+		for _, p := range params {
+			r, err := BuildRoute(p)
+			if err != nil {
+				t.Fatalf("BuildRoute(%+v): %v", p, err)
+			}
+			routes = append(routes, r)
+		}
+		srvMap[name] = map[string]any{"routes": routes}
+	}
+	cfg := map[string]any{
+		"apps": map[string]any{
+			"http": map[string]any{
+				"servers": srvMap,
+			},
+		},
+	}
+	b, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal config: %v", err)
+	}
+	return b
+}
+
+func TestExtractReviewRoutesBasic(t *testing.T) {
+	raw := buildCaddyConfig(t, map[string][]RouteParams{
+		"srv0": {
+			{Domain: "example.com", Upstream: "localhost:3000"},
+			{Domain: "api.example.com", Upstream: "localhost:8080"},
+		},
+	})
+
+	got := ExtractReviewRoutes(raw)
+	if len(got) != 2 {
+		t.Fatalf("got %d routes, want 2", len(got))
+	}
+
+	byDomain := make(map[string]ReviewRoute, len(got))
+	for _, r := range got {
+		byDomain[r.Domain] = r
+	}
+
+	if r, ok := byDomain["example.com"]; !ok {
+		t.Error("missing route for example.com")
+	} else {
+		if r.Upstream != "localhost:3000" {
+			t.Errorf("example.com upstream = %q, want localhost:3000", r.Upstream)
+		}
+		if !r.Enabled {
+			t.Error("example.com should be enabled")
+		}
+	}
+
+	if r, ok := byDomain["api.example.com"]; !ok {
+		t.Error("missing route for api.example.com")
+	} else if r.Upstream != "localhost:8080" {
+		t.Errorf("api.example.com upstream = %q, want localhost:8080", r.Upstream)
+	}
+}
+
+func TestExtractReviewRoutesMultipleServers(t *testing.T) {
+	raw := buildCaddyConfig(t, map[string][]RouteParams{
+		"srv0": {{Domain: "a.com", Upstream: "localhost:3000"}},
+		"srv1": {{Domain: "b.com", Upstream: "localhost:4000"}},
+	})
+
+	got := ExtractReviewRoutes(raw)
+	if len(got) != 2 {
+		t.Fatalf("got %d routes, want 2", len(got))
+	}
+
+	domains := make(map[string]bool, len(got))
+	for _, r := range got {
+		domains[r.Domain] = true
+	}
+	if !domains["a.com"] || !domains["b.com"] {
+		t.Errorf("expected a.com and b.com, got %v", domains)
+	}
+}
+
+func TestExtractReviewRoutesInvalidJSON(t *testing.T) {
+	got := ExtractReviewRoutes(json.RawMessage(`not json`))
+	if got == nil {
+		t.Fatal("expected non-nil slice")
+	}
+	if len(got) != 0 {
+		t.Errorf("got %d routes, want 0", len(got))
+	}
+}
+
+func TestExtractReviewRoutesEmptyConfig(t *testing.T) {
+	raw := json.RawMessage(`{"apps":{"http":{"servers":{}}}}`)
+	got := ExtractReviewRoutes(raw)
+	if got == nil {
+		t.Fatal("expected non-nil slice")
+	}
+	if len(got) != 0 {
+		t.Errorf("got %d routes, want 0", len(got))
+	}
+}
+
+func TestExtractReviewRoutesSkipsNoHost(t *testing.T) {
+	// A route with no match/host should be skipped
+	raw := json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[{"handle":[]}]}}}}}`)
+	got := ExtractReviewRoutes(raw)
+	if len(got) != 0 {
+		t.Errorf("got %d routes, want 0 (no-host route should be skipped)", len(got))
+	}
+}

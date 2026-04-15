@@ -14,6 +14,7 @@ Kaji gives you a clean dashboard for managing Caddy reverse proxy routes, TLS ce
 - **Route management** - Create, edit, delete, and enable/disable routes with global auto HTTPS and ACME email configuration.
 - **Per-route toggles** - Force HTTPS, gzip/zstd compression, security headers, CORS, TLS skip verify, basic auth, access logging, WebSocket passthrough, and load balancing with multiple upstreams.
 - **IP allow/block lists** - Named whitelist and blacklist definitions with composable child lists. Cascade logic rebuilds affected routes when lists change.
+- **Backup and restore** - Export your entire Kaji setup (Caddy config, app settings, snapshots) as a ZIP file. Import backups on another instance or restore after a fresh install. The setup wizard can also import a backup during first-run configuration. Version-aware migrations handle config changes between releases.
 - **Config snapshots** - Automatic snapshots before config changes with manual snapshot support. Restore any previous state with one click.
 - **Logs and metrics** - Filter by level, host, or status code. Paginated history and real-time streaming with configurable log sinks.
 - **Prometheus metrics** - Per-host request metrics with toggleable metric endpoints.

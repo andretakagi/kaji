@@ -1,4 +1,4 @@
-import type { CaddyRoute } from "./caddy";
+import type { CaddyConfig, CaddyRoute } from "./caddy";
 
 export interface CaddyStatus {
 	running: boolean;
@@ -23,10 +23,11 @@ export interface SetupRequest {
 	caddy_admin_url?: string;
 	acme_email?: string;
 	global_toggles?: GlobalToggles;
-	caddyfile_json?: Record<string, unknown>;
+	caddyfile_json?: CaddyConfig;
 	dns_challenge_token?: string;
 	auto_snapshot_enabled?: boolean;
 	auto_snapshot_limit?: number;
+	backup_data?: Record<string, unknown>;
 }
 
 export interface SetupResponse {
@@ -35,11 +36,45 @@ export interface SetupResponse {
 	dns_error?: string;
 }
 
+export interface ReviewRoute {
+	domain: string;
+	upstream: string;
+	enabled: boolean;
+}
+
+export interface ReviewLogging {
+	log_file: string;
+	log_dir: string;
+	loki_enabled: boolean;
+	loki_endpoint: string;
+}
+
+export interface ReviewIPList {
+	name: string;
+	type: string;
+	entry_count: number;
+}
+
+export interface ReviewSnapshot {
+	name: string;
+	type: string;
+	created_at: string;
+}
+
+export interface ImportReview {
+	routes: ReviewRoute[];
+	logging?: ReviewLogging;
+	ip_lists?: ReviewIPList[];
+	snapshots?: ReviewSnapshot[];
+}
+
 export interface AdaptCaddyfileResponse {
 	acme_email: string;
+	admin_listen?: string;
 	global_toggles: GlobalToggles;
 	route_count: number;
-	adapted_config: Record<string, unknown>;
+	adapted_config: CaddyConfig;
+	routes?: ReviewRoute[];
 }
 
 export interface LoginRequest {
@@ -149,4 +184,33 @@ export interface IPList {
 export interface IPListUsage {
 	routes: { id: string; domain: string }[];
 	composite_lists: { id: string; name: string }[];
+}
+
+export interface ImportResponse {
+	status: string;
+	route_count?: number;
+	snapshot_count?: number;
+	migrated_from?: string;
+	migration_log?: string[];
+	warnings?: string[];
+}
+
+export interface SetupImportFullResponse {
+	status: string;
+	backup_data: Record<string, unknown>;
+	acme_email?: string;
+	global_toggles?: GlobalToggles;
+	route_count?: number;
+	summary: {
+		auth_enabled: boolean;
+		has_api_key: boolean;
+		caddy_admin_url: string;
+		loki_enabled: boolean;
+		ip_lists: number;
+		disabled_routes: number;
+		snapshot_count: number;
+	};
+	migrated_from?: string;
+	migration_log?: string[];
+	review?: ImportReview;
 }

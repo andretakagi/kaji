@@ -46,6 +46,48 @@ type caddyConfigPartial struct {
 	} `json:"apps"`
 }
 
+// CountRoutes returns the total number of routes across all servers in a raw
+// Caddy JSON config. Returns 0 if the config can't be parsed.
+func CountRoutes(raw json.RawMessage) int {
+	var cfg caddyConfigPartial
+	if json.Unmarshal(raw, &cfg) != nil {
+		return 0
+	}
+	n := 0
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		n += len(srv.Routes)
+	}
+	return n
+}
+
+type ReviewRoute struct {
+	Domain   string `json:"domain"`
+	Upstream string `json:"upstream"`
+	Enabled  bool   `json:"enabled"`
+}
+
+func ExtractReviewRoutes(raw json.RawMessage) []ReviewRoute {
+	routes := []ReviewRoute{}
+	var cfg caddyConfigPartial
+	if json.Unmarshal(raw, &cfg) != nil {
+		return routes
+	}
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		for _, routeRaw := range srv.Routes {
+			params, err := ParseRouteParams(routeRaw)
+			if err != nil || params.Domain == "" {
+				continue
+			}
+			routes = append(routes, ReviewRoute{
+				Domain:   params.Domain,
+				Upstream: params.Upstream,
+				Enabled:  true,
+			})
+		}
+	}
+	return routes
+}
+
 type Client struct {
 	baseURL    func() string
 	httpClient *http.Client
@@ -167,6 +209,33 @@ func (c *Client) LoadConfig(configJSON []byte) error {
 	if err := c.doRequest(http.MethodPost, c.url()+"/load", "application/json", configJSON); err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+	return nil
+}
+
+var ErrValidationRollbackFailed = errors.New("config validation passed but rollback failed")
+
+// ValidateConfig checks that configJSON is loadable by Caddy without permanently
+// applying it. It loads the candidate config, then immediately restores the
+// previous config. If Caddy rejects the candidate, the running config is unchanged.
+func (c *Client) ValidateConfig(configJSON []byte) error {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(configJSON, &obj); err != nil {
+		return fmt.Errorf("invalid caddy config: not a JSON object")
+	}
+
+	current, err := c.GetConfig()
+	if err != nil {
+		return fmt.Errorf("reading current config for validation: %w", err)
+	}
+
+	if err := c.LoadConfig(configJSON); err != nil {
+		return fmt.Errorf("caddy rejected config: %w", err)
+	}
+
+	if err := c.LoadConfig(current); err != nil {
+		return fmt.Errorf("%w: %v", ErrValidationRollbackFailed, err)
+	}
+
 	return nil
 }
 

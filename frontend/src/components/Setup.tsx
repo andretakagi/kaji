@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { adaptCaddyfile, fetchDefaultCaddyfile, submitSetup, updateDNSProvider } from "../api";
+import { useCallback, useEffect, useState } from "react";
+import { adaptCaddyfile, setupImportFull, submitSetup, updateDNSProvider } from "../api";
+import { cn } from "../cn";
 import {
 	type AdaptCaddyfileResponse,
 	DEFAULT_GLOBAL_TOGGLES,
 	type GlobalToggles,
+	type ImportReview,
+	type SetupImportFullResponse,
 	type SetupStatus,
 } from "../types/api";
+import type { CaddyConfig } from "../types/caddy";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validatePassword } from "../utils/validate";
+import FileUploadButton from "./FileUploadButton";
 import { Toggle } from "./Toggle";
 
 const themeOptions = [
@@ -15,18 +20,19 @@ const themeOptions = [
 	{ value: "light", label: "Light" },
 ] as const;
 
-const STEP_LABELS = ["Auth", "Import", "Settings"];
-const LAST_STEP = STEP_LABELS.length - 1;
-
 type ChallengeType = "http-01" | "cloudflare";
 
 interface WizardData {
 	authEnabled: boolean;
 	password: string;
 	confirmPassword: string;
+	importMode: "none" | "caddyfile" | "full";
 	caddyfileText: string;
-	adaptedConfig: Record<string, unknown> | null;
+	adaptedConfig: CaddyConfig | null;
 	importedSettings: AdaptCaddyfileResponse | null;
+	backupSummary: SetupImportFullResponse | null;
+	backupData: Record<string, unknown> | null;
+	reviewData: ImportReview | null;
 	acmeEmail: string;
 	globalToggles: GlobalToggles;
 	challengeType: ChallengeType;
@@ -53,9 +59,13 @@ function Setup({
 		authEnabled: true,
 		password: "",
 		confirmPassword: "",
+		importMode: "none",
 		caddyfileText: "",
 		adaptedConfig: null,
 		importedSettings: null,
+		backupSummary: null,
+		backupData: null,
+		reviewData: null,
 		acmeEmail: "",
 		globalToggles: { ...DEFAULT_GLOBAL_TOGGLES },
 		challengeType: "http-01",
@@ -67,6 +77,12 @@ function Setup({
 	const update = useCallback(<K extends keyof WizardData>(key: K, value: WizardData[K]) => {
 		setData((prev) => ({ ...prev, [key]: value }));
 	}, []);
+
+	const hasReview = data.importMode !== "none" && data.reviewData !== null;
+	const stepLabels = hasReview
+		? ["Auth", "Import", "Review", "Settings"]
+		: ["Auth", "Import", "Settings"];
+	const lastStep = stepLabels.length - 1;
 
 	useEffect(() => {
 		let active = true;
@@ -117,7 +133,6 @@ function Setup({
 		setDnsError("");
 		try {
 			if (setupDone) {
-				// Core setup already completed - just retry the DNS configuration.
 				if (data.challengeType === "cloudflare" && data.dnsToken) {
 					await updateDNSProvider({ enabled: true, api_token: data.dnsToken });
 				}
@@ -125,15 +140,19 @@ function Setup({
 				return;
 			}
 
+			const adminListen = data.importedSettings?.admin_listen;
 			const res = await submitSetup({
 				password: data.authEnabled ? data.password : undefined,
+				caddy_admin_url: adminListen ? `http://${adminListen}` : undefined,
 				acme_email: data.acmeEmail || undefined,
 				global_toggles: data.globalToggles,
-				caddyfile_json: data.adaptedConfig || undefined,
+				caddyfile_json:
+					data.importMode === "caddyfile" ? data.adaptedConfig || undefined : undefined,
 				dns_challenge_token:
 					data.challengeType === "cloudflare" && data.dnsToken ? data.dnsToken : undefined,
 				auto_snapshot_enabled: data.autoSnapshot,
 				auto_snapshot_limit: data.snapshotLimit,
+				backup_data: data.importMode === "full" ? data.backupData || undefined : undefined,
 			});
 
 			setSetupDone(true);
@@ -148,6 +167,7 @@ function Setup({
 				setSetupWarnings(warnings);
 				return;
 			}
+
 			onComplete();
 		} catch (err) {
 			const msg = getErrorMessage(err, "Setup failed.");
@@ -155,7 +175,6 @@ function Setup({
 				onComplete();
 				return;
 			}
-			// DNS retry failed - show the error on the DNS field.
 			if (setupDone) {
 				setDnsError(getErrorMessage(err, "Could not configure DNS challenge"));
 				return;
@@ -166,11 +185,18 @@ function Setup({
 		}
 	};
 
-	const stepContent = [
-		<StepAuth key="auth" data={data} update={update} />,
-		<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
-		<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
-	];
+	const stepContent = hasReview
+		? [
+				<StepAuth key="auth" data={data} update={update} />,
+				<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
+				<StepReview key="review" data={data} />,
+				<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
+			]
+		: [
+				<StepAuth key="auth" data={data} update={update} />,
+				<StepImport key="import" data={data} update={update} error={error} setError={setError} />,
+				<StepSettings key="settings" data={data} update={update} dnsError={dnsError} />,
+			];
 
 	if (!caddyReady) {
 		return (
@@ -212,9 +238,11 @@ function Setup({
 
 	return (
 		<div className="auth-wrapper">
-			<div className={`auth-card${step === LAST_STEP ? " auth-card-wide" : ""}`}>
+			<div
+				className={`auth-card${step === lastStep || (hasReview && step === 2) ? " auth-card-wide" : ""}`}
+			>
 				<h1>Kaji</h1>
-				<StepIndicator current={step} />
+				<StepIndicator current={step} labels={stepLabels} />
 
 				{error && step !== 1 && (
 					<div className="inline-error auth-error" role="alert">
@@ -236,8 +264,17 @@ function Setup({
 						</button>
 					)}
 					{step === 0 && !setupDone && <span />}
-					{step < LAST_STEP ? (
-						<button type="button" className="btn btn-primary" onClick={handleNext}>
+					{step < lastStep ? (
+						<button
+							type="button"
+							className="btn btn-primary"
+							onClick={handleNext}
+							disabled={
+								step === 1 &&
+								((data.importMode === "caddyfile" && !data.importedSettings) ||
+									(data.importMode === "full" && !data.backupSummary))
+							}
+						>
 							Next
 						</button>
 					) : (
@@ -256,10 +293,10 @@ function Setup({
 	);
 }
 
-function StepIndicator({ current }: { current: number }) {
+function StepIndicator({ current, labels }: { current: number; labels: string[] }) {
 	return (
 		<div className="setup-steps">
-			{STEP_LABELS.map((label, i) => {
+			{labels.map((label, i) => {
 				let cls = "setup-step";
 				if (i === current) cls += " active";
 				else if (i < current) cls += " completed";
@@ -390,47 +427,32 @@ function StepImport({
 	setError: (msg: string) => void;
 }) {
 	const [parsing, setParsing] = useState(false);
-	const [loadedDefault, setLoadedDefault] = useState(false);
-	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	useEffect(() => {
-		if (loadedDefault || data.caddyfileText) return;
-		setLoadedDefault(true);
-		fetchDefaultCaddyfile()
-			.then((res) => {
-				if (res.content) {
-					update("caddyfileText", res.content);
-				}
-			})
-			.catch(() => {});
-	}, [loadedDefault, data.caddyfileText, update]);
-
-	const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		const reader = new FileReader();
-		reader.onload = () => {
-			update("caddyfileText", reader.result as string);
+	const handleModeChange = (mode: "none" | "caddyfile" | "full") => {
+		update("importMode", mode);
+		setError("");
+		update("reviewData", null);
+		if (mode !== "caddyfile") {
 			update("adaptedConfig", null);
 			update("importedSettings", null);
-		};
-		reader.onerror = () => {
-			setError("Failed to read file.");
-		};
-		reader.readAsText(file);
+		}
+		if (mode !== "full") {
+			update("backupSummary", null);
+			update("backupData", null);
+		}
 	};
 
-	const handleParse = async () => {
-		if (!data.caddyfileText.trim()) return;
+	const handleCaddyfileUpload = async (file: File) => {
 		setParsing(true);
 		setError("");
 		try {
-			const result = await adaptCaddyfile(data.caddyfileText);
+			const text = await file.text();
+			const result = await adaptCaddyfile(text);
+			update("caddyfileText", text);
 			update("adaptedConfig", result.adapted_config);
 			update("importedSettings", result);
-			if (result.acme_email) {
-				update("acmeEmail", result.acme_email);
-			}
+			update("reviewData", { routes: result.routes ?? [] });
+			if (result.acme_email) update("acmeEmail", result.acme_email);
 			update("globalToggles", result.global_toggles);
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to parse Caddyfile"));
@@ -441,30 +463,56 @@ function StepImport({
 		}
 	};
 
-	const handleTextChange = (text: string) => {
-		update("caddyfileText", text);
-		if (data.importedSettings) {
-			update("adaptedConfig", null);
-			update("importedSettings", null);
+	const handleBackupUpload = async (file: File) => {
+		setParsing(true);
+		setError("");
+		try {
+			const result = await setupImportFull(file);
+			update("backupSummary", result);
+			update("backupData", result.backup_data);
+			if (result.review) {
+				update("reviewData", result.review);
+			}
+			if (result.acme_email) update("acmeEmail", result.acme_email);
+			if (result.global_toggles) update("globalToggles", result.global_toggles);
+		} catch (err) {
+			setError(getErrorMessage(err, "Failed to parse backup file"));
+			update("backupSummary", null);
+			update("backupData", null);
+		} finally {
+			setParsing(false);
 		}
 	};
 
 	return (
 		<>
-			<p className="setup-step-description">
-				Import an existing Caddyfile to bring in your routes and settings. This step is optional.
-			</p>
+			<p className="setup-step-description">Import an existing configuration or start fresh.</p>
 
-			<div className="auth-field">
-				<label htmlFor="setup-caddyfile">Caddyfile</label>
-				<textarea
-					id="setup-caddyfile"
-					className="setup-import-textarea"
-					value={data.caddyfileText}
-					onChange={(e) => handleTextChange(e.target.value)}
-					placeholder={"example.com {\n    reverse_proxy localhost:3000\n}"}
-					spellCheck={false}
-				/>
+			<div className="setup-import-modes">
+				<button
+					type="button"
+					className={cn("setup-import-mode-btn", data.importMode === "none" && "active")}
+					onClick={() => handleModeChange("none")}
+				>
+					<strong>Start Fresh</strong>
+					<span>Begin with a clean configuration</span>
+				</button>
+				<button
+					type="button"
+					className={cn("setup-import-mode-btn", data.importMode === "caddyfile" && "active")}
+					onClick={() => handleModeChange("caddyfile")}
+				>
+					<strong>Import Caddyfile</strong>
+					<span>Bring in routes from an existing Caddyfile</span>
+				</button>
+				<button
+					type="button"
+					className={cn("setup-import-mode-btn", data.importMode === "full" && "active")}
+					onClick={() => handleModeChange("full")}
+				>
+					<strong>Import Full Backup</strong>
+					<span>Restore a complete Kaji backup</span>
+				</button>
 			</div>
 
 			{error && (
@@ -473,50 +521,190 @@ function StepImport({
 				</div>
 			)}
 
-			<div className="setup-import-actions">
-				<input
-					ref={fileInputRef}
-					type="file"
-					accept=".caddyfile,.Caddyfile,text/*"
-					onChange={handleFileUpload}
-					hidden
-				/>
-				<button
-					type="button"
-					className="btn btn-ghost"
-					onClick={() => fileInputRef.current?.click()}
-				>
-					Upload File
-				</button>
-				<button
-					type="button"
-					className="btn btn-primary"
-					onClick={handleParse}
-					disabled={parsing || !data.caddyfileText.trim()}
-				>
-					{parsing ? "Parsing..." : "Parse Caddyfile"}
-				</button>
-			</div>
-
-			{data.importedSettings && (
-				<div className="setup-import-result">
-					<div className="setup-import-result-item">
-						<span>Routes found</span>
-						<strong>{data.importedSettings.route_count}</strong>
+			{data.importMode === "caddyfile" && (
+				<>
+					<div className="setup-import-actions">
+						<FileUploadButton disabled={parsing} onChange={handleCaddyfileUpload}>
+							{parsing ? "Parsing..." : "Choose Caddyfile"}
+						</FileUploadButton>
 					</div>
-					{data.importedSettings.acme_email && (
-						<div className="setup-import-result-item">
-							<span>ACME email</span>
-							<strong>{data.importedSettings.acme_email}</strong>
+					{data.importedSettings && (
+						<div className="setup-import-result">
+							<div className="setup-import-result-item">
+								<span>Routes found</span>
+								<strong>{data.importedSettings.route_count}</strong>
+							</div>
+							{data.importedSettings.acme_email && (
+								<div className="setup-import-result-item">
+									<span>ACME email</span>
+									<strong>{data.importedSettings.acme_email}</strong>
+								</div>
+							)}
+							<div className="setup-import-result-item">
+								<span>Auto HTTPS</span>
+								<strong>{data.importedSettings.global_toggles.auto_https}</strong>
+							</div>
 						</div>
 					)}
-					<div className="setup-import-result-item">
-						<span>Auto HTTPS</span>
-						<strong>{data.importedSettings.global_toggles.auto_https}</strong>
+				</>
+			)}
+
+			{data.importMode === "full" && (
+				<>
+					<div className="setup-import-actions">
+						<FileUploadButton accept=".zip" disabled={parsing} onChange={handleBackupUpload}>
+							{parsing ? "Reading backup..." : "Choose Backup File"}
+						</FileUploadButton>
+					</div>
+					{data.backupSummary && (
+						<div className="setup-import-result">
+							<div className="setup-import-result-item">
+								<span>Caddy config</span>
+								<strong>Included</strong>
+							</div>
+							<div className="setup-import-result-item">
+								<span>IP lists</span>
+								<strong>{data.backupSummary.summary.ip_lists}</strong>
+							</div>
+							<div className="setup-import-result-item">
+								<span>Disabled routes</span>
+								<strong>{data.backupSummary.summary.disabled_routes}</strong>
+							</div>
+							<div className="setup-import-result-item">
+								<span>Snapshots</span>
+								<strong>{data.backupSummary.summary.snapshot_count}</strong>
+							</div>
+							{data.backupSummary.summary.loki_enabled && (
+								<div className="setup-import-result-item">
+									<span>Loki</span>
+									<strong>Configured</strong>
+								</div>
+							)}
+							{data.backupSummary.migration_log && data.backupSummary.migration_log.length > 0 && (
+								<div className="setup-import-migration">
+									<span className="setup-import-migration-label">
+										Migrated from {data.backupSummary.migrated_from}
+									</span>
+									<ul className="setup-import-migration-list">
+										{data.backupSummary.migration_log.map((change) => (
+											<li key={change}>{change}</li>
+										))}
+									</ul>
+								</div>
+							)}
+						</div>
+					)}
+				</>
+			)}
+		</>
+	);
+}
+
+function StepReview({ data }: { data: WizardData }) {
+	const review = data.reviewData;
+	if (!review) return null;
+
+	const isFull = data.importMode === "full";
+
+	return (
+		<div className="setup-review">
+			{review.routes.length > 0 && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">Routes</h3>
+					<div className="setup-review-table">
+						<div className="setup-review-table-header">
+							<span>Domain</span>
+							<span>Upstream</span>
+							<span>Status</span>
+						</div>
+						{review.routes.map((route) => (
+							<div
+								key={`${route.domain}-${route.enabled}`}
+								className={cn("setup-review-table-row", !route.enabled && "disabled")}
+							>
+								<span className="setup-review-domain">{route.domain}</span>
+								<span className="setup-review-upstream">{route.upstream}</span>
+								<span className={cn("setup-review-status", route.enabled ? "on" : "off")}>
+									{route.enabled ? "Enabled" : "Disabled"}
+								</span>
+							</div>
+						))}
 					</div>
 				</div>
 			)}
-		</>
+
+			{isFull && review.logging && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">Logging</h3>
+					<div className="setup-review-list">
+						{review.logging.log_file && (
+							<div className="setup-review-list-item">
+								<span>Log file</span>
+								<span className="setup-review-value">{review.logging.log_file}</span>
+							</div>
+						)}
+						{review.logging.log_dir && (
+							<div className="setup-review-list-item">
+								<span>Log directory</span>
+								<span className="setup-review-value">{review.logging.log_dir}</span>
+							</div>
+						)}
+						<div className="setup-review-list-item">
+							<span>Loki</span>
+							<span className="setup-review-value">
+								{review.logging.loki_enabled ? review.logging.loki_endpoint : "Not configured"}
+							</span>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{isFull && review.ip_lists && review.ip_lists.length > 0 && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">IP Lists</h3>
+					<div className="setup-review-table">
+						<div className="setup-review-table-header">
+							<span>Name</span>
+							<span>Type</span>
+							<span>Entries</span>
+						</div>
+						{review.ip_lists.map((list) => (
+							<div key={list.name} className="setup-review-table-row">
+								<span>{list.name}</span>
+								<span className="setup-review-badge">{list.type}</span>
+								<span>{list.entry_count}</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
+			{isFull && review.snapshots && review.snapshots.length > 0 && (
+				<div className="setup-review-section">
+					<h3 className="setup-review-heading">Snapshots</h3>
+					<div className="setup-review-table">
+						<div className="setup-review-table-header">
+							<span>Name</span>
+							<span>Type</span>
+							<span>Date</span>
+						</div>
+						{review.snapshots.map((snap) => (
+							<div key={snap.name + snap.created_at} className="setup-review-table-row">
+								<span>{snap.name}</span>
+								<span className="setup-review-badge">{snap.type}</span>
+								<span>
+									{new Date(snap.created_at).toLocaleDateString(undefined, {
+										year: "numeric",
+										month: "short",
+										day: "numeric",
+									})}
+								</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+		</div>
 	);
 }
 

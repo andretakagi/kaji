@@ -134,21 +134,3 @@ func handleUpstreams(cc *caddy.Client) http.HandlerFunc {
 		writeRawJSON(w, upstreams)
 	}
 }
-
-func handleCaddyfileExport(cc *caddy.Client, store *config.ConfigStore) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		raw, err := cc.GetConfig()
-		if err != nil {
-			caddyError(w, "handleCaddyfileExport", err)
-			return
-		}
-		cfg := store.Get()
-		content, err := caddy.GenerateCaddyfile(raw, cfg.LogFile)
-		if err != nil {
-			log.Printf("handleCaddyfileExport: %v", err)
-			writeError(w, "failed to generate Caddyfile", http.StatusInternalServerError)
-			return
-		}
-		writeJSON(w, map[string]string{"content": content})
-	}
-}

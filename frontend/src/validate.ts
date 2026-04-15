@@ -40,8 +40,10 @@ import type {
 	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
+	ImportResponse,
 	IPList,
 	IPListUsage,
+	SetupImportFullResponse,
 	SetupResponse,
 	SetupStatus,
 	UpstreamStatus,
@@ -155,6 +157,13 @@ export function validateCaddyfileResponse(data: unknown): CaddyfileResponse {
 	return assertValid("CaddyfileResponse", data, (d) =>
 		hasFields(d, { content: is.string, path: is.string }),
 	);
+}
+
+export function validateExportCaddyfile(data: unknown): string {
+	const result = assertValid<{ content: string }>("ExportCaddyfile", data, (d) =>
+		hasFields(d, { content: is.string }),
+	);
+	return result.content;
 }
 
 export function validateAdaptCaddyfileResponse(data: unknown): AdaptCaddyfileResponse {
@@ -293,6 +302,16 @@ export function validateLokiConfig(data: unknown): LokiConfig {
 			batch_size: is.number,
 			flush_interval_seconds: is.number,
 		}),
+	);
+}
+
+export function validateImportResponse(data: unknown): ImportResponse {
+	return assertValid("ImportResponse", data, (d) => hasFields(d, { status: is.string }));
+}
+
+export function validateSetupImportFullResponse(data: unknown): SetupImportFullResponse {
+	return assertValid("SetupImportFullResponse", data, (d) =>
+		hasFields(d, { status: is.string, backup_data: is.object, summary: is.object }),
 	);
 }
 

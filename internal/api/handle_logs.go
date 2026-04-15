@@ -168,7 +168,7 @@ func handleLogConfigGet(store *config.ConfigStore, cc *caddy.Client) http.Handle
 	}
 }
 
-func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store) http.HandlerFunc {
+func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
@@ -217,7 +217,7 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			}
 		}
 
-		maybeAutoSnapshot(cc, ss, "Log config updated")
+		maybeAutoSnapshot(cc, ss, store, version, "Log config updated")
 
 		if err := cc.SetLoggingConfig(body); err != nil {
 			caddyError(w, "handleLogConfigUpdate", err)

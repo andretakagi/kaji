@@ -8,9 +8,11 @@ import type {
 	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
+	ImportResponse,
 	IPList,
 	IPListUsage,
 	LoginRequest,
+	SetupImportFullResponse,
 	SetupRequest,
 	SetupResponse,
 	SetupStatus,
@@ -45,8 +47,10 @@ import {
 	validateCreateRouteResponse,
 	validateDisabledRoutes,
 	validateDNSProvider,
+	validateExportCaddyfile,
 	validateGenerateAPIKey,
 	validateGlobalToggles,
+	validateImportResponse,
 	validateIPListSingle,
 	validateIPLists,
 	validateIPListUsage,
@@ -56,6 +60,7 @@ import {
 	validateLokiStatus,
 	validateLokiTestResult,
 	validateRouteIPListBindings,
+	validateSetupImportFullResponse,
 	validateSetupResponse,
 	validateSetupStatus,
 	validateSnapshot,
@@ -68,17 +73,21 @@ export const POLL_INTERVAL = 5000;
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-async function request<T>(
+async function sendRequest(
 	path: string,
-	options?: RequestInit,
-	validate?: (data: unknown) => T,
-): Promise<T> {
+	options?: RequestInit & {
+		parseError?: (status: number, text: string, statusText: string) => Error;
+	},
+): Promise<Response> {
+	const { parseError, ...fetchInit } = options ?? {};
 	const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-	const signal = options?.signal ? AbortSignal.any([timeoutSignal, options.signal]) : timeoutSignal;
+	const signal = fetchInit.signal
+		? AbortSignal.any([timeoutSignal, fetchInit.signal])
+		: timeoutSignal;
 	let res: Response;
 	try {
 		res = await fetch(path, {
-			...options,
+			...fetchInit,
 			credentials: "include",
 			signal,
 		});
@@ -93,6 +102,9 @@ async function request<T>(
 	}
 	if (!res.ok) {
 		const text = await res.text();
+		if (parseError) {
+			throw parseError(res.status, text, res.statusText);
+		}
 		let message = text || res.statusText;
 		try {
 			const json = JSON.parse(text);
@@ -102,6 +114,15 @@ async function request<T>(
 		}
 		throw new Error(message);
 	}
+	return res;
+}
+
+async function request<T>(
+	path: string,
+	options?: RequestInit,
+	validate?: (data: unknown) => T,
+): Promise<T> {
+	const res = await sendRequest(path, options);
 	let data: unknown;
 	try {
 		data = await res.json();
@@ -136,7 +157,7 @@ export function submitSetup(req: SetupRequest): Promise<SetupResponse> {
 
 export function adaptCaddyfile(caddyfile: string): Promise<AdaptCaddyfileResponse> {
 	return request(
-		"/api/setup/adapt-caddyfile",
+		"/api/setup/import/caddyfile",
 		{ method: "POST", ...jsonBody({ caddyfile }) },
 		validateAdaptCaddyfileResponse,
 	);
@@ -303,14 +324,37 @@ export function updateAdvancedSettings(settings: {
 	);
 }
 
-export async function exportCaddyfile(): Promise<string> {
-	const res = await fetch("/api/caddyfile", { credentials: "include" });
-	if (!res.ok) {
-		const body = await res.text();
-		throw new Error(body || `Export failed (${res.status})`);
-	}
-	const data = await res.json();
-	return data.content;
+export function exportCaddyfile(): Promise<string> {
+	return request("/api/export/caddyfile", undefined, validateExportCaddyfile);
+}
+
+export async function exportFull(): Promise<Blob> {
+	const res = await sendRequest("/api/export/full");
+	return res.blob();
+}
+
+export function importCaddyfile(caddyfile: string): Promise<ImportResponse> {
+	return request(
+		"/api/import/caddyfile",
+		{ method: "POST", ...jsonBody({ caddyfile }) },
+		validateImportResponse,
+	);
+}
+
+export function importFull(file: File): Promise<ImportResponse> {
+	return request(
+		"/api/import/full",
+		{ method: "POST", headers: { "Content-Type": "application/zip" }, body: file },
+		validateImportResponse,
+	);
+}
+
+export function setupImportFull(file: File): Promise<SetupImportFullResponse> {
+	return request(
+		"/api/setup/import/full",
+		{ method: "POST", headers: { "Content-Type": "application/zip" }, body: file },
+		validateSetupImportFullResponse,
+	);
 }
 
 export async function fetchLogConfig(): Promise<CaddyLoggingConfig> {
@@ -388,7 +432,9 @@ export function createSnapshot(name: string, description: string): Promise<Snaps
 	);
 }
 
-export function restoreSnapshot(id: string): Promise<{ status: string }> {
+export function restoreSnapshot(
+	id: string,
+): Promise<{ status: string; legacy?: boolean; warnings?: string[]; migration_log?: string[] }> {
 	return request(
 		`/api/snapshots/${encodeURIComponent(id)}/restore`,
 		{ method: "POST" },
@@ -492,23 +538,24 @@ export async function deleteCertificate(
 ): Promise<{ status: string }> {
 	const query = force ? "?force=true" : "";
 	const path = `/api/certificates/${encodeURIComponent(issuerKey)}/${encodeURIComponent(domain)}${query}`;
-	const res = await fetch(path, { method: "DELETE", credentials: "include" });
-	if (!res.ok) {
-		const text = await res.text();
-		let message = text || res.statusText;
-		let affectedRoutes: string[] | undefined;
-		try {
-			const json = JSON.parse(text);
-			if (json.error) message = json.error;
-			if (Array.isArray(json.affected_routes)) affectedRoutes = json.affected_routes;
-		} catch {
-			// not JSON
-		}
-		if (affectedRoutes && affectedRoutes.length > 0) {
-			throw new CertInUseError(message, affectedRoutes);
-		}
-		throw new Error(message);
-	}
+	const res = await sendRequest(path, {
+		method: "DELETE",
+		parseError: (_status, text, statusText) => {
+			let message = text || statusText;
+			let affectedRoutes: string[] | undefined;
+			try {
+				const json = JSON.parse(text);
+				if (json.error) message = json.error;
+				if (Array.isArray(json.affected_routes)) affectedRoutes = json.affected_routes;
+			} catch {
+				// not JSON
+			}
+			if (affectedRoutes && affectedRoutes.length > 0) {
+				return new CertInUseError(message, affectedRoutes);
+			}
+			return new Error(message);
+		},
+	});
 	return res.json();
 }
 

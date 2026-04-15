@@ -32,8 +32,9 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	})
 
 	mux.HandleFunc("GET /api/setup/status", handleSetupStatus(cc))
-	mux.HandleFunc("POST /api/setup", handleSetup(store, cc, ss))
-	mux.HandleFunc("POST /api/setup/adapt-caddyfile", handleAdaptCaddyfile(cc))
+	mux.HandleFunc("POST /api/setup", handleSetup(store, cc, ss, version))
+	mux.HandleFunc("POST /api/setup/import/caddyfile", handleSetupImportCaddyfile(cc))
+	mux.HandleFunc("POST /api/setup/import/full", handleSetupImportFull(cc, version))
 	mux.HandleFunc("GET /api/setup/default-caddyfile", handleDefaultCaddyfile())
 
 	mux.HandleFunc("GET /api/auth/status", handleAuthStatus(store))
@@ -49,24 +50,27 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/caddy/config/{path...}", handleConfigProxy(cc))
 	mux.HandleFunc("POST /api/caddy/load", handleConfigLoad(store, cc))
 	mux.HandleFunc("GET /api/caddy/upstreams", handleUpstreams(cc))
-	mux.HandleFunc("POST /api/routes", handleCreateRoute(store, cc, ss))
-	mux.HandleFunc("DELETE /api/routes/{id}", handleDeleteRoute(store, cc, ss))
-	mux.HandleFunc("PUT /api/routes/{id}", handleUpdateRoute(store, cc, ss))
-	mux.HandleFunc("POST /api/routes/disable", handleDisableRoute(store, cc, ss))
-	mux.HandleFunc("POST /api/routes/enable", handleEnableRoute(store, cc, ss))
+	mux.HandleFunc("POST /api/routes", handleCreateRoute(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/routes/{id}", handleDeleteRoute(store, cc, ss, version))
+	mux.HandleFunc("PUT /api/routes/{id}", handleUpdateRoute(store, cc, ss, version))
+	mux.HandleFunc("POST /api/routes/disable", handleDisableRoute(store, cc, ss, version))
+	mux.HandleFunc("POST /api/routes/enable", handleEnableRoute(store, cc, ss, version))
 	mux.HandleFunc("GET /api/routes/disabled", handleDisabledRoutes(store))
 	mux.HandleFunc("GET /api/logs", handleLogs(store))
 	mux.HandleFunc("GET /api/logs/stream", handleLogStream(store))
 	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(store, cc))
-	mux.HandleFunc("PUT /api/logs/config", handleLogConfigUpdate(store, cc, ss))
+	mux.HandleFunc("PUT /api/logs/config", handleLogConfigUpdate(store, cc, ss, version))
 	mux.HandleFunc("GET /api/logs/access-domains", handleAccessDomains(cc))
-	mux.HandleFunc("GET /api/caddyfile", handleCaddyfileExport(cc, store))
+	mux.HandleFunc("GET /api/export/caddyfile", handleExportCaddyfile(cc, store))
+	mux.HandleFunc("GET /api/export/full", handleExportFull(cc, store, ss, version))
+	mux.HandleFunc("POST /api/import/caddyfile", handleImportCaddyfile(cc, store, ss, version))
+	mux.HandleFunc("POST /api/import/full", handleImportFull(cc, store, ss, version))
 	mux.HandleFunc("GET /api/settings/global-toggles", handleGlobalTogglesGet(cc))
-	mux.HandleFunc("PUT /api/settings/global-toggles", handleGlobalTogglesUpdate(store, cc, ss))
+	mux.HandleFunc("PUT /api/settings/global-toggles", handleGlobalTogglesUpdate(store, cc, ss, version))
 	mux.HandleFunc("GET /api/settings/acme-email", handleACMEEmailGet(cc))
-	mux.HandleFunc("PUT /api/settings/acme-email", handleACMEEmailUpdate(store, cc, ss))
+	mux.HandleFunc("PUT /api/settings/acme-email", handleACMEEmailUpdate(store, cc, ss, version))
 	mux.HandleFunc("GET /api/settings/dns-provider", handleDNSProviderGet(cc))
-	mux.HandleFunc("PUT /api/settings/dns-provider", handleDNSProviderUpdate(store, cc, ss))
+	mux.HandleFunc("PUT /api/settings/dns-provider", handleDNSProviderUpdate(store, cc, ss, version))
 	mux.HandleFunc("PUT /api/settings/auth", handleAuthToggle(store))
 	mux.HandleFunc("GET /api/settings/api-key", handleAPIKeyStatus(store))
 	mux.HandleFunc("POST /api/settings/api-key", handleAPIKeyGenerate(store))
@@ -77,13 +81,13 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/ip-lists", handleListIPLists(store))
 	mux.HandleFunc("POST /api/ip-lists", handleCreateIPList(store))
 	mux.HandleFunc("GET /api/ip-lists/bindings", handleRouteIPListBindings(store))
-	mux.HandleFunc("PUT /api/ip-lists/{id}", handleUpdateIPList(store, cc, ss))
-	mux.HandleFunc("DELETE /api/ip-lists/{id}", handleDeleteIPList(store, cc, ss))
+	mux.HandleFunc("PUT /api/ip-lists/{id}", handleUpdateIPList(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/ip-lists/{id}", handleDeleteIPList(store, cc, ss, version))
 	mux.HandleFunc("GET /api/ip-lists/{id}/usage", handleIPListUsage(store, cc))
 
 	mux.HandleFunc("GET /api/snapshots", handleSnapshotList(ss))
-	mux.HandleFunc("POST /api/snapshots", handleSnapshotCreate(ss, cc))
-	mux.HandleFunc("POST /api/snapshots/{id}/restore", handleSnapshotRestore(ss, cc, store))
+	mux.HandleFunc("POST /api/snapshots", handleSnapshotCreate(ss, cc, store, version))
+	mux.HandleFunc("POST /api/snapshots/{id}/restore", handleSnapshotRestore(ss, cc, store, version))
 	mux.HandleFunc("PUT /api/snapshots/{id}", handleSnapshotUpdate(ss))
 	mux.HandleFunc("DELETE /api/snapshots/{id}", handleSnapshotDelete(ss))
 	mux.HandleFunc("PUT /api/snapshots/settings", handleSnapshotSettings(ss))
@@ -103,17 +107,39 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	return accessLog(limitRequestBody(requireAuth(store, mux)))
 }
 
-func maybeAutoSnapshot(cc *caddy.Client, ss *snapshot.Store, description string) {
+func buildSnapshotData(cc *caddy.Client, store *config.ConfigStore, version string) (*snapshot.Data, error) {
+	caddyConfig, err := cc.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("fetching caddy config: %w", err)
+	}
+
+	cfg := store.Get()
+	stripped := *cfg
+	stripped.StripCredentials()
+
+	appConfigJSON, err := json.Marshal(stripped)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling app config: %w", err)
+	}
+
+	return &snapshot.Data{
+		KajiVersion: version,
+		CaddyConfig: caddyConfig,
+		AppConfig:   json.RawMessage(appConfigJSON),
+	}, nil
+}
+
+func maybeAutoSnapshot(cc *caddy.Client, ss *snapshot.Store, store *config.ConfigStore, version, description string) {
 	if !ss.IsAutoEnabled() {
 		return
 	}
-	configData, err := cc.GetConfig()
+	data, err := buildSnapshotData(cc, store, version)
 	if err != nil {
-		log.Printf("auto-snapshot: failed to get config: %v", err)
+		log.Printf("auto-snapshot: %v", err)
 		return
 	}
 	name := "auto-" + time.Now().Format("2006-01-02T15:04:05")
-	if _, err := ss.Create(name, description, "auto", configData); err != nil {
+	if _, err := ss.Create(name, description, "auto", data); err != nil {
 		log.Printf("auto-snapshot: failed to create: %v", err)
 	}
 }

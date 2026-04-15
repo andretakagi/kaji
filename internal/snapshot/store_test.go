@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-func cfg(s string) json.RawMessage {
-	return json.RawMessage(`{"key":"` + s + `"}`)
+func cfg(s string) *Data {
+	return &Data{CaddyConfig: json.RawMessage(`{"key":"` + s + `"}`)}
 }
 
 func TestCreateSetsCurrentAndParent(t *testing.T) {
@@ -60,22 +60,32 @@ func TestGetIndexReturnsOrder(t *testing.T) {
 	}
 }
 
-func TestReadConfigRoundTrip(t *testing.T) {
+func TestReadDataRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	s := NewStore(dir)
 
-	data := json.RawMessage(`{"host":"example.com","port":443}`)
-	snap, err := s.Create("rt", "", "manual", data)
+	caddyCfg := json.RawMessage(`{"host":"example.com","port":443}`)
+	d := &Data{CaddyConfig: caddyCfg, KajiVersion: "1.2.3"}
+	snap, err := s.Create("rt", "", "manual", d)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
-	got, err := s.ReadConfig(snap.ID)
+	got, err := s.ReadData(snap.ID)
 	if err != nil {
-		t.Fatalf("ReadConfig: %v", err)
+		t.Fatalf("ReadData: %v", err)
 	}
-	if string(got) != string(data) {
-		t.Errorf("ReadConfig = %s, want %s", got, data)
+
+	var wantVal, gotVal any
+	json.Unmarshal(caddyCfg, &wantVal)
+	json.Unmarshal(got.CaddyConfig, &gotVal)
+	wantB, _ := json.Marshal(wantVal)
+	gotB, _ := json.Marshal(gotVal)
+	if string(gotB) != string(wantB) {
+		t.Errorf("CaddyConfig = %s, want %s", gotB, wantB)
+	}
+	if got.KajiVersion != "1.2.3" {
+		t.Errorf("KajiVersion = %q, want 1.2.3", got.KajiVersion)
 	}
 }
 
@@ -328,11 +338,17 @@ func TestLoadRestoresState(t *testing.T) {
 		t.Errorf("Snapshots[0] = %+v, want id=%q name=a", idx.Snapshots[0], a.ID)
 	}
 
-	data, err := s2.ReadConfig(a.ID)
+	got, err := s2.ReadData(a.ID)
 	if err != nil {
-		t.Fatalf("ReadConfig a: %v", err)
+		t.Fatalf("ReadData a: %v", err)
 	}
-	if string(data) != string(cfg("a")) {
-		t.Errorf("ReadConfig = %s, want %s", data, cfg("a"))
+	want := cfg("a").CaddyConfig
+	var wantVal, gotVal any
+	json.Unmarshal(want, &wantVal)
+	json.Unmarshal(got.CaddyConfig, &gotVal)
+	wantB, _ := json.Marshal(wantVal)
+	gotB, _ := json.Marshal(gotVal)
+	if string(gotB) != string(wantB) {
+		t.Errorf("CaddyConfig = %s, want %s", gotB, wantB)
 	}
 }

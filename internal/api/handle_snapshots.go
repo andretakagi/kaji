@@ -2,12 +2,15 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/export"
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
 
@@ -17,7 +20,7 @@ func handleSnapshotList(ss *snapshot.Store) http.HandlerFunc {
 	}
 }
 
-func handleSnapshotCreate(ss *snapshot.Store, cc *caddy.Client) http.HandlerFunc {
+func handleSnapshotCreate(ss *snapshot.Store, cc *caddy.Client, store *config.ConfigStore, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Name        string `json:"name"`
@@ -30,13 +33,14 @@ func handleSnapshotCreate(ss *snapshot.Store, cc *caddy.Client) http.HandlerFunc
 			req.Name = "manual-" + time.Now().Format("2006-01-02T15:04:05")
 		}
 
-		configData, err := cc.GetConfig()
+		data, err := buildSnapshotData(cc, store, version)
 		if err != nil {
-			caddyError(w, "handleSnapshotCreate", err)
+			log.Printf("handleSnapshotCreate: %v", err)
+			writeError(w, "failed to capture config", http.StatusInternalServerError)
 			return
 		}
 
-		snap, err := ss.Create(req.Name, req.Description, "manual", configData)
+		snap, err := ss.Create(req.Name, req.Description, "manual", data)
 		if err != nil {
 			log.Printf("handleSnapshotCreate: %v", err)
 			writeError(w, "failed to create snapshot", http.StatusInternalServerError)
@@ -62,7 +66,7 @@ func handleSnapshotDelete(ss *snapshot.Store) http.HandlerFunc {
 	}
 }
 
-func handleSnapshotRestore(ss *snapshot.Store, cc *caddy.Client, store *config.ConfigStore) http.HandlerFunc {
+func handleSnapshotRestore(ss *snapshot.Store, cc *caddy.Client, store *config.ConfigStore, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if id == "" {
@@ -70,13 +74,22 @@ func handleSnapshotRestore(ss *snapshot.Store, cc *caddy.Client, store *config.C
 			return
 		}
 
-		configData, err := ss.ReadConfig(id)
+		data, err := ss.ReadData(id)
 		if err != nil {
 			writeError(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
-		if err := cc.LoadConfig(configData); err != nil {
+		if err := cc.ValidateConfig(data.CaddyConfig); err != nil {
+			if errors.Is(err, caddy.ErrValidationRollbackFailed) {
+				caddyError(w, "handleSnapshotRestore", err)
+				return
+			}
+			writeError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := cc.LoadConfig(data.CaddyConfig); err != nil {
 			caddyError(w, "handleSnapshotRestore", err)
 			return
 		}
@@ -88,7 +101,61 @@ func handleSnapshotRestore(ss *snapshot.Store, cc *caddy.Client, store *config.C
 		}
 
 		persistCaddyConfig(cc, store)
-		writeJSON(w, map[string]string{"status": "ok"})
+
+		resp := map[string]any{"status": "ok"}
+
+		if data.AppConfig != nil {
+			var configMap map[string]any
+			if err := json.Unmarshal(data.AppConfig, &configMap); err != nil {
+				log.Printf("handleSnapshotRestore: parse app config: %v", err)
+				resp["warnings"] = []string{"Caddy config restored but app config could not be parsed"}
+				writeJSON(w, resp)
+				return
+			}
+
+			if data.KajiVersion != "" {
+				migrationLog, err := export.RunMigrations(configMap, data.KajiVersion)
+				if err != nil {
+					log.Printf("handleSnapshotRestore: migration: %v", err)
+					resp["warnings"] = []string{"Caddy config restored but app config migration failed"}
+					writeJSON(w, resp)
+					return
+				}
+				if len(migrationLog) > 0 {
+					resp["migration_log"] = migrationLog
+				}
+			}
+
+			migratedJSON, err := json.Marshal(configMap)
+			if err != nil {
+				log.Printf("handleSnapshotRestore: re-encode config: %v", err)
+				resp["warnings"] = []string{"Caddy config restored but app config could not be applied"}
+				writeJSON(w, resp)
+				return
+			}
+
+			var imported config.AppConfig
+			if err := json.Unmarshal(migratedJSON, &imported); err != nil {
+				log.Printf("handleSnapshotRestore: unmarshal migrated config: %v", err)
+				resp["warnings"] = []string{"Caddy config restored but app config could not be applied"}
+				writeJSON(w, resp)
+				return
+			}
+
+			if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
+				imported.PreserveCredentials(&current)
+				return &imported, nil
+			}); err != nil {
+				log.Printf("handleSnapshotRestore: update app config: %v", err)
+				resp["warnings"] = []string{"Caddy config restored but app config update failed: " + err.Error()}
+				writeJSON(w, resp)
+				return
+			}
+		} else {
+			resp["legacy"] = true
+		}
+
+		writeJSON(w, resp)
 	}
 }
 

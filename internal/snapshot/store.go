@@ -18,6 +18,7 @@ type Snapshot struct {
 	Description string `json:"description"`
 	Type        string `json:"type"`
 	ParentID    string `json:"parent_id"`
+	KajiVersion string `json:"kaji_version,omitempty"`
 	CreatedAt   string `json:"created_at"`
 }
 
@@ -76,7 +77,7 @@ func (s *Store) GetIndex() Index {
 	return cp
 }
 
-func (s *Store) Create(name, description, snapType string, configData json.RawMessage) (*Snapshot, error) {
+func (s *Store) Create(name, description, snapType string, data *Data) (*Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -91,6 +92,7 @@ func (s *Store) Create(name, description, snapType string, configData json.RawMe
 		Description: description,
 		Type:        snapType,
 		ParentID:    s.idx.CurrentID,
+		KajiVersion: data.KajiVersion,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 
@@ -98,7 +100,12 @@ func (s *Store) Create(name, description, snapType string, configData json.RawMe
 		return nil, fmt.Errorf("creating snapshots directory: %w", err)
 	}
 
-	if err := atomicWrite(s.configPath(id), configData); err != nil {
+	envelope, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshaling snapshot data: %w", err)
+	}
+
+	if err := atomicWrite(s.configPath(id), envelope); err != nil {
 		return nil, fmt.Errorf("writing snapshot config: %w", err)
 	}
 
@@ -140,6 +147,14 @@ func (s *Store) ReadConfig(id string) (json.RawMessage, error) {
 		return nil, fmt.Errorf("reading snapshot config: %w", err)
 	}
 	return json.RawMessage(data), nil
+}
+
+func (s *Store) ReadData(id string) (*Data, error) {
+	raw, err := s.ReadConfig(id)
+	if err != nil {
+		return nil, err
+	}
+	return ParseData(raw)
 }
 
 func (s *Store) SetCurrent(id string) error {
@@ -222,6 +237,17 @@ func (s *Store) IsAutoEnabled() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.idx.AutoSnapshotEnabled
+}
+
+func (s *Store) Dir() string {
+	return s.dir
+}
+
+func (s *Store) ReplaceIndex(idx Index) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.idx = idx
+	return s.saveIndex()
 }
 
 // prune removes the oldest auto snapshots when the count exceeds the limit.

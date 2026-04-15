@@ -164,10 +164,16 @@ function App() {
 		return (
 			<main>
 				<Setup
-					onComplete={() => {
+					onComplete={async () => {
 						window.history.replaceState(null, "", "/");
 						setView("routes");
-						checkAuth();
+						try {
+							const s = await fetchStatus();
+							setCaddyRunning(s.running);
+						} catch {
+							setCaddyRunning(false);
+						}
+						await checkAuth();
 					}}
 					fetchSetupStatus={fetchSetupStatus}
 				/>
