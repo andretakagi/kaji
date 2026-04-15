@@ -158,6 +158,11 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 		}
 	}
 
+	previousAppJSON, err := json.Marshal(store.Get())
+	if err != nil {
+		return nil, fmt.Errorf("marshaling app config for rollback: %w", err)
+	}
+
 	if err := cc.LoadConfig(backup.CaddyConfig); err != nil {
 		return nil, fmt.Errorf("loading caddy config: %w", err)
 	}
@@ -179,6 +184,12 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 	if backup.Snapshots != nil {
 		if err := restoreSnapshots(ss, backup.Snapshots); err != nil {
 			cc.LoadConfig(currentConfig)
+			var rollbackCfg config.AppConfig
+			if json.Unmarshal(previousAppJSON, &rollbackCfg) == nil {
+				store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+					return &rollbackCfg, nil
+				})
+			}
 			return nil, fmt.Errorf("restoring snapshots: %w", err)
 		}
 	}
