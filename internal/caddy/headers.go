@@ -17,6 +17,48 @@ var baseCORSHeaders = map[string][]string{
 	"Access-Control-Allow-Headers": {"Content-Type, Authorization"},
 }
 
+// builtinResponseKeys are response header keys recognized as built-in entries.
+var builtinResponseKeys = map[string]bool{
+	"Strict-Transport-Security":        true,
+	"X-Content-Type-Options":           true,
+	"X-Frame-Options":                  true,
+	"Referrer-Policy":                  true,
+	"Permissions-Policy":               true,
+	"Cache-Control":                    true,
+	"X-Robots-Tag":                     true,
+	"Access-Control-Allow-Origin":      true,
+	"Access-Control-Allow-Methods":     true,
+	"Access-Control-Allow-Headers":     true,
+	"Access-Control-Allow-Credentials": true,
+	"Content-Security-Policy":          true,
+}
+
+// builtinRequestKeys are request header keys recognized as built-in entries.
+var builtinRequestKeys = map[string]bool{
+	"Host":          true,
+	"Authorization": true,
+	"X-Real-IP":     true,
+}
+
+// classifyHeaders splits a set of header key/values into builtin and custom
+// entries based on the provided known-key map. All entries are marked enabled
+// since they're present in the live config.
+func classifyHeaders(headerSet map[string][]string, knownKeys map[string]bool) (builtin, custom []HeaderEntry) {
+	for key, vals := range headerSet {
+		value := ""
+		if len(vals) > 0 {
+			value = vals[0]
+		}
+		entry := HeaderEntry{Key: key, Value: value, Enabled: true}
+		if knownKeys[key] {
+			builtin = append(builtin, entry)
+		} else {
+			custom = append(custom, entry)
+		}
+	}
+	return builtin, custom
+}
+
 func buildResponseHeaders(cfg HeadersConfig, advancedMode bool) []any {
 	if !cfg.Enabled {
 		return nil

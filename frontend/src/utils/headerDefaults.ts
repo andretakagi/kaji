@@ -51,11 +51,16 @@ const corsKeys = new Set([
 export function expandBasicToAdvanced(toggles: HeadersConfig["response"]): HeaderEntry[] {
 	return defaultResponseBuiltins.map((entry) => {
 		let enabled = false;
+		let value = entry.value;
 		if (securityKeys.has(entry.key)) enabled = toggles.security;
-		else if (corsKeys.has(entry.key)) enabled = toggles.cors;
-		else if (entry.key === "Cache-Control") enabled = toggles.cache_control;
+		else if (corsKeys.has(entry.key)) {
+			enabled = toggles.cors;
+			if (entry.key === "Access-Control-Allow-Origin" && toggles.cors_origins.length > 0) {
+				value = toggles.cors_origins.join(", ");
+			}
+		} else if (entry.key === "Cache-Control") enabled = toggles.cache_control;
 		else if (entry.key === "X-Robots-Tag") enabled = toggles.x_robots_tag;
-		return { ...entry, enabled };
+		return { ...entry, value, enabled };
 	});
 }
 

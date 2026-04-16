@@ -421,6 +421,14 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 		b.WriteString("\t}\n")
 	}
 
+	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.CacheControl {
+		b.WriteString("\theader Cache-Control \"no-store\"\n")
+	}
+
+	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.XRobotsTag {
+		b.WriteString("\theader X-Robots-Tag \"noindex, nofollow\"\n")
+	}
+
 	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.CORS {
 		corsOrigins := p.Toggles.Headers.Response.CORSOrigins
 		if len(corsOrigins) <= 1 {
@@ -456,8 +464,11 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 		lbStrategy = "round_robin"
 	}
 
+	hasRequestHeaders := p.Toggles.Headers.Enabled &&
+		((p.Toggles.Headers.Request.HostOverride && p.Toggles.Headers.Request.HostValue != "") ||
+			(p.Toggles.Headers.Request.Authorization && p.Toggles.Headers.Request.AuthValue != ""))
 	needsBlock := p.Toggles.TLSSkipVerify || p.Toggles.WebSocketPassthru ||
-		p.Toggles.LoadBalancing.Enabled
+		p.Toggles.LoadBalancing.Enabled || hasRequestHeaders
 
 	if needsBlock {
 		allUpstreams := p.Upstream
@@ -480,6 +491,14 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 			if lbStrategy == "first" {
 				b.WriteString("\t\tfail_duration 30s\n")
 				b.WriteString("\t\tmax_fails 3\n")
+			}
+		}
+		if p.Toggles.Headers.Enabled {
+			if p.Toggles.Headers.Request.HostOverride && p.Toggles.Headers.Request.HostValue != "" {
+				b.WriteString("\t\theader_up Host " + p.Toggles.Headers.Request.HostValue + "\n")
+			}
+			if p.Toggles.Headers.Request.Authorization && p.Toggles.Headers.Request.AuthValue != "" {
+				b.WriteString("\t\theader_up Authorization \"" + p.Toggles.Headers.Request.AuthValue + "\"\n")
 			}
 		}
 		b.WriteString("\t}\n")

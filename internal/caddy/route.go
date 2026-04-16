@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 type RouteParams struct {
@@ -507,26 +508,26 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 				var resp struct {
 					Set map[string][]string `json:"set"`
 				}
-				if json.Unmarshal(handler.Response, &resp) == nil {
+				if json.Unmarshal(handler.Response, &resp) == nil && len(resp.Set) > 0 {
+					p.Toggles.Headers.Enabled = true
 					if _, ok := resp.Set["X-Content-Type-Options"]; ok {
-						p.Toggles.Headers.Enabled = true
 						p.Toggles.Headers.Response.Security = true
 					}
 					if origins, ok := resp.Set["Access-Control-Allow-Origin"]; ok {
-						p.Toggles.Headers.Enabled = true
 						p.Toggles.Headers.Response.CORS = true
 						if len(origins) > 0 && origins[0] != "*" {
 							p.Toggles.Headers.Response.CORSOrigins = []string{origins[0]}
 						}
 					}
 					if _, ok := resp.Set["Cache-Control"]; ok {
-						p.Toggles.Headers.Enabled = true
 						p.Toggles.Headers.Response.CacheControl = true
 					}
 					if _, ok := resp.Set["X-Robots-Tag"]; ok {
-						p.Toggles.Headers.Enabled = true
 						p.Toggles.Headers.Response.XRobotsTag = true
 					}
+					builtin, custom := classifyHeaders(resp.Set, builtinResponseKeys)
+					p.Toggles.Headers.Response.Builtin = append(p.Toggles.Headers.Response.Builtin, builtin...)
+					p.Toggles.Headers.Response.Custom = append(p.Toggles.Headers.Response.Custom, custom...)
 				}
 			}
 
@@ -549,6 +550,28 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 							if origins, ok := match.Header["Origin"]; ok && len(origins) > 0 {
 								p.Toggles.Headers.Response.CORSOrigins = append(p.Toggles.Headers.Response.CORSOrigins, origins[0])
 							}
+						}
+					}
+				}
+				// Extract CORS headers from the first nested route only
+				// (all routes have the same headers except per-origin Allow-Origin).
+				// Replace the per-origin Allow-Origin with the joined origins list.
+				if len(sub.Routes) > 0 {
+					for _, nh := range sub.Routes[0].Handle {
+						var nested struct {
+							Handler  string `json:"handler"`
+							Response struct {
+								Set map[string][]string `json:"set"`
+							} `json:"response"`
+						}
+						if json.Unmarshal(nh, &nested) == nil && nested.Handler == "headers" {
+							// Replace per-origin value with joined origins
+							if _, ok := nested.Response.Set["Access-Control-Allow-Origin"]; ok {
+								nested.Response.Set["Access-Control-Allow-Origin"] = []string{strings.Join(p.Toggles.Headers.Response.CORSOrigins, ", ")}
+							}
+							builtin, custom := classifyHeaders(nested.Response.Set, builtinResponseKeys)
+							p.Toggles.Headers.Response.Builtin = append(p.Toggles.Headers.Response.Builtin, builtin...)
+							p.Toggles.Headers.Response.Custom = append(p.Toggles.Headers.Response.Custom, custom...)
 						}
 					}
 				}
@@ -602,4 +625,8 @@ func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
 		p.Toggles.Headers.Request.Authorization = true
 		p.Toggles.Headers.Request.AuthValue = vals[0]
 	}
+
+	builtin, custom := classifyHeaders(reqSet, builtinRequestKeys)
+	p.Toggles.Headers.Request.Builtin = append(p.Toggles.Headers.Request.Builtin, builtin...)
+	p.Toggles.Headers.Request.Custom = append(p.Toggles.Headers.Request.Custom, custom...)
 }

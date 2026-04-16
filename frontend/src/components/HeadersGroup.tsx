@@ -65,8 +65,8 @@ export function HeadersGroup({
 						<>
 							{hasAdvancedCustomizations(toggles.headers) && (
 								<span className="headers-advanced-warning">
-									Advanced customizations exist and will be preserved. Switch to advanced mode to
-									view them.
+									Advanced customizations exist. Saving in basic mode will reset headers to
+									defaults. Switch to advanced mode to view them.
 								</span>
 							)}
 							<HeadersBasic
