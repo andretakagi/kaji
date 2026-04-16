@@ -1,12 +1,32 @@
 import type { DisabledRoute, ParsedRoute, RouteToggles } from "../types/api";
 import type { CaddyHandler, CaddyRoute, ReverseProxyHandler } from "../types/caddy";
+import { builtinRequestKeys, builtinResponseKeys } from "./headerDefaults";
 
 export const defaultToggles: RouteToggles = {
 	enabled: true,
 	force_https: true,
 	compression: false,
-	security_headers: false,
-	cors: { enabled: false, allowed_origins: [] },
+	headers: {
+		response: {
+			enabled: false,
+			security: false,
+			cors: false,
+			cors_origins: [],
+			cache_control: false,
+			x_robots_tag: false,
+			builtin: [],
+			custom: [],
+		},
+		request: {
+			enabled: false,
+			host_override: false,
+			host_value: "",
+			authorization: false,
+			auth_value: "",
+			builtin: [],
+			custom: [],
+		},
+	},
 	tls_skip_verify: false,
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
 	access_log: "",
@@ -14,6 +34,17 @@ export const defaultToggles: RouteToggles = {
 	load_balancing: { enabled: false, strategy: "round_robin", upstreams: [] },
 	ip_filtering: { enabled: false, list_id: "", type: "" },
 };
+
+function isCORSSubroute(routes: CaddyRoute[]): boolean {
+	if (!routes.length) return false;
+	return routes.some((r) =>
+		r.match?.some((m) => {
+			const match = m as Record<string, unknown>;
+			const header = match.header as Record<string, string[]> | undefined;
+			return header?.Origin !== undefined;
+		}),
+	);
+}
 
 // Caddyfile-adapted routes wrap all handlers in a top-level subroute.
 // This flattens that wrapper so parseRoute sees handlers the same way
@@ -53,6 +84,11 @@ function flattenHandlers(topLevel: CaddyHandler[]): {
 			continue;
 		}
 
+		if (isCORSSubroute(h.routes)) {
+			handlers.push(h);
+			continue;
+		}
+
 		// Caddyfile wrapper subroute - extract handlers from nested routes
 		for (const nested of h.routes) {
 			for (const nh of nested.handle ?? []) {
@@ -77,25 +113,78 @@ export function parseRoute(
 	const toggles: RouteToggles = { ...defaultToggles, enabled: false, force_https: forceHTTPS };
 	for (const h of handlers) {
 		switch (h.handler) {
-			case "subroute":
-				toggles.force_https = true;
+			case "subroute": {
+				if (h.routes && isCORSSubroute(h.routes)) {
+					toggles.headers.response.enabled = true;
+					toggles.headers.response.cors = true;
+					const origins: string[] = [];
+					for (const r of h.routes) {
+						for (const m of r.match ?? []) {
+							const match = m as Record<string, unknown>;
+							const header = match.header as Record<string, string[]> | undefined;
+							if (header?.Origin?.[0]) {
+								origins.push(header.Origin[0]);
+							}
+						}
+					}
+					toggles.headers.response.cors_origins = origins;
+					if (h.routes.length > 0) {
+						for (const nh of h.routes[0].handle ?? []) {
+							if (nh.handler === "headers" && nh.response?.set) {
+								const sets = { ...nh.response.set };
+								if (sets["Access-Control-Allow-Origin"]) {
+									sets["Access-Control-Allow-Origin"] = [origins.join(", ")];
+								}
+								for (const [key, vals] of Object.entries(sets)) {
+									const value = vals?.[0] ?? "";
+									const entry = { key, value, enabled: true };
+									if (builtinResponseKeys.has(key)) {
+										toggles.headers.response.builtin.push(entry);
+									} else {
+										toggles.headers.response.custom.push(entry);
+									}
+								}
+							}
+						}
+					}
+				}
 				break;
+			}
 			case "encode":
 				toggles.compression = true;
 				break;
 			case "headers": {
 				const sets = h.response?.set;
 				if (sets && "X-Content-Type-Options" in sets) {
-					toggles.security_headers = true;
+					toggles.headers.response.enabled = true;
+					toggles.headers.response.security = true;
 				}
 				if (sets && "Access-Control-Allow-Origin" in sets) {
-					toggles.cors = {
-						enabled: true,
-						allowed_origins:
-							sets["Access-Control-Allow-Origin"]?.[0] === "*"
-								? []
-								: (sets["Access-Control-Allow-Origin"] ?? []),
-					};
+					toggles.headers.response.enabled = true;
+					toggles.headers.response.cors = true;
+					const origins = sets["Access-Control-Allow-Origin"];
+					if (origins && origins[0] !== "*") {
+						toggles.headers.response.cors_origins = origins;
+					}
+				}
+				if (sets && "Cache-Control" in sets) {
+					toggles.headers.response.enabled = true;
+					toggles.headers.response.cache_control = true;
+				}
+				if (sets && "X-Robots-Tag" in sets) {
+					toggles.headers.response.enabled = true;
+					toggles.headers.response.x_robots_tag = true;
+				}
+				if (sets) {
+					for (const [key, vals] of Object.entries(sets)) {
+						const value = vals?.[0] ?? "";
+						const entry = { key, value, enabled: true };
+						if (builtinResponseKeys.has(key)) {
+							toggles.headers.response.builtin.push(entry);
+						} else {
+							toggles.headers.response.custom.push(entry);
+						}
+					}
 				}
 				break;
 			}
@@ -125,6 +214,27 @@ export function parseRoute(
 			strategy: rpHandler.load_balancing.selection_policy.policy,
 			upstreams: additionalUpstreams,
 		};
+	}
+	const reqHeaders = rpHandler?.headers?.request?.set;
+	if (reqHeaders && Object.keys(reqHeaders).length > 0) {
+		toggles.headers.request.enabled = true;
+		if (reqHeaders.Host?.[0]) {
+			toggles.headers.request.host_override = true;
+			toggles.headers.request.host_value = reqHeaders.Host[0];
+		}
+		if (reqHeaders.Authorization?.[0]) {
+			toggles.headers.request.authorization = true;
+			toggles.headers.request.auth_value = reqHeaders.Authorization[0];
+		}
+		for (const [key, vals] of Object.entries(reqHeaders)) {
+			const value = vals?.[0] ?? "";
+			const entry = { key, value, enabled: true };
+			if (builtinRequestKeys.has(key)) {
+				toggles.headers.request.builtin.push(entry);
+			} else {
+				toggles.headers.request.custom.push(entry);
+			}
+		}
 	}
 	const sinkName = domainSinks?.get(domain);
 	if (sinkName) {

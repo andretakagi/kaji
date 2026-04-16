@@ -201,7 +201,9 @@ func TestBuildRouteSecurityHeaders(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles:  RouteToggles{SecurityHeaders: true},
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Response: ResponseHeaders{Enabled: true, Security: true},
+		}},
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
 	h := findHandler(t, handlers, "headers")
@@ -231,9 +233,8 @@ func TestBuildRouteCORSSingleOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://frontend.example.com"},
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	}
@@ -261,9 +262,8 @@ func TestBuildRouteCORSWildcard(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{},
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{}},
 			},
 		},
 	}
@@ -291,9 +291,8 @@ func TestBuildRouteCORSMultiOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://a.example.com", "https://b.example.com"},
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://a.example.com", "https://b.example.com"}},
 			},
 		},
 	}
@@ -573,11 +572,13 @@ func TestParseRouteParamsSecurityHeaders(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles:  RouteToggles{SecurityHeaders: true},
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Response: ResponseHeaders{Enabled: true, Security: true},
+		}},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.SecurityHeaders {
-		t.Error("SecurityHeaders should round-trip to true")
+	if !got.Toggles.Headers.Response.Enabled || !got.Toggles.Headers.Response.Security {
+		t.Error("Headers.Response.Security should round-trip to true")
 	}
 }
 
@@ -586,40 +587,37 @@ func TestParseRouteParamsCORSSingleOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://frontend.example.com"},
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.CORS.Enabled {
-		t.Error("CORS.Enabled should round-trip to true")
+	if !got.Toggles.Headers.Response.CORS {
+		t.Error("Headers.Response.CORS should round-trip to true")
 	}
-	if len(got.Toggles.CORS.AllowedOrigins) != 1 || got.Toggles.CORS.AllowedOrigins[0] != "https://frontend.example.com" {
-		t.Errorf("AllowedOrigins = %v, want [https://frontend.example.com]", got.Toggles.CORS.AllowedOrigins)
+	if len(got.Toggles.Headers.Response.CORSOrigins) != 1 || got.Toggles.Headers.Response.CORSOrigins[0] != "https://frontend.example.com" {
+		t.Errorf("CORSOrigins = %v, want [https://frontend.example.com]", got.Toggles.Headers.Response.CORSOrigins)
 	}
 }
 
 func TestParseRouteParamsCORSWildcard(t *testing.T) {
-	// Wildcard origin (*) does not round-trip AllowedOrigins - only CORS.Enabled does
+	// Wildcard origin (*) does not round-trip CORSOrigins - only CORS bool does
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{},
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{}},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.CORS.Enabled {
-		t.Error("CORS.Enabled should round-trip to true for wildcard")
+	if !got.Toggles.Headers.Response.CORS {
+		t.Error("Headers.Response.CORS should round-trip to true for wildcard")
 	}
-	// AllowedOrigins is intentionally not set for wildcard
-	if len(got.Toggles.CORS.AllowedOrigins) != 0 {
-		t.Errorf("AllowedOrigins should be empty for wildcard, got %v", got.Toggles.CORS.AllowedOrigins)
+	if len(got.Toggles.Headers.Response.CORSOrigins) != 0 {
+		t.Errorf("CORSOrigins should be empty for wildcard, got %v", got.Toggles.Headers.Response.CORSOrigins)
 	}
 }
 
@@ -629,22 +627,21 @@ func TestParseRouteParamsCORSMultiOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: origins,
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: origins},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.CORS.Enabled {
-		t.Error("CORS.Enabled should round-trip to true")
+	if !got.Toggles.Headers.Response.CORS {
+		t.Error("Headers.Response.CORS should round-trip to true")
 	}
-	if len(got.Toggles.CORS.AllowedOrigins) != len(origins) {
-		t.Fatalf("AllowedOrigins count = %d, want %d", len(got.Toggles.CORS.AllowedOrigins), len(origins))
+	if len(got.Toggles.Headers.Response.CORSOrigins) != len(origins) {
+		t.Fatalf("CORSOrigins count = %d, want %d", len(got.Toggles.Headers.Response.CORSOrigins), len(origins))
 	}
 	for i, o := range origins {
-		if got.Toggles.CORS.AllowedOrigins[i] != o {
-			t.Errorf("AllowedOrigins[%d] = %q, want %q", i, got.Toggles.CORS.AllowedOrigins[i], o)
+		if got.Toggles.Headers.Response.CORSOrigins[i] != o {
+			t.Errorf("CORSOrigins[%d] = %q, want %q", i, got.Toggles.Headers.Response.CORSOrigins[i], o)
 		}
 	}
 }
@@ -1033,5 +1030,188 @@ func TestParseRouteParamsNoMatchNoHandle(t *testing.T) {
 	}
 	if got.Domain != "" {
 		t.Errorf("Domain = %q, want empty", got.Domain)
+	}
+}
+
+func TestParseRouteParamsNoHeadersEmptyBuiltinCustom(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:3000",
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	if len(got.Toggles.Headers.Response.Builtin) != 0 {
+		t.Errorf("expected empty Response.Builtin, got %d entries", len(got.Toggles.Headers.Response.Builtin))
+	}
+	if len(got.Toggles.Headers.Response.Custom) != 0 {
+		t.Errorf("expected empty Response.Custom, got %d entries", len(got.Toggles.Headers.Response.Custom))
+	}
+	if len(got.Toggles.Headers.Request.Builtin) != 0 {
+		t.Errorf("expected empty Request.Builtin, got %d entries", len(got.Toggles.Headers.Request.Builtin))
+	}
+	if len(got.Toggles.Headers.Request.Custom) != 0 {
+		t.Errorf("expected empty Request.Custom, got %d entries", len(got.Toggles.Headers.Request.Custom))
+	}
+}
+
+func TestParseRouteParamsCustomResponseHeaders(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:          "example.com",
+		Upstream:        "localhost:3000",
+		AdvancedHeaders: true,
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{
+					Enabled: true,
+					Builtin: []HeaderEntry{
+						{Key: "X-Frame-Options", Value: "SAMEORIGIN", Enabled: true},
+					},
+					Custom: []HeaderEntry{
+						{Key: "X-Custom-One", Value: "hello", Enabled: true},
+						{Key: "X-Custom-Two", Value: "world", Enabled: true},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	builtinKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		builtinKeys[e.Key] = true
+	}
+	customKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Response.Custom {
+		customKeys[e.Key] = true
+	}
+
+	if !builtinKeys["X-Frame-Options"] {
+		t.Error("expected X-Frame-Options in Builtin")
+	}
+	if !customKeys["X-Custom-One"] {
+		t.Error("expected X-Custom-One in Custom")
+	}
+	if !customKeys["X-Custom-Two"] {
+		t.Error("expected X-Custom-Two in Custom")
+	}
+	if builtinKeys["X-Custom-One"] || builtinKeys["X-Custom-Two"] {
+		t.Error("custom headers should not appear in Builtin")
+	}
+}
+
+func TestParseRouteParamsCustomRequestHeaders(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:          "example.com",
+		Upstream:        "localhost:3000",
+		AdvancedHeaders: true,
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Request: RequestHeaders{
+					Enabled: true,
+					Builtin: []HeaderEntry{
+						{Key: "Host", Value: "custom.host", Enabled: true},
+					},
+					Custom: []HeaderEntry{
+						{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	builtinKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Request.Builtin {
+		builtinKeys[e.Key] = true
+	}
+	customKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Request.Custom {
+		customKeys[e.Key] = true
+	}
+
+	if !builtinKeys["Host"] {
+		t.Error("expected Host in Request.Builtin")
+	}
+	if !customKeys["X-Forwarded-Proto"] {
+		t.Error("expected X-Forwarded-Proto in Request.Custom")
+	}
+	if builtinKeys["X-Forwarded-Proto"] {
+		t.Error("X-Forwarded-Proto should not be in Builtin")
+	}
+}
+
+func TestParseRouteParamsSecurityPlusCORSCombined(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:3000",
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{
+					Enabled:     true,
+					Security:    true,
+					CORS:        true,
+					CORSOrigins: []string{"https://a.com", "https://b.com"},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	if !got.Toggles.Headers.Response.Security {
+		t.Error("expected Security to be true")
+	}
+	if !got.Toggles.Headers.Response.CORS {
+		t.Error("expected CORS to be true")
+	}
+	if len(got.Toggles.Headers.Response.CORSOrigins) != 2 {
+		t.Errorf("expected 2 CORS origins, got %d", len(got.Toggles.Headers.Response.CORSOrigins))
+	}
+
+	// Builtin should have entries from both security headers and CORS subroute
+	builtinKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		builtinKeys[e.Key] = true
+	}
+
+	// Security headers should be in Builtin
+	for _, key := range []string{"Strict-Transport-Security", "X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy", "Permissions-Policy"} {
+		if !builtinKeys[key] {
+			t.Errorf("expected %s in Builtin from security headers", key)
+		}
+	}
+
+	// CORS headers from subroute should also be in Builtin
+	for _, key := range []string{"Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"} {
+		if !builtinKeys[key] {
+			t.Errorf("expected %s in Builtin from CORS subroute", key)
+		}
 	}
 }

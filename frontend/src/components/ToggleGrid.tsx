@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { fetchIPLists } from "../api";
 import { cn } from "../cn";
 import type { IPList, RouteToggles } from "../types/api";
+import { RequestHeadersGroup, ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
 
 interface ToggleGridProps {
@@ -11,6 +12,8 @@ interface ToggleGridProps {
 	isNew?: boolean;
 	domain?: string;
 	globalAutoHttps?: "on" | "off" | "disable_redirects";
+	advancedMode?: boolean;
+	onAdvancedModeChange?: (advanced: boolean) => void;
 }
 
 export default function ToggleGrid({
@@ -20,6 +23,8 @@ export default function ToggleGrid({
 	isNew,
 	domain,
 	globalAutoHttps,
+	advancedMode,
+	onAdvancedModeChange,
 }: ToggleGridProps) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 
@@ -55,13 +60,20 @@ export default function ToggleGrid({
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
 			/>
-			<ToggleItem
-				label="Security Headers"
-				description="X-Content-Type-Options, X-Frame-Options, Referrer-Policy"
-				checked={toggles.security_headers}
-				onChange={(v) => onUpdate("security_headers", v)}
+			<RequestHeadersGroup
+				toggles={toggles}
+				onUpdate={onUpdate}
+				idPrefix={idPrefix}
+				advancedMode={advancedMode}
+				onModeChange={onAdvancedModeChange}
 			/>
-			<CorsGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
+			<ResponseHeadersGroup
+				toggles={toggles}
+				onUpdate={onUpdate}
+				idPrefix={idPrefix}
+				advancedMode={advancedMode}
+				onModeChange={onAdvancedModeChange}
+			/>
 			<ToggleItem
 				label="TLS Skip Verify"
 				description="Skip TLS certificate verification for upstream"
@@ -86,38 +98,6 @@ interface GroupProps {
 	toggles: RouteToggles;
 	onUpdate: <K extends keyof RouteToggles>(key: K, value: RouteToggles[K]) => void;
 	idPrefix: string;
-}
-
-function CorsGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
-	return (
-		<div className={cn("toggle-group", toggles.cors.enabled && "toggle-group-open")}>
-			<ToggleItem
-				label="CORS"
-				description="Cross-origin resource sharing headers"
-				checked={toggles.cors.enabled}
-				onChange={(v) => onUpdate("cors", { ...toggles.cors, enabled: v })}
-			/>
-			{toggles.cors.enabled && (
-				<div className="toggle-detail">
-					<label htmlFor={`cors-origins-${idPrefix}`}>Allowed Origins</label>
-					<input
-						id={`cors-origins-${idPrefix}`}
-						type="text"
-						placeholder="* (all origins)"
-						maxLength={2000}
-						value={toggles.cors.allowed_origins.join(", ")}
-						onChange={(e) => {
-							const origins = e.target.value
-								.split(",")
-								.map((s) => s.trim())
-								.filter(Boolean);
-							onUpdate("cors", { ...toggles.cors, allowed_origins: origins });
-						}}
-					/>
-				</div>
-			)}
-		</div>
-	);
 }
 
 function BasicAuthGroup({ toggles, onUpdate, idPrefix, isNew }: GroupProps & { isNew?: boolean }) {
@@ -326,7 +306,7 @@ function IPFilteringGroup({
 	);
 }
 
-function ToggleItem({
+export function ToggleItem({
 	label,
 	description,
 	checked,

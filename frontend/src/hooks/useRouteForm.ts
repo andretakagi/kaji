@@ -5,10 +5,11 @@ import {
 	disableRoute,
 	enableRoute,
 	fetchGlobalToggles,
+	fetchRouteSettings,
 	updateRoute,
 } from "../api";
 import { useCaddyStatus } from "../contexts/CaddyContext";
-import type { GlobalToggles, ParsedRoute, RouteToggles } from "../types/api";
+import type { GlobalToggles, ParsedRoute, RouteSettings, RouteToggles } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { defaultToggles } from "../utils/parseRoutes";
 import { validateDomain, validateUpstream } from "../utils/validate";
@@ -24,6 +25,7 @@ export function useRouteForm({ routes, loadRoutes, setError }: UseRouteFormOptio
 	const { caddyRunning } = useCaddyStatus();
 
 	const [globalToggles, setGlobalToggles] = useState<GlobalToggles | null>(null);
+	const [routeSettings, setRouteSettings] = useState<Record<string, RouteSettings>>({});
 	const [domain, setDomain] = useState("");
 	const [upstream, setUpstream] = useState("");
 	const [formToggles, setFormToggles] = useState<RouteToggles>({ ...defaultToggles });
@@ -38,6 +40,9 @@ export function useRouteForm({ routes, loadRoutes, setError }: UseRouteFormOptio
 	useEffect(() => {
 		if (!caddyRunning) return;
 		fetchGlobalToggles().then(setGlobalToggles);
+		fetchRouteSettings()
+			.then(setRouteSettings)
+			.catch(() => {});
 	}, [caddyRunning]);
 
 	function updateFormToggle<K extends keyof RouteToggles>(key: K, value: RouteToggles[K]) {
@@ -96,6 +101,7 @@ export function useRouteForm({ routes, loadRoutes, setError }: UseRouteFormOptio
 				domain: domain.trim(),
 				upstream: upstream.trim(),
 				toggles: formToggles,
+				advanced_headers: false,
 			});
 			if (res.warning) {
 				setWarning(res.warning);
@@ -152,7 +158,7 @@ export function useRouteForm({ routes, loadRoutes, setError }: UseRouteFormOptio
 	);
 
 	const handleUpdateToggles = useCallback(
-		async (route: ParsedRoute, toggles: RouteToggles) => {
+		async (route: ParsedRoute, toggles: RouteToggles, advancedHeaders?: boolean) => {
 			setWarning("");
 			try {
 				const res = await updateRoute({
@@ -160,11 +166,15 @@ export function useRouteForm({ routes, loadRoutes, setError }: UseRouteFormOptio
 					domain: route.domain,
 					upstream: route.upstream,
 					toggles,
+					advanced_headers: advancedHeaders,
 				});
 				if (res.warning) {
 					setWarning(res.warning);
 				}
 				await loadRoutes().catch(() => {});
+				fetchRouteSettings()
+					.then(setRouteSettings)
+					.catch(() => {});
 			} catch (err) {
 				setError(getErrorMessage(err, "Failed to update route"));
 				throw err;
@@ -175,6 +185,7 @@ export function useRouteForm({ routes, loadRoutes, setError }: UseRouteFormOptio
 
 	return {
 		globalToggles,
+		routeSettings,
 		domain,
 		setDomain,
 		upstream,

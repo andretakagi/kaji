@@ -94,15 +94,47 @@ export interface DisabledRoute {
 	route: CaddyRoute;
 }
 
+export interface HeaderEntry {
+	key: string;
+	value: string;
+	enabled: boolean;
+}
+
+export interface ResponseHeaders {
+	enabled: boolean;
+	security: boolean;
+	cors: boolean;
+	cors_origins: string[];
+	cache_control: boolean;
+	x_robots_tag: boolean;
+	builtin: HeaderEntry[];
+	custom: HeaderEntry[];
+}
+
+export interface RequestHeaders {
+	enabled: boolean;
+	host_override: boolean;
+	host_value: string;
+	authorization: boolean;
+	auth_value: string;
+	builtin: HeaderEntry[];
+	custom: HeaderEntry[];
+}
+
+export interface HeadersConfig {
+	response: ResponseHeaders;
+	request: RequestHeaders;
+}
+
+export interface RouteSettings {
+	advanced_headers: boolean;
+}
+
 export interface RouteToggles {
 	enabled: boolean;
 	force_https: boolean;
 	compression: boolean;
-	security_headers: boolean;
-	cors: {
-		enabled: boolean;
-		allowed_origins: string[];
-	};
+	headers: HeadersConfig;
 	tls_skip_verify: boolean;
 	basic_auth: {
 		enabled: boolean;
@@ -129,6 +161,7 @@ export interface CreateRouteRequest {
 	domain: string;
 	upstream: string;
 	toggles?: RouteToggles;
+	advanced_headers?: boolean;
 }
 
 export interface UpdateRouteRequest {
@@ -136,6 +169,7 @@ export interface UpdateRouteRequest {
 	domain: string;
 	upstream: string;
 	toggles: RouteToggles;
+	advanced_headers?: boolean;
 }
 
 export interface ParsedRoute {

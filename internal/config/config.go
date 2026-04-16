@@ -53,21 +53,26 @@ type IPList struct {
 }
 
 type AppConfig struct {
-	AuthEnabled     bool              `json:"auth_enabled"`
-	PasswordHash    string            `json:"password_hash"`
-	SessionSecret   string            `json:"session_secret"`
-	SessionMaxAge   int               `json:"session_max_age"`
-	APIKeyHash      string            `json:"api_key_hash"`
-	CaddyAdminURL   string            `json:"caddy_admin_url"`
-	CaddyConfigPath string            `json:"caddy_config_path"`
-	CaddyDataDir    string            `json:"caddy_data_dir"`
-	SecureCookies   string            `json:"secure_cookies"`
-	LogFile         string            `json:"log_file"`
-	LogDir          string            `json:"log_dir"`
-	Loki            LokiConfig        `json:"loki"`
-	DisabledRoutes  []DisabledRoute   `json:"disabled_routes"`
-	IPLists         []IPList          `json:"ip_lists"`
-	RouteIPLists    map[string]string `json:"route_ip_lists"`
+	AuthEnabled     bool                     `json:"auth_enabled"`
+	PasswordHash    string                   `json:"password_hash"`
+	SessionSecret   string                   `json:"session_secret"`
+	SessionMaxAge   int                      `json:"session_max_age"`
+	APIKeyHash      string                   `json:"api_key_hash"`
+	CaddyAdminURL   string                   `json:"caddy_admin_url"`
+	CaddyConfigPath string                   `json:"caddy_config_path"`
+	CaddyDataDir    string                   `json:"caddy_data_dir"`
+	SecureCookies   string                   `json:"secure_cookies"`
+	LogFile         string                   `json:"log_file"`
+	LogDir          string                   `json:"log_dir"`
+	Loki            LokiConfig               `json:"loki"`
+	DisabledRoutes  []DisabledRoute          `json:"disabled_routes"`
+	IPLists         []IPList                 `json:"ip_lists"`
+	RouteIPLists    map[string]string        `json:"route_ip_lists"`
+	RouteSettings   map[string]RouteSettings `json:"route_settings"`
+}
+
+type RouteSettings struct {
+	AdvancedHeaders bool `json:"advanced_headers"`
 }
 
 func (c *AppConfig) StripCredentials() {

@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { deepEqual } from "../deepEqual";
-import type { ParsedRoute, RouteToggles } from "../types/api";
+import type { ParsedRoute, RouteSettings, RouteToggles } from "../types/api";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
@@ -13,8 +13,13 @@ interface Props {
 	toggling: boolean;
 	onDelete: (id: string) => void;
 	onToggleEnabled: (route: ParsedRoute) => void;
-	onUpdateToggles: (route: ParsedRoute, toggles: RouteToggles) => Promise<void>;
+	onUpdateToggles: (
+		route: ParsedRoute,
+		toggles: RouteToggles,
+		advancedHeaders?: boolean,
+	) => Promise<void>;
 	globalAutoHttps?: "on" | "off" | "disable_redirects";
+	routeSettings?: Record<string, RouteSettings>;
 }
 
 export default memo(
@@ -26,6 +31,7 @@ export default memo(
 		onToggleEnabled,
 		onUpdateToggles,
 		globalAutoHttps,
+		routeSettings,
 	}: Props) {
 		const [toggles, setToggles] = useState<RouteToggles>(route.toggles);
 		const [dirty, setDirty] = useState(false);
@@ -33,6 +39,14 @@ export default memo(
 		const [saveError, setSaveError] = useState<string | null>(null);
 		const [stale, setStale] = useState(false);
 		const lastBackendToggles = useRef(route.toggles);
+
+		const initialAdvanced = routeSettings?.[route.id]?.advanced_headers ?? true;
+		const [advancedHeaders, setAdvancedHeaders] = useState(initialAdvanced);
+		const prevInitialAdvanced = useRef(initialAdvanced);
+		if (prevInitialAdvanced.current !== initialAdvanced && !dirty) {
+			prevInitialAdvanced.current = initialAdvanced;
+			setAdvancedHeaders(initialAdvanced);
+		}
 
 		useEffect(() => {
 			const changed = !deepEqual(route.toggles, lastBackendToggles.current);
@@ -56,7 +70,7 @@ export default memo(
 			setSaving(true);
 			setSaveError(null);
 			try {
-				await onUpdateToggles(route, toggles);
+				await onUpdateToggles(route, toggles, advancedHeaders);
 				setDirty(false);
 				setStale(false);
 			} catch (err) {
@@ -119,6 +133,11 @@ export default memo(
 					isNew={!route.id || !route.toggles.basic_auth.enabled}
 					domain={route.domain}
 					globalAutoHttps={globalAutoHttps}
+					advancedMode={advancedHeaders}
+					onAdvancedModeChange={(advanced) => {
+						setAdvancedHeaders(advanced);
+						setDirty(true);
+					}}
 				/>
 
 				{stale && (
@@ -167,6 +186,7 @@ export default memo(
 			prev.onToggleEnabled === next.onToggleEnabled &&
 			prev.onUpdateToggles === next.onUpdateToggles &&
 			prev.globalAutoHttps === next.globalAutoHttps &&
+			prev.routeSettings === next.routeSettings &&
 			prev.route.id === next.route.id &&
 			prev.route.domain === next.route.domain &&
 			prev.route.upstream === next.route.upstream &&

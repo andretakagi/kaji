@@ -77,6 +77,7 @@ export default function Routes() {
 
 	const {
 		globalToggles,
+		routeSettings,
 		domain,
 		setDomain,
 		upstream,
@@ -183,6 +184,7 @@ export default function Routes() {
 							onToggleEnabled={handleToggleEnabled}
 							onUpdateToggles={handleUpdateToggles}
 							globalAutoHttps={globalToggles?.auto_https}
+							routeSettings={routeSettings}
 						/>
 					))}
 				</div>
