@@ -317,7 +317,7 @@ select:focus-visible {
 .btn-ghost {
 	border: 1px solid var(--border-strong);
 	background: transparent;
-	color: var(--text-secondary);
+	color: var(--text);
 	font-weight: 500;
 	padding: 0.45rem 1.25rem;
 }
@@ -1676,6 +1676,7 @@ input:disabled + .toggle-slider {
 .toggle-group {
 	display: flex;
 	flex-direction: column;
+	min-width: 0;
 }
 
 .toggle-group-open .toggle-item {

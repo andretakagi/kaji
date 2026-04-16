@@ -60,14 +60,14 @@ export default function ToggleGrid({
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
 			/>
-			<ResponseHeadersGroup
+			<RequestHeadersGroup
 				toggles={toggles}
 				onUpdate={onUpdate}
 				idPrefix={idPrefix}
 				advancedMode={advancedMode}
 				onModeChange={onAdvancedModeChange}
 			/>
-			<RequestHeadersGroup
+			<ResponseHeadersGroup
 				toggles={toggles}
 				onUpdate={onUpdate}
 				idPrefix={idPrefix}
