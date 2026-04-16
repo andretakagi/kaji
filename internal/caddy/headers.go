@@ -13,8 +13,9 @@ var securityHeaders = map[string][]string{
 }
 
 var baseCORSHeaders = map[string][]string{
-	"Access-Control-Allow-Methods": {"GET, POST, PUT, DELETE, OPTIONS"},
-	"Access-Control-Allow-Headers": {"Content-Type, Authorization"},
+	"Access-Control-Allow-Methods":     {"GET, POST, PUT, DELETE, OPTIONS"},
+	"Access-Control-Allow-Headers":     {"Content-Type, Authorization"},
+	"Access-Control-Allow-Credentials": {"true"},
 }
 
 // builtinResponseKeys are response header keys recognized as built-in entries.

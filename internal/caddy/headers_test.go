@@ -693,10 +693,10 @@ func TestParseRouteParamsAllBasicHeaders(t *testing.T) {
 
 func TestClassifyHeadersMixed(t *testing.T) {
 	headers := map[string][]string{
-		"X-Frame-Options":    {"DENY"},
-		"Cache-Control":      {"no-store"},
-		"X-Custom-Header":    {"custom-val"},
-		"X-Another":          {"another-val"},
+		"X-Frame-Options": {"DENY"},
+		"Cache-Control":   {"no-store"},
+		"X-Custom-Header": {"custom-val"},
+		"X-Another":       {"another-val"},
 	}
 	builtin, custom := classifyHeaders(headers, builtinResponseKeys)
 

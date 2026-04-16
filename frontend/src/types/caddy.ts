@@ -29,6 +29,11 @@ export interface ReverseProxyHandler {
 		protocol: string;
 		tls?: { insecure_skip_verify: boolean };
 	};
+	headers?: {
+		request?: {
+			set?: Record<string, string[]>;
+		};
+	};
 }
 
 export interface HeadersHandler {
@@ -85,6 +90,11 @@ export interface CaddyHandler {
 	};
 	response?: {
 		set?: Record<string, string[]>;
+	};
+	headers?: {
+		request?: {
+			set?: Record<string, string[]>;
+		};
 	};
 	providers?: {
 		http_basic?: {
