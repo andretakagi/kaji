@@ -3903,13 +3903,15 @@ input:disabled + .toggle-slider {
 	font-size: 0.75rem;
 	padding: 0.3rem 0.75rem;
 	margin-top: 0.15rem;
-	color: var(--accent);
-	border-color: transparent;
+	color: var(--text);
+	border-color: var(--border-strong);
+	background: transparent;
 }
 
 .headers-advanced-section > .btn:hover:not(:disabled) {
-	border-color: var(--border-strong);
+	border-color: var(--accent);
 	color: var(--text);
+	background: rgba(var(--accent-rgb), 0.1);
 }
 
 /* Header row */
