@@ -411,7 +411,7 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 		b.WriteString("\tencode gzip zstd\n")
 	}
 
-	if p.Toggles.SecurityHeaders {
+	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.Security {
 		b.WriteString("\theader {\n")
 		b.WriteString("\t\tStrict-Transport-Security \"max-age=31536000; includeSubDomains; preload\"\n")
 		b.WriteString("\t\tX-Content-Type-Options \"nosniff\"\n")
@@ -421,11 +421,12 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 		b.WriteString("\t}\n")
 	}
 
-	if p.Toggles.CORS.Enabled {
-		if len(p.Toggles.CORS.AllowedOrigins) <= 1 {
+	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.CORS {
+		corsOrigins := p.Toggles.Headers.Response.CORSOrigins
+		if len(corsOrigins) <= 1 {
 			origin := "*"
-			if len(p.Toggles.CORS.AllowedOrigins) == 1 {
-				origin = p.Toggles.CORS.AllowedOrigins[0]
+			if len(corsOrigins) == 1 {
+				origin = corsOrigins[0]
 			}
 			b.WriteString("\theader {\n")
 			b.WriteString("\t\tAccess-Control-Allow-Origin \"" + origin + "\"\n")
@@ -433,7 +434,7 @@ func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWr
 			b.WriteString("\t\tAccess-Control-Allow-Headers \"Content-Type, Authorization\"\n")
 			b.WriteString("\t}\n")
 		} else {
-			for i, o := range p.Toggles.CORS.AllowedOrigins {
+			for i, o := range corsOrigins {
 				name := fmt.Sprintf("cors%d", i)
 				b.WriteString("\t@" + name + " header Origin " + o + "\n")
 				b.WriteString("\theader @" + name + " Access-Control-Allow-Origin \"" + o + "\"\n")

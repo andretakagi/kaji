@@ -201,7 +201,10 @@ func TestBuildRouteSecurityHeaders(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles:  RouteToggles{SecurityHeaders: true},
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled:  true,
+			Response: ResponseHeaders{Security: true},
+		}},
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
 	h := findHandler(t, handlers, "headers")
@@ -231,9 +234,9 @@ func TestBuildRouteCORSSingleOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://frontend.example.com"},
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	}
@@ -261,9 +264,9 @@ func TestBuildRouteCORSWildcard(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{},
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{}},
 			},
 		},
 	}
@@ -291,9 +294,9 @@ func TestBuildRouteCORSMultiOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://a.example.com", "https://b.example.com"},
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://a.example.com", "https://b.example.com"}},
 			},
 		},
 	}
@@ -573,11 +576,14 @@ func TestParseRouteParamsSecurityHeaders(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles:  RouteToggles{SecurityHeaders: true},
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled:  true,
+			Response: ResponseHeaders{Security: true},
+		}},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.SecurityHeaders {
-		t.Error("SecurityHeaders should round-trip to true")
+	if !got.Toggles.Headers.Enabled || !got.Toggles.Headers.Response.Security {
+		t.Error("Headers.Response.Security should round-trip to true")
 	}
 }
 
@@ -586,40 +592,39 @@ func TestParseRouteParamsCORSSingleOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://frontend.example.com"},
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.CORS.Enabled {
-		t.Error("CORS.Enabled should round-trip to true")
+	if !got.Toggles.Headers.Response.CORS {
+		t.Error("Headers.Response.CORS should round-trip to true")
 	}
-	if len(got.Toggles.CORS.AllowedOrigins) != 1 || got.Toggles.CORS.AllowedOrigins[0] != "https://frontend.example.com" {
-		t.Errorf("AllowedOrigins = %v, want [https://frontend.example.com]", got.Toggles.CORS.AllowedOrigins)
+	if len(got.Toggles.Headers.Response.CORSOrigins) != 1 || got.Toggles.Headers.Response.CORSOrigins[0] != "https://frontend.example.com" {
+		t.Errorf("CORSOrigins = %v, want [https://frontend.example.com]", got.Toggles.Headers.Response.CORSOrigins)
 	}
 }
 
 func TestParseRouteParamsCORSWildcard(t *testing.T) {
-	// Wildcard origin (*) does not round-trip AllowedOrigins - only CORS.Enabled does
+	// Wildcard origin (*) does not round-trip CORSOrigins - only CORS bool does
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{},
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{}},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.CORS.Enabled {
-		t.Error("CORS.Enabled should round-trip to true for wildcard")
+	if !got.Toggles.Headers.Response.CORS {
+		t.Error("Headers.Response.CORS should round-trip to true for wildcard")
 	}
-	// AllowedOrigins is intentionally not set for wildcard
-	if len(got.Toggles.CORS.AllowedOrigins) != 0 {
-		t.Errorf("AllowedOrigins should be empty for wildcard, got %v", got.Toggles.CORS.AllowedOrigins)
+	if len(got.Toggles.Headers.Response.CORSOrigins) != 0 {
+		t.Errorf("CORSOrigins should be empty for wildcard, got %v", got.Toggles.Headers.Response.CORSOrigins)
 	}
 }
 
@@ -629,22 +634,22 @@ func TestParseRouteParamsCORSMultiOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: origins,
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: origins},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.CORS.Enabled {
-		t.Error("CORS.Enabled should round-trip to true")
+	if !got.Toggles.Headers.Response.CORS {
+		t.Error("Headers.Response.CORS should round-trip to true")
 	}
-	if len(got.Toggles.CORS.AllowedOrigins) != len(origins) {
-		t.Fatalf("AllowedOrigins count = %d, want %d", len(got.Toggles.CORS.AllowedOrigins), len(origins))
+	if len(got.Toggles.Headers.Response.CORSOrigins) != len(origins) {
+		t.Fatalf("CORSOrigins count = %d, want %d", len(got.Toggles.Headers.Response.CORSOrigins), len(origins))
 	}
 	for i, o := range origins {
-		if got.Toggles.CORS.AllowedOrigins[i] != o {
-			t.Errorf("AllowedOrigins[%d] = %q, want %q", i, got.Toggles.CORS.AllowedOrigins[i], o)
+		if got.Toggles.Headers.Response.CORSOrigins[i] != o {
+			t.Errorf("CORSOrigins[%d] = %q, want %q", i, got.Toggles.Headers.Response.CORSOrigins[i], o)
 		}
 	}
 }

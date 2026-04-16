@@ -8,12 +8,13 @@ import (
 )
 
 type RouteParams struct {
-	ID         string       `json:"@id"`
-	Domain     string       `json:"domain"`
-	Upstream   string       `json:"upstream"`
-	Toggles    RouteToggles `json:"toggles"`
-	IPListIPs  []string     `json:"-"`
-	IPListType string       `json:"-"`
+	ID              string       `json:"@id"`
+	Domain          string       `json:"domain"`
+	Upstream        string       `json:"upstream"`
+	Toggles         RouteToggles `json:"toggles"`
+	AdvancedHeaders bool         `json:"-"`
+	IPListIPs       []string     `json:"-"`
+	IPListType      string       `json:"-"`
 }
 
 type IPFilteringOpts struct {
@@ -26,8 +27,7 @@ type RouteToggles struct {
 	Enabled           bool            `json:"enabled"`
 	ForceHTTPS        bool            `json:"force_https"`
 	Compression       bool            `json:"compression"`
-	SecurityHeaders   bool            `json:"security_headers"`
-	CORS              CORSOpts        `json:"cors"`
+	Headers           HeadersConfig   `json:"headers"`
 	TLSSkipVerify     bool            `json:"tls_skip_verify"`
 	BasicAuth         BasicAuth       `json:"basic_auth"`
 	AccessLog         string          `json:"access_log"`
@@ -42,9 +42,35 @@ type LoadBalancing struct {
 	Upstreams []string `json:"upstreams,omitempty"`
 }
 
-type CORSOpts struct {
-	Enabled        bool     `json:"enabled"`
-	AllowedOrigins []string `json:"allowed_origins"`
+type HeadersConfig struct {
+	Enabled  bool            `json:"enabled"`
+	Response ResponseHeaders `json:"response"`
+	Request  RequestHeaders  `json:"request"`
+}
+
+type ResponseHeaders struct {
+	Security     bool          `json:"security"`
+	CORS         bool          `json:"cors"`
+	CORSOrigins  []string      `json:"cors_origins"`
+	CacheControl bool          `json:"cache_control"`
+	XRobotsTag   bool          `json:"x_robots_tag"`
+	Builtin      []HeaderEntry `json:"builtin"`
+	Custom       []HeaderEntry `json:"custom"`
+}
+
+type RequestHeaders struct {
+	HostOverride  bool          `json:"host_override"`
+	HostValue     string        `json:"host_value"`
+	Authorization bool          `json:"authorization"`
+	AuthValue     string        `json:"auth_value"`
+	Builtin       []HeaderEntry `json:"builtin"`
+	Custom        []HeaderEntry `json:"custom"`
+}
+
+type HeaderEntry struct {
+	Key     string `json:"key"`
+	Value   string `json:"value"`
+	Enabled bool   `json:"enabled"`
 }
 
 type BasicAuth struct {
@@ -140,7 +166,7 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 	}
 
 	// Security headers
-	if p.Toggles.SecurityHeaders {
+	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.Security {
 		handlers = append(handlers, map[string]any{
 			"handler": "headers",
 			"response": map[string]any{
@@ -156,16 +182,17 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 	}
 
 	// CORS headers
-	if p.Toggles.CORS.Enabled {
+	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.CORS {
 		corsHeaders := map[string][]string{
 			"Access-Control-Allow-Methods": {"GET, POST, PUT, DELETE, OPTIONS"},
 			"Access-Control-Allow-Headers": {"Content-Type, Authorization"},
 		}
 
-		if len(p.Toggles.CORS.AllowedOrigins) <= 1 {
+		corsOrigins := p.Toggles.Headers.Response.CORSOrigins
+		if len(corsOrigins) <= 1 {
 			origin := "*"
-			if len(p.Toggles.CORS.AllowedOrigins) == 1 {
-				origin = p.Toggles.CORS.AllowedOrigins[0]
+			if len(corsOrigins) == 1 {
+				origin = corsOrigins[0]
 			}
 			corsHeaders["Access-Control-Allow-Origin"] = []string{origin}
 			handlers = append(handlers, map[string]any{
@@ -178,7 +205,7 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 			// Each origin gets its own route that checks the request
 			// Origin header and responds with that specific origin.
 			var routes []map[string]any
-			for _, o := range p.Toggles.CORS.AllowedOrigins {
+			for _, o := range corsOrigins {
 				h := map[string][]string{
 					"Access-Control-Allow-Origin": {o},
 					"Vary":                        {"Origin"},
@@ -534,12 +561,14 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 				}
 				if json.Unmarshal(handler.Response, &resp) == nil {
 					if _, ok := resp.Set["X-Content-Type-Options"]; ok {
-						p.Toggles.SecurityHeaders = true
+						p.Toggles.Headers.Enabled = true
+						p.Toggles.Headers.Response.Security = true
 					}
 					if origins, ok := resp.Set["Access-Control-Allow-Origin"]; ok {
-						p.Toggles.CORS.Enabled = true
+						p.Toggles.Headers.Enabled = true
+						p.Toggles.Headers.Response.CORS = true
 						if len(origins) > 0 && origins[0] != "*" {
-							p.Toggles.CORS.AllowedOrigins = []string{origins[0]}
+							p.Toggles.Headers.Response.CORSOrigins = []string{origins[0]}
 						}
 					}
 				}
@@ -553,7 +582,8 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 				} `json:"routes"`
 			}
 			if json.Unmarshal(h, &sub) == nil && isCORSSubroute(sub.Routes) {
-				p.Toggles.CORS.Enabled = true
+				p.Toggles.Headers.Enabled = true
+				p.Toggles.Headers.Response.CORS = true
 				for _, r := range sub.Routes {
 					for _, m := range r.Match {
 						var match struct {
@@ -561,7 +591,7 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 						}
 						if json.Unmarshal(m, &match) == nil {
 							if origins, ok := match.Header["Origin"]; ok && len(origins) > 0 {
-								p.Toggles.CORS.AllowedOrigins = append(p.Toggles.CORS.AllowedOrigins, origins[0])
+								p.Toggles.Headers.Response.CORSOrigins = append(p.Toggles.Headers.Response.CORSOrigins, origins[0])
 							}
 						}
 					}

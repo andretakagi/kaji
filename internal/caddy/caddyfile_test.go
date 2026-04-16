@@ -255,7 +255,10 @@ func TestGenerateCaddyfileSecurityHeaders(t *testing.T) {
 	raw, err := BuildRoute(RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles:  RouteToggles{SecurityHeaders: true},
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled:  true,
+			Response: ResponseHeaders{Security: true},
+		}},
 	})
 	if err != nil {
 		t.Fatalf("BuildRoute failed: %v", err)
@@ -281,7 +284,7 @@ func TestGenerateCaddyfileCORSWildcard(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{Enabled: true, AllowedOrigins: []string{}},
+			Headers: HeadersConfig{Enabled: true, Response: ResponseHeaders{CORS: true, CORSOrigins: []string{}}},
 		},
 	})
 	if err != nil {
@@ -305,9 +308,9 @@ func TestGenerateCaddyfileCORSSingleOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://frontend.example.com"},
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	})
@@ -588,8 +591,11 @@ func TestExtractCaddyfileSettingsTogglesParsed(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			Compression:     true,
-			SecurityHeaders: true,
+			Compression: true,
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{Security: true},
+			},
 		},
 	})
 	if err != nil {
@@ -791,9 +797,9 @@ func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			CORS: CORSOpts{
-				Enabled:        true,
-				AllowedOrigins: []string{"https://a.example.com", "https://b.example.com"},
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://a.example.com", "https://b.example.com"}},
 			},
 		},
 	})
