@@ -689,6 +689,354 @@ func TestParseRouteParamsAllBasicHeaders(t *testing.T) {
 	}
 }
 
+// --- classifyHeaders ---
+
+func TestClassifyHeadersMixed(t *testing.T) {
+	headers := map[string][]string{
+		"X-Frame-Options":    {"DENY"},
+		"Cache-Control":      {"no-store"},
+		"X-Custom-Header":    {"custom-val"},
+		"X-Another":          {"another-val"},
+	}
+	builtin, custom := classifyHeaders(headers, builtinResponseKeys)
+
+	builtinKeys := map[string]bool{}
+	for _, e := range builtin {
+		builtinKeys[e.Key] = true
+		if !e.Enabled {
+			t.Errorf("builtin entry %q should be Enabled", e.Key)
+		}
+	}
+	if !builtinKeys["X-Frame-Options"] {
+		t.Error("X-Frame-Options should be classified as builtin")
+	}
+	if !builtinKeys["Cache-Control"] {
+		t.Error("Cache-Control should be classified as builtin")
+	}
+
+	customKeys := map[string]bool{}
+	for _, e := range custom {
+		customKeys[e.Key] = true
+		if !e.Enabled {
+			t.Errorf("custom entry %q should be Enabled", e.Key)
+		}
+	}
+	if !customKeys["X-Custom-Header"] {
+		t.Error("X-Custom-Header should be classified as custom")
+	}
+	if !customKeys["X-Another"] {
+		t.Error("X-Another should be classified as custom")
+	}
+}
+
+func TestClassifyHeadersAllUnknown(t *testing.T) {
+	headers := map[string][]string{
+		"X-Foo": {"bar"},
+		"X-Baz": {"qux"},
+	}
+	builtin, custom := classifyHeaders(headers, builtinResponseKeys)
+	if len(builtin) != 0 {
+		t.Errorf("expected no builtins, got %d", len(builtin))
+	}
+	if len(custom) != 2 {
+		t.Errorf("expected 2 custom entries, got %d", len(custom))
+	}
+}
+
+func TestClassifyHeadersAllKnown(t *testing.T) {
+	headers := map[string][]string{
+		"Strict-Transport-Security": {"max-age=31536000"},
+		"X-Content-Type-Options":    {"nosniff"},
+	}
+	builtin, custom := classifyHeaders(headers, builtinResponseKeys)
+	if len(builtin) != 2 {
+		t.Errorf("expected 2 builtins, got %d", len(builtin))
+	}
+	if len(custom) != 0 {
+		t.Errorf("expected no custom entries, got %d", len(custom))
+	}
+}
+
+func TestClassifyHeadersEmpty(t *testing.T) {
+	builtin, custom := classifyHeaders(map[string][]string{}, builtinResponseKeys)
+	if len(builtin) != 0 || len(custom) != 0 {
+		t.Errorf("expected empty results for empty input, got %d builtin, %d custom", len(builtin), len(custom))
+	}
+}
+
+func TestClassifyHeadersRequestKeys(t *testing.T) {
+	headers := map[string][]string{
+		"Host":          {"backend.internal"},
+		"Authorization": {"Bearer tok"},
+		"X-Forwarded":   {"custom"},
+	}
+	builtin, custom := classifyHeaders(headers, builtinRequestKeys)
+	if len(builtin) != 2 {
+		t.Errorf("expected 2 builtins (Host, Authorization), got %d", len(builtin))
+	}
+	if len(custom) != 1 {
+		t.Errorf("expected 1 custom (X-Forwarded), got %d", len(custom))
+	}
+}
+
+// --- Round-trip: Builtin/Custom array population ---
+
+func TestRoundTripSecurityPopulatesBuiltin(t *testing.T) {
+	p := RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled:  true,
+			Response: ResponseHeaders{Security: true},
+		}},
+	}
+	got := buildAndParse(t, p)
+
+	builtinKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		builtinKeys[e.Key] = true
+		if !e.Enabled {
+			t.Errorf("parsed builtin %q should be Enabled", e.Key)
+		}
+	}
+	for _, key := range []string{
+		"Strict-Transport-Security",
+		"X-Content-Type-Options",
+		"X-Frame-Options",
+		"Referrer-Policy",
+		"Permissions-Policy",
+	} {
+		if !builtinKeys[key] {
+			t.Errorf("expected %q in Response.Builtin after round-trip", key)
+		}
+	}
+	if len(got.Toggles.Headers.Response.Custom) != 0 {
+		t.Errorf("expected no Custom entries for security headers, got %d", len(got.Toggles.Headers.Response.Custom))
+	}
+}
+
+func TestRoundTripCacheControlPopulatesBuiltin(t *testing.T) {
+	p := RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled:  true,
+			Response: ResponseHeaders{CacheControl: true},
+		}},
+	}
+	got := buildAndParse(t, p)
+
+	found := false
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		if e.Key == "Cache-Control" {
+			found = true
+			if e.Value != "no-store" {
+				t.Errorf("Cache-Control value = %q, want no-store", e.Value)
+			}
+			if !e.Enabled {
+				t.Error("Cache-Control entry should be Enabled")
+			}
+		}
+	}
+	if !found {
+		t.Error("Cache-Control not found in Response.Builtin after round-trip")
+	}
+}
+
+func TestRoundTripAdvancedCustomHeadersSurvive(t *testing.T) {
+	p := RouteParams{
+		Domain:          "example.com",
+		Upstream:        "localhost:8080",
+		AdvancedHeaders: true,
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled: true,
+			Response: ResponseHeaders{
+				Builtin: []HeaderEntry{
+					{Key: "X-Frame-Options", Value: "DENY", Enabled: true},
+				},
+				Custom: []HeaderEntry{
+					{Key: "X-My-Custom", Value: "hello", Enabled: true},
+					{Key: "X-Another", Value: "world", Enabled: true},
+				},
+			},
+		}},
+	}
+	got := buildAndParse(t, p)
+
+	builtinKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		builtinKeys[e.Key] = true
+	}
+	customKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Response.Custom {
+		customKeys[e.Key] = true
+	}
+
+	if !builtinKeys["X-Frame-Options"] {
+		t.Error("X-Frame-Options should be in Builtin after round-trip")
+	}
+	if !customKeys["X-My-Custom"] {
+		t.Error("X-My-Custom should be in Custom after round-trip")
+	}
+	if !customKeys["X-Another"] {
+		t.Error("X-Another should be in Custom after round-trip")
+	}
+}
+
+func TestRoundTripRequestHeadersPopulateBuiltin(t *testing.T) {
+	p := RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled: true,
+			Request: RequestHeaders{
+				HostOverride:  true,
+				HostValue:     "backend.internal",
+				Authorization: true,
+				AuthValue:     "Bearer tok",
+			},
+		}},
+	}
+	got := buildAndParse(t, p)
+
+	builtinKeys := map[string]string{}
+	for _, e := range got.Toggles.Headers.Request.Builtin {
+		builtinKeys[e.Key] = e.Value
+	}
+
+	if val, ok := builtinKeys["Host"]; !ok {
+		t.Error("Host not found in Request.Builtin")
+	} else if val != "backend.internal" {
+		t.Errorf("Host value = %q, want backend.internal", val)
+	}
+
+	if val, ok := builtinKeys["Authorization"]; !ok {
+		t.Error("Authorization not found in Request.Builtin")
+	} else if val != "Bearer tok" {
+		t.Errorf("Authorization value = %q, want Bearer tok", val)
+	}
+}
+
+func TestRoundTripAdvancedRequestCustomSurvives(t *testing.T) {
+	p := RouteParams{
+		Domain:          "example.com",
+		Upstream:        "localhost:8080",
+		AdvancedHeaders: true,
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled: true,
+			Request: RequestHeaders{
+				Builtin: []HeaderEntry{
+					{Key: "Host", Value: "custom.host", Enabled: true},
+				},
+				Custom: []HeaderEntry{
+					{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
+				},
+			},
+		}},
+	}
+	got := buildAndParse(t, p)
+
+	builtinKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Request.Builtin {
+		builtinKeys[e.Key] = true
+	}
+	customKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Request.Custom {
+		customKeys[e.Key] = true
+	}
+
+	if !builtinKeys["Host"] {
+		t.Error("Host should be in Request.Builtin after round-trip")
+	}
+	if !customKeys["X-Forwarded-Proto"] {
+		t.Error("X-Forwarded-Proto should be in Request.Custom after round-trip")
+	}
+}
+
+func TestRoundTripMultiOriginCORSPopulatesBuiltin(t *testing.T) {
+	p := RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled: true,
+			Response: ResponseHeaders{
+				CORS:        true,
+				CORSOrigins: []string{"https://a.com", "https://b.com"},
+			},
+		}},
+	}
+	got := buildAndParse(t, p)
+
+	builtinByKey := map[string]string{}
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		builtinByKey[e.Key] = e.Value
+	}
+
+	if _, ok := builtinByKey["Access-Control-Allow-Origin"]; !ok {
+		t.Error("Access-Control-Allow-Origin not found in Builtin after CORS round-trip")
+	}
+	if _, ok := builtinByKey["Access-Control-Allow-Methods"]; !ok {
+		t.Error("Access-Control-Allow-Methods not found in Builtin after CORS round-trip")
+	}
+	if _, ok := builtinByKey["Access-Control-Allow-Headers"]; !ok {
+		t.Error("Access-Control-Allow-Headers not found in Builtin after CORS round-trip")
+	}
+
+	// Verify no duplicate CORS method/header entries (should come from first subroute route only)
+	methodCount := 0
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		if e.Key == "Access-Control-Allow-Methods" {
+			methodCount++
+		}
+	}
+	if methodCount != 1 {
+		t.Errorf("expected 1 Access-Control-Allow-Methods entry, got %d (possible duplicate from multiple subroute routes)", methodCount)
+	}
+}
+
+func TestRoundTripAdvancedDisabledEntriesNotInOutput(t *testing.T) {
+	p := RouteParams{
+		Domain:          "example.com",
+		Upstream:        "localhost:8080",
+		AdvancedHeaders: true,
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Enabled: true,
+			Response: ResponseHeaders{
+				Builtin: []HeaderEntry{
+					{Key: "X-Frame-Options", Value: "DENY", Enabled: true},
+					{Key: "X-Content-Type-Options", Value: "nosniff", Enabled: false},
+				},
+				Custom: []HeaderEntry{
+					{Key: "X-Active", Value: "yes", Enabled: true},
+					{Key: "X-Inactive", Value: "no", Enabled: false},
+				},
+			},
+		}},
+	}
+	got := buildAndParse(t, p)
+
+	allKeys := map[string]bool{}
+	for _, e := range got.Toggles.Headers.Response.Builtin {
+		allKeys[e.Key] = true
+	}
+	for _, e := range got.Toggles.Headers.Response.Custom {
+		allKeys[e.Key] = true
+	}
+
+	if !allKeys["X-Frame-Options"] {
+		t.Error("enabled builtin X-Frame-Options should survive round-trip")
+	}
+	if !allKeys["X-Active"] {
+		t.Error("enabled custom X-Active should survive round-trip")
+	}
+	if allKeys["X-Content-Type-Options"] {
+		t.Error("disabled builtin X-Content-Type-Options should NOT appear after round-trip")
+	}
+	if allKeys["X-Inactive"] {
+		t.Error("disabled custom X-Inactive should NOT appear after round-trip")
+	}
+}
+
 // --- Test helpers ---
 
 func extractHeaderSet(t *testing.T, handler any) map[string][]string {

@@ -928,3 +928,159 @@ func TestGenerateCaddyfileAccessLog(t *testing.T) {
 	// kaji_access should NOT appear as a global log block
 	assertNotContains(t, out, "log kaji_access", "kaji_access not in global blocks")
 }
+
+func TestGenerateCaddyfileCacheControl(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{CacheControl: true},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, `header Cache-Control "no-store"`, "Cache-Control directive")
+}
+
+func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Enabled:  true,
+				Response: ResponseHeaders{XRobotsTag: true},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, `header X-Robots-Tag "noindex, nofollow"`, "X-Robots-Tag directive")
+}
+
+func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Enabled: true,
+				Request: RequestHeaders{
+					HostOverride: true,
+					HostValue:    "backend.internal",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "header_up Host backend.internal", "Host header_up")
+	assertContains(t, out, "reverse_proxy localhost:8080 {", "block form for request headers")
+}
+
+func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Enabled: true,
+				Request: RequestHeaders{
+					Authorization: true,
+					AuthValue:     "Bearer tok123",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, `header_up Authorization "Bearer tok123"`, "Authorization header_up")
+	assertContains(t, out, "reverse_proxy localhost:8080 {", "block form for request headers")
+}
+
+func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Enabled: true,
+				Request: RequestHeaders{
+					HostOverride:  true,
+					HostValue:     "upstream.local",
+					Authorization: true,
+					AuthValue:     "Basic abc",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "reverse_proxy localhost:8080 {", "block form")
+	assertContains(t, out, "header_up Host upstream.local", "Host header_up")
+	assertContains(t, out, `header_up Authorization "Basic abc"`, "Authorization header_up")
+	assertNotContains(t, out, "reverse_proxy localhost:8080\n", "no inline reverse_proxy")
+}
+
+func TestGenerateCaddyfileNoHeadersNoDirectives(t *testing.T) {
+	route, err := BuildRoute(RouteParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+	})
+	if err != nil {
+		t.Fatalf("BuildRoute failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
+	out, err := GenerateCaddyfile(cfg, "")
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertNotContains(t, out, "header ", "no header directives")
+	assertNotContains(t, out, "header_up", "no header_up directives")
+	assertContains(t, out, "reverse_proxy localhost:8080\n", "inline reverse_proxy")
+}
