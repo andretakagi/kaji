@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cn } from "../cn";
 import type { HeadersConfig, RouteToggles } from "../types/api";
+import { HeadersAdvanced } from "./HeadersAdvanced";
 import { HeadersBasic } from "./HeadersBasic";
 import { Toggle } from "./Toggle";
 import { ToggleItem } from "./ToggleGrid";
@@ -53,7 +54,7 @@ export function HeadersGroup({
 					</div>
 
 					{advanced ? (
-						<div className="headers-advanced-placeholder">Advanced mode coming soon</div>
+						<HeadersAdvanced headers={toggles.headers} onChange={updateHeaders} />
 					) : (
 						<>
 							{hasAdvancedCustomizations(toggles.headers) && (
