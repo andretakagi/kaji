@@ -320,3 +320,16 @@ export function validateLokiTestResult(data: unknown): LokiTestResult {
 		hasFields(d, { success: is.boolean, message: is.string }),
 	);
 }
+
+export function validateRouteSettings(
+	data: unknown,
+): Record<string, { advanced_headers: boolean }> {
+	return assertValid("RouteSettings", data, (d) => {
+		if (!is.object(d)) return false;
+		for (const v of Object.values(d)) {
+			if (!is.object(v)) return false;
+			if (!hasFields(v, { advanced_headers: is.boolean })) return false;
+		}
+		return true;
+	});
+}

@@ -11,6 +11,7 @@ interface HeadersGroupProps {
 	onUpdate: <K extends keyof RouteToggles>(key: K, value: RouteToggles[K]) => void;
 	idPrefix: string;
 	advancedMode?: boolean;
+	onModeChange?: (advanced: boolean) => void;
 }
 
 function hasAdvancedCustomizations(headers: HeadersConfig): boolean {
@@ -27,6 +28,7 @@ export function HeadersGroup({
 	onUpdate,
 	idPrefix,
 	advancedMode = false,
+	onModeChange,
 }: HeadersGroupProps) {
 	const [advanced, setAdvanced] = useState(advancedMode);
 	const enabled = toggles.headers.enabled;
@@ -49,7 +51,11 @@ export function HeadersGroup({
 						<Toggle
 							options={["basic", "advanced"] as const}
 							value={advanced ? "advanced" : "basic"}
-							onChange={(v: "basic" | "advanced") => setAdvanced(v === "advanced")}
+							onChange={(v: "basic" | "advanced") => {
+								const isAdvanced = v === "advanced";
+								setAdvanced(isAdvanced);
+								onModeChange?.(isAdvanced);
+							}}
 						/>
 					</div>
 

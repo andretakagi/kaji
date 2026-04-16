@@ -12,6 +12,8 @@ interface ToggleGridProps {
 	isNew?: boolean;
 	domain?: string;
 	globalAutoHttps?: "on" | "off" | "disable_redirects";
+	advancedMode?: boolean;
+	onAdvancedModeChange?: (advanced: boolean) => void;
 }
 
 export default function ToggleGrid({
@@ -21,6 +23,8 @@ export default function ToggleGrid({
 	isNew,
 	domain,
 	globalAutoHttps,
+	advancedMode,
+	onAdvancedModeChange,
 }: ToggleGridProps) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 
@@ -60,7 +64,8 @@ export default function ToggleGrid({
 				toggles={toggles}
 				onUpdate={onUpdate}
 				idPrefix={idPrefix}
-				advancedMode={false}
+				advancedMode={advancedMode}
+				onModeChange={onAdvancedModeChange}
 			/>
 			<ToggleItem
 				label="TLS Skip Verify"

@@ -12,6 +12,7 @@ import type {
 	IPList,
 	IPListUsage,
 	LoginRequest,
+	RouteSettings,
 	SetupImportFullResponse,
 	SetupRequest,
 	SetupResponse,
@@ -60,6 +61,7 @@ import {
 	validateLokiStatus,
 	validateLokiTestResult,
 	validateRouteIPListBindings,
+	validateRouteSettings,
 	validateSetupImportFullResponse,
 	validateSetupResponse,
 	validateSetupStatus,
@@ -234,6 +236,10 @@ export function enableRoute(id: string): Promise<{ status: string; warning?: str
 
 export function fetchDisabledRoutes(): Promise<DisabledRoute[]> {
 	return request("/api/routes/disabled", undefined, validateDisabledRoutes);
+}
+
+export function fetchRouteSettings(): Promise<Record<string, RouteSettings>> {
+	return request("/api/route-settings", undefined, validateRouteSettings);
 }
 
 export function fetchGlobalToggles(): Promise<GlobalToggles> {
