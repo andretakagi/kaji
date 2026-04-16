@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { fetchIPLists } from "../api";
 import { cn } from "../cn";
 import type { IPList, RouteToggles } from "../types/api";
+import { HeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
 
 interface ToggleGridProps {
@@ -55,19 +56,12 @@ export default function ToggleGrid({
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
 			/>
-			<ToggleItem
-				label="Security Headers"
-				description="X-Content-Type-Options, X-Frame-Options, Referrer-Policy"
-				checked={toggles.headers.response.security}
-				onChange={(v) =>
-					onUpdate("headers", {
-						...toggles.headers,
-						enabled: toggles.headers.enabled || v,
-						response: { ...toggles.headers.response, security: v },
-					})
-				}
+			<HeadersGroup
+				toggles={toggles}
+				onUpdate={onUpdate}
+				idPrefix={idPrefix}
+				advancedMode={false}
 			/>
-			<CorsGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<ToggleItem
 				label="TLS Skip Verify"
 				description="Skip TLS certificate verification for upstream"
@@ -92,48 +86,6 @@ interface GroupProps {
 	toggles: RouteToggles;
 	onUpdate: <K extends keyof RouteToggles>(key: K, value: RouteToggles[K]) => void;
 	idPrefix: string;
-}
-
-function CorsGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
-	const corsEnabled = toggles.headers.response.cors;
-	return (
-		<div className={cn("toggle-group", corsEnabled && "toggle-group-open")}>
-			<ToggleItem
-				label="CORS"
-				description="Cross-origin resource sharing headers"
-				checked={corsEnabled}
-				onChange={(v) =>
-					onUpdate("headers", {
-						...toggles.headers,
-						enabled: toggles.headers.enabled || v,
-						response: { ...toggles.headers.response, cors: v },
-					})
-				}
-			/>
-			{corsEnabled && (
-				<div className="toggle-detail">
-					<label htmlFor={`cors-origins-${idPrefix}`}>Allowed Origins</label>
-					<input
-						id={`cors-origins-${idPrefix}`}
-						type="text"
-						placeholder="* (all origins)"
-						maxLength={2000}
-						value={toggles.headers.response.cors_origins.join(", ")}
-						onChange={(e) => {
-							const origins = e.target.value
-								.split(",")
-								.map((s) => s.trim())
-								.filter(Boolean);
-							onUpdate("headers", {
-								...toggles.headers,
-								response: { ...toggles.headers.response, cors_origins: origins },
-							});
-						}}
-					/>
-				</div>
-			)}
-		</div>
-	);
 }
 
 function BasicAuthGroup({ toggles, onUpdate, idPrefix, isNew }: GroupProps & { isNew?: boolean }) {
@@ -342,7 +294,7 @@ function IPFilteringGroup({
 	);
 }
 
-function ToggleItem({
+export function ToggleItem({
 	label,
 	description,
 	checked,
