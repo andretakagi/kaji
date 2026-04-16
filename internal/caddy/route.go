@@ -165,69 +165,8 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 		})
 	}
 
-	// Security headers
-	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.Security {
-		handlers = append(handlers, map[string]any{
-			"handler": "headers",
-			"response": map[string]any{
-				"set": map[string][]string{
-					"Strict-Transport-Security": {"max-age=31536000; includeSubDomains; preload"},
-					"X-Content-Type-Options":    {"nosniff"},
-					"X-Frame-Options":           {"DENY"},
-					"Referrer-Policy":           {"strict-origin-when-cross-origin"},
-					"Permissions-Policy":        {"accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"},
-				},
-			},
-		})
-	}
-
-	// CORS headers
-	if p.Toggles.Headers.Enabled && p.Toggles.Headers.Response.CORS {
-		corsHeaders := map[string][]string{
-			"Access-Control-Allow-Methods": {"GET, POST, PUT, DELETE, OPTIONS"},
-			"Access-Control-Allow-Headers": {"Content-Type, Authorization"},
-		}
-
-		corsOrigins := p.Toggles.Headers.Response.CORSOrigins
-		if len(corsOrigins) <= 1 {
-			origin := "*"
-			if len(corsOrigins) == 1 {
-				origin = corsOrigins[0]
-			}
-			corsHeaders["Access-Control-Allow-Origin"] = []string{origin}
-			handlers = append(handlers, map[string]any{
-				"handler":  "headers",
-				"response": map[string]any{"set": corsHeaders},
-			})
-		} else {
-			// Multiple origins need conditional matching since
-			// Access-Control-Allow-Origin only accepts one value.
-			// Each origin gets its own route that checks the request
-			// Origin header and responds with that specific origin.
-			var routes []map[string]any
-			for _, o := range corsOrigins {
-				h := map[string][]string{
-					"Access-Control-Allow-Origin": {o},
-					"Vary":                        {"Origin"},
-				}
-				for k, v := range corsHeaders {
-					h[k] = v
-				}
-				routes = append(routes, map[string]any{
-					"match": []map[string]any{
-						{"header": map[string][]string{"Origin": {o}}},
-					},
-					"handle": []map[string]any{
-						{"handler": "headers", "response": map[string]any{"set": h}},
-					},
-				})
-			}
-			handlers = append(handlers, map[string]any{
-				"handler": "subroute",
-				"routes":  routes,
-			})
-		}
-	}
+	// Response headers (security, CORS, cache-control, x-robots-tag, advanced)
+	handlers = append(handlers, buildResponseHeaders(p.Toggles.Headers, p.AdvancedHeaders)...)
 
 	// Basic auth
 	if p.Toggles.BasicAuth.Enabled && p.Toggles.BasicAuth.Username != "" {
@@ -290,6 +229,14 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 					"max_fails":     3,
 				},
 			}
+		}
+	}
+
+	if reqHeaders := buildRequestHeaderSet(p.Toggles.Headers, p.AdvancedHeaders); reqHeaders != nil {
+		rp["headers"] = map[string]any{
+			"request": map[string]any{
+				"set": reqHeaders,
+			},
 		}
 	}
 
@@ -550,6 +497,7 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 					p.Toggles.LoadBalancing.Strategy = lb.SelectionPolicy.Policy
 				}
 			}
+			parseReverseProxyRequestHeaders(h, p)
 
 		case "encode":
 			p.Toggles.Compression = true
@@ -570,6 +518,14 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 						if len(origins) > 0 && origins[0] != "*" {
 							p.Toggles.Headers.Response.CORSOrigins = []string{origins[0]}
 						}
+					}
+					if _, ok := resp.Set["Cache-Control"]; ok {
+						p.Toggles.Headers.Enabled = true
+						p.Toggles.Headers.Response.CacheControl = true
+					}
+					if _, ok := resp.Set["X-Robots-Tag"]; ok {
+						p.Toggles.Headers.Enabled = true
+						p.Toggles.Headers.Response.XRobotsTag = true
 					}
 				}
 			}
@@ -617,5 +573,33 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 				}
 			}
 		}
+	}
+}
+
+func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
+	var rp struct {
+		Headers struct {
+			Request struct {
+				Set map[string][]string `json:"set"`
+			} `json:"request"`
+		} `json:"headers"`
+	}
+	if json.Unmarshal(raw, &rp) != nil {
+		return
+	}
+	reqSet := rp.Headers.Request.Set
+	if len(reqSet) == 0 {
+		return
+	}
+
+	p.Toggles.Headers.Enabled = true
+
+	if vals, ok := reqSet["Host"]; ok && len(vals) > 0 {
+		p.Toggles.Headers.Request.HostOverride = true
+		p.Toggles.Headers.Request.HostValue = vals[0]
+	}
+	if vals, ok := reqSet["Authorization"]; ok && len(vals) > 0 {
+		p.Toggles.Headers.Request.Authorization = true
+		p.Toggles.Headers.Request.AuthValue = vals[0]
 	}
 }
