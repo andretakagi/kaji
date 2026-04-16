@@ -1777,7 +1777,7 @@ func TestHandleSnapshotRestore(t *testing.T) {
 		t.Fatalf("snapshot restore: got %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
-	var resp map[string]string
+	var resp map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("failed to parse snapshot restore response: %v", err)
 	}
