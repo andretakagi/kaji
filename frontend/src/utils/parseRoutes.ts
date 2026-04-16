@@ -5,8 +5,26 @@ export const defaultToggles: RouteToggles = {
 	enabled: true,
 	force_https: true,
 	compression: false,
-	security_headers: false,
-	cors: { enabled: false, allowed_origins: [] },
+	headers: {
+		enabled: false,
+		response: {
+			security: false,
+			cors: false,
+			cors_origins: [],
+			cache_control: false,
+			x_robots_tag: false,
+			builtin: [],
+			custom: [],
+		},
+		request: {
+			host_override: false,
+			host_value: "",
+			authorization: false,
+			auth_value: "",
+			builtin: [],
+			custom: [],
+		},
+	},
 	tls_skip_verify: false,
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
 	access_log: "",
@@ -86,16 +104,16 @@ export function parseRoute(
 			case "headers": {
 				const sets = h.response?.set;
 				if (sets && "X-Content-Type-Options" in sets) {
-					toggles.security_headers = true;
+					toggles.headers.enabled = true;
+					toggles.headers.response.security = true;
 				}
 				if (sets && "Access-Control-Allow-Origin" in sets) {
-					toggles.cors = {
-						enabled: true,
-						allowed_origins:
-							sets["Access-Control-Allow-Origin"]?.[0] === "*"
-								? []
-								: (sets["Access-Control-Allow-Origin"] ?? []),
-					};
+					toggles.headers.enabled = true;
+					toggles.headers.response.cors = true;
+					const origins = sets["Access-Control-Allow-Origin"];
+					if (origins && origins[0] !== "*") {
+						toggles.headers.response.cors_origins = origins;
+					}
 				}
 				break;
 			}

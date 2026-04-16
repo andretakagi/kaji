@@ -58,8 +58,14 @@ export default function ToggleGrid({
 			<ToggleItem
 				label="Security Headers"
 				description="X-Content-Type-Options, X-Frame-Options, Referrer-Policy"
-				checked={toggles.security_headers}
-				onChange={(v) => onUpdate("security_headers", v)}
+				checked={toggles.headers.response.security}
+				onChange={(v) =>
+					onUpdate("headers", {
+						...toggles.headers,
+						enabled: toggles.headers.enabled || v,
+						response: { ...toggles.headers.response, security: v },
+					})
+				}
 			/>
 			<CorsGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<ToggleItem
@@ -89,15 +95,22 @@ interface GroupProps {
 }
 
 function CorsGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
+	const corsEnabled = toggles.headers.response.cors;
 	return (
-		<div className={cn("toggle-group", toggles.cors.enabled && "toggle-group-open")}>
+		<div className={cn("toggle-group", corsEnabled && "toggle-group-open")}>
 			<ToggleItem
 				label="CORS"
 				description="Cross-origin resource sharing headers"
-				checked={toggles.cors.enabled}
-				onChange={(v) => onUpdate("cors", { ...toggles.cors, enabled: v })}
+				checked={corsEnabled}
+				onChange={(v) =>
+					onUpdate("headers", {
+						...toggles.headers,
+						enabled: toggles.headers.enabled || v,
+						response: { ...toggles.headers.response, cors: v },
+					})
+				}
 			/>
-			{toggles.cors.enabled && (
+			{corsEnabled && (
 				<div className="toggle-detail">
 					<label htmlFor={`cors-origins-${idPrefix}`}>Allowed Origins</label>
 					<input
@@ -105,13 +118,16 @@ function CorsGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
 						type="text"
 						placeholder="* (all origins)"
 						maxLength={2000}
-						value={toggles.cors.allowed_origins.join(", ")}
+						value={toggles.headers.response.cors_origins.join(", ")}
 						onChange={(e) => {
 							const origins = e.target.value
 								.split(",")
 								.map((s) => s.trim())
 								.filter(Boolean);
-							onUpdate("cors", { ...toggles.cors, allowed_origins: origins });
+							onUpdate("headers", {
+								...toggles.headers,
+								response: { ...toggles.headers.response, cors_origins: origins },
+							});
 						}}
 					/>
 				</div>
