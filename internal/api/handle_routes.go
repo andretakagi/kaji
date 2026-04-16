@@ -15,10 +15,11 @@ import (
 func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Server   string             `json:"server"`
-			Domain   string             `json:"domain"`
-			Upstream string             `json:"upstream"`
-			Toggles  caddy.RouteToggles `json:"toggles"`
+			Server          string             `json:"server"`
+			Domain          string             `json:"domain"`
+			Upstream        string             `json:"upstream"`
+			Toggles         caddy.RouteToggles `json:"toggles"`
+			AdvancedHeaders bool               `json:"advanced_headers"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -65,9 +66,10 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 
 		params := caddy.RouteParams{
-			Domain:   req.Domain,
-			Upstream: req.Upstream,
-			Toggles:  req.Toggles,
+			Domain:          req.Domain,
+			Upstream:        req.Upstream,
+			Toggles:         req.Toggles,
+			AdvancedHeaders: req.AdvancedHeaders,
 		}
 
 		if err := resolveIPFiltering(store, req.Toggles, &params); err != nil {
@@ -96,6 +98,17 @@ func handleCreateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 		trackRouteIPList(store, routeID, req.Toggles)
+		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+			if c.RouteSettings == nil {
+				c.RouteSettings = make(map[string]config.RouteSettings)
+			}
+			c.RouteSettings[routeID] = config.RouteSettings{
+				AdvancedHeaders: req.AdvancedHeaders,
+			}
+			return &c, nil
+		}); err != nil {
+			log.Printf("handleCreateRoute: save route settings: %v", err)
+		}
 	}
 }
 
@@ -124,6 +137,14 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 					log.Printf("handleDeleteRoute: remove disabled route: %v", err)
 					writeError(w, "failed to remove disabled route", http.StatusInternalServerError)
 					return
+				}
+				if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+					if c.RouteSettings != nil {
+						delete(c.RouteSettings, routeID)
+					}
+					return &c, nil
+				}); err != nil {
+					log.Printf("handleDeleteRoute: clean up route settings: %v", err)
 				}
 				writeJSON(w, map[string]string{"status": "ok"})
 				return
@@ -160,6 +181,14 @@ func handleDeleteRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 		trackRouteIPList(store, routeID, caddy.RouteToggles{})
+		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+			if c.RouteSettings != nil {
+				delete(c.RouteSettings, routeID)
+			}
+			return &c, nil
+		}); err != nil {
+			log.Printf("handleDeleteRoute: clean up route settings: %v", err)
+		}
 	}
 }
 
@@ -172,9 +201,10 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 
 		var req struct {
-			Domain   string             `json:"domain"`
-			Upstream string             `json:"upstream"`
-			Toggles  caddy.RouteToggles `json:"toggles"`
+			Domain          string             `json:"domain"`
+			Upstream        string             `json:"upstream"`
+			Toggles         caddy.RouteToggles `json:"toggles"`
+			AdvancedHeaders bool               `json:"advanced_headers"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -212,10 +242,11 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 
 		params := caddy.RouteParams{
-			ID:       routeID,
-			Domain:   req.Domain,
-			Upstream: req.Upstream,
-			Toggles:  req.Toggles,
+			ID:              routeID,
+			Domain:          req.Domain,
+			Upstream:        req.Upstream,
+			Toggles:         req.Toggles,
+			AdvancedHeaders: req.AdvancedHeaders,
 		}
 
 		if err := resolveIPFiltering(store, req.Toggles, &params); err != nil {
@@ -255,6 +286,17 @@ func handleUpdateRoute(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		writeJSON(w, resp)
 		persistCaddyConfig(cc, store)
 		trackRouteIPList(store, routeID, req.Toggles)
+		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+			if c.RouteSettings == nil {
+				c.RouteSettings = make(map[string]config.RouteSettings)
+			}
+			c.RouteSettings[routeID] = config.RouteSettings{
+				AdvancedHeaders: req.AdvancedHeaders,
+			}
+			return &c, nil
+		}); err != nil {
+			log.Printf("handleUpdateRoute: save route settings: %v", err)
+		}
 	}
 }
 
@@ -417,5 +459,16 @@ func handleDisabledRoutes(store *config.ConfigStore) http.HandlerFunc {
 			routes = []config.DisabledRoute{}
 		}
 		writeJSON(w, routes)
+	}
+}
+
+func handleGetRouteSettings(store *config.ConfigStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg := store.Get()
+		settings := cfg.RouteSettings
+		if settings == nil {
+			settings = make(map[string]config.RouteSettings)
+		}
+		writeJSON(w, settings)
 	}
 }
