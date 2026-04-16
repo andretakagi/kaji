@@ -256,8 +256,7 @@ func TestGenerateCaddyfileSecurityHeaders(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{Security: true},
+			Response: ResponseHeaders{Enabled: true, Security: true},
 		}},
 	})
 	if err != nil {
@@ -284,7 +283,7 @@ func TestGenerateCaddyfileCORSWildcard(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			Headers: HeadersConfig{Enabled: true, Response: ResponseHeaders{CORS: true, CORSOrigins: []string{}}},
+			Headers: HeadersConfig{Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{}}},
 		},
 	})
 	if err != nil {
@@ -309,8 +308,7 @@ func TestGenerateCaddyfileCORSSingleOrigin(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	})
@@ -593,8 +591,7 @@ func TestExtractCaddyfileSettingsTogglesParsed(t *testing.T) {
 		Toggles: RouteToggles{
 			Compression: true,
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{Security: true},
+				Response: ResponseHeaders{Enabled: true, Security: true},
 			},
 		},
 	})
@@ -798,8 +795,7 @@ func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://a.example.com", "https://b.example.com"}},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://a.example.com", "https://b.example.com"}},
 			},
 		},
 	})
@@ -935,8 +931,7 @@ func TestGenerateCaddyfileCacheControl(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CacheControl: true},
+				Response: ResponseHeaders{Enabled: true, CacheControl: true},
 			},
 		},
 	})
@@ -959,8 +954,7 @@ func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{XRobotsTag: true},
+				Response: ResponseHeaders{Enabled: true, XRobotsTag: true},
 			},
 		},
 	})
@@ -983,8 +977,8 @@ func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled: true,
 				Request: RequestHeaders{
+					Enabled:      true,
 					HostOverride: true,
 					HostValue:    "backend.internal",
 				},
@@ -1011,8 +1005,8 @@ func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled: true,
 				Request: RequestHeaders{
+					Enabled:       true,
 					Authorization: true,
 					AuthValue:     "Bearer tok123",
 				},
@@ -1039,8 +1033,8 @@ func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled: true,
 				Request: RequestHeaders{
+					Enabled:       true,
 					HostOverride:  true,
 					HostValue:     "upstream.local",
 					Authorization: true,

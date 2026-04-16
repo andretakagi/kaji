@@ -101,6 +101,7 @@ export interface HeaderEntry {
 }
 
 export interface ResponseHeaders {
+	enabled: boolean;
 	security: boolean;
 	cors: boolean;
 	cors_origins: string[];
@@ -111,6 +112,7 @@ export interface ResponseHeaders {
 }
 
 export interface RequestHeaders {
+	enabled: boolean;
 	host_override: boolean;
 	host_value: string;
 	authorization: boolean;
@@ -120,7 +122,6 @@ export interface RequestHeaders {
 }
 
 export interface HeadersConfig {
-	enabled: boolean;
 	response: ResponseHeaders;
 	request: RequestHeaders;
 }

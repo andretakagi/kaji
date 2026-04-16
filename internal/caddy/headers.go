@@ -61,7 +61,7 @@ func classifyHeaders(headerSet map[string][]string, knownKeys map[string]bool) (
 }
 
 func buildResponseHeaders(cfg HeadersConfig, advancedMode bool) []any {
-	if !cfg.Enabled {
+	if !cfg.Response.Enabled {
 		return nil
 	}
 	if advancedMode {
@@ -197,7 +197,7 @@ func buildCORSHandlers(origins []string) []any {
 }
 
 func buildRequestHeaderSet(cfg HeadersConfig, advancedMode bool) map[string][]string {
-	if !cfg.Enabled {
+	if !cfg.Request.Enabled {
 		return nil
 	}
 	if advancedMode {

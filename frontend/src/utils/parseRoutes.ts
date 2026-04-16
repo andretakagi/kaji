@@ -7,8 +7,8 @@ export const defaultToggles: RouteToggles = {
 	force_https: true,
 	compression: false,
 	headers: {
-		enabled: false,
 		response: {
+			enabled: false,
 			security: false,
 			cors: false,
 			cors_origins: [],
@@ -18,6 +18,7 @@ export const defaultToggles: RouteToggles = {
 			custom: [],
 		},
 		request: {
+			enabled: false,
 			host_override: false,
 			host_value: "",
 			authorization: false,
@@ -114,7 +115,7 @@ export function parseRoute(
 		switch (h.handler) {
 			case "subroute": {
 				if (h.routes && isCORSSubroute(h.routes)) {
-					toggles.headers.enabled = true;
+					toggles.headers.response.enabled = true;
 					toggles.headers.response.cors = true;
 					const origins: string[] = [];
 					for (const r of h.routes) {
@@ -155,11 +156,11 @@ export function parseRoute(
 			case "headers": {
 				const sets = h.response?.set;
 				if (sets && "X-Content-Type-Options" in sets) {
-					toggles.headers.enabled = true;
+					toggles.headers.response.enabled = true;
 					toggles.headers.response.security = true;
 				}
 				if (sets && "Access-Control-Allow-Origin" in sets) {
-					toggles.headers.enabled = true;
+					toggles.headers.response.enabled = true;
 					toggles.headers.response.cors = true;
 					const origins = sets["Access-Control-Allow-Origin"];
 					if (origins && origins[0] !== "*") {
@@ -167,11 +168,11 @@ export function parseRoute(
 					}
 				}
 				if (sets && "Cache-Control" in sets) {
-					toggles.headers.enabled = true;
+					toggles.headers.response.enabled = true;
 					toggles.headers.response.cache_control = true;
 				}
 				if (sets && "X-Robots-Tag" in sets) {
-					toggles.headers.enabled = true;
+					toggles.headers.response.enabled = true;
 					toggles.headers.response.x_robots_tag = true;
 				}
 				if (sets) {
@@ -216,7 +217,7 @@ export function parseRoute(
 	}
 	const reqHeaders = rpHandler?.headers?.request?.set;
 	if (reqHeaders && Object.keys(reqHeaders).length > 0) {
-		toggles.headers.enabled = true;
+		toggles.headers.request.enabled = true;
 		if (reqHeaders.Host?.[0]) {
 			toggles.headers.request.host_override = true;
 			toggles.headers.request.host_value = reqHeaders.Host[0];

@@ -44,12 +44,12 @@ type LoadBalancing struct {
 }
 
 type HeadersConfig struct {
-	Enabled  bool            `json:"enabled"`
 	Response ResponseHeaders `json:"response"`
 	Request  RequestHeaders  `json:"request"`
 }
 
 type ResponseHeaders struct {
+	Enabled      bool          `json:"enabled"`
 	Security     bool          `json:"security"`
 	CORS         bool          `json:"cors"`
 	CORSOrigins  []string      `json:"cors_origins"`
@@ -60,6 +60,7 @@ type ResponseHeaders struct {
 }
 
 type RequestHeaders struct {
+	Enabled       bool          `json:"enabled"`
 	HostOverride  bool          `json:"host_override"`
 	HostValue     string        `json:"host_value"`
 	Authorization bool          `json:"authorization"`
@@ -509,7 +510,7 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 					Set map[string][]string `json:"set"`
 				}
 				if json.Unmarshal(handler.Response, &resp) == nil && len(resp.Set) > 0 {
-					p.Toggles.Headers.Enabled = true
+					p.Toggles.Headers.Response.Enabled = true
 					if _, ok := resp.Set["X-Content-Type-Options"]; ok {
 						p.Toggles.Headers.Response.Security = true
 					}
@@ -539,7 +540,7 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 				} `json:"routes"`
 			}
 			if json.Unmarshal(h, &sub) == nil && isCORSSubroute(sub.Routes) {
-				p.Toggles.Headers.Enabled = true
+				p.Toggles.Headers.Response.Enabled = true
 				p.Toggles.Headers.Response.CORS = true
 				for _, r := range sub.Routes {
 					for _, m := range r.Match {
@@ -615,7 +616,7 @@ func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
 		return
 	}
 
-	p.Toggles.Headers.Enabled = true
+	p.Toggles.Headers.Request.Enabled = true
 
 	if vals, ok := reqSet["Host"]; ok && len(vals) > 0 {
 		p.Toggles.Headers.Request.HostOverride = true

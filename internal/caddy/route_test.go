@@ -202,8 +202,7 @@ func TestBuildRouteSecurityHeaders(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{Security: true},
+			Response: ResponseHeaders{Enabled: true, Security: true},
 		}},
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
@@ -235,8 +234,7 @@ func TestBuildRouteCORSSingleOrigin(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	}
@@ -265,8 +263,7 @@ func TestBuildRouteCORSWildcard(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{}},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{}},
 			},
 		},
 	}
@@ -295,8 +292,7 @@ func TestBuildRouteCORSMultiOrigin(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://a.example.com", "https://b.example.com"}},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://a.example.com", "https://b.example.com"}},
 			},
 		},
 	}
@@ -577,12 +573,11 @@ func TestParseRouteParamsSecurityHeaders(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{Security: true},
+			Response: ResponseHeaders{Enabled: true, Security: true},
 		}},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.Headers.Enabled || !got.Toggles.Headers.Response.Security {
+	if !got.Toggles.Headers.Response.Enabled || !got.Toggles.Headers.Response.Security {
 		t.Error("Headers.Response.Security should round-trip to true")
 	}
 }
@@ -593,8 +588,7 @@ func TestParseRouteParamsCORSSingleOrigin(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{"https://frontend.example.com"}},
 			},
 		},
 	}
@@ -614,8 +608,7 @@ func TestParseRouteParamsCORSWildcard(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: []string{}},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: []string{}},
 			},
 		},
 	}
@@ -635,8 +628,7 @@ func TestParseRouteParamsCORSMultiOrigin(t *testing.T) {
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled:  true,
-				Response: ResponseHeaders{CORS: true, CORSOrigins: origins},
+				Response: ResponseHeaders{Enabled: true, CORS: true, CORSOrigins: origins},
 			},
 		},
 	}
@@ -1076,8 +1068,8 @@ func TestParseRouteParamsCustomResponseHeaders(t *testing.T) {
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled: true,
 				Response: ResponseHeaders{
+					Enabled: true,
 					Builtin: []HeaderEntry{
 						{Key: "X-Frame-Options", Value: "SAMEORIGIN", Enabled: true},
 					},
@@ -1128,8 +1120,8 @@ func TestParseRouteParamsCustomRequestHeaders(t *testing.T) {
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled: true,
 				Request: RequestHeaders{
+					Enabled: true,
 					Builtin: []HeaderEntry{
 						{Key: "Host", Value: "custom.host", Enabled: true},
 					},
@@ -1175,8 +1167,8 @@ func TestParseRouteParamsSecurityPlusCORSCombined(t *testing.T) {
 		Upstream: "localhost:3000",
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
-				Enabled: true,
 				Response: ResponseHeaders{
+					Enabled:     true,
 					Security:    true,
 					CORS:        true,
 					CORSOrigins: []string{"https://a.com", "https://b.com"},

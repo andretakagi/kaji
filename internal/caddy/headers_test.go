@@ -8,7 +8,7 @@ import (
 // --- Basic mode response headers ---
 
 func TestBuildResponseHeadersDisabled(t *testing.T) {
-	cfg := HeadersConfig{Enabled: false, Response: ResponseHeaders{Security: true}}
+	cfg := HeadersConfig{Response: ResponseHeaders{Security: true}}
 	handlers := buildResponseHeaders(cfg, false)
 	if len(handlers) != 0 {
 		t.Errorf("expected no handlers when disabled, got %d", len(handlers))
@@ -330,8 +330,8 @@ func TestAdvancedEmptyEntries(t *testing.T) {
 
 func TestBasicRequestHostOverride(t *testing.T) {
 	cfg := HeadersConfig{
-		Enabled: true,
 		Request: RequestHeaders{
+			Enabled:      true,
 			HostOverride: true,
 			HostValue:    "backend.internal",
 		},
@@ -347,8 +347,8 @@ func TestBasicRequestHostOverride(t *testing.T) {
 
 func TestBasicRequestAuthorization(t *testing.T) {
 	cfg := HeadersConfig{
-		Enabled: true,
 		Request: RequestHeaders{
+			Enabled:       true,
 			Authorization: true,
 			AuthValue:     "Bearer token123",
 		},
@@ -364,8 +364,8 @@ func TestBasicRequestAuthorization(t *testing.T) {
 
 func TestBasicRequestBothHeaders(t *testing.T) {
 	cfg := HeadersConfig{
-		Enabled: true,
 		Request: RequestHeaders{
+			Enabled:       true,
 			HostOverride:  true,
 			HostValue:     "backend.internal",
 			Authorization: true,
@@ -383,7 +383,6 @@ func TestBasicRequestBothHeaders(t *testing.T) {
 
 func TestBasicRequestDisabledReturnsNil(t *testing.T) {
 	cfg := HeadersConfig{
-		Enabled: false,
 		Request: RequestHeaders{
 			HostOverride: true,
 			HostValue:    "backend.internal",
@@ -397,8 +396,8 @@ func TestBasicRequestDisabledReturnsNil(t *testing.T) {
 
 func TestBasicRequestEmptyValueSkipped(t *testing.T) {
 	cfg := HeadersConfig{
-		Enabled: true,
 		Request: RequestHeaders{
+			Enabled:      true,
 			HostOverride: true,
 			HostValue:    "",
 		},
@@ -411,8 +410,8 @@ func TestBasicRequestEmptyValueSkipped(t *testing.T) {
 
 func TestAdvancedRequestHeaders(t *testing.T) {
 	cfg := HeadersConfig{
-		Enabled: true,
 		Request: RequestHeaders{
+			Enabled: true,
 			Builtin: []HeaderEntry{
 				{Key: "Host", Value: "builtin.host", Enabled: true},
 				{Key: "X-Disabled", Value: "no", Enabled: false},
@@ -439,8 +438,8 @@ func TestAdvancedRequestHeaders(t *testing.T) {
 
 func TestAdvancedRequestCustomOverridesBuiltin(t *testing.T) {
 	cfg := HeadersConfig{
-		Enabled: true,
 		Request: RequestHeaders{
+			Enabled: true,
 			Builtin: []HeaderEntry{
 				{Key: "Host", Value: "builtin.host", Enabled: true},
 			},
@@ -465,8 +464,7 @@ func TestBuildRouteBasicCacheControl(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{CacheControl: true},
+			Response: ResponseHeaders{Enabled: true, CacheControl: true},
 		}},
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
@@ -482,8 +480,7 @@ func TestBuildRouteBasicXRobotsTag(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{XRobotsTag: true},
+			Response: ResponseHeaders{Enabled: true, XRobotsTag: true},
 		}},
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
@@ -499,8 +496,8 @@ func TestBuildRouteRequestHeaders(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Request: RequestHeaders{
+				Enabled:       true,
 				HostOverride:  true,
 				HostValue:     "backend.internal",
 				Authorization: true,
@@ -535,8 +532,8 @@ func TestBuildRouteAdvancedMode(t *testing.T) {
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Response: ResponseHeaders{
+				Enabled: true,
 				Builtin: []HeaderEntry{
 					{Key: "X-Frame-Options", Value: "DENY", Enabled: true},
 				},
@@ -545,6 +542,7 @@ func TestBuildRouteAdvancedMode(t *testing.T) {
 				},
 			},
 			Request: RequestHeaders{
+				Enabled: true,
 				Builtin: []HeaderEntry{
 					{Key: "Host", Value: "advanced.host", Enabled: true},
 				},
@@ -584,13 +582,12 @@ func TestParseRouteParamsCacheControl(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{CacheControl: true},
+			Response: ResponseHeaders{Enabled: true, CacheControl: true},
 		}},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.Headers.Enabled {
-		t.Error("Headers.Enabled should round-trip to true")
+	if !got.Toggles.Headers.Response.Enabled {
+		t.Error("Headers.Response.Enabled should round-trip to true")
 	}
 	if !got.Toggles.Headers.Response.CacheControl {
 		t.Error("Headers.Response.CacheControl should round-trip to true")
@@ -602,13 +599,12 @@ func TestParseRouteParamsXRobotsTag(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{XRobotsTag: true},
+			Response: ResponseHeaders{Enabled: true, XRobotsTag: true},
 		}},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.Headers.Enabled {
-		t.Error("Headers.Enabled should round-trip to true")
+	if !got.Toggles.Headers.Response.Enabled {
+		t.Error("Headers.Response.Enabled should round-trip to true")
 	}
 	if !got.Toggles.Headers.Response.XRobotsTag {
 		t.Error("Headers.Response.XRobotsTag should round-trip to true")
@@ -620,8 +616,8 @@ func TestParseRouteParamsRequestHeaders(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Request: RequestHeaders{
+				Enabled:       true,
 				HostOverride:  true,
 				HostValue:     "backend.internal",
 				Authorization: true,
@@ -630,8 +626,8 @@ func TestParseRouteParamsRequestHeaders(t *testing.T) {
 		}},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.Headers.Enabled {
-		t.Error("Headers.Enabled should round-trip to true")
+	if !got.Toggles.Headers.Request.Enabled {
+		t.Error("Headers.Request.Enabled should round-trip to true")
 	}
 	if !got.Toggles.Headers.Request.HostOverride {
 		t.Error("HostOverride should round-trip to true")
@@ -652,8 +648,8 @@ func TestParseRouteParamsAllBasicHeaders(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Response: ResponseHeaders{
+				Enabled:      true,
 				Security:     true,
 				CORS:         true,
 				CORSOrigins:  []string{"https://app.com"},
@@ -661,6 +657,7 @@ func TestParseRouteParamsAllBasicHeaders(t *testing.T) {
 				XRobotsTag:   true,
 			},
 			Request: RequestHeaders{
+				Enabled:       true,
 				HostOverride:  true,
 				HostValue:     "internal.host",
 				Authorization: true,
@@ -786,8 +783,7 @@ func TestRoundTripSecurityPopulatesBuiltin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{Security: true},
+			Response: ResponseHeaders{Enabled: true, Security: true},
 		}},
 	}
 	got := buildAndParse(t, p)
@@ -820,8 +816,7 @@ func TestRoundTripCacheControlPopulatesBuiltin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled:  true,
-			Response: ResponseHeaders{CacheControl: true},
+			Response: ResponseHeaders{Enabled: true, CacheControl: true},
 		}},
 	}
 	got := buildAndParse(t, p)
@@ -849,8 +844,8 @@ func TestRoundTripAdvancedCustomHeadersSurvive(t *testing.T) {
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Response: ResponseHeaders{
+				Enabled: true,
 				Builtin: []HeaderEntry{
 					{Key: "X-Frame-Options", Value: "DENY", Enabled: true},
 				},
@@ -888,8 +883,8 @@ func TestRoundTripRequestHeadersPopulateBuiltin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Request: RequestHeaders{
+				Enabled:       true,
 				HostOverride:  true,
 				HostValue:     "backend.internal",
 				Authorization: true,
@@ -923,8 +918,8 @@ func TestRoundTripAdvancedRequestCustomSurvives(t *testing.T) {
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Request: RequestHeaders{
+				Enabled: true,
 				Builtin: []HeaderEntry{
 					{Key: "Host", Value: "custom.host", Enabled: true},
 				},
@@ -958,8 +953,8 @@ func TestRoundTripMultiOriginCORSPopulatesBuiltin(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Response: ResponseHeaders{
+				Enabled:     true,
 				CORS:        true,
 				CORSOrigins: []string{"https://a.com", "https://b.com"},
 			},
@@ -1000,8 +995,8 @@ func TestRoundTripAdvancedDisabledEntriesNotInOutput(t *testing.T) {
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{Headers: HeadersConfig{
-			Enabled: true,
 			Response: ResponseHeaders{
+				Enabled: true,
 				Builtin: []HeaderEntry{
 					{Key: "X-Frame-Options", Value: "DENY", Enabled: true},
 					{Key: "X-Content-Type-Options", Value: "nosniff", Enabled: false},

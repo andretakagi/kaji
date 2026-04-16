@@ -14,16 +14,15 @@ interface HeadersGroupProps {
 	onModeChange?: (advanced: boolean) => void;
 }
 
-function hasAdvancedCustomizations(headers: HeadersConfig): boolean {
-	return (
-		headers.response.builtin.length > 0 ||
-		headers.response.custom.length > 0 ||
-		headers.request.builtin.length > 0 ||
-		headers.request.custom.length > 0
-	);
+function hasAdvancedResponseCustomizations(headers: HeadersConfig): boolean {
+	return headers.response.builtin.length > 0 || headers.response.custom.length > 0;
 }
 
-export function HeadersGroup({
+function hasAdvancedRequestCustomizations(headers: HeadersConfig): boolean {
+	return headers.request.builtin.length > 0 || headers.request.custom.length > 0;
+}
+
+export function ResponseHeadersGroup({
 	toggles,
 	onUpdate,
 	idPrefix,
@@ -31,7 +30,7 @@ export function HeadersGroup({
 	onModeChange,
 }: HeadersGroupProps) {
 	const [advanced, setAdvanced] = useState(advancedMode);
-	const enabled = toggles.headers.enabled;
+	const enabled = toggles.headers.response.enabled;
 
 	function updateHeaders(headers: HeadersConfig) {
 		onUpdate("headers", headers);
@@ -40,10 +39,15 @@ export function HeadersGroup({
 	return (
 		<div className={cn("toggle-group", enabled && "toggle-group-open")}>
 			<ToggleItem
-				label="Headers"
-				description="Response and request header management"
+				label="Response Headers"
+				description="Security, CORS, caching, and custom response headers"
 				checked={enabled}
-				onChange={(v) => onUpdate("headers", { ...toggles.headers, enabled: v })}
+				onChange={(v) =>
+					onUpdate("headers", {
+						...toggles.headers,
+						response: { ...toggles.headers.response, enabled: v },
+					})
+				}
 			/>
 			{enabled && (
 				<div className="toggle-detail">
@@ -60,10 +64,14 @@ export function HeadersGroup({
 					</div>
 
 					{advanced ? (
-						<HeadersAdvanced headers={toggles.headers} onChange={updateHeaders} />
+						<HeadersAdvanced
+							headers={toggles.headers}
+							onChange={updateHeaders}
+							section="response"
+						/>
 					) : (
 						<>
-							{hasAdvancedCustomizations(toggles.headers) && (
+							{hasAdvancedResponseCustomizations(toggles.headers) && (
 								<span className="headers-advanced-warning">
 									Advanced customizations exist. Saving in basic mode will reset headers to
 									defaults. Switch to advanced mode to view them.
@@ -73,6 +81,72 @@ export function HeadersGroup({
 								headers={toggles.headers}
 								onChange={updateHeaders}
 								idPrefix={idPrefix}
+								section="response"
+							/>
+						</>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+export function RequestHeadersGroup({
+	toggles,
+	onUpdate,
+	idPrefix,
+	advancedMode = false,
+	onModeChange,
+}: HeadersGroupProps) {
+	const [advanced, setAdvanced] = useState(advancedMode);
+	const enabled = toggles.headers.request.enabled;
+
+	function updateHeaders(headers: HeadersConfig) {
+		onUpdate("headers", headers);
+	}
+
+	return (
+		<div className={cn("toggle-group", enabled && "toggle-group-open")}>
+			<ToggleItem
+				label="Request Headers"
+				description="Host override, authorization, and custom request headers"
+				checked={enabled}
+				onChange={(v) =>
+					onUpdate("headers", {
+						...toggles.headers,
+						request: { ...toggles.headers.request, enabled: v },
+					})
+				}
+			/>
+			{enabled && (
+				<div className="toggle-detail">
+					<div className="headers-mode-switch">
+						<Toggle
+							options={["basic", "advanced"] as const}
+							value={advanced ? "advanced" : "basic"}
+							onChange={(v: "basic" | "advanced") => {
+								const isAdvanced = v === "advanced";
+								setAdvanced(isAdvanced);
+								onModeChange?.(isAdvanced);
+							}}
+						/>
+					</div>
+
+					{advanced ? (
+						<HeadersAdvanced headers={toggles.headers} onChange={updateHeaders} section="request" />
+					) : (
+						<>
+							{hasAdvancedRequestCustomizations(toggles.headers) && (
+								<span className="headers-advanced-warning">
+									Advanced customizations exist. Saving in basic mode will reset headers to
+									defaults. Switch to advanced mode to view them.
+								</span>
+							)}
+							<HeadersBasic
+								headers={toggles.headers}
+								onChange={updateHeaders}
+								idPrefix={idPrefix}
+								section="request"
 							/>
 						</>
 					)}
