@@ -2974,6 +2974,10 @@ input:disabled + .toggle-slider {
 	color: var(--text-secondary);
 }
 
+.domain-card.card-disabled .domain-card-info {
+	opacity: 0.4;
+}
+
 .domain-card-actions {
 	display: flex;
 	align-items: center;
