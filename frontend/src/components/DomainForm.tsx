@@ -12,7 +12,6 @@ import { getErrorMessage } from "../utils/getErrorMessage";
 interface Props {
 	onCreate: (req: CreateDomainRequest) => Promise<void>;
 	onCancel: () => void;
-	saving: boolean;
 }
 
 const handlerOptions: { value: HandlerType; label: string }[] = [
@@ -34,13 +33,14 @@ const pathMatchOptions: { value: PathMatch; label: string }[] = [
 	{ value: "regex", label: "Regex" },
 ];
 
-export default function DomainForm({ onCreate, onCancel, saving }: Props) {
+export default function DomainForm({ onCreate, onCancel }: Props) {
 	const [name, setName] = useState("");
 	const [matchType, setMatchType] = useState<MatchType>("");
 	const [pathMatch, setPathMatch] = useState<PathMatch>("prefix");
 	const [matchValue, setMatchValue] = useState("");
 	const [handlerType, setHandlerType] = useState<HandlerType>("reverse_proxy");
 	const [upstream, setUpstream] = useState("");
+	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
 
 	const supported = handlerType === "reverse_proxy";
@@ -88,10 +88,13 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 			},
 		};
 
+		setSubmitting(true);
 		try {
 			await onCreate(req);
 		} catch (err) {
 			setFormError(getErrorMessage(err, "Failed to create domain"));
+		} finally {
+			setSubmitting(false);
 		}
 	}
 
@@ -108,7 +111,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 						onChange={(e) => setName(e.target.value)}
 						maxLength={253}
 						required
-						disabled={saving}
+						disabled={submitting}
 					/>
 				</div>
 			</div>
@@ -120,7 +123,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 						id="domain-match-type"
 						value={matchType}
 						onChange={(e) => setMatchType(e.target.value as MatchType)}
-						disabled={saving}
+						disabled={submitting}
 					>
 						{matchOptions.map((o) => (
 							<option key={o.value} value={o.value}>
@@ -141,7 +144,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 							onChange={(e) => setMatchValue(e.target.value)}
 							maxLength={63}
 							required
-							disabled={saving}
+							disabled={submitting}
 						/>
 					</div>
 				)}
@@ -154,7 +157,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 								id="domain-path-match"
 								value={pathMatch}
 								onChange={(e) => setPathMatch(e.target.value as PathMatch)}
-								disabled={saving}
+								disabled={submitting}
 							>
 								{pathMatchOptions.map((o) => (
 									<option key={o.value} value={o.value}>
@@ -173,7 +176,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 								onChange={(e) => setMatchValue(e.target.value)}
 								maxLength={253}
 								required
-								disabled={saving}
+								disabled={submitting}
 							/>
 						</div>
 					</>
@@ -187,7 +190,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 						id="domain-handler-type"
 						value={handlerType}
 						onChange={(e) => setHandlerType(e.target.value as HandlerType)}
-						disabled={saving}
+						disabled={submitting}
 					>
 						{handlerOptions.map((o) => (
 							<option key={o.value} value={o.value}>
@@ -208,7 +211,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 							onChange={(e) => setUpstream(e.target.value)}
 							maxLength={260}
 							required
-							disabled={saving}
+							disabled={submitting}
 						/>
 					</div>
 				)}
@@ -227,15 +230,15 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 			)}
 
 			<div className="form-row" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
-				<button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
+				<button type="button" className="btn btn-ghost" onClick={onCancel} disabled={submitting}>
 					Cancel
 				</button>
 				<button
 					type="submit"
 					className="btn btn-primary submit-btn"
-					disabled={saving || !supported}
+					disabled={submitting || !supported}
 				>
-					{saving ? "Creating..." : "Create Domain"}
+					{submitting ? "Creating..." : "Create Domain"}
 				</button>
 			</div>
 		</form>
