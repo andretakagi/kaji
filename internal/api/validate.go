@@ -219,6 +219,35 @@ func validateIPListChildren(children []string, parentType string, parentID strin
 	return ""
 }
 
+func validateMatchType(matchType string) string {
+	switch matchType {
+	case "", "subdomain", "path":
+		return ""
+	default:
+		return fmt.Sprintf("invalid match type: %s (must be empty, subdomain, or path)", matchType)
+	}
+}
+
+func validatePathMatch(pathMatch string) string {
+	switch pathMatch {
+	case "exact", "prefix", "regex":
+		return ""
+	default:
+		return fmt.Sprintf("invalid path match: %s (must be exact, prefix, or regex)", pathMatch)
+	}
+}
+
+func validateHandlerType(handlerType string) string {
+	switch handlerType {
+	case "reverse_proxy":
+		return ""
+	case "redirect", "file_server", "static_response":
+		return fmt.Sprintf("handler type %q is not yet supported", handlerType)
+	default:
+		return fmt.Sprintf("unknown handler type: %s", handlerType)
+	}
+}
+
 func validateLoadBalancing(w http.ResponseWriter, lb caddy.LoadBalancing) bool {
 	if !lb.Enabled {
 		return true

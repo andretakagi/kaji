@@ -57,6 +57,21 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("POST /api/routes/enable", handleEnableRoute(store, cc, ss, version))
 	mux.HandleFunc("GET /api/routes/disabled", handleDisabledRoutes(store))
 	mux.HandleFunc("GET /api/route-settings", handleGetRouteSettings(store))
+
+	// Domain management
+	mux.HandleFunc("GET /api/domains", handleListDomains(store))
+	mux.HandleFunc("POST /api/domains", handleCreateDomain(store, cc, ss, version))
+	mux.HandleFunc("GET /api/domains/{id}", handleGetDomain(store))
+	mux.HandleFunc("PUT /api/domains/{id}", handleUpdateDomain(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/domains/{id}", handleDeleteDomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/enable", handleEnableDomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/disable", handleDisableDomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/rules", handleCreateRule(store, cc, ss, version))
+	mux.HandleFunc("PUT /api/domains/{id}/rules/{ruleId}", handleUpdateRule(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/domains/{id}/rules/{ruleId}", handleDeleteRule(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/rules/{ruleId}/enable", handleEnableRule(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/rules/{ruleId}/disable", handleDisableRule(store, cc, ss, version))
+
 	mux.HandleFunc("GET /api/logs", handleLogs(store))
 	mux.HandleFunc("GET /api/logs/stream", handleLogStream(store))
 	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(store, cc))
