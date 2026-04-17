@@ -8,11 +8,7 @@ import Feedback from "./Feedback";
 import LoadingState from "./LoadingState";
 import { SectionHeader } from "./SectionHeader";
 
-interface Props {
-	onNavigate: (id: string) => void;
-}
-
-export default function DomainList({ onNavigate }: Props) {
+export default function DomainList() {
 	const { caddyRunning } = useCaddyStatus();
 	const {
 		domains,
@@ -39,7 +35,7 @@ export default function DomainList({ onNavigate }: Props) {
 
 	return (
 		<div className="domains">
-			<SectionHeader title="Domains">
+			<SectionHeader title="Routes">
 				{!form.visible && (
 					<button
 						type="button"
@@ -70,7 +66,6 @@ export default function DomainList({ onNavigate }: Props) {
 						<DomainCard
 							key={domain.id}
 							domain={domain}
-							onNavigate={onNavigate}
 							onToggleEnabled={handleToggleEnabled}
 							onDelete={handleDelete}
 							saving={saving}

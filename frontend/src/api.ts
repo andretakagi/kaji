@@ -22,7 +22,6 @@ import type {
 	CreateDomainRequest,
 	CreateRuleRequest,
 	Domain,
-	Rule,
 	UpdateDomainRequest,
 	UpdateRuleRequest,
 } from "./types/domain";
@@ -588,27 +587,27 @@ export function deleteDomain(id: string): Promise<{ status: string }> {
 	);
 }
 
-export function enableDomain(id: string): Promise<{ status: string }> {
+export function enableDomain(id: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(id)}/enable`,
 		{ method: "POST" },
-		validateStatusResponse,
+		(d) => d as Domain,
 	);
 }
 
-export function disableDomain(id: string): Promise<{ status: string }> {
+export function disableDomain(id: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(id)}/disable`,
 		{ method: "POST" },
-		validateStatusResponse,
+		(d) => d as Domain,
 	);
 }
 
-export function createRule(domainId: string, req: CreateRuleRequest): Promise<Rule> {
+export function createRule(domainId: string, req: CreateRuleRequest): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules`,
 		{ method: "POST", ...jsonBody(req) },
-		(d) => d as Rule,
+		(d) => d as Domain,
 	);
 }
 
@@ -616,34 +615,34 @@ export function updateRule(
 	domainId: string,
 	ruleId: string,
 	req: UpdateRuleRequest,
-): Promise<Rule> {
+): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => d as Rule,
+		(d) => d as Domain,
 	);
 }
 
-export function deleteRule(domainId: string, ruleId: string): Promise<{ status: string }> {
+export function deleteRule(domainId: string, ruleId: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
 		{ method: "DELETE" },
-		validateStatusResponse,
+		(d) => d as Domain,
 	);
 }
 
-export function enableRule(domainId: string, ruleId: string): Promise<{ status: string }> {
+export function enableRule(domainId: string, ruleId: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/enable`,
 		{ method: "POST" },
-		validateStatusResponse,
+		(d) => d as Domain,
 	);
 }
 
-export function disableRule(domainId: string, ruleId: string): Promise<{ status: string }> {
+export function disableRule(domainId: string, ruleId: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/disable`,
 		{ method: "POST" },
-		validateStatusResponse,
+		(d) => d as Domain,
 	);
 }

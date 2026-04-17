@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { fetchIPLists } from "../api";
+import { fetchGlobalToggles, fetchIPLists } from "../api";
 import { cn } from "../cn";
-import type { IPList } from "../types/api";
+import type { GlobalToggles, IPList } from "../types/api";
 import type { DomainToggles } from "../types/domain";
 import { RequestHeadersGroup, ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
@@ -16,6 +16,13 @@ interface Props {
 
 export function DomainToggleGrid({ toggles, onUpdate, idPrefix, domain }: Props) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
+	const [autoHttps, setAutoHttps] = useState<GlobalToggles["auto_https"] | null>(null);
+
+	useEffect(() => {
+		fetchGlobalToggles()
+			.then((g) => setAutoHttps(g.auto_https))
+			.catch(() => {});
+	}, []);
 
 	useEffect(() => {
 		if (toggles.ip_filtering.enabled) {
@@ -27,12 +34,22 @@ export function DomainToggleGrid({ toggles, onUpdate, idPrefix, domain }: Props)
 
 	return (
 		<div className="toggle-grid">
-			<ToggleItem
-				label="Force HTTPS"
-				description="Redirect HTTP requests to HTTPS"
-				checked={toggles.force_https}
-				onChange={(v) => onUpdate("force_https", v)}
-			/>
+			{autoHttps && autoHttps !== "off" ? (
+				<ToggleItem
+					label="Force HTTPS"
+					description="Managed by global HTTPS setting"
+					checked={autoHttps === "on"}
+					onChange={() => {}}
+					disabled
+				/>
+			) : (
+				<ToggleItem
+					label="Force HTTPS"
+					description="Redirect HTTP requests to HTTPS"
+					checked={toggles.force_https}
+					onChange={(v) => onUpdate("force_https", v)}
+				/>
+			)}
 			<ToggleItem
 				label="Compression"
 				description="gzip + zstd encoding"

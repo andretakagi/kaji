@@ -7,6 +7,7 @@ import { usePolledData } from "./usePolledData";
 export function useDomainList() {
 	const {
 		data: domains,
+		setData: setDomains,
 		loading,
 		error,
 		setError,
@@ -33,24 +34,20 @@ export function useDomainList() {
 		(id: string) =>
 			run(async () => {
 				await deleteDomain(id);
-				await reload();
+				setDomains((prev) => prev.filter((d) => d.id !== id));
 				return "Domain deleted";
 			}),
-		[run, reload],
+		[run, setDomains],
 	);
 
 	const handleToggleEnabled = useCallback(
 		(id: string, enabled: boolean) =>
 			run(async () => {
-				if (enabled) {
-					await enableDomain(id);
-				} else {
-					await disableDomain(id);
-				}
-				await reload();
+				const updated = enabled ? await enableDomain(id) : await disableDomain(id);
+				setDomains((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
 				return enabled ? "Domain enabled" : "Domain disabled";
 			}),
-		[run, reload],
+		[run, setDomains],
 	);
 
 	return {

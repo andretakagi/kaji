@@ -57,7 +57,7 @@ export type PathMatch = "exact" | "prefix" | "regex";
 export interface CreateDomainRequest {
 	name: string;
 	toggles: DomainToggles;
-	first_rule: {
+	first_rule?: {
 		label?: string;
 		match_type: MatchType;
 		path_match?: PathMatch;

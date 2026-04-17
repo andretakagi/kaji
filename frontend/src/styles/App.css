@@ -160,7 +160,6 @@ body::before {
 .auth-card,
 .route-card,
 .collapsible-card,
-.domain-card,
 .log-list,
 .snapshot-card,
 .snapshot-create-form,
@@ -809,20 +808,19 @@ input:disabled + .toggle-slider {
 }
 
 .toggle-segmented {
-	display: inline-flex;
+	display: inline-grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
 	border: 1px solid var(--border-strong);
 	border-radius: var(--radius-sm);
 	overflow: hidden;
 	margin: 0;
 	padding: 0;
-	min-inline-size: 0;
-	width: fit-content;
 }
 
 .toggle-segment {
-	flex: 1 1 0;
-	min-width: 7rem;
-	padding: 0.35rem 1rem;
+	padding: 0.5rem 1.25rem;
+	white-space: nowrap;
 	border: none;
 	background: transparent;
 	color: var(--text-muted);
@@ -1381,7 +1379,8 @@ input:disabled + .toggle-slider {
 	gap: 0.35rem;
 }
 
-.form-field label {
+.form-field label,
+.form-field .form-label {
 	font-size: 0.75rem;
 	font-weight: 600;
 	color: var(--text-secondary);
@@ -2879,38 +2878,6 @@ input:disabled + .toggle-slider {
 	gap: 0.5rem;
 }
 
-.domain-card-header {
-	display: flex;
-	align-items: center;
-	border-radius: var(--radius);
-	transition: background 0.15s;
-}
-
-.domain-card-header:hover {
-	background: var(--surface-hover);
-}
-
-.domain-card-info {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-	padding: 0.875rem 1.125rem;
-	background: none;
-	border: none;
-	cursor: pointer;
-	text-align: left;
-	color: inherit;
-	font: inherit;
-	outline: none;
-}
-
-.domain-card-info:focus-visible {
-	outline: 2px solid var(--accent);
-	outline-offset: -2px;
-}
-
 .domain-card-name {
 	font-size: 0.9375rem;
 	font-weight: 600;
@@ -2940,18 +2907,6 @@ input:disabled + .toggle-slider {
 	color: var(--text-secondary);
 }
 
-.domain-card.card-disabled .domain-card-info {
-	opacity: 0.4;
-}
-
-.domain-card-actions {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	flex-shrink: 0;
-	padding-right: 1.125rem;
-}
-
 /* Domain detail */
 
 .domain-detail {
@@ -2961,46 +2916,10 @@ input:disabled + .toggle-slider {
 	padding-bottom: 1.5rem;
 }
 
-.domain-detail-header {
-	display: flex;
-	flex-direction: column;
-	gap: 0.75rem;
-}
-
-.domain-detail-back {
-	align-self: flex-start;
-	font-size: 0.8125rem;
-	padding: 0.35rem 0.75rem;
-}
-
-.domain-detail-title-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 1rem;
-}
-
-.domain-detail-name {
-	font-size: 1.375rem;
-	font-weight: 700;
-	color: var(--text-emphasis);
-	letter-spacing: -0.01em;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	min-width: 0;
-}
-
-.domain-detail-actions {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	flex-shrink: 0;
-}
-
 .domain-detail-section {
 	display: flex;
 	flex-direction: column;
+	align-items: flex-start;
 	gap: 0.75rem;
 }
 
@@ -3252,25 +3171,6 @@ input:disabled + .toggle-slider {
 
 	.setup-review-upstream {
 		font-size: 0.6875rem;
-	}
-
-	/* Domains */
-	.domain-card-info {
-		padding: 0.75rem 0.875rem;
-	}
-
-	.domain-card-actions {
-		padding-right: 0.875rem;
-	}
-
-	.domain-detail-title-row {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 0.5rem;
-	}
-
-	.domain-detail-name {
-		font-size: 1.125rem;
 	}
 
 	.domain-detail-toggle-actions {

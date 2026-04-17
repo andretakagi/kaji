@@ -42,24 +42,24 @@ export default function DomainForm({ onCreate, onCancel }: Props) {
 			return;
 		}
 
-		let handlerConfig: ReverseProxyConfig | Record<string, unknown>;
-		if (handlerType === "reverse_proxy") {
-			handlerConfig = { ...defaultReverseProxyConfig, upstream: upstream.trim() };
-		} else {
-			handlerConfig = {};
-		}
-
-		const effectiveHandler: HandlerType = handlerType === "none" ? "reverse_proxy" : handlerType;
-
 		const req: CreateDomainRequest = {
 			name: name.trim(),
 			toggles: defaultDomainToggles,
-			first_rule: {
-				match_type: "",
-				handler_type: effectiveHandler,
-				handler_config: handlerConfig,
-			},
 		};
+
+		if (handlerType !== "none") {
+			let handlerConfig: ReverseProxyConfig | Record<string, unknown>;
+			if (handlerType === "reverse_proxy") {
+				handlerConfig = { ...defaultReverseProxyConfig, upstream: upstream.trim() };
+			} else {
+				handlerConfig = {};
+			}
+			req.first_rule = {
+				match_type: "",
+				handler_type: handlerType,
+				handler_config: handlerConfig,
+			};
+		}
 
 		setSubmitting(true);
 		try {
@@ -91,7 +91,7 @@ export default function DomainForm({ onCreate, onCancel }: Props) {
 
 			<div className="form-row">
 				<div className="form-field">
-					<label>Handler</label>
+					<span className="form-label">Handler</span>
 					<Toggle
 						options={handlerOptions}
 						value={handlerType}

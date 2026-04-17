@@ -91,23 +91,27 @@ func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
-		if msg := validateHandlerType(req.First.HandlerType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if msg := validateMatchType(req.First.MatchType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if req.First.MatchType == "path" {
-			if msg := validatePathMatch(req.First.PathMatch); msg != "" {
+
+		hasRule := req.First.HandlerType != ""
+		if hasRule {
+			if msg := validateHandlerType(req.First.HandlerType); msg != "" {
 				writeError(w, msg, http.StatusBadRequest)
 				return
 			}
-		}
-		if req.First.HandlerType == "reverse_proxy" {
-			if !validateReverseProxyConfig(w, req.First.HandlerConfig) {
+			if msg := validateMatchType(req.First.MatchType); msg != "" {
+				writeError(w, msg, http.StatusBadRequest)
 				return
+			}
+			if req.First.MatchType == "path" {
+				if msg := validatePathMatch(req.First.PathMatch); msg != "" {
+					writeError(w, msg, http.StatusBadRequest)
+					return
+				}
+			}
+			if req.First.HandlerType == "reverse_proxy" {
+				if !validateReverseProxyConfig(w, req.First.HandlerConfig) {
+					return
+				}
 			}
 		}
 
@@ -132,14 +136,18 @@ func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		}
 
 		domainID := caddy.GenerateDomainID()
-		ruleID := caddy.GenerateRuleID()
 
 		domain := config.Domain{
 			ID:      domainID,
 			Name:    req.Name,
 			Enabled: true,
 			Toggles: req.Toggles,
-			Rules: []config.Rule{
+			Rules:   []config.Rule{},
+		}
+
+		if hasRule {
+			ruleID := caddy.GenerateRuleID()
+			domain.Rules = []config.Rule{
 				{
 					ID:            ruleID,
 					Label:         req.First.Label,
@@ -150,7 +158,7 @@ func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 					HandlerType:   req.First.HandlerType,
 					HandlerConfig: req.First.HandlerConfig,
 				},
-			},
+			}
 		}
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain created: "+req.Name)
@@ -382,6 +390,21 @@ func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 				log.Printf("handleCreateRule: hash password: %v", err)
 				writeError(w, "failed to hash password", http.StatusInternalServerError)
 				return
+			}
+		}
+
+		cfg := store.Get()
+		dom := findDomain(cfg, domainID)
+		if dom == nil {
+			writeError(w, "domain not found", http.StatusNotFound)
+			return
+		}
+		if req.MatchType == "" {
+			for _, r := range dom.Rules {
+				if r.MatchType == "" {
+					writeError(w, "a root rule already exists for this domain", http.StatusConflict)
+					return
+				}
 			}
 		}
 

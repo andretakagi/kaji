@@ -17,6 +17,7 @@ import HandlerConfig from "./HandlerConfig";
 interface Props {
 	domainName?: string;
 	initial?: Rule;
+	hasRootRule?: boolean;
 	onSubmit: (req: CreateRuleRequest | UpdateRuleRequest) => Promise<void>;
 	onCancel: () => void;
 }
@@ -40,11 +41,18 @@ const pathMatchOptions: { value: PathMatch; label: string }[] = [
 	{ value: "regex", label: "Regex" },
 ];
 
-export default function RuleForm({ domainName, initial, onSubmit, onCancel }: Props) {
+export default function RuleForm({ domainName, initial, hasRootRule, onSubmit, onCancel }: Props) {
 	const formId = useId();
 	const isEdit = !!initial;
 
-	const [matchType, setMatchType] = useState<MatchType>(initial?.match_type ?? "");
+	const hideRoot = hasRootRule && initial?.match_type !== "";
+	const availableMatchOptions = hideRoot
+		? matchOptions.filter((o) => o.value !== "")
+		: matchOptions;
+
+	const [matchType, setMatchType] = useState<MatchType>(
+		initial?.match_type ?? (hideRoot ? "path" : ""),
+	);
 	const [pathMatch, setPathMatch] = useState<PathMatch>(
 		initial?.path_match === "" ? "prefix" : (initial?.path_match ?? "prefix"),
 	);
@@ -118,7 +126,7 @@ export default function RuleForm({ domainName, initial, onSubmit, onCancel }: Pr
 						onChange={(e) => setMatchType(e.target.value as MatchType)}
 						disabled={submitting}
 					>
-						{matchOptions.map((o) => (
+						{availableMatchOptions.map((o) => (
 							<option key={o.value} value={o.value}>
 								{o.label}
 							</option>
