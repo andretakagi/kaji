@@ -38,7 +38,7 @@ func handleListIPLists(store *config.ConfigStore) http.HandlerFunc {
 
 		result := make([]listWithCount, len(lists))
 		for i, l := range lists {
-			resolved, err := caddy.ResolveIPList(l.ID, lists)
+			resolved, err := caddy.ResolveIPList(l.ID, config.IPListsToEntries(lists))
 			count := 0
 			if err == nil {
 				count = len(resolved)
@@ -115,7 +115,7 @@ func handleCreateIPList(store *config.ConfigStore) http.HandlerFunc {
 		}
 
 		cfg = store.Get()
-		resolved, err := caddy.ResolveIPList(newList.ID, cfg.IPLists)
+		resolved, err := caddy.ResolveIPList(newList.ID, config.IPListsToEntries(cfg.IPLists))
 		count := 0
 		if err == nil {
 			count = len(resolved)
@@ -208,7 +208,7 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		persistCaddyConfig(cc, store)
 
 		cfg = store.Get()
-		resolved, err := caddy.ResolveIPList(updated.ID, cfg.IPLists)
+		resolved, err := caddy.ResolveIPList(updated.ID, config.IPListsToEntries(cfg.IPLists))
 		count := 0
 		if err == nil {
 			count = len(resolved)

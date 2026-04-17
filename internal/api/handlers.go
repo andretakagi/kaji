@@ -385,7 +385,7 @@ func resolveIPFiltering(store *config.ConfigStore, toggles caddy.RouteToggles, p
 		return nil
 	}
 	cfg := store.Get()
-	resolved, err := caddy.ResolveIPList(toggles.IPFiltering.ListID, cfg.IPLists)
+	resolved, err := caddy.ResolveIPList(toggles.IPFiltering.ListID, config.IPListsToEntries(cfg.IPLists))
 	if err != nil {
 		return err
 	}

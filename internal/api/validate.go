@@ -211,7 +211,7 @@ func validateIPListChildren(children []string, parentType string, parentID strin
 				break
 			}
 		}
-		if _, err := caddy.ResolveIPList(parentID, tempLists); err != nil {
+		if _, err := caddy.ResolveIPList(parentID, config.IPListsToEntries(tempLists)); err != nil {
 			return fmt.Sprintf("circular reference: %v", err)
 		}
 	}

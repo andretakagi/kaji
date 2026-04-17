@@ -119,7 +119,7 @@ func rebuildRoute(routeID string, store *config.ConfigStore, cc *caddy.Client) e
 	listID := cfg.RouteIPLists[routeID]
 
 	if listID != "" {
-		resolved, err := caddy.ResolveIPList(listID, cfg.IPLists)
+		resolved, err := caddy.ResolveIPList(listID, config.IPListsToEntries(cfg.IPLists))
 		if err != nil {
 			log.Printf("rebuildRoute: failed to resolve IP list for route %s: %v", routeID, err)
 			// List resolution failed (list was deleted, etc.) - rebuild without IP filtering
