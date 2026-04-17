@@ -18,6 +18,8 @@ const strategyLabels: Record<ReverseProxyConfig["load_balancing"]["strategy"], s
 };
 
 export default function HandlerConfig({ type, config, onChange, disabled }: Props) {
+	const idPrefix = useId();
+
 	if (type !== "reverse_proxy") {
 		return (
 			<div className="alert-warning" role="status">
@@ -35,9 +37,9 @@ export default function HandlerConfig({ type, config, onChange, disabled }: Prop
 	return (
 		<div className="handler-config">
 			<div className="form-field">
-				<label htmlFor="handler-upstream">Upstream</label>
+				<label htmlFor={`${idPrefix}-upstream`}>Upstream</label>
 				<input
-					id="handler-upstream"
+					id={`${idPrefix}-upstream`}
 					type="text"
 					placeholder="localhost:3000"
 					value={rpConfig.upstream}
