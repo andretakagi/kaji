@@ -45,7 +45,7 @@ export default function DomainForm({ onCreate, onCancel, saving }: Props) {
 
 	const supported = handlerType === "reverse_proxy";
 
-	async function handleSubmit(e: React.FormEvent) {
+	async function handleSubmit(e: React.SubmitEvent) {
 		e.preventDefault();
 		setFormError(null);
 
