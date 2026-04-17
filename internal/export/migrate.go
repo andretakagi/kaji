@@ -120,6 +120,10 @@ func parseVersion(s string) (int, int, int, error) {
 	return major, minor, patch, nil
 }
 
+func CompareVersions(a, b string) (int, error) {
+	return compareVersions(a, b)
+}
+
 func compareVersions(a, b string) (int, error) {
 	aMaj, aMin, aPat, err := parseVersion(a)
 	if err != nil {

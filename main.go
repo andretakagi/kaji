@@ -12,12 +12,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/andretakagi/kaji/internal/api"
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/export"
 	"github.com/andretakagi/kaji/internal/logging"
 	"github.com/andretakagi/kaji/internal/snapshot"
 	"github.com/andretakagi/kaji/internal/system"
@@ -31,7 +33,7 @@ const (
 	caddyReadyTimeout  = 10 * time.Second
 )
 
-var version = "1.6.0"
+var version = "1.7.0"
 
 //go:embed dist/*
 var frontendFiles embed.FS
@@ -133,6 +135,10 @@ func main() {
 			case !os.IsNotExist(err):
 				log.Printf("Failed to read saved Caddy config: %v", err)
 			}
+
+			if cfg.KajiVersion != version {
+				runStartupMigration(store, caddyClient, version)
+			}
 		}
 	}
 
@@ -188,4 +194,127 @@ func main() {
 	}
 
 	log.Println("Shutdown complete")
+}
+
+func runStartupMigration(store *config.ConfigStore, cc *caddy.Client, ver string) {
+	cfg := store.Get()
+
+	configMap := make(map[string]any)
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		log.Printf("Migration: failed to marshal config: %v", err)
+		return
+	}
+	if err := json.Unmarshal(data, &configMap); err != nil {
+		log.Printf("Migration: failed to unmarshal config map: %v", err)
+		return
+	}
+
+	fromVersion := cfg.KajiVersion
+	if fromVersion == "" {
+		fromVersion = "0.0.0"
+	}
+
+	changes, err := export.RunMigrations(configMap, fromVersion)
+	if err != nil {
+		log.Printf("Migration: %v", err)
+		return
+	}
+	for _, c := range changes {
+		log.Printf("Migration: %s", c)
+	}
+
+	if len(cfg.Domains) == 0 {
+		migrated := migrateActiveCaddyRoutes(cc)
+		if len(migrated) > 0 {
+			log.Printf("Migration: converted %d active Caddy routes to domains", len(migrated))
+			if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
+				current.Domains = migrated
+				current.KajiVersion = ver
+				return &current, nil
+			}); err != nil {
+				log.Printf("Migration: failed to save migrated domains: %v", err)
+			}
+			return
+		}
+	}
+
+	if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
+		current.KajiVersion = ver
+		return &current, nil
+	}); err != nil {
+		log.Printf("Migration: failed to update kaji_version: %v", err)
+	}
+}
+
+func migrateActiveCaddyRoutes(cc *caddy.Client) []config.Domain {
+	raw, err := cc.GetConfig()
+	if err != nil || raw == nil {
+		return nil
+	}
+
+	var cfg struct {
+		Apps struct {
+			HTTP struct {
+				Servers map[string]struct {
+					Routes []json.RawMessage `json:"routes"`
+				} `json:"servers"`
+			} `json:"http"`
+		} `json:"apps"`
+	}
+	if json.Unmarshal(raw, &cfg) != nil {
+		return nil
+	}
+
+	var domains []config.Domain
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		for _, routeRaw := range srv.Routes {
+			var r struct {
+				ID string `json:"@id"`
+			}
+			if json.Unmarshal(routeRaw, &r) != nil {
+				continue
+			}
+			if !strings.HasPrefix(r.ID, "kaji_") {
+				continue
+			}
+			if strings.HasPrefix(r.ID, "kaji_rule_") {
+				continue
+			}
+
+			params, err := caddy.ParseRouteParams(routeRaw)
+			if err != nil || params.Domain == "" {
+				continue
+			}
+
+			rpCfg := caddy.ReverseProxyConfig{
+				Upstream:          params.Upstream,
+				TLSSkipVerify:     params.Toggles.TLSSkipVerify,
+				WebSocketPassthru: params.Toggles.WebSocketPassthru,
+			}
+			hcData, err := caddy.MarshalReverseProxyConfig(rpCfg)
+			if err != nil {
+				continue
+			}
+
+			ruleID := caddy.GenerateRuleID()
+			domain := config.Domain{
+				ID:      caddy.GenerateDomainID(),
+				Name:    params.Domain,
+				Enabled: true,
+				Rules: []config.Rule{
+					{
+						ID:            ruleID,
+						Enabled:       true,
+						MatchType:     "",
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: hcData,
+					},
+				},
+			}
+			domains = append(domains, domain)
+		}
+	}
+
+	return domains
 }
