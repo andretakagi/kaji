@@ -222,7 +222,9 @@ export default function RuleForm({ domainId, domainName, initial, onSubmit, onCa
 					<div className="rule-form-overrides-body">
 						<DomainToggleGrid
 							toggles={toggleOverrides}
-							onUpdate={(key, value) => setToggleOverrides((prev) => ({ ...prev, [key]: value }))}
+							onUpdate={(key: keyof DomainToggles, value: DomainToggles[keyof DomainToggles]) =>
+								setToggleOverrides((prev) => ({ ...prev, [key]: value }))
+							}
 							idPrefix={`rule-override-${domainId}`}
 							domain={domainName}
 						/>
