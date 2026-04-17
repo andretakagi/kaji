@@ -23,6 +23,14 @@ import type {
 import type { CaddyConfig } from "./types/caddy";
 import type { CertInfo } from "./types/certs";
 import type {
+	CreateDomainRequest,
+	CreateRuleRequest,
+	Domain,
+	Rule,
+	UpdateDomainRequest,
+	UpdateRuleRequest,
+} from "./types/domain";
+import type {
 	CaddyLoggingConfig,
 	CaddyLogSink,
 	LogQueryParams,
@@ -606,4 +614,92 @@ export function updateLokiConfig(config: LokiConfig): Promise<{ status: string }
 
 export function testLokiConnection(): Promise<LokiTestResult> {
 	return request("/api/loki/test", { method: "POST" }, validateLokiTestResult);
+}
+
+export function fetchDomains(): Promise<Domain[]> {
+	return request("/api/domains", undefined, (d) => d as Domain[]);
+}
+
+export function fetchDomain(id: string): Promise<Domain> {
+	return request(`/api/domains/${encodeURIComponent(id)}`, undefined, (d) => d as Domain);
+}
+
+export function createDomain(req: CreateDomainRequest): Promise<Domain> {
+	return request("/api/domains", { method: "POST", ...jsonBody(req) }, (d) => d as Domain);
+}
+
+export function updateDomain(id: string, req: UpdateDomainRequest): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function deleteDomain(id: string): Promise<{ status: string }> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}`,
+		{ method: "DELETE" },
+		validateStatusResponse,
+	);
+}
+
+export function enableDomain(id: string): Promise<{ status: string }> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}/enable`,
+		{ method: "POST" },
+		validateStatusResponse,
+	);
+}
+
+export function disableDomain(id: string): Promise<{ status: string }> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}/disable`,
+		{ method: "POST" },
+		validateStatusResponse,
+	);
+}
+
+export function createRule(domainId: string, req: CreateRuleRequest): Promise<Rule> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules`,
+		{ method: "POST", ...jsonBody(req) },
+		(d) => d as Rule,
+	);
+}
+
+export function updateRule(
+	domainId: string,
+	ruleId: string,
+	req: UpdateRuleRequest,
+): Promise<Rule> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => d as Rule,
+	);
+}
+
+export function deleteRule(domainId: string, ruleId: string): Promise<{ status: string }> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
+		{ method: "DELETE" },
+		validateStatusResponse,
+	);
+}
+
+export function enableRule(domainId: string, ruleId: string): Promise<{ status: string }> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/enable`,
+		{ method: "POST" },
+		validateStatusResponse,
+	);
+}
+
+export function disableRule(domainId: string, ruleId: string): Promise<{ status: string }> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/disable`,
+		{ method: "POST" },
+		validateStatusResponse,
+	);
 }
