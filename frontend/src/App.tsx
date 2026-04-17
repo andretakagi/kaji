@@ -12,6 +12,8 @@ import {
 } from "./api";
 import { cn } from "./cn";
 import Certificates from "./components/Certificates";
+import DomainDetail from "./components/DomainDetail";
+import DomainList from "./components/DomainList";
 import { ErrorAlert } from "./components/ErrorAlert";
 import IPLists from "./components/IPLists";
 import Login from "./components/Login";
@@ -77,6 +79,10 @@ function pathToView(pathname: string): View {
 function App() {
 	const [appState, setAppState] = useState<AppState>("loading");
 	const [view, setView] = useState<View>(() => pathToView(window.location.pathname));
+	const [selectedDomainId, setSelectedDomainId] = useState<string | null>(() => {
+		const match = window.location.pathname.match(/^\/routes\/(.+)/);
+		return match ? match[1] : null;
+	});
 	const [authEnabled, setAuthEnabled] = useState(false);
 	const [caddyRunning, setCaddyRunning] = useState<boolean | null>(null);
 	const [serviceActing, setServiceActing] = useState(false);
@@ -86,10 +92,15 @@ function App() {
 		const path = v === "routes" ? "/" : `/${v}`;
 		window.history.pushState(null, "", path);
 		setView(v);
+		if (v === "routes") setSelectedDomainId(null);
 	}, []);
 
 	useEffect(() => {
-		const onPop = () => setView(pathToView(window.location.pathname));
+		const onPop = () => {
+			setView(pathToView(window.location.pathname));
+			const match = window.location.pathname.match(/^\/routes\/(.+)/);
+			setSelectedDomainId(match ? match[1] : null);
+		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
 	}, []);
@@ -167,6 +178,7 @@ function App() {
 					onComplete={async () => {
 						window.history.replaceState(null, "", "/");
 						setView("routes");
+						setSelectedDomainId(null);
 						try {
 							const s = await fetchStatus();
 							setCaddyRunning(s.running);
@@ -291,7 +303,24 @@ function App() {
 
 				<CaddyProvider running={running}>
 					<main id="main-content" className="app-content">
-						{view === "routes" && <Routes />}
+						{view === "routes" &&
+							(selectedDomainId ? (
+								<DomainDetail
+									id={selectedDomainId}
+									onBack={() => {
+										setSelectedDomainId(null);
+										window.history.pushState(null, "", "/");
+									}}
+									onDelete={() => setSelectedDomainId(null)}
+								/>
+							) : (
+								<DomainList
+									onNavigate={(id) => {
+										setSelectedDomainId(id);
+										window.history.pushState(null, "", `/routes/${id}`);
+									}}
+								/>
+							))}
 						{view === "ip-lists" && <IPLists />}
 						{view === "certificates" && <Certificates />}
 						{view === "logs" && <Logs />}
