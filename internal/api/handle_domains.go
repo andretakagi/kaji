@@ -448,7 +448,7 @@ func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 
 		persistCaddyConfig(cc, store)
 
-		cfg := store.Get()
+		cfg = store.Get()
 		if dom := findDomain(cfg, domainID); dom != nil {
 			writeJSON(w, dom)
 			return
