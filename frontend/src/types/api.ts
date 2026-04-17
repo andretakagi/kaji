@@ -1,4 +1,4 @@
-import type { CaddyConfig, CaddyRoute } from "./caddy";
+import type { CaddyConfig } from "./caddy";
 
 export interface CaddyStatus {
 	running: boolean;
@@ -87,13 +87,6 @@ export interface AuthStatus {
 	has_password: boolean;
 }
 
-export interface DisabledRoute {
-	id: string;
-	server: string;
-	disabled_at: string;
-	route: CaddyRoute;
-}
-
 export interface HeaderEntry {
 	key: string;
 	value: string;
@@ -126,10 +119,6 @@ export interface HeadersConfig {
 	request: RequestHeaders;
 }
 
-export interface RouteSettings {
-	advanced_headers: boolean;
-}
-
 export interface RouteToggles {
 	enabled: boolean;
 	force_https: boolean;
@@ -154,31 +143,6 @@ export interface RouteToggles {
 		list_id: string;
 		type: "whitelist" | "blacklist" | "";
 	};
-}
-
-export interface CreateRouteRequest {
-	server?: string;
-	domain: string;
-	upstream: string;
-	toggles?: RouteToggles;
-	advanced_headers?: boolean;
-}
-
-export interface UpdateRouteRequest {
-	id: string;
-	domain: string;
-	upstream: string;
-	toggles: RouteToggles;
-	advanced_headers?: boolean;
-}
-
-export interface ParsedRoute {
-	id: string;
-	domain: string;
-	upstream: string;
-	disabled: boolean;
-	server: string;
-	toggles: RouteToggles;
 }
 
 export interface ChangePasswordRequest {

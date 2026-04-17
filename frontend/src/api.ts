@@ -4,20 +4,16 @@ import type {
 	CaddyfileResponse,
 	CaddyStatus,
 	ChangePasswordRequest,
-	CreateRouteRequest,
-	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
 	ImportResponse,
 	IPList,
 	IPListUsage,
 	LoginRequest,
-	RouteSettings,
 	SetupImportFullResponse,
 	SetupRequest,
 	SetupResponse,
 	SetupStatus,
-	UpdateRouteRequest,
 	UpstreamStatus,
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
@@ -53,8 +49,6 @@ import {
 	validateCaddyfileResponse,
 	validateCaddyStatus,
 	validateCertificates,
-	validateCreateRouteResponse,
-	validateDisabledRoutes,
 	validateDNSProvider,
 	validateExportCaddyfile,
 	validateGenerateAPIKey,
@@ -69,7 +63,6 @@ import {
 	validateLokiStatus,
 	validateLokiTestResult,
 	validateRouteIPListBindings,
-	validateRouteSettings,
 	validateSetupImportFullResponse,
 	validateSetupResponse,
 	validateSetupStatus,
@@ -199,55 +192,6 @@ export function fetchConfig(): Promise<CaddyConfig> {
 
 export function fetchUpstreams(): Promise<UpstreamStatus[]> {
 	return request("/api/caddy/upstreams", undefined, validateUpstreams);
-}
-
-export function createRoute(
-	req: CreateRouteRequest,
-): Promise<{ status: string; "@id": string; warning?: string }> {
-	return request("/api/routes", { method: "POST", ...jsonBody(req) }, validateCreateRouteResponse);
-}
-
-export function deleteRoute(id: string): Promise<{ status: string; warning?: string }> {
-	return request(
-		`/api/routes/${encodeURIComponent(id)}`,
-		{ method: "DELETE" },
-		validateStatusResponse,
-	);
-}
-
-export function updateRoute(
-	req: UpdateRouteRequest,
-): Promise<{ status: string; warning?: string }> {
-	const { id, ...body } = req;
-	return request(
-		`/api/routes/${encodeURIComponent(id)}`,
-		{ method: "PUT", ...jsonBody(body) },
-		validateStatusResponse,
-	);
-}
-
-export function disableRoute(id: string): Promise<{ status: string; warning?: string }> {
-	return request(
-		"/api/routes/disable",
-		{ method: "POST", ...jsonBody({ "@id": id }) },
-		validateStatusResponse,
-	);
-}
-
-export function enableRoute(id: string): Promise<{ status: string; warning?: string }> {
-	return request(
-		"/api/routes/enable",
-		{ method: "POST", ...jsonBody({ "@id": id }) },
-		validateStatusResponse,
-	);
-}
-
-export function fetchDisabledRoutes(): Promise<DisabledRoute[]> {
-	return request("/api/routes/disabled", undefined, validateDisabledRoutes);
-}
-
-export function fetchRouteSettings(): Promise<Record<string, RouteSettings>> {
-	return request("/api/route-settings", undefined, validateRouteSettings);
 }
 
 export function fetchGlobalToggles(): Promise<GlobalToggles> {

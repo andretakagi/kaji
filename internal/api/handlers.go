@@ -50,14 +50,6 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/caddy/config/{path...}", handleConfigProxy(cc))
 	mux.HandleFunc("POST /api/caddy/load", handleConfigLoad(store, cc))
 	mux.HandleFunc("GET /api/caddy/upstreams", handleUpstreams(cc))
-	mux.HandleFunc("POST /api/routes", handleCreateRoute(store, cc, ss, version))
-	mux.HandleFunc("DELETE /api/routes/{id}", handleDeleteRoute(store, cc, ss, version))
-	mux.HandleFunc("PUT /api/routes/{id}", handleUpdateRoute(store, cc, ss, version))
-	mux.HandleFunc("POST /api/routes/disable", handleDisableRoute(store, cc, ss, version))
-	mux.HandleFunc("POST /api/routes/enable", handleEnableRoute(store, cc, ss, version))
-	mux.HandleFunc("GET /api/routes/disabled", handleDisabledRoutes(store))
-	mux.HandleFunc("GET /api/route-settings", handleGetRouteSettings(store))
-
 	// Domain management
 	mux.HandleFunc("GET /api/domains", handleListDomains(store))
 	mux.HandleFunc("POST /api/domains", handleCreateDomain(store, cc, ss, version))

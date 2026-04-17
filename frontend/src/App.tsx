@@ -18,7 +18,6 @@ import { ErrorAlert } from "./components/ErrorAlert";
 import IPLists from "./components/IPLists";
 import Login from "./components/Login";
 import Logs from "./components/Logs";
-import Routes from "./components/Routes";
 import Settings from "./components/Settings";
 import Setup from "./components/Setup";
 import Snapshots from "./components/Snapshots";

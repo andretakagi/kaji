@@ -37,7 +37,6 @@ import type {
 	AuthStatus,
 	CaddyfileResponse,
 	CaddyStatus,
-	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
 	ImportResponse,
@@ -83,12 +82,6 @@ export function validateStatusResponse(data: unknown): { status: string } {
 	return assertValid("StatusResponse", data, (d) => hasFields(d, { status: is.string }));
 }
 
-export function validateCreateRouteResponse(data: unknown): { status: string; "@id": string } {
-	return assertValid("CreateRouteResponse", data, (d) =>
-		hasFields(d, { status: is.string, "@id": is.string }),
-	);
-}
-
 function isUpstreamStatus(d: unknown): boolean {
 	return hasFields(d, {
 		address: is.string,
@@ -97,18 +90,6 @@ function isUpstreamStatus(d: unknown): boolean {
 
 export function validateUpstreams(data: unknown): UpstreamStatus[] {
 	return assertValid("UpstreamStatus[]", data, (d) => is.array(d) && d.every(isUpstreamStatus));
-}
-
-function isDisabledRoute(d: unknown): boolean {
-	return hasFields(d, {
-		id: is.string,
-		server: is.string,
-		disabled_at: is.string,
-	});
-}
-
-export function validateDisabledRoutes(data: unknown): DisabledRoute[] {
-	return assertValid("DisabledRoute[]", data, (d) => is.array(d) && d.every(isDisabledRoute));
 }
 
 export function validateCaddyConfig(data: unknown): CaddyConfig {
@@ -319,17 +300,4 @@ export function validateLokiTestResult(data: unknown): LokiTestResult {
 	return assertValid("LokiTestResult", data, (d) =>
 		hasFields(d, { success: is.boolean, message: is.string }),
 	);
-}
-
-export function validateRouteSettings(
-	data: unknown,
-): Record<string, { advanced_headers: boolean }> {
-	return assertValid("RouteSettings", data, (d) => {
-		if (!is.object(d)) return false;
-		for (const v of Object.values(d)) {
-			if (!is.object(v)) return false;
-			if (!hasFields(v, { advanced_headers: is.boolean })) return false;
-		}
-		return true;
-	});
 }
