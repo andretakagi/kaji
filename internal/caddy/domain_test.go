@@ -75,9 +75,9 @@ func TestMergeToggles_WithOverrides(t *testing.T) {
 		Compression: true,
 	}
 	overrides := &DomainToggles{
-		ForceHTTPS:    false,
-		Compression:   false,
-		TLSSkipVerify: true,
+		ForceHTTPS:  false,
+		Compression: false,
+		AccessLog:   "custom.log",
 	}
 	result := MergeToggles(defaults, overrides)
 	if result.ForceHTTPS {
@@ -86,14 +86,16 @@ func TestMergeToggles_WithOverrides(t *testing.T) {
 	if result.Compression {
 		t.Error("expected Compression=false from override")
 	}
-	if !result.TLSSkipVerify {
-		t.Error("expected TLSSkipVerify=true from override")
+	if result.AccessLog != "custom.log" {
+		t.Errorf("expected AccessLog=%q from override, got %q", "custom.log", result.AccessLog)
 	}
 }
 
 func TestParseReverseProxyConfig(t *testing.T) {
 	original := ReverseProxyConfig{
-		Upstream: "localhost:8080",
+		Upstream:          "localhost:8080",
+		TLSSkipVerify:     true,
+		WebSocketPassthru: true,
 		LoadBalancing: LoadBalancing{
 			Enabled:   true,
 			Strategy:  "round_robin",
@@ -113,6 +115,12 @@ func TestParseReverseProxyConfig(t *testing.T) {
 
 	if parsed.Upstream != original.Upstream {
 		t.Errorf("Upstream = %q, want %q", parsed.Upstream, original.Upstream)
+	}
+	if !parsed.TLSSkipVerify {
+		t.Error("expected TLSSkipVerify = true")
+	}
+	if !parsed.WebSocketPassthru {
+		t.Error("expected WebSocketPassthru = true")
 	}
 	if !parsed.LoadBalancing.Enabled {
 		t.Error("expected LoadBalancing.Enabled = true")

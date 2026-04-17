@@ -55,22 +55,24 @@ type IPList struct {
 }
 
 type Domain struct {
-	ID       string              `json:"id"`
-	Domain   string              `json:"domain"`
-	Toggles  caddy.DomainToggles `json:"toggles"`
-	Rules    []Rule              `json:"rules"`
-	Disabled bool                `json:"disabled"`
+	ID      string              `json:"id"`
+	Name    string              `json:"name"`
+	Enabled bool                `json:"enabled"`
+	Toggles caddy.DomainToggles `json:"toggles"`
+	Rules   []Rule              `json:"rules"`
 }
 
 type Rule struct {
 	ID              string               `json:"id"`
-	Name            string               `json:"name"`
+	Label           string               `json:"label,omitempty"`
+	Enabled         bool                 `json:"enabled"`
+	MatchType       string               `json:"match_type"`
+	PathMatch       string               `json:"path_match,omitempty"`
+	MatchValue      string               `json:"match_value,omitempty"`
 	HandlerType     string               `json:"handler_type"`
 	HandlerConfig   json.RawMessage      `json:"handler_config"`
-	MatchPath       string               `json:"match_path,omitempty"`
 	ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides,omitempty"`
-	SortOrder       int                  `json:"sort_order"`
-	Disabled        bool                 `json:"disabled"`
+	AdvancedHeaders bool                 `json:"advanced_headers"`
 }
 
 func IPListsToEntries(lists []IPList) []caddy.IPListEntry {

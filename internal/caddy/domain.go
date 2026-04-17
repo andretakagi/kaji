@@ -7,19 +7,19 @@ import (
 )
 
 type DomainToggles struct {
-	ForceHTTPS        bool            `json:"force_https"`
-	Compression       bool            `json:"compression"`
-	Headers           HeadersConfig   `json:"headers"`
-	TLSSkipVerify     bool            `json:"tls_skip_verify"`
-	BasicAuth         BasicAuth       `json:"basic_auth"`
-	AccessLog         string          `json:"access_log"`
-	WebSocketPassthru bool            `json:"websocket_passthrough"`
-	IPFiltering       IPFilteringOpts `json:"ip_filtering"`
+	ForceHTTPS  bool            `json:"force_https"`
+	Compression bool            `json:"compression"`
+	Headers     HeadersConfig   `json:"headers"`
+	BasicAuth   BasicAuth       `json:"basic_auth"`
+	AccessLog   string          `json:"access_log"`
+	IPFiltering IPFilteringOpts `json:"ip_filtering"`
 }
 
 type ReverseProxyConfig struct {
-	Upstream      string        `json:"upstream"`
-	LoadBalancing LoadBalancing `json:"load_balancing"`
+	Upstream          string        `json:"upstream"`
+	TLSSkipVerify     bool          `json:"tls_skip_verify"`
+	WebSocketPassthru bool          `json:"websocket_passthrough"`
+	LoadBalancing     LoadBalancing `json:"load_balancing"`
 }
 
 func generateOpaqueID(prefix string) string {
