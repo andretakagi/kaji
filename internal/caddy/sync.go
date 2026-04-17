@@ -200,15 +200,13 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 		result.Added++
 	}
 
-	// Set access log entries for each enabled domain
+	// Set or clear access log entries for each enabled domain
 	for _, dom := range domains {
 		if !dom.Enabled {
 			continue
 		}
-		if dom.Toggles.AccessLog != "" {
-			if err := cc.SetRouteAccessLog(serverName, dom.Name, dom.Toggles.AccessLog); err != nil {
-				return result, fmt.Errorf("setting access log for %s: %w", dom.Name, err)
-			}
+		if err := cc.SetRouteAccessLog(serverName, dom.Name, dom.Toggles.AccessLog); err != nil {
+			return result, fmt.Errorf("setting access log for %s: %w", dom.Name, err)
 		}
 	}
 
