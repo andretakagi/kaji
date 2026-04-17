@@ -84,49 +84,53 @@ export default function IPLists() {
 	return (
 		<div className="ip-lists">
 			<SectionHeader title="IP Lists">
-				<button type="button" className="btn btn-primary" onClick={form.toggle}>
-					{form.visible ? "Cancel" : "New List"}
-				</button>
+				{!form.visible && (
+					<button type="button" className="btn btn-primary" onClick={form.toggle}>
+						New List
+					</button>
+				)}
 			</SectionHeader>
 
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
 
 			{form.visible && (
 				<form className="ip-list-create-form" onSubmit={handleCreate}>
-					<div className="form-row">
-						<div className="form-field">
-							<label htmlFor="ipl-new-name">Name</label>
-							<input
-								id="ipl-new-name"
-								type="text"
-								placeholder="e.g. Office IPs"
-								value={newName}
-								onChange={(e) => setNewName(e.target.value)}
-								disabled={creating}
-							/>
+					<div className="form-row form-row-spread">
+						<div className="form-row">
+							<div className="form-field">
+								<label htmlFor="ipl-new-name">Name</label>
+								<input
+									id="ipl-new-name"
+									type="text"
+									placeholder="e.g. Office IPs"
+									value={newName}
+									onChange={(e) => setNewName(e.target.value)}
+									disabled={creating}
+								/>
+							</div>
+							<div className="form-field">
+								<label htmlFor="ipl-new-desc">Description</label>
+								<input
+									id="ipl-new-desc"
+									type="text"
+									placeholder="Optional"
+									value={newDesc}
+									onChange={(e) => setNewDesc(e.target.value)}
+									disabled={creating}
+								/>
+							</div>
 						</div>
-						<div className="form-field">
-							<label htmlFor="ipl-new-desc">Description</label>
-							<input
-								id="ipl-new-desc"
-								type="text"
-								placeholder="Optional"
-								value={newDesc}
-								onChange={(e) => setNewDesc(e.target.value)}
-								disabled={creating}
-							/>
-						</div>
+						<Toggle
+							options={["blacklist", "whitelist"] as const}
+							value={newType}
+							onChange={(v: "blacklist" | "whitelist") => {
+								setNewType(v);
+								setNewChildren([]);
+							}}
+							disabled={creating}
+							aria-label="List type"
+						/>
 					</div>
-					<Toggle
-						options={["blacklist", "whitelist"] as const}
-						value={newType}
-						onChange={(v: "blacklist" | "whitelist") => {
-							setNewType(v);
-							setNewChildren([]);
-						}}
-						disabled={creating}
-						aria-label="List type"
-					/>
 
 					<div className="ip-list-section">
 						<h4>IP Addresses</h4>
@@ -241,9 +245,19 @@ export default function IPLists() {
 							{createError}
 						</div>
 					)}
-					<button type="submit" className="btn btn-primary submit-btn" disabled={creating}>
-						{creating ? "Creating..." : "Create"}
-					</button>
+					<div className="form-actions">
+						<button
+							type="button"
+							className="btn btn-ghost"
+							onClick={form.close}
+							disabled={creating}
+						>
+							Cancel
+						</button>
+						<button type="submit" className="btn btn-primary" disabled={creating}>
+							{creating ? "Creating..." : "Create"}
+						</button>
+					</div>
 				</form>
 			)}
 

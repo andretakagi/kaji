@@ -1392,6 +1392,17 @@ input:disabled + .toggle-slider {
 	width: 100%;
 }
 
+.form-row-spread {
+	justify-content: space-between;
+	align-items: flex-end;
+}
+
+.form-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
 .submit-btn {
 	align-self: flex-end;
 	padding: 0.5rem 1.5rem;
@@ -3019,8 +3030,12 @@ input:disabled + .toggle-slider {
 	}
 
 	/* Routes */
-	.form-row {
+	.form-row:not(.form-row-spread) {
 		flex-direction: column;
+	}
+
+	.form-row-spread {
+		flex-wrap: wrap;
 	}
 
 	.toggle-grid {
