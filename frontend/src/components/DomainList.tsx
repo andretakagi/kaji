@@ -40,17 +40,19 @@ export default function DomainList({ onNavigate }: Props) {
 	return (
 		<div className="domains">
 			<SectionHeader title="Domains">
-				<button
-					type="button"
-					className="btn btn-primary"
-					disabled={!caddyRunning}
-					onClick={form.toggle}
-				>
-					{form.visible ? "Cancel" : "Add Domain"}
-				</button>
+				{!form.visible && (
+					<button
+						type="button"
+						className="btn btn-primary"
+						disabled={!caddyRunning}
+						onClick={form.open}
+					>
+						Add Domain
+					</button>
+				)}
 			</SectionHeader>
 
-			<RequireCaddy message="Start it to manage domains." />
+			{!error && <RequireCaddy message="Start it to manage domains." />}
 
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
 			<Feedback msg={feedback.msg} type={feedback.type} />

@@ -2393,41 +2393,6 @@ input:disabled + .toggle-slider {
 	padding-bottom: 1.5rem;
 }
 
-.theme-switcher {
-	display: flex;
-	border: 1px solid var(--border-strong);
-	border-radius: var(--radius-sm);
-	overflow: hidden;
-}
-
-.theme-pill {
-	padding: 0.5rem 1.5rem;
-	border: none;
-	background: transparent;
-	color: var(--text-muted);
-	font-size: 0.875rem;
-	font-weight: 500;
-	cursor: pointer;
-	transition:
-		background 0.15s,
-		color 0.15s;
-}
-
-.theme-pill:not(:last-child) {
-	border-right: 1px solid var(--border-strong);
-}
-
-.theme-pill:hover:not(.active) {
-	color: var(--text);
-	background: var(--surface-hover);
-}
-
-.theme-pill.active {
-	background: var(--accent);
-	color: var(--accent-text);
-	font-weight: 600;
-}
-
 .settings-section {
 	background: var(--surface);
 	border-radius: var(--radius);
@@ -2917,6 +2882,12 @@ input:disabled + .toggle-slider {
 .domain-card-header {
 	display: flex;
 	align-items: center;
+	border-radius: var(--radius);
+	transition: background 0.15s;
+}
+
+.domain-card-header:hover {
+	background: var(--surface-hover);
 }
 
 .domain-card-info {
@@ -2933,11 +2904,6 @@ input:disabled + .toggle-slider {
 	color: inherit;
 	font: inherit;
 	outline: none;
-	transition: background 0.15s;
-}
-
-.domain-card-header:hover .domain-card-info {
-	background: var(--surface-hover);
 }
 
 .domain-card-info:focus-visible {

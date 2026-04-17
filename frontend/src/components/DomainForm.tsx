@@ -1,49 +1,32 @@
 import { useState } from "react";
-import type {
-	CreateDomainRequest,
-	HandlerType,
-	MatchType,
-	PathMatch,
-	ReverseProxyConfig,
-} from "../types/domain";
+import type { CreateDomainRequest, HandlerType, ReverseProxyConfig } from "../types/domain";
 import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { Toggle } from "./Toggle";
 
 interface Props {
 	onCreate: (req: CreateDomainRequest) => Promise<void>;
 	onCancel: () => void;
 }
 
-const handlerOptions: { value: HandlerType; label: string }[] = [
+type HandlerSelection = "none" | HandlerType;
+
+const handlerOptions: readonly { value: HandlerSelection; label: string }[] = [
+	{ value: "none", label: "None" },
 	{ value: "reverse_proxy", label: "Reverse Proxy" },
 	{ value: "redirect", label: "Redirect" },
 	{ value: "file_server", label: "File Server" },
 	{ value: "static_response", label: "Static Response" },
-];
-
-const matchOptions: { value: MatchType; label: string }[] = [
-	{ value: "", label: "Root (entire domain)" },
-	{ value: "subdomain", label: "Subdomain" },
-	{ value: "path", label: "Path" },
-];
-
-const pathMatchOptions: { value: PathMatch; label: string }[] = [
-	{ value: "prefix", label: "Prefix" },
-	{ value: "exact", label: "Exact" },
-	{ value: "regex", label: "Regex" },
-];
+] as const;
 
 export default function DomainForm({ onCreate, onCancel }: Props) {
 	const [name, setName] = useState("");
-	const [matchType, setMatchType] = useState<MatchType>("");
-	const [pathMatch, setPathMatch] = useState<PathMatch>("prefix");
-	const [matchValue, setMatchValue] = useState("");
-	const [handlerType, setHandlerType] = useState<HandlerType>("reverse_proxy");
+	const [handlerType, setHandlerType] = useState<HandlerSelection>("none");
 	const [upstream, setUpstream] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
 
-	const supported = handlerType === "reverse_proxy";
+	const supported = handlerType === "none" || handlerType === "reverse_proxy";
 
 	async function handleSubmit(e: React.SubmitEvent) {
 		e.preventDefault();
@@ -54,17 +37,7 @@ export default function DomainForm({ onCreate, onCancel }: Props) {
 			return;
 		}
 
-		if (matchType === "subdomain" && !matchValue.trim()) {
-			setFormError("Subdomain value is required");
-			return;
-		}
-
-		if (matchType === "path" && !matchValue.trim()) {
-			setFormError("Path value is required");
-			return;
-		}
-
-		if (supported && !upstream.trim()) {
+		if (handlerType === "reverse_proxy" && !upstream.trim()) {
 			setFormError("Upstream is required");
 			return;
 		}
@@ -76,14 +49,14 @@ export default function DomainForm({ onCreate, onCancel }: Props) {
 			handlerConfig = {};
 		}
 
+		const effectiveHandler: HandlerType = handlerType === "none" ? "reverse_proxy" : handlerType;
+
 		const req: CreateDomainRequest = {
 			name: name.trim(),
 			toggles: defaultDomainToggles,
 			first_rule: {
-				match_type: matchType,
-				...(matchType === "path" ? { path_match: pathMatch } : {}),
-				...(matchType !== "" ? { match_value: matchValue.trim() } : {}),
-				handler_type: handlerType,
+				match_type: "",
+				handler_type: effectiveHandler,
 				handler_config: handlerConfig,
 			},
 		};
@@ -118,89 +91,24 @@ export default function DomainForm({ onCreate, onCancel }: Props) {
 
 			<div className="form-row">
 				<div className="form-field">
-					<label htmlFor="domain-match-type">Match Type</label>
-					<select
-						id="domain-match-type"
-						value={matchType}
-						onChange={(e) => setMatchType(e.target.value as MatchType)}
+					<label>Handler</label>
+					<Toggle
+						options={handlerOptions}
+						value={handlerType}
+						onChange={setHandlerType}
 						disabled={submitting}
-					>
-						{matchOptions.map((o) => (
-							<option key={o.value} value={o.value}>
-								{o.label}
-							</option>
-						))}
-					</select>
+					/>
 				</div>
-
-				{matchType === "subdomain" && (
-					<div className="form-field">
-						<label htmlFor="domain-match-value">Subdomain</label>
-						<input
-							id="domain-match-value"
-							type="text"
-							placeholder="api"
-							value={matchValue}
-							onChange={(e) => setMatchValue(e.target.value)}
-							maxLength={63}
-							required
-							disabled={submitting}
-						/>
-					</div>
-				)}
-
-				{matchType === "path" && (
-					<>
-						<div className="form-field">
-							<label htmlFor="domain-path-match">Path Match</label>
-							<select
-								id="domain-path-match"
-								value={pathMatch}
-								onChange={(e) => setPathMatch(e.target.value as PathMatch)}
-								disabled={submitting}
-							>
-								{pathMatchOptions.map((o) => (
-									<option key={o.value} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</select>
-						</div>
-						<div className="form-field">
-							<label htmlFor="domain-path-value">Path</label>
-							<input
-								id="domain-path-value"
-								type="text"
-								placeholder="/api/*"
-								value={matchValue}
-								onChange={(e) => setMatchValue(e.target.value)}
-								maxLength={253}
-								required
-								disabled={submitting}
-							/>
-						</div>
-					</>
-				)}
 			</div>
 
-			<div className="form-row">
-				<div className="form-field">
-					<label htmlFor="domain-handler-type">Handler Type</label>
-					<select
-						id="domain-handler-type"
-						value={handlerType}
-						onChange={(e) => setHandlerType(e.target.value as HandlerType)}
-						disabled={submitting}
-					>
-						{handlerOptions.map((o) => (
-							<option key={o.value} value={o.value}>
-								{o.label}
-							</option>
-						))}
-					</select>
+			{handlerType !== "none" && handlerType !== "reverse_proxy" && (
+				<div className="alert-warning" role="status">
+					This handler type is not yet supported. Only reverse proxy is available for now.
 				</div>
+			)}
 
-				{supported && (
+			{handlerType === "reverse_proxy" && (
+				<div className="form-row">
 					<div className="form-field">
 						<label htmlFor="domain-upstream">Upstream</label>
 						<input
@@ -214,12 +122,6 @@ export default function DomainForm({ onCreate, onCancel }: Props) {
 							disabled={submitting}
 						/>
 					</div>
-				)}
-			</div>
-
-			{!supported && (
-				<div className="alert-warning" role="status">
-					This handler type is not yet supported. Only reverse proxy is available for now.
 				</div>
 			)}
 
