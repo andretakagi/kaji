@@ -1,8 +1,6 @@
-import { createDomain } from "../api";
 import { RequireCaddy, useCaddyStatus } from "../contexts/CaddyContext";
 import { useDomainList } from "../hooks/useDomainList";
 import { useFormToggle } from "../hooks/useFormToggle";
-import type { CreateDomainRequest } from "../types/domain";
 import DomainCard from "./DomainCard";
 import DomainForm from "./DomainForm";
 import { ErrorAlert } from "./ErrorAlert";
@@ -23,16 +21,15 @@ export default function DomainList({ onNavigate }: Props) {
 		setError,
 		saving,
 		feedback,
+		handleCreate,
 		handleDelete,
 		handleToggleEnabled,
-		reload,
 	} = useDomainList();
 
 	const form = useFormToggle();
 
-	async function onCreateDomain(req: CreateDomainRequest) {
-		await createDomain(req);
-		await reload();
+	async function onCreateDomain(req: Parameters<typeof handleCreate>[0]) {
+		await handleCreate(req);
 		form.close();
 	}
 

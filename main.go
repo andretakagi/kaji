@@ -224,26 +224,65 @@ func runStartupMigration(store *config.ConfigStore, cc *caddy.Client, ver string
 		log.Printf("Migration: %s", c)
 	}
 
-	if len(cfg.Domains) == 0 {
-		migrated := migrateActiveCaddyRoutes(cc)
-		if len(migrated) > 0 {
-			log.Printf("Migration: converted %d active Caddy routes to domains", len(migrated))
-			if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
-				current.Domains = migrated
-				current.KajiVersion = ver
-				return &current, nil
-			}); err != nil {
-				log.Printf("Migration: failed to save migrated domains: %v", err)
-			}
+	// Apply migration changes back to the config. RunMigrations mutates
+	// configMap in place (removes disabled_routes, route_settings, converts
+	// disabled routes to domain entries), so we need to unmarshal it back.
+	var migrated config.AppConfig
+	if len(changes) > 0 {
+		migratedData, err := json.Marshal(configMap)
+		if err != nil {
+			log.Printf("Migration: failed to re-marshal migrated config: %v", err)
 			return
+		}
+		if err := json.Unmarshal(migratedData, &migrated); err != nil {
+			log.Printf("Migration: failed to parse migrated config: %v", err)
+			return
+		}
+	} else {
+		migrated = *cfg
+	}
+
+	// If the migration didn't produce any domains, convert active Caddy
+	// routes (old kaji_ prefix, not kaji_rule_) into domain entries.
+	if len(migrated.Domains) == 0 {
+		active := migrateActiveCaddyRoutes(cc)
+		if len(active) > 0 {
+			migrated.Domains = active
+			log.Printf("Migration: converted %d active Caddy routes to domains", len(active))
+		}
+	} else if len(changes) > 0 {
+		// Migration produced domains (from disabled_routes). Also pull in
+		// active Caddy routes that aren't already covered.
+		active := migrateActiveCaddyRoutes(cc)
+		if len(active) > 0 {
+			existing := make(map[string]bool, len(migrated.Domains))
+			for _, d := range migrated.Domains {
+				existing[d.Name] = true
+			}
+			for _, d := range active {
+				if !existing[d.Name] {
+					migrated.Domains = append(migrated.Domains, d)
+				}
+			}
+			log.Printf("Migration: converted %d active Caddy routes to domains", len(active))
 		}
 	}
 
+	migrated.KajiVersion = ver
+
 	if err := store.Update(func(current config.AppConfig) (*config.AppConfig, error) {
-		current.KajiVersion = ver
-		return &current, nil
+		// Preserve credentials and paths from current config
+		migrated.PreserveCredentials(&current)
+		return &migrated, nil
 	}); err != nil {
-		log.Printf("Migration: failed to update kaji_version: %v", err)
+		log.Printf("Migration: failed to save migrated config: %v", err)
+		return
+	}
+
+	cfg = store.Get()
+	syncDomains := export.ToSyncDomains(cfg.Domains)
+	if _, err := caddy.SyncDomains(cc, syncDomains, export.ResolveIPsFromConfig(cfg)); err != nil {
+		log.Printf("Migration: failed to sync domains to Caddy: %v", err)
 	}
 }
 

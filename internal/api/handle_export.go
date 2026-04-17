@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -252,6 +253,11 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 			snapshotCount = len(backup.Snapshots.Index.Snapshots)
 		}
 
+		ruleCount := 0
+		for _, d := range backup.AppConfig.Domains {
+			ruleCount += len(d.Rules)
+		}
+
 		resp := map[string]any{
 			"status":      "ok",
 			"backup_data": backup,
@@ -261,7 +267,8 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 				"caddy_admin_url": backup.AppConfig.CaddyAdminURL,
 				"loki_enabled":    backup.AppConfig.Loki.Enabled,
 				"ip_lists":        len(backup.AppConfig.IPLists),
-				"disabled_routes": len(backup.AppConfig.DisabledRoutes),
+				"domains":         len(backup.AppConfig.Domains),
+				"rules":           ruleCount,
 				"snapshot_count":  snapshotCount,
 			},
 		}
@@ -276,17 +283,23 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 			resp["migration_log"] = backup.MigrationLog
 		}
 
+		// Build review routes from domain model
 		routes := caddy.ExtractReviewRoutes(backup.CaddyConfig)
-		for _, dr := range backup.AppConfig.DisabledRoutes {
-			params, err := caddy.ParseRouteParams(dr.Route)
-			if err != nil || params.Domain == "" {
-				continue
+		for _, d := range backup.AppConfig.Domains {
+			for _, r := range d.Rules {
+				upstream := ""
+				if r.HandlerType == "reverse_proxy" {
+					var rpc caddy.ReverseProxyConfig
+					if json.Unmarshal(r.HandlerConfig, &rpc) == nil {
+						upstream = rpc.Upstream
+					}
+				}
+				routes = append(routes, caddy.ReviewRoute{
+					Domain:   d.Name,
+					Upstream: upstream,
+					Enabled:  d.Enabled && r.Enabled,
+				})
 			}
-			routes = append(routes, caddy.ReviewRoute{
-				Domain:   params.Domain,
-				Upstream: params.Upstream,
-				Enabled:  false,
-			})
 		}
 
 		type reviewIPList struct {

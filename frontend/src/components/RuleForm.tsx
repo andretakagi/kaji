@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type {
 	CreateRuleRequest,
 	DomainToggles,
@@ -15,7 +15,6 @@ import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
 
 interface Props {
-	domainId: string;
 	domainName?: string;
 	initial?: Rule;
 	onSubmit: (req: CreateRuleRequest | UpdateRuleRequest) => Promise<void>;
@@ -41,7 +40,8 @@ const pathMatchOptions: { value: PathMatch; label: string }[] = [
 	{ value: "regex", label: "Regex" },
 ];
 
-export default function RuleForm({ domainId, domainName, initial, onSubmit, onCancel }: Props) {
+export default function RuleForm({ domainName, initial, onSubmit, onCancel }: Props) {
+	const formId = useId();
 	const isEdit = !!initial;
 
 	const [matchType, setMatchType] = useState<MatchType>(initial?.match_type ?? "");
@@ -111,9 +111,9 @@ export default function RuleForm({ domainId, domainName, initial, onSubmit, onCa
 		<form className="add-route-form" onSubmit={handleSubmit}>
 			<div className="form-row">
 				<div className="form-field">
-					<label htmlFor={`rule-match-type-${domainId}`}>Match Type</label>
+					<label htmlFor={`rule-match-type-${formId}`}>Match Type</label>
 					<select
-						id={`rule-match-type-${domainId}`}
+						id={`rule-match-type-${formId}`}
 						value={matchType}
 						onChange={(e) => setMatchType(e.target.value as MatchType)}
 						disabled={submitting}
@@ -128,9 +128,9 @@ export default function RuleForm({ domainId, domainName, initial, onSubmit, onCa
 
 				{matchType === "subdomain" && (
 					<div className="form-field">
-						<label htmlFor={`rule-match-value-${domainId}`}>Subdomain</label>
+						<label htmlFor={`rule-match-value-${formId}`}>Subdomain</label>
 						<input
-							id={`rule-match-value-${domainId}`}
+							id={`rule-match-value-${formId}`}
 							type="text"
 							placeholder="api"
 							value={matchValue}
@@ -145,9 +145,9 @@ export default function RuleForm({ domainId, domainName, initial, onSubmit, onCa
 				{matchType === "path" && (
 					<>
 						<div className="form-field">
-							<label htmlFor={`rule-path-match-${domainId}`}>Path Match</label>
+							<label htmlFor={`rule-path-match-${formId}`}>Path Match</label>
 							<select
-								id={`rule-path-match-${domainId}`}
+								id={`rule-path-match-${formId}`}
 								value={pathMatch}
 								onChange={(e) => setPathMatch(e.target.value as PathMatch)}
 								disabled={submitting}
@@ -160,9 +160,9 @@ export default function RuleForm({ domainId, domainName, initial, onSubmit, onCa
 							</select>
 						</div>
 						<div className="form-field">
-							<label htmlFor={`rule-path-value-${domainId}`}>Path</label>
+							<label htmlFor={`rule-path-value-${formId}`}>Path</label>
 							<input
-								id={`rule-path-value-${domainId}`}
+								id={`rule-path-value-${formId}`}
 								type="text"
 								placeholder="/api/*"
 								value={matchValue}
@@ -178,9 +178,9 @@ export default function RuleForm({ domainId, domainName, initial, onSubmit, onCa
 
 			<div className="form-row">
 				<div className="form-field">
-					<label htmlFor={`rule-handler-type-${domainId}`}>Handler Type</label>
+					<label htmlFor={`rule-handler-type-${formId}`}>Handler Type</label>
 					<select
-						id={`rule-handler-type-${domainId}`}
+						id={`rule-handler-type-${formId}`}
 						value={handlerType}
 						onChange={(e) => {
 							const next = e.target.value as HandlerType;
@@ -225,7 +225,7 @@ export default function RuleForm({ domainId, domainName, initial, onSubmit, onCa
 							onUpdate={(key: keyof DomainToggles, value: DomainToggles[keyof DomainToggles]) =>
 								setToggleOverrides((prev) => ({ ...prev, [key]: value }))
 							}
-							idPrefix={`rule-override-${domainId}`}
+							idPrefix={`rule-override-${formId}`}
 							domain={domainName}
 						/>
 					</div>

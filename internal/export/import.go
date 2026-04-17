@@ -200,8 +200,8 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 	}
 
 	cfg := store.Get()
-	syncDomains := toSyncDomains(cfg.Domains)
-	if _, err := caddy.SyncDomains(cc, syncDomains, resolveIPsFromConfig(cfg)); err != nil {
+	syncDomains := ToSyncDomains(cfg.Domains)
+	if _, err := caddy.SyncDomains(cc, syncDomains, ResolveIPsFromConfig(cfg)); err != nil {
 		cc.LoadConfig(currentConfig)
 		var rollbackCfg config.AppConfig
 		if json.Unmarshal(previousAppJSON, &rollbackCfg) == nil {
@@ -339,7 +339,7 @@ func restoreSnapshots(ss *snapshot.Store, data *SnapshotData) error {
 	return ss.ReplaceIndex(data.Index)
 }
 
-func toSyncDomains(domains []config.Domain) []caddy.SyncDomain {
+func ToSyncDomains(domains []config.Domain) []caddy.SyncDomain {
 	result := make([]caddy.SyncDomain, len(domains))
 	for i, d := range domains {
 		rules := make([]caddy.SyncRule, len(d.Rules))
@@ -368,7 +368,7 @@ func toSyncDomains(domains []config.Domain) []caddy.SyncDomain {
 	return result
 }
 
-func resolveIPsFromConfig(cfg *config.AppConfig) func(string) ([]string, string, error) {
+func ResolveIPsFromConfig(cfg *config.AppConfig) func(string) ([]string, string, error) {
 	return func(listID string) ([]string, string, error) {
 		entries := config.IPListsToEntries(cfg.IPLists)
 		ips, err := caddy.ResolveIPList(listID, entries)

@@ -28,6 +28,7 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 		setError,
 		saving,
 		feedback,
+		reload,
 		handleUpdateDomain,
 		handleCreateRule,
 		handleUpdateRule,
@@ -60,11 +61,12 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 				} else {
 					await disableDomain(id);
 				}
+				await reload();
 			} catch (err) {
 				setError(getErrorMessage(err, "Failed to toggle domain"));
 			}
 		},
-		[id, setError],
+		[id, setError, reload],
 	);
 
 	const handleDeleteDomain = useCallback(async () => {
@@ -174,7 +176,6 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 
 				{ruleForm.visible && (
 					<RuleForm
-						domainId={id}
 						domainName={domain.name}
 						onSubmit={async (req) => {
 							await handleCreateRule(req);
@@ -194,7 +195,6 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 							<RuleCard
 								key={rule.id}
 								rule={rule}
-								domainId={id}
 								domainName={domain.name}
 								onToggle={handleToggleRule}
 								onDelete={handleDeleteRule}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/andretakagi/kaji/internal/caddy"
@@ -200,7 +199,7 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		}
 
 		maybeAutoSnapshot(cc, ss, store, version, "IP list updated: "+updated.Name)
-		if err := cascadeIPListChange(listID, store, cc); err != nil {
+		if err := cascadeIPListChange(cc, store); err != nil {
 			log.Printf("handleUpdateIPList: %v", err)
 			writeError(w, "IP list saved but some routes failed to update: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -240,14 +239,10 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
-		// Find routes that use this list (directly or through composites)
-		affectedRoutes := findRoutesUsingList(listID, cfg.IPLists, store, cc)
-
 		maybeAutoSnapshot(cc, ss, store, version, "IP list deleted: "+listName)
 
-		// Remove list from config, clean up parent composites, remove route bindings
+		// Remove list from config and clean up parent composites
 		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
-			// Remove the list itself
 			fresh := make([]config.IPList, 0, len(c.IPLists))
 			for _, l := range c.IPLists {
 				if l.ID != listID {
@@ -256,7 +251,6 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			}
 			c.IPLists = fresh
 
-			// Remove this list from any parent composite's children
 			for i := range c.IPLists {
 				cleaned := make([]string, 0, len(c.IPLists[i].Children))
 				for _, childID := range c.IPLists[i].Children {
@@ -267,15 +261,6 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 				c.IPLists[i].Children = cleaned
 			}
 
-			// Remove route bindings that reference this list
-			if c.RouteIPLists != nil {
-				for routeID, boundListID := range c.RouteIPLists {
-					if boundListID == listID {
-						delete(c.RouteIPLists, routeID)
-					}
-				}
-			}
-
 			return &c, nil
 		}); err != nil {
 			log.Printf("handleDeleteIPList: %v", err)
@@ -283,21 +268,13 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
-		// Rebuild affected routes (they'll lose their IP filtering since the list is gone)
-		var rebuildErrs []string
-		for _, ar := range affectedRoutes {
-			if err := rebuildRoute(ar.RouteID, store, cc); err != nil {
-				rebuildErrs = append(rebuildErrs, fmt.Sprintf("route %s: %v", ar.RouteID, err))
-			}
-		}
-		if len(rebuildErrs) > 0 {
-			log.Printf("handleDeleteIPList: %d route(s) failed to rebuild: %v", len(rebuildErrs), rebuildErrs)
-			writeError(w, "IP list deleted but some routes failed to update: "+strings.Join(rebuildErrs, "; "), http.StatusInternalServerError)
+		// Re-sync domain routes so they drop the now-missing IP filtering
+		if err := cascadeIPListChange(cc, store); err != nil {
+			log.Printf("handleDeleteIPList: cascade sync: %v", err)
+			writeError(w, "IP list deleted but some routes failed to update: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if len(affectedRoutes) > 0 {
-			persistCaddyConfig(cc, store)
-		}
+		persistCaddyConfig(cc, store)
 
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
@@ -313,8 +290,8 @@ func handleIPListUsage(store *config.ConfigStore, cc *caddy.Client) http.Handler
 
 		cfg := store.Get()
 
-		// Find routes using this list
-		routes := findRoutesUsingList(listID, cfg.IPLists, store, cc)
+		// Find domains using this list (directly or through composites)
+		affected := findDomainsUsingList(listID, cfg)
 
 		// Find composite lists that include this list as a child
 		type compositeRef struct {
@@ -334,16 +311,16 @@ func handleIPListUsage(store *config.ConfigStore, cc *caddy.Client) http.Handler
 			composites = []compositeRef{}
 		}
 
-		routeResults := make([]map[string]string, 0, len(routes))
-		for _, ar := range routes {
-			routeResults = append(routeResults, map[string]string{
-				"id":     ar.RouteID,
-				"domain": ar.Domain,
+		domainResults := make([]map[string]string, 0, len(affected))
+		for _, ad := range affected {
+			domainResults = append(domainResults, map[string]string{
+				"id":   ad.ID,
+				"name": ad.Name,
 			})
 		}
 
 		writeJSON(w, map[string]any{
-			"routes":          routeResults,
+			"domains":         domainResults,
 			"composite_lists": composites,
 		})
 	}
@@ -352,9 +329,18 @@ func handleIPListUsage(store *config.ConfigStore, cc *caddy.Client) http.Handler
 func handleRouteIPListBindings(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
-		bindings := cfg.RouteIPLists
-		if bindings == nil {
-			bindings = map[string]string{}
+
+		// Build bindings from domain model: map domain ID -> list ID
+		bindings := make(map[string]string)
+		for _, d := range cfg.Domains {
+			if d.Toggles.IPFiltering.Enabled && d.Toggles.IPFiltering.ListID != "" {
+				bindings[d.ID] = d.Toggles.IPFiltering.ListID
+			}
+			for _, r := range d.Rules {
+				if r.ToggleOverrides != nil && r.ToggleOverrides.IPFiltering.Enabled && r.ToggleOverrides.IPFiltering.ListID != "" {
+					bindings[d.ID+"_"+r.ID] = r.ToggleOverrides.IPFiltering.ListID
+				}
+			}
 		}
 		writeJSON(w, bindings)
 	}

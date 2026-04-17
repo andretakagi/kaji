@@ -2,6 +2,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -235,6 +236,19 @@ func validatePathMatch(pathMatch string) string {
 	default:
 		return fmt.Sprintf("invalid path match: %s (must be exact, prefix, or regex)", pathMatch)
 	}
+}
+
+func validateReverseProxyConfig(w http.ResponseWriter, raw json.RawMessage) bool {
+	var rp caddy.ReverseProxyConfig
+	if err := json.Unmarshal(raw, &rp); err != nil {
+		writeError(w, "invalid handler config", http.StatusBadRequest)
+		return false
+	}
+	if msg := validateUpstream(rp.Upstream); msg != "" {
+		writeError(w, msg, http.StatusBadRequest)
+		return false
+	}
+	return validateLoadBalancing(w, rp.LoadBalancing)
 }
 
 func validateHandlerType(handlerType string) string {

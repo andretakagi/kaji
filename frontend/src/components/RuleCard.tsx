@@ -15,7 +15,6 @@ import { Toggle } from "./Toggle";
 
 interface Props {
 	rule: Rule;
-	domainId: string;
 	domainName: string;
 	onToggle: (ruleId: string, enabled: boolean) => void;
 	onDelete: (ruleId: string) => void;
@@ -56,7 +55,6 @@ function overrideSummary(overrides: DomainToggles | null): string | null {
 
 export default function RuleCard({
 	rule,
-	domainId,
 	domainName,
 	onToggle,
 	onDelete,
@@ -102,7 +100,6 @@ export default function RuleCard({
 		>
 			{editing ? (
 				<RuleForm
-					domainId={domainId}
 					domainName={domainName}
 					initial={rule}
 					onSubmit={async (req) => {

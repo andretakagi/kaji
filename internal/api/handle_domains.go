@@ -5,40 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
+	"github.com/andretakagi/kaji/internal/export"
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
-
-func configToSyncDomains(domains []config.Domain) []caddy.SyncDomain {
-	result := make([]caddy.SyncDomain, len(domains))
-	for i, d := range domains {
-		rules := make([]caddy.SyncRule, len(d.Rules))
-		for j, r := range d.Rules {
-			rules[j] = caddy.SyncRule{
-				RuleBuildParams: caddy.RuleBuildParams{
-					RuleID:          r.ID,
-					MatchType:       r.MatchType,
-					PathMatch:       r.PathMatch,
-					MatchValue:      r.MatchValue,
-					HandlerType:     r.HandlerType,
-					HandlerConfig:   r.HandlerConfig,
-					AdvancedHeaders: r.AdvancedHeaders,
-				},
-				Enabled:         r.Enabled,
-				ToggleOverrides: r.ToggleOverrides,
-			}
-		}
-		result[i] = caddy.SyncDomain{
-			Name:    d.Name,
-			Enabled: d.Enabled,
-			Toggles: d.Toggles,
-			Rules:   rules,
-		}
-	}
-	return result
-}
 
 func ipResolver(store *config.ConfigStore) func(string) ([]string, string, error) {
 	return func(listID string) ([]string, string, error) {
@@ -59,7 +32,7 @@ func ipResolver(store *config.ConfigStore) func(string) ([]string, string, error
 
 func syncAfterMutation(cc *caddy.Client, store *config.ConfigStore) error {
 	cfg := store.Get()
-	syncDomains := configToSyncDomains(cfg.Domains)
+	syncDomains := export.ToSyncDomains(cfg.Domains)
 	_, err := caddy.SyncDomains(cc, syncDomains, ipResolver(store))
 	return err
 }
@@ -129,6 +102,19 @@ func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		if req.First.MatchType == "path" {
 			if msg := validatePathMatch(req.First.PathMatch); msg != "" {
 				writeError(w, msg, http.StatusBadRequest)
+				return
+			}
+		}
+		if req.First.HandlerType == "reverse_proxy" {
+			if !validateReverseProxyConfig(w, req.First.HandlerConfig) {
+				return
+			}
+		}
+
+		cfg := store.Get()
+		for _, d := range cfg.Domains {
+			if strings.EqualFold(d.Name, req.Name) {
+				writeError(w, "a domain with this name already exists", http.StatusConflict)
 				return
 			}
 		}
@@ -341,6 +327,12 @@ func domainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapsh
 		}
 
 		persistCaddyConfig(cc, store)
+
+		cfg := store.Get()
+		if dom := findDomain(cfg, id); dom != nil {
+			writeJSON(w, dom)
+			return
+		}
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }
@@ -375,6 +367,11 @@ func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 				return
 			}
 		}
+		if req.HandlerType == "reverse_proxy" {
+			if !validateReverseProxyConfig(w, req.HandlerConfig) {
+				return
+			}
+		}
 
 		if req.ToggleOverrides != nil && req.ToggleOverrides.BasicAuth.Enabled {
 			if req.ToggleOverrides.BasicAuth.Username == "" {
@@ -402,6 +399,8 @@ func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 			AdvancedHeaders: req.AdvancedHeaders,
 		}
 
+		maybeAutoSnapshot(cc, ss, store, version, "Rule created: "+ruleID)
+
 		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, domainID)
 			if dom == nil {
@@ -425,6 +424,12 @@ func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 		}
 
 		persistCaddyConfig(cc, store)
+
+		cfg := store.Get()
+		if dom := findDomain(cfg, domainID); dom != nil {
+			writeJSON(w, dom)
+			return
+		}
 		writeJSON(w, rule)
 	}
 }
@@ -457,6 +462,11 @@ func handleUpdateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 		if req.MatchType == "path" {
 			if msg := validatePathMatch(req.PathMatch); msg != "" {
 				writeError(w, msg, http.StatusBadRequest)
+				return
+			}
+		}
+		if req.HandlerType == "reverse_proxy" {
+			if !validateReverseProxyConfig(w, req.HandlerConfig) {
 				return
 			}
 		}
@@ -588,6 +598,12 @@ func handleDeleteRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 		}
 
 		persistCaddyConfig(cc, store)
+
+		cfg := store.Get()
+		if dom := findDomain(cfg, domainID); dom != nil {
+			writeJSON(w, dom)
+			return
+		}
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }
@@ -645,6 +661,12 @@ func ruleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 		}
 
 		persistCaddyConfig(cc, store)
+
+		cfg := store.Get()
+		if dom := findDomain(cfg, domainID); dom != nil {
+			writeJSON(w, dom)
+			return
+		}
 		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }

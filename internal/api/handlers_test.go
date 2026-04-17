@@ -1897,7 +1897,7 @@ func TestHandleIPListUsage(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &created)
 	listID := created["id"].(string)
 
-	// Check usage (no routes bound)
+	// Check usage (no domains bound)
 	req = authedRequest(http.MethodGet, "/api/ip-lists/"+listID+"/usage", "", cookie)
 	rec = httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
@@ -1910,12 +1910,12 @@ func TestHandleIPListUsage(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &usage); err != nil {
 		t.Fatalf("failed to parse usage response: %v", err)
 	}
-	routes, ok := usage["routes"].([]any)
+	domains, ok := usage["domains"].([]any)
 	if !ok {
-		t.Fatal("usage response missing routes array")
+		t.Fatal("usage response missing domains array")
 	}
-	if len(routes) != 0 {
-		t.Errorf("expected 0 routes using list, got %d", len(routes))
+	if len(domains) != 0 {
+		t.Errorf("expected 0 domains using list, got %d", len(domains))
 	}
 	composites, ok := usage["composite_lists"].([]any)
 	if !ok {

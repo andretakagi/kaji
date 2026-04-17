@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchIPLists } from "../api";
 import { cn } from "../cn";
-import type { IPList, RouteToggles } from "../types/api";
+import type { IPList } from "../types/api";
 import type { DomainToggles } from "../types/domain";
 import { RequestHeadersGroup, ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
@@ -25,12 +25,6 @@ export function DomainToggleGrid({ toggles, onUpdate, idPrefix, domain }: Props)
 		}
 	}, [toggles.ip_filtering.enabled]);
 
-	const routeShim = toggles as unknown as RouteToggles;
-	const shimUpdate = onUpdate as unknown as <K extends keyof RouteToggles>(
-		key: K,
-		value: RouteToggles[K],
-	) => void;
-
 	return (
 		<div className="toggle-grid">
 			<ToggleItem
@@ -45,8 +39,8 @@ export function DomainToggleGrid({ toggles, onUpdate, idPrefix, domain }: Props)
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
 			/>
-			<RequestHeadersGroup toggles={routeShim} onUpdate={shimUpdate} idPrefix={idPrefix} />
-			<ResponseHeadersGroup toggles={routeShim} onUpdate={shimUpdate} idPrefix={idPrefix} />
+			<RequestHeadersGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
+			<ResponseHeadersGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<BasicAuthGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<AccessLogGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} domain={domain} />
 			<IPFilteringGroup toggles={toggles} onUpdate={onUpdate} ipLists={ipLists} />
