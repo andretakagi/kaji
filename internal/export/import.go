@@ -90,16 +90,21 @@ func ParseZIP(r io.Reader, size int64, runningVersion string) (*Backup, error) {
 		return nil, fmt.Errorf("missing config.json")
 	}
 
-	if err := CheckVersion(backup.Manifest.KajiVersion, runningVersion); err != nil {
-		return nil, err
-	}
-
 	var configMap map[string]any
 	if err := json.Unmarshal(configData, &configMap); err != nil {
 		return nil, fmt.Errorf("parsing config.json: %w", err)
 	}
 
-	migrationLog, err := RunMigrations(configMap, backup.Manifest.KajiVersion)
+	fromVersion := backup.Manifest.KajiVersion
+	if cfgVersion, ok := configMap["kaji_version"].(string); ok && cfgVersion != "" {
+		fromVersion = cfgVersion
+	}
+
+	if err := CheckVersion(fromVersion, runningVersion); err != nil {
+		return nil, err
+	}
+
+	migrationLog, err := RunMigrations(configMap, fromVersion)
 	if err != nil {
 		return nil, fmt.Errorf("migrating config: %w", err)
 	}
@@ -192,6 +197,19 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 			}
 			return nil, fmt.Errorf("restoring snapshots: %w", err)
 		}
+	}
+
+	cfg := store.Get()
+	syncDomains := toSyncDomains(cfg.Domains)
+	if _, err := caddy.SyncDomains(cc, syncDomains, resolveIPsFromConfig(cfg)); err != nil {
+		cc.LoadConfig(currentConfig)
+		var rollbackCfg config.AppConfig
+		if json.Unmarshal(previousAppJSON, &rollbackCfg) == nil {
+			store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+				return &rollbackCfg, nil
+			})
+		}
+		return nil, fmt.Errorf("syncing domains after import: %w", err)
 	}
 
 	return warnings, nil
@@ -319,6 +337,51 @@ func restoreSnapshots(ss *snapshot.Store, data *SnapshotData) error {
 	data.Index.Snapshots = combined
 
 	return ss.ReplaceIndex(data.Index)
+}
+
+func toSyncDomains(domains []config.Domain) []caddy.SyncDomain {
+	result := make([]caddy.SyncDomain, len(domains))
+	for i, d := range domains {
+		rules := make([]caddy.SyncRule, len(d.Rules))
+		for j, r := range d.Rules {
+			rules[j] = caddy.SyncRule{
+				RuleBuildParams: caddy.RuleBuildParams{
+					RuleID:          r.ID,
+					MatchType:       r.MatchType,
+					PathMatch:       r.PathMatch,
+					MatchValue:      r.MatchValue,
+					HandlerType:     r.HandlerType,
+					HandlerConfig:   r.HandlerConfig,
+					AdvancedHeaders: r.AdvancedHeaders,
+				},
+				Enabled:         r.Enabled,
+				ToggleOverrides: r.ToggleOverrides,
+			}
+		}
+		result[i] = caddy.SyncDomain{
+			Name:    d.Name,
+			Enabled: d.Enabled,
+			Toggles: d.Toggles,
+			Rules:   rules,
+		}
+	}
+	return result
+}
+
+func resolveIPsFromConfig(cfg *config.AppConfig) func(string) ([]string, string, error) {
+	return func(listID string) ([]string, string, error) {
+		entries := config.IPListsToEntries(cfg.IPLists)
+		ips, err := caddy.ResolveIPList(listID, entries)
+		if err != nil {
+			return nil, "", err
+		}
+		for _, l := range cfg.IPLists {
+			if l.ID == listID {
+				return ips, l.Type, nil
+			}
+		}
+		return nil, "", fmt.Errorf("IP list %s not found", listID)
+	}
 }
 
 func stripPrefix(name string) string {

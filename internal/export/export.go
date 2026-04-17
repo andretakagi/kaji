@@ -50,6 +50,7 @@ func BuildZIP(w io.Writer, cc *caddy.Client, store *config.ConfigStore, ss *snap
 
 	stripped := *cfg
 	stripped.StripCredentials()
+	stripped.KajiVersion = kajiVersion
 	if err := writeJSON(zw, "kaji-export/config.json", stripped); err != nil {
 		return err
 	}
