@@ -2919,8 +2919,11 @@ input:disabled + .toggle-slider {
 .domain-detail-section {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-start;
 	gap: 0.75rem;
+}
+
+.domain-detail-section > .btn {
+	align-self: flex-start;
 }
 
 .domain-detail-toggle-actions {

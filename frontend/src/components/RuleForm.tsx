@@ -51,7 +51,7 @@ export default function RuleForm({ domainName, initial, hasRootRule, onSubmit, o
 		: matchOptions;
 
 	const [matchType, setMatchType] = useState<MatchType>(
-		initial?.match_type ?? (hideRoot ? "path" : ""),
+		initial?.match_type ?? (hideRoot ? "subdomain" : ""),
 	);
 	const [pathMatch, setPathMatch] = useState<PathMatch>(
 		initial?.path_match === "" ? "prefix" : (initial?.path_match ?? "prefix"),
