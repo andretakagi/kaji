@@ -179,6 +179,7 @@ export default function DomainCard({
 								key={rule.id}
 								rule={rule}
 								domainName={domain.name}
+								domainToggles={domain.toggles}
 								hasRootRule={hasRootRule}
 								onToggle={handleToggleRule}
 								onDelete={handleDeleteRule}
@@ -192,6 +193,7 @@ export default function DomainCard({
 				{ruleForm.visible ? (
 					<RuleForm
 						domainName={domain.name}
+						domainToggles={domain.toggles}
 						hasRootRule={hasRootRule}
 						onSubmit={async (req) => {
 							await handleCreateRule(req);

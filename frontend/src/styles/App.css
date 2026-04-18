@@ -2923,7 +2923,7 @@ input:disabled + .toggle-slider {
 }
 
 .domain-detail-section > .btn {
-	align-self: flex-start;
+	align-self: flex-end;
 }
 
 .domain-detail-toggle-actions {

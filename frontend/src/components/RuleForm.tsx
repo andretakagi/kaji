@@ -13,9 +13,11 @@ import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
+import { Toggle } from "./Toggle";
 
 interface Props {
 	domainName?: string;
+	domainToggles?: DomainToggles;
 	initial?: Rule;
 	hasRootRule?: boolean;
 	onSubmit: (req: CreateRuleRequest | UpdateRuleRequest) => Promise<void>;
@@ -41,7 +43,14 @@ const pathMatchOptions: { value: PathMatch; label: string }[] = [
 	{ value: "regex", label: "Regex" },
 ];
 
-export default function RuleForm({ domainName, initial, hasRootRule, onSubmit, onCancel }: Props) {
+export default function RuleForm({
+	domainName,
+	domainToggles,
+	initial,
+	hasRootRule,
+	onSubmit,
+	onCancel,
+}: Props) {
 	const formId = useId();
 	const isEdit = !!initial;
 
@@ -65,7 +74,7 @@ export default function RuleForm({ domainName, initial, hasRootRule, onSubmit, o
 	);
 	const [overridesOpen, setOverridesOpen] = useState(initial?.toggle_overrides != null);
 	const [toggleOverrides, setToggleOverrides] = useState<DomainToggles>(
-		initial?.toggle_overrides ?? { ...defaultDomainToggles },
+		initial?.toggle_overrides ?? domainToggles ?? { ...defaultDomainToggles },
 	);
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
@@ -119,22 +128,18 @@ export default function RuleForm({ domainName, initial, hasRootRule, onSubmit, o
 		<form className="add-route-form" onSubmit={handleSubmit}>
 			<div className="form-row">
 				<div className="form-field">
-					<label htmlFor={`rule-match-type-${formId}`}>Match Type</label>
-					<select
-						id={`rule-match-type-${formId}`}
+					<span className="form-label">Match Type</span>
+					<Toggle
+						options={availableMatchOptions}
 						value={matchType}
-						onChange={(e) => setMatchType(e.target.value as MatchType)}
+						onChange={setMatchType}
 						disabled={submitting}
-					>
-						{availableMatchOptions.map((o) => (
-							<option key={o.value} value={o.value}>
-								{o.label}
-							</option>
-						))}
-					</select>
+					/>
 				</div>
+			</div>
 
-				{matchType === "subdomain" && (
+			{matchType === "subdomain" && (
+				<div className="form-row">
 					<div className="form-field">
 						<label htmlFor={`rule-match-value-${formId}`}>Subdomain</label>
 						<input
@@ -148,50 +153,49 @@ export default function RuleForm({ domainName, initial, hasRootRule, onSubmit, o
 							disabled={submitting}
 						/>
 					</div>
-				)}
+				</div>
+			)}
 
-				{matchType === "path" && (
-					<>
-						<div className="form-field">
-							<label htmlFor={`rule-path-match-${formId}`}>Path Match</label>
-							<select
-								id={`rule-path-match-${formId}`}
-								value={pathMatch}
-								onChange={(e) => setPathMatch(e.target.value as PathMatch)}
-								disabled={submitting}
-							>
-								{pathMatchOptions.map((o) => (
-									<option key={o.value} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</select>
-						</div>
-						<div className="form-field">
-							<label htmlFor={`rule-path-value-${formId}`}>Path</label>
-							<input
-								id={`rule-path-value-${formId}`}
-								type="text"
-								placeholder="/api/*"
-								value={matchValue}
-								onChange={(e) => setMatchValue(e.target.value)}
-								maxLength={253}
-								required
-								disabled={submitting}
-							/>
-						</div>
-					</>
-				)}
-			</div>
+			{matchType === "path" && (
+				<div className="form-row">
+					<div className="form-field">
+						<label htmlFor={`rule-path-match-${formId}`}>Path Match</label>
+						<select
+							id={`rule-path-match-${formId}`}
+							value={pathMatch}
+							onChange={(e) => setPathMatch(e.target.value as PathMatch)}
+							disabled={submitting}
+						>
+							{pathMatchOptions.map((o) => (
+								<option key={o.value} value={o.value}>
+									{o.label}
+								</option>
+							))}
+						</select>
+					</div>
+					<div className="form-field">
+						<label htmlFor={`rule-path-value-${formId}`}>Path</label>
+						<input
+							id={`rule-path-value-${formId}`}
+							type="text"
+							placeholder="/api/*"
+							value={matchValue}
+							onChange={(e) => setMatchValue(e.target.value)}
+							maxLength={253}
+							required
+							disabled={submitting}
+						/>
+					</div>
+				</div>
+			)}
 
 			<div className="form-row">
 				<div className="form-field">
-					<label htmlFor={`rule-handler-type-${formId}`}>Handler Type</label>
-					<select
-						id={`rule-handler-type-${formId}`}
+					<span className="form-label">Handler Type</span>
+					<Toggle
+						options={handlerOptions}
 						value={handlerType}
-						onChange={(e) => {
-							const next = e.target.value as HandlerType;
+						onChange={(next: HandlerType) => {
 							setHandlerType(next);
 							if (next === "reverse_proxy") {
 								setHandlerConfig({ ...defaultReverseProxyConfig });
@@ -200,13 +204,7 @@ export default function RuleForm({ domainName, initial, hasRootRule, onSubmit, o
 							}
 						}}
 						disabled={submitting}
-					>
-						{handlerOptions.map((o) => (
-							<option key={o.value} value={o.value}>
-								{o.label}
-							</option>
-						))}
-					</select>
+					/>
 				</div>
 			</div>
 
