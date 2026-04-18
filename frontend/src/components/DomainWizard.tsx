@@ -9,6 +9,7 @@ import type {
 } from "../types/domain";
 import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { validateDomain, validateUpstream } from "../utils/validate";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
 import { Toggle } from "./Toggle";
@@ -67,9 +68,10 @@ const handlerTypeOptions: { value: HandlerType; label: string }[] = [
 interface Props {
 	onCreate: (req: CreateDomainFullRequest) => Promise<void>;
 	onCancel: () => void;
+	existingDomains: string[];
 }
 
-export default function DomainWizard({ onCreate, onCancel }: Props) {
+export default function DomainWizard({ onCreate, onCancel, existingDomains }: Props) {
 	const ruleKeyRef = useRef(0);
 	const [step, setStep] = useState(0);
 	const [submitting, setSubmitting] = useState(false);
@@ -107,11 +109,45 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 		setRuleToggleOverrides({ ...data.toggles });
 	}, [data.toggles]);
 
+	const validateToggles = (toggles: DomainToggles): string | null => {
+		if (toggles.basic_auth.enabled && !toggles.basic_auth.username.trim()) {
+			return "Username is required for basic auth";
+		}
+		return null;
+	};
+
+	const validateReverseProxy = (rp: ReverseProxyConfig): string | null => {
+		const upstreamErr = validateUpstream(rp.upstream);
+		if (upstreamErr) return upstreamErr;
+		if (rp.load_balancing.enabled) {
+			if (rp.load_balancing.upstreams.length === 0) {
+				return "Load balancing requires at least one additional upstream";
+			}
+			for (const u of rp.load_balancing.upstreams) {
+				const err = validateUpstream(u);
+				if (err) return `Additional upstream: ${err.toLowerCase()}`;
+			}
+		}
+		return null;
+	};
+
 	const validateStep = (): boolean => {
 		setError("");
 		if (step === 0) {
-			if (!data.name.trim()) {
-				setError("Domain name is required");
+			const domainErr = validateDomain(data.name);
+			if (domainErr) {
+				setError(domainErr);
+				return false;
+			}
+			if (existingDomains.some((d) => d.toLowerCase() === data.name.trim().toLowerCase())) {
+				setError("A domain with this name already exists");
+				return false;
+			}
+		}
+		if (step === 1) {
+			const toggleErr = validateToggles(data.toggles);
+			if (toggleErr) {
+				setError(toggleErr);
 				return false;
 			}
 		}
@@ -122,9 +158,9 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 				return false;
 			}
 			if (ht === "reverse_proxy") {
-				const rp = data.rootRule.handlerConfig as ReverseProxyConfig;
-				if (!rp.upstream.trim()) {
-					setError("Upstream is required");
+				const rpErr = validateReverseProxy(data.rootRule.handlerConfig as ReverseProxyConfig);
+				if (rpErr) {
+					setError(rpErr);
 					return false;
 				}
 			}
@@ -169,9 +205,17 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 			return;
 		}
 		const rp = ruleHandlerConfig as ReverseProxyConfig;
-		if (!rp.upstream.trim()) {
-			setError("Upstream is required");
+		const rpErr = validateReverseProxy(rp);
+		if (rpErr) {
+			setError(rpErr);
 			return;
+		}
+		if (ruleOverridesOpen) {
+			const toggleErr = validateToggles(ruleToggleOverrides);
+			if (toggleErr) {
+				setError(toggleErr);
+				return;
+			}
 		}
 
 		ruleKeyRef.current += 1;
@@ -253,6 +297,12 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 					</button>
 				))}
 			</div>
+
+			{error && (
+				<div className="inline-error" role="alert">
+					{error}
+				</div>
+			)}
 
 			<div className="wizard-step-content">
 				{step === 0 && (
@@ -410,7 +460,13 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 											<input
 												id="wizard-rule-path-value"
 												type="text"
-												placeholder="/api/*"
+												placeholder={
+													rulePathMatch === "prefix"
+														? "/api/"
+														: rulePathMatch === "exact"
+															? "/api/v1/health"
+															: "^/api/.*"
+												}
 												value={ruleMatchValue}
 												onChange={(e) => setRuleMatchValue(e.target.value)}
 												maxLength={253}
@@ -544,12 +600,6 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 
 				{step === 4 && <WizardReview data={data} onEditStep={setStep} />}
 			</div>
-
-			{error && (
-				<div className="inline-error" role="alert">
-					{error}
-				</div>
-			)}
 
 			<div className="wizard-nav">
 				{step === 0 ? (

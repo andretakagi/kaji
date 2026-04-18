@@ -53,7 +53,13 @@ export default function DomainList() {
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
 			<Feedback msg={feedback.msg} type={feedback.type} />
 
-			{form.visible && <DomainWizard onCreate={onCreateDomain} onCancel={form.close} />}
+			{form.visible && (
+				<DomainWizard
+					onCreate={onCreateDomain}
+					onCancel={form.close}
+					existingDomains={domains.map((d) => d.name)}
+				/>
+			)}
 
 			{domains.length === 0 ? (
 				<div className="empty-state">

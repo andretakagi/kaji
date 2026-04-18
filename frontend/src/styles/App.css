@@ -3138,6 +3138,10 @@ input:disabled + .toggle-slider {
 	cursor: pointer;
 }
 
+.domain-wizard > .inline-error {
+	margin-bottom: 0.75rem;
+}
+
 .wizard-step-content {
 	min-height: 200px;
 }
