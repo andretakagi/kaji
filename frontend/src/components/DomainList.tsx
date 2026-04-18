@@ -2,7 +2,7 @@ import { RequireCaddy, useCaddyStatus } from "../contexts/CaddyContext";
 import { useDomainList } from "../hooks/useDomainList";
 import { useFormToggle } from "../hooks/useFormToggle";
 import DomainCard from "./DomainCard";
-import DomainForm from "./DomainForm";
+import DomainWizard from "./DomainWizard";
 import { ErrorAlert } from "./ErrorAlert";
 import Feedback from "./Feedback";
 import LoadingState from "./LoadingState";
@@ -53,7 +53,7 @@ export default function DomainList() {
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
 			<Feedback msg={feedback.msg} type={feedback.type} />
 
-			{form.visible && <DomainForm onCreate={onCreateDomain} onCancel={form.close} />}
+			{form.visible && <DomainWizard onCreate={onCreateDomain} onCancel={form.close} />}
 
 			{domains.length === 0 ? (
 				<div className="empty-state">
