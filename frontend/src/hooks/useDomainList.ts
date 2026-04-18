@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import { createDomain, deleteDomain, disableDomain, enableDomain, fetchDomains } from "../api";
-import type { CreateDomainRequest, Domain } from "../types/domain";
+import { createDomainFull, deleteDomain, disableDomain, enableDomain, fetchDomains } from "../api";
+import type { CreateDomainFullRequest, Domain } from "../types/domain";
 import { useAsyncAction } from "./useAsyncAction";
 import { usePolledData } from "./usePolledData";
 
@@ -21,9 +21,9 @@ export function useDomainList() {
 	const { saving, feedback, setFeedback, run } = useAsyncAction();
 
 	const handleCreate = useCallback(
-		(req: CreateDomainRequest) =>
+		(req: CreateDomainFullRequest) =>
 			run(async () => {
-				await createDomain(req);
+				await createDomainFull(req);
 				await reload();
 				return "Domain created";
 			}),

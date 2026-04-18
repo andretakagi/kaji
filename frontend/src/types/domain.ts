@@ -54,17 +54,21 @@ export type HandlerType = "reverse_proxy" | "redirect" | "file_server" | "static
 export type MatchType = "" | "subdomain" | "path";
 export type PathMatch = "exact" | "prefix" | "regex";
 
-export interface CreateDomainRequest {
+export interface CreateDomainFullRule {
+	label?: string;
+	match_type: MatchType;
+	path_match?: PathMatch;
+	match_value?: string;
+	handler_type: HandlerType;
+	handler_config: ReverseProxyConfig | Record<string, unknown>;
+	toggle_overrides?: DomainToggles | null;
+	advanced_headers?: boolean;
+}
+
+export interface CreateDomainFullRequest {
 	name: string;
 	toggles: DomainToggles;
-	first_rule?: {
-		label?: string;
-		match_type: MatchType;
-		path_match?: PathMatch;
-		match_value?: string;
-		handler_type: HandlerType;
-		handler_config: ReverseProxyConfig | Record<string, unknown>;
-	};
+	rules: CreateDomainFullRule[];
 }
 
 export interface UpdateDomainRequest {

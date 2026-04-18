@@ -19,7 +19,7 @@ import type {
 import type { CaddyConfig } from "./types/caddy";
 import type { CertInfo } from "./types/certs";
 import type {
-	CreateDomainRequest,
+	CreateDomainFullRequest,
 	CreateRuleRequest,
 	Domain,
 	UpdateDomainRequest,
@@ -567,8 +567,8 @@ export function fetchDomain(id: string): Promise<Domain> {
 	return request(`/api/domains/${encodeURIComponent(id)}`, undefined, (d) => d as Domain);
 }
 
-export function createDomain(req: CreateDomainRequest): Promise<Domain> {
-	return request("/api/domains", { method: "POST", ...jsonBody(req) }, (d) => d as Domain);
+export function createDomainFull(req: CreateDomainFullRequest): Promise<Domain> {
+	return request("/api/domains/full", { method: "POST", ...jsonBody(req) }, (d) => d as Domain);
 }
 
 export function updateDomain(id: string, req: UpdateDomainRequest): Promise<Domain> {
