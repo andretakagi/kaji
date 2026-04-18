@@ -583,6 +583,11 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 							Skip to Review
 						</button>
 					)}
+					{step === 3 && !ruleFormActive && data.rules.length > 0 && (
+						<button type="button" className="btn btn-primary" onClick={() => setStep(4)}>
+							Continue to Review
+						</button>
+					)}
 					{step === 4 && (
 						<button
 							type="button"

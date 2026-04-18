@@ -1175,8 +1175,8 @@ func TestHandleGlobalTogglesUpdate(t *testing.T) {
 	// Create a domain first so the fake Caddy has a server in the config.
 	// SetGlobalToggles iterates over existing servers, so without one
 	// it's a no-op and the GET returns defaults.
-	createBody := `{"name":"toggles-test.com","first_rule":{"match_type":"","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}}`
-	req := authedRequest(http.MethodPost, "/api/domains", createBody, cookie)
+	createBody := `{"name":"toggles-test.com","rules":[{"match_type":"","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}]}`
+	req := authedRequest(http.MethodPost, "/api/domains/full", createBody, cookie)
 	rec := httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
