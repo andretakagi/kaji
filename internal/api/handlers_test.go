@@ -507,109 +507,6 @@ func TestHandleLogout(t *testing.T) {
 	}
 }
 
-// --- Route CRUD tests ---
-
-func TestHandleRouteCreateAndDelete(t *testing.T) {
-	th := newTestHarness(t)
-	setupRec := th.doSetup(t, "testpass")
-	cookie := sessionCookie(setupRec)
-
-	// Create route
-	createBody := `{"domain":"example.com","upstream":"127.0.0.1:8080"}`
-	req := authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
-	rec := httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-
-	var createResp map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &createResp); err != nil {
-		t.Fatalf("failed to parse create route response: %v", err)
-	}
-	routeID, ok := createResp["@id"].(string)
-	if !ok || routeID == "" {
-		t.Fatal("create route did not return @id")
-	}
-
-	// Delete route
-	req = authedRequest(http.MethodDelete, "/api/routes/"+routeID, "", cookie)
-	rec = httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("delete route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestHandleRouteUpdate(t *testing.T) {
-	th := newTestHarness(t)
-	setupRec := th.doSetup(t, "testpass")
-	cookie := sessionCookie(setupRec)
-
-	createBody := `{"domain":"update-test.com","upstream":"127.0.0.1:3000"}`
-	req := authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
-	rec := httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-
-	var createResp map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &createResp); err != nil {
-		t.Fatalf("failed to parse create route response: %v", err)
-	}
-	routeID := createResp["@id"].(string)
-
-	updateBody := `{"domain":"update-test.com","upstream":"127.0.0.1:4000"}`
-	req = authedRequest(http.MethodPut, "/api/routes/"+routeID, updateBody, cookie)
-	rec = httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("update route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestHandleRouteCreateDuplicate(t *testing.T) {
-	th := newTestHarness(t)
-	setupRec := th.doSetup(t, "testpass")
-	cookie := sessionCookie(setupRec)
-
-	createBody := `{"domain":"dup.com","upstream":"127.0.0.1:8080"}`
-	req := authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
-	rec := httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("first create: got %d, want 200", rec.Code)
-	}
-
-	req = authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
-	rec = httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusConflict {
-		t.Errorf("duplicate create: got %d, want 409", rec.Code)
-	}
-}
-
-func TestHandleRouteRequiresAuth(t *testing.T) {
-	th := newTestHarness(t)
-	th.doSetup(t, "testpass")
-
-	req := httptest.NewRequest(http.MethodPost, "/api/routes", strings.NewReader(`{"domain":"x.com","upstream":"1.2.3.4:80"}`))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("route without auth: got %d, want 401", rec.Code)
-	}
-}
-
 // --- Settings tests ---
 
 func TestHandleSettingsGlobalToggles(t *testing.T) {
@@ -1099,30 +996,6 @@ func TestHandlePasswordChange(t *testing.T) {
 	}
 }
 
-// --- Disabled routes test ---
-
-func TestHandleDisabledRoutes(t *testing.T) {
-	th := newTestHarness(t)
-	setupRec := th.doSetup(t, "testpass")
-	cookie := sessionCookie(setupRec)
-
-	req := authedRequest(http.MethodGet, "/api/routes/disabled", "", cookie)
-	rec := httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("disabled routes: got %d, want 200", rec.Code)
-	}
-
-	var routes []any
-	if err := json.Unmarshal(rec.Body.Bytes(), &routes); err != nil {
-		t.Fatalf("failed to parse disabled routes response: %v", err)
-	}
-	if len(routes) != 0 {
-		t.Errorf("expected 0 disabled routes, got %d", len(routes))
-	}
-}
-
 // --- Caddy service control tests ---
 
 func TestHandleCaddyStart(t *testing.T) {
@@ -1292,90 +1165,6 @@ func TestHandleCaddyRestartWaitReadyError(t *testing.T) {
 	}
 }
 
-// --- Route disable/enable tests ---
-
-func TestHandleRouteDisableAndEnable(t *testing.T) {
-	th := newTestHarness(t)
-	setupRec := th.doSetup(t, "testpass")
-	cookie := sessionCookie(setupRec)
-
-	createBody := `{"domain":"disable-test.com","upstream":"127.0.0.1:8080"}`
-	req := authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
-	rec := httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("create route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-
-	routeID := caddy.GenerateRouteID("disable-test.com")
-
-	// Disable the route
-	disableBody := `{"@id":"` + routeID + `"}`
-	req = authedRequest(http.MethodPost, "/api/routes/disable", disableBody, cookie)
-	rec = httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("disable route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-
-	// Verify it appears in the disabled list
-	req = authedRequest(http.MethodGet, "/api/routes/disabled", "", cookie)
-	rec = httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("disabled routes after disable: got %d, want 200", rec.Code)
-	}
-
-	var disabled []map[string]any
-	if err := json.Unmarshal(rec.Body.Bytes(), &disabled); err != nil {
-		t.Fatalf("failed to parse disabled routes response: %v", err)
-	}
-	if len(disabled) != 1 {
-		t.Fatalf("expected 1 disabled route, got %d", len(disabled))
-	}
-
-	// Enable the route
-	enableBody := `{"@id":"` + routeID + `"}`
-	req = authedRequest(http.MethodPost, "/api/routes/enable", enableBody, cookie)
-	rec = httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("enable route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
-
-	// Verify disabled list is empty again
-	req = authedRequest(http.MethodGet, "/api/routes/disabled", "", cookie)
-	rec = httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	var disabledAfter []any
-	if err := json.Unmarshal(rec.Body.Bytes(), &disabledAfter); err != nil {
-		t.Fatalf("failed to parse disabled routes response: %v", err)
-	}
-	if len(disabledAfter) != 0 {
-		t.Errorf("expected 0 disabled routes after enable, got %d", len(disabledAfter))
-	}
-}
-
-func TestHandleEnableRouteNotFound(t *testing.T) {
-	th := newTestHarness(t)
-	setupRec := th.doSetup(t, "testpass")
-	cookie := sessionCookie(setupRec)
-
-	body := `{"@id":"kaji_nonexistent_com"}`
-	req := authedRequest(http.MethodPost, "/api/routes/enable", body, cookie)
-	rec := httptest.NewRecorder()
-	th.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("enable nonexistent route: got %d, want 404; body: %s", rec.Code, rec.Body.String())
-	}
-}
-
 // --- Settings update tests ---
 
 func TestHandleGlobalTogglesUpdate(t *testing.T) {
@@ -1383,15 +1172,15 @@ func TestHandleGlobalTogglesUpdate(t *testing.T) {
 	setupRec := th.doSetup(t, "testpass")
 	cookie := sessionCookie(setupRec)
 
-	// Create a route first so the fake Caddy has a server in the config.
+	// Create a domain first so the fake Caddy has a server in the config.
 	// SetGlobalToggles iterates over existing servers, so without one
 	// it's a no-op and the GET returns defaults.
-	createBody := `{"domain":"toggles-test.com","upstream":"127.0.0.1:8080"}`
-	req := authedRequest(http.MethodPost, "/api/routes", createBody, cookie)
+	createBody := `{"name":"toggles-test.com","rules":[{"match_type":"","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}]}`
+	req := authedRequest(http.MethodPost, "/api/domains/full", createBody, cookie)
 	rec := httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("create route: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("create domain: got %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
 	body := `{"auto_https":"off","prometheus_metrics":true,"per_host_metrics":false}`
@@ -2108,7 +1897,7 @@ func TestHandleIPListUsage(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &created)
 	listID := created["id"].(string)
 
-	// Check usage (no routes bound)
+	// Check usage (no domains bound)
 	req = authedRequest(http.MethodGet, "/api/ip-lists/"+listID+"/usage", "", cookie)
 	rec = httptest.NewRecorder()
 	th.handler.ServeHTTP(rec, req)
@@ -2121,12 +1910,12 @@ func TestHandleIPListUsage(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &usage); err != nil {
 		t.Fatalf("failed to parse usage response: %v", err)
 	}
-	routes, ok := usage["routes"].([]any)
+	domains, ok := usage["domains"].([]any)
 	if !ok {
-		t.Fatal("usage response missing routes array")
+		t.Fatal("usage response missing domains array")
 	}
-	if len(routes) != 0 {
-		t.Errorf("expected 0 routes using list, got %d", len(routes))
+	if len(domains) != 0 {
+		t.Errorf("expected 0 domains using list, got %d", len(domains))
 	}
 	composites, ok := usage["composite_lists"].([]any)
 	if !ok {

@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+
+	"github.com/andretakagi/kaji/internal/caddy"
 )
 
 var ErrSetupDone = errors.New("setup already completed")
@@ -52,6 +54,39 @@ type IPList struct {
 	UpdatedAt   string   `json:"updated_at"`
 }
 
+type Domain struct {
+	ID      string              `json:"id"`
+	Name    string              `json:"name"`
+	Enabled bool                `json:"enabled"`
+	Toggles caddy.DomainToggles `json:"toggles"`
+	Rules   []Rule              `json:"rules"`
+}
+
+type Rule struct {
+	ID              string               `json:"id"`
+	Label           string               `json:"label,omitempty"`
+	Enabled         bool                 `json:"enabled"`
+	MatchType       string               `json:"match_type"`
+	PathMatch       string               `json:"path_match,omitempty"`
+	MatchValue      string               `json:"match_value,omitempty"`
+	HandlerType     string               `json:"handler_type"`
+	HandlerConfig   json.RawMessage      `json:"handler_config"`
+	ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides,omitempty"`
+	AdvancedHeaders bool                 `json:"advanced_headers"`
+}
+
+func IPListsToEntries(lists []IPList) []caddy.IPListEntry {
+	entries := make([]caddy.IPListEntry, len(lists))
+	for i, l := range lists {
+		entries[i] = caddy.IPListEntry{
+			ID:       l.ID,
+			IPs:      l.IPs,
+			Children: l.Children,
+		}
+	}
+	return entries
+}
+
 type AppConfig struct {
 	AuthEnabled     bool                     `json:"auth_enabled"`
 	PasswordHash    string                   `json:"password_hash"`
@@ -65,6 +100,8 @@ type AppConfig struct {
 	LogFile         string                   `json:"log_file"`
 	LogDir          string                   `json:"log_dir"`
 	Loki            LokiConfig               `json:"loki"`
+	Domains         []Domain                 `json:"domains"`
+	KajiVersion     string                   `json:"kaji_version,omitempty"`
 	DisabledRoutes  []DisabledRoute          `json:"disabled_routes"`
 	IPLists         []IPList                 `json:"ip_lists"`
 	RouteIPLists    map[string]string        `json:"route_ip_lists"`

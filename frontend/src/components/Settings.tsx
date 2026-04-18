@@ -13,7 +13,6 @@ import {
 	updateAdvancedSettings,
 	updateCaddyDataDir,
 } from "../api";
-import { cn } from "../cn";
 import { useCaddyStatus } from "../contexts/CaddyContext";
 import { useAsyncAction } from "../hooks/useAsyncAction";
 import { validateCaddyAdminUrl } from "../utils/validate";
@@ -24,6 +23,7 @@ import HttpsSettingsSection from "./HttpsSettingsSection";
 import { LokiSettings } from "./LokiSettings";
 import { MetricsSettings } from "./MetricsSettings";
 import { SnapshotSettings } from "./SnapshotSettings";
+import { Toggle } from "./Toggle";
 
 function AppearanceSection() {
 	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
@@ -43,24 +43,11 @@ function AppearanceSection() {
 			<h3>Appearance</h3>
 			<div className="settings-toggle-row">
 				<span>Theme</span>
-				<div className="theme-switcher">
-					<button
-						type="button"
-						className={cn("theme-pill", theme === "dark" && "active")}
-						onClick={() => applyTheme("dark")}
-						aria-pressed={theme === "dark"}
-					>
-						Dark
-					</button>
-					<button
-						type="button"
-						className={cn("theme-pill", theme === "light" && "active")}
-						onClick={() => applyTheme("light")}
-						aria-pressed={theme === "light"}
-					>
-						Light
-					</button>
-				</div>
+				<Toggle
+					options={["Dark", "Light"] as const}
+					value={theme === "light" ? "Light" : "Dark"}
+					onChange={(v: string) => applyTheme(v === "Light" ? "light" : "dark")}
+				/>
 			</div>
 		</section>
 	);

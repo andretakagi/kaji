@@ -1,24 +1,26 @@
 package caddy
 
-import (
-	"fmt"
+import "fmt"
 
-	"github.com/andretakagi/kaji/internal/config"
-)
+type IPListEntry struct {
+	ID       string
+	IPs      []string
+	Children []string
+}
 
 // ResolveIPList flattens a list and all its children into a deduplicated slice of IPs/CIDRs.
-func ResolveIPList(listID string, allLists []config.IPList) ([]string, error) {
+func ResolveIPList(listID string, allLists []IPListEntry) ([]string, error) {
 	seen := make(map[string]bool)
 	return resolveIPListInner(listID, allLists, seen)
 }
 
-func resolveIPListInner(listID string, allLists []config.IPList, visited map[string]bool) ([]string, error) {
+func resolveIPListInner(listID string, allLists []IPListEntry, visited map[string]bool) ([]string, error) {
 	if visited[listID] {
 		return nil, fmt.Errorf("circular reference detected: list %q", listID)
 	}
 	visited[listID] = true
 
-	var list *config.IPList
+	var list *IPListEntry
 	for i := range allLists {
 		if allLists[i].ID == listID {
 			list = &allLists[i]

@@ -12,11 +12,11 @@ import {
 } from "./api";
 import { cn } from "./cn";
 import Certificates from "./components/Certificates";
+import DomainList from "./components/DomainList";
 import { ErrorAlert } from "./components/ErrorAlert";
 import IPLists from "./components/IPLists";
 import Login from "./components/Login";
 import Logs from "./components/Logs";
-import Routes from "./components/Routes";
 import Settings from "./components/Settings";
 import Setup from "./components/Setup";
 import Snapshots from "./components/Snapshots";
@@ -89,7 +89,9 @@ function App() {
 	}, []);
 
 	useEffect(() => {
-		const onPop = () => setView(pathToView(window.location.pathname));
+		const onPop = () => {
+			setView(pathToView(window.location.pathname));
+		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
 	}, []);
@@ -291,7 +293,7 @@ function App() {
 
 				<CaddyProvider running={running}>
 					<main id="main-content" className="app-content">
-						{view === "routes" && <Routes />}
+						{view === "routes" && <DomainList />}
 						{view === "ip-lists" && <IPLists />}
 						{view === "certificates" && <Certificates />}
 						{view === "logs" && <Logs />}

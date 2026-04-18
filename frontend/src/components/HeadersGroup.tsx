@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { cn } from "../cn";
-import type { HeadersConfig, RouteToggles } from "../types/api";
+import type { HeadersConfig } from "../types/api";
 import { HeadersAdvanced } from "./HeadersAdvanced";
 import { HeadersBasic } from "./HeadersBasic";
 import { Toggle } from "./Toggle";
 import { ToggleItem } from "./ToggleGrid";
 
 interface HeadersGroupProps {
-	toggles: RouteToggles;
-	onUpdate: <K extends keyof RouteToggles>(key: K, value: RouteToggles[K]) => void;
+	toggles: { headers: HeadersConfig };
+	onUpdate: (key: "headers", value: HeadersConfig) => void;
 	idPrefix: string;
 	advancedMode?: boolean;
 	onModeChange?: (advanced: boolean) => void;

@@ -4,24 +4,27 @@ import type {
 	CaddyfileResponse,
 	CaddyStatus,
 	ChangePasswordRequest,
-	CreateRouteRequest,
-	DisabledRoute,
 	DNSProviderSettings,
 	GlobalToggles,
 	ImportResponse,
 	IPList,
 	IPListUsage,
 	LoginRequest,
-	RouteSettings,
 	SetupImportFullResponse,
 	SetupRequest,
 	SetupResponse,
 	SetupStatus,
-	UpdateRouteRequest,
 	UpstreamStatus,
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
 import type { CertInfo } from "./types/certs";
+import type {
+	CreateDomainFullRequest,
+	CreateRuleRequest,
+	Domain,
+	UpdateDomainRequest,
+	UpdateRuleRequest,
+} from "./types/domain";
 import type {
 	CaddyLoggingConfig,
 	CaddyLogSink,
@@ -45,8 +48,6 @@ import {
 	validateCaddyfileResponse,
 	validateCaddyStatus,
 	validateCertificates,
-	validateCreateRouteResponse,
-	validateDisabledRoutes,
 	validateDNSProvider,
 	validateExportCaddyfile,
 	validateGenerateAPIKey,
@@ -61,7 +62,6 @@ import {
 	validateLokiStatus,
 	validateLokiTestResult,
 	validateRouteIPListBindings,
-	validateRouteSettings,
 	validateSetupImportFullResponse,
 	validateSetupResponse,
 	validateSetupStatus,
@@ -191,55 +191,6 @@ export function fetchConfig(): Promise<CaddyConfig> {
 
 export function fetchUpstreams(): Promise<UpstreamStatus[]> {
 	return request("/api/caddy/upstreams", undefined, validateUpstreams);
-}
-
-export function createRoute(
-	req: CreateRouteRequest,
-): Promise<{ status: string; "@id": string; warning?: string }> {
-	return request("/api/routes", { method: "POST", ...jsonBody(req) }, validateCreateRouteResponse);
-}
-
-export function deleteRoute(id: string): Promise<{ status: string; warning?: string }> {
-	return request(
-		`/api/routes/${encodeURIComponent(id)}`,
-		{ method: "DELETE" },
-		validateStatusResponse,
-	);
-}
-
-export function updateRoute(
-	req: UpdateRouteRequest,
-): Promise<{ status: string; warning?: string }> {
-	const { id, ...body } = req;
-	return request(
-		`/api/routes/${encodeURIComponent(id)}`,
-		{ method: "PUT", ...jsonBody(body) },
-		validateStatusResponse,
-	);
-}
-
-export function disableRoute(id: string): Promise<{ status: string; warning?: string }> {
-	return request(
-		"/api/routes/disable",
-		{ method: "POST", ...jsonBody({ "@id": id }) },
-		validateStatusResponse,
-	);
-}
-
-export function enableRoute(id: string): Promise<{ status: string; warning?: string }> {
-	return request(
-		"/api/routes/enable",
-		{ method: "POST", ...jsonBody({ "@id": id }) },
-		validateStatusResponse,
-	);
-}
-
-export function fetchDisabledRoutes(): Promise<DisabledRoute[]> {
-	return request("/api/routes/disabled", undefined, validateDisabledRoutes);
-}
-
-export function fetchRouteSettings(): Promise<Record<string, RouteSettings>> {
-	return request("/api/route-settings", undefined, validateRouteSettings);
 }
 
 export function fetchGlobalToggles(): Promise<GlobalToggles> {
@@ -606,4 +557,92 @@ export function updateLokiConfig(config: LokiConfig): Promise<{ status: string }
 
 export function testLokiConnection(): Promise<LokiTestResult> {
 	return request("/api/loki/test", { method: "POST" }, validateLokiTestResult);
+}
+
+export function fetchDomains(): Promise<Domain[]> {
+	return request("/api/domains", undefined, (d) => d as Domain[]);
+}
+
+export function fetchDomain(id: string): Promise<Domain> {
+	return request(`/api/domains/${encodeURIComponent(id)}`, undefined, (d) => d as Domain);
+}
+
+export function createDomainFull(req: CreateDomainFullRequest): Promise<Domain> {
+	return request("/api/domains/full", { method: "POST", ...jsonBody(req) }, (d) => d as Domain);
+}
+
+export function updateDomain(id: string, req: UpdateDomainRequest): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function deleteDomain(id: string): Promise<{ status: string }> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}`,
+		{ method: "DELETE" },
+		validateStatusResponse,
+	);
+}
+
+export function enableDomain(id: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}/enable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
+}
+
+export function disableDomain(id: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(id)}/disable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
+}
+
+export function createRule(domainId: string, req: CreateRuleRequest): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules`,
+		{ method: "POST", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function updateRule(
+	domainId: string,
+	ruleId: string,
+	req: UpdateRuleRequest,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function deleteRule(domainId: string, ruleId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
+		{ method: "DELETE" },
+		(d) => d as Domain,
+	);
+}
+
+export function enableRule(domainId: string, ruleId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/enable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
+}
+
+export function disableRule(domainId: string, ruleId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/disable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
 }

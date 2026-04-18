@@ -2,6 +2,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -211,12 +212,54 @@ func validateIPListChildren(children []string, parentType string, parentID strin
 				break
 			}
 		}
-		if _, err := caddy.ResolveIPList(parentID, tempLists); err != nil {
+		if _, err := caddy.ResolveIPList(parentID, config.IPListsToEntries(tempLists)); err != nil {
 			return fmt.Sprintf("circular reference: %v", err)
 		}
 	}
 
 	return ""
+}
+
+func validateMatchType(matchType string) string {
+	switch matchType {
+	case "", "subdomain", "path":
+		return ""
+	default:
+		return fmt.Sprintf("invalid match type: %s (must be empty, subdomain, or path)", matchType)
+	}
+}
+
+func validatePathMatch(pathMatch string) string {
+	switch pathMatch {
+	case "exact", "prefix", "regex":
+		return ""
+	default:
+		return fmt.Sprintf("invalid path match: %s (must be exact, prefix, or regex)", pathMatch)
+	}
+}
+
+func validateReverseProxyConfig(w http.ResponseWriter, raw json.RawMessage) bool {
+	var rp caddy.ReverseProxyConfig
+	if err := json.Unmarshal(raw, &rp); err != nil {
+		writeError(w, "invalid handler config", http.StatusBadRequest)
+		return false
+	}
+	if msg := validateUpstream(rp.Upstream); msg != "" {
+		writeError(w, msg, http.StatusBadRequest)
+		return false
+	}
+	return validateLoadBalancing(w, rp.LoadBalancing)
+}
+
+func validateHandlerType(handlerType string) string {
+	switch handlerType {
+	case "reverse_proxy":
+		return ""
+	case "redirect", "file_server", "static_response":
+		return fmt.Sprintf("handler type %q is not yet supported", handlerType)
+	default:
+		return fmt.Sprintf("unknown handler type: %s", handlerType)
+	}
 }
 
 func validateLoadBalancing(w http.ResponseWriter, lb caddy.LoadBalancing) bool {

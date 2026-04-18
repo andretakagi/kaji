@@ -50,13 +50,20 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/caddy/config/{path...}", handleConfigProxy(cc))
 	mux.HandleFunc("POST /api/caddy/load", handleConfigLoad(store, cc))
 	mux.HandleFunc("GET /api/caddy/upstreams", handleUpstreams(cc))
-	mux.HandleFunc("POST /api/routes", handleCreateRoute(store, cc, ss, version))
-	mux.HandleFunc("DELETE /api/routes/{id}", handleDeleteRoute(store, cc, ss, version))
-	mux.HandleFunc("PUT /api/routes/{id}", handleUpdateRoute(store, cc, ss, version))
-	mux.HandleFunc("POST /api/routes/disable", handleDisableRoute(store, cc, ss, version))
-	mux.HandleFunc("POST /api/routes/enable", handleEnableRoute(store, cc, ss, version))
-	mux.HandleFunc("GET /api/routes/disabled", handleDisabledRoutes(store))
-	mux.HandleFunc("GET /api/route-settings", handleGetRouteSettings(store))
+	// Domain management
+	mux.HandleFunc("GET /api/domains", handleListDomains(store))
+	mux.HandleFunc("POST /api/domains/full", handleCreateDomainFull(store, cc, ss, version))
+	mux.HandleFunc("GET /api/domains/{id}", handleGetDomain(store))
+	mux.HandleFunc("PUT /api/domains/{id}", handleUpdateDomain(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/domains/{id}", handleDeleteDomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/enable", handleEnableDomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/disable", handleDisableDomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/rules", handleCreateRule(store, cc, ss, version))
+	mux.HandleFunc("PUT /api/domains/{id}/rules/{ruleId}", handleUpdateRule(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/domains/{id}/rules/{ruleId}", handleDeleteRule(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/rules/{ruleId}/enable", handleEnableRule(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/rules/{ruleId}/disable", handleDisableRule(store, cc, ss, version))
+
 	mux.HandleFunc("GET /api/logs", handleLogs(store))
 	mux.HandleFunc("GET /api/logs/stream", handleLogStream(store))
 	mux.HandleFunc("GET /api/logs/config", handleLogConfigGet(store, cc))
@@ -349,72 +356,4 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 		return false
 	}
 	return true
-}
-
-type routeSinkInfo struct {
-	domain string
-	server string
-	sink   string
-}
-
-func lookupRouteSink(cc *caddy.Client, routeID string) routeSinkInfo {
-	var info routeSinkInfo
-	raw, err := cc.GetRouteByID(routeID)
-	if err != nil {
-		return info
-	}
-	var route struct {
-		Match []struct {
-			Host []string `json:"host"`
-		} `json:"match"`
-	}
-	if json.Unmarshal(raw, &route) == nil && len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
-		info.domain = route.Match[0].Host[0]
-	}
-	info.server, _ = cc.FindRouteServer(routeID)
-	if info.domain != "" && info.server != "" {
-		if domainSinks, err := cc.GetAccessLogDomains(info.server); err == nil {
-			info.sink = domainSinks[info.domain]
-		}
-	}
-	return info
-}
-
-func resolveIPFiltering(store *config.ConfigStore, toggles caddy.RouteToggles, params *caddy.RouteParams) error {
-	if !toggles.IPFiltering.Enabled || toggles.IPFiltering.ListID == "" {
-		return nil
-	}
-	cfg := store.Get()
-	resolved, err := caddy.ResolveIPList(toggles.IPFiltering.ListID, cfg.IPLists)
-	if err != nil {
-		return err
-	}
-	for _, l := range cfg.IPLists {
-		if l.ID == toggles.IPFiltering.ListID {
-			params.IPListType = l.Type
-			break
-		}
-	}
-	params.IPListIPs = resolved
-	return nil
-}
-
-func trackRouteIPList(store *config.ConfigStore, routeID string, toggles caddy.RouteToggles) {
-	listID := ""
-	if toggles.IPFiltering.Enabled {
-		listID = toggles.IPFiltering.ListID
-	}
-	if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
-		if c.RouteIPLists == nil {
-			c.RouteIPLists = make(map[string]string)
-		}
-		if listID != "" {
-			c.RouteIPLists[routeID] = listID
-		} else {
-			delete(c.RouteIPLists, routeID)
-		}
-		return &c, nil
-	}); err != nil {
-		log.Printf("trackRouteIPList: %v", err)
-	}
 }
