@@ -70,19 +70,21 @@ func handleGetDomain(store *config.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Name    string              `json:"name"`
 			Toggles caddy.DomainToggles `json:"toggles"`
-			First   struct {
-				Label         string          `json:"label"`
-				MatchType     string          `json:"match_type"`
-				PathMatch     string          `json:"path_match"`
-				MatchValue    string          `json:"match_value"`
-				HandlerType   string          `json:"handler_type"`
-				HandlerConfig json.RawMessage `json:"handler_config"`
-			} `json:"first_rule"`
+			Rules   []struct {
+				Label           string               `json:"label"`
+				MatchType       string               `json:"match_type"`
+				PathMatch       string               `json:"path_match"`
+				MatchValue      string               `json:"match_value"`
+				HandlerType     string               `json:"handler_type"`
+				HandlerConfig   json.RawMessage      `json:"handler_config"`
+				ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides"`
+				AdvancedHeaders bool                 `json:"advanced_headers"`
+			} `json:"rules"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -90,29 +92,6 @@ func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		if msg := validateDomain(req.Name); msg != "" {
 			writeError(w, msg, http.StatusBadRequest)
 			return
-		}
-
-		hasRule := req.First.HandlerType != ""
-		if hasRule {
-			if msg := validateHandlerType(req.First.HandlerType); msg != "" {
-				writeError(w, msg, http.StatusBadRequest)
-				return
-			}
-			if msg := validateMatchType(req.First.MatchType); msg != "" {
-				writeError(w, msg, http.StatusBadRequest)
-				return
-			}
-			if req.First.MatchType == "path" {
-				if msg := validatePathMatch(req.First.PathMatch); msg != "" {
-					writeError(w, msg, http.StatusBadRequest)
-					return
-				}
-			}
-			if req.First.HandlerType == "reverse_proxy" {
-				if !validateReverseProxyConfig(w, req.First.HandlerConfig) {
-					return
-				}
-			}
 		}
 
 		cfg := store.Get()
@@ -129,36 +108,76 @@ func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 				return
 			}
 			if err := hashBasicAuthPassword(&req.Toggles.BasicAuth, ""); err != nil {
-				log.Printf("handleCreateDomain: hash password: %v", err)
+				log.Printf("handleCreateDomainFull: hash password: %v", err)
 				writeError(w, "failed to hash password", http.StatusInternalServerError)
 				return
 			}
 		}
 
+		hasRoot := false
+		for i, rule := range req.Rules {
+			if msg := validateMatchType(rule.MatchType); msg != "" {
+				writeError(w, fmt.Sprintf("rule %d: %s", i+1, msg), http.StatusBadRequest)
+				return
+			}
+			if msg := validateHandlerType(rule.HandlerType); msg != "" {
+				writeError(w, fmt.Sprintf("rule %d: %s", i+1, msg), http.StatusBadRequest)
+				return
+			}
+			if rule.MatchType == "path" {
+				if msg := validatePathMatch(rule.PathMatch); msg != "" {
+					writeError(w, fmt.Sprintf("rule %d: %s", i+1, msg), http.StatusBadRequest)
+					return
+				}
+			}
+			if rule.HandlerType == "reverse_proxy" {
+				if !validateReverseProxyConfig(w, rule.HandlerConfig) {
+					return
+				}
+			}
+			if rule.MatchType == "" {
+				if hasRoot {
+					writeError(w, "only one root rule is allowed", http.StatusBadRequest)
+					return
+				}
+				hasRoot = true
+			}
+			if rule.ToggleOverrides != nil && rule.ToggleOverrides.BasicAuth.Enabled {
+				if rule.ToggleOverrides.BasicAuth.Username == "" {
+					writeError(w, fmt.Sprintf("rule %d: username is required for basic auth", i+1), http.StatusBadRequest)
+					return
+				}
+				if err := hashBasicAuthPassword(&rule.ToggleOverrides.BasicAuth, ""); err != nil {
+					log.Printf("handleCreateDomainFull: hash rule password: %v", err)
+					writeError(w, "failed to hash password", http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+
 		domainID := caddy.GenerateDomainID()
+		rules := make([]config.Rule, len(req.Rules))
+		for i, rule := range req.Rules {
+			rules[i] = config.Rule{
+				ID:              caddy.GenerateRuleID(),
+				Label:           rule.Label,
+				Enabled:         true,
+				MatchType:       rule.MatchType,
+				PathMatch:       rule.PathMatch,
+				MatchValue:      rule.MatchValue,
+				HandlerType:     rule.HandlerType,
+				HandlerConfig:   rule.HandlerConfig,
+				ToggleOverrides: rule.ToggleOverrides,
+				AdvancedHeaders: rule.AdvancedHeaders,
+			}
+		}
 
 		domain := config.Domain{
 			ID:      domainID,
 			Name:    req.Name,
 			Enabled: true,
 			Toggles: req.Toggles,
-			Rules:   []config.Rule{},
-		}
-
-		if hasRule {
-			ruleID := caddy.GenerateRuleID()
-			domain.Rules = []config.Rule{
-				{
-					ID:            ruleID,
-					Label:         req.First.Label,
-					Enabled:       true,
-					MatchType:     req.First.MatchType,
-					PathMatch:     req.First.PathMatch,
-					MatchValue:    req.First.MatchValue,
-					HandlerType:   req.First.HandlerType,
-					HandlerConfig: req.First.HandlerConfig,
-				},
-			}
+			Rules:   rules,
 		}
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain created: "+req.Name)
@@ -167,13 +186,13 @@ func handleCreateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			c.Domains = append(c.Domains, domain)
 			return &c, nil
 		}); err != nil {
-			log.Printf("handleCreateDomain: save config: %v", err)
+			log.Printf("handleCreateDomainFull: save config: %v", err)
 			writeError(w, "failed to save domain", http.StatusInternalServerError)
 			return
 		}
 
 		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleCreateDomain", err)
+			caddyError(w, "handleCreateDomainFull", err)
 			return
 		}
 

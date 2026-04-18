@@ -52,7 +52,7 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("GET /api/caddy/upstreams", handleUpstreams(cc))
 	// Domain management
 	mux.HandleFunc("GET /api/domains", handleListDomains(store))
-	mux.HandleFunc("POST /api/domains", handleCreateDomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/full", handleCreateDomainFull(store, cc, ss, version))
 	mux.HandleFunc("GET /api/domains/{id}", handleGetDomain(store))
 	mux.HandleFunc("PUT /api/domains/{id}", handleUpdateDomain(store, cc, ss, version))
 	mux.HandleFunc("DELETE /api/domains/{id}", handleDeleteDomain(store, cc, ss, version))
