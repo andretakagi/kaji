@@ -3426,6 +3426,32 @@ input:disabled + .toggle-slider {
 		min-height: 120px;
 	}
 
+	.wizard-step-label {
+		font-size: 0.6rem;
+	}
+
+	.wizard-step-number {
+		width: 24px;
+		height: 24px;
+		font-size: 0.675rem;
+	}
+
+	.wizard-step-connector {
+		top: 12px;
+	}
+
+	.wizard-rule-summary {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.375rem;
+	}
+
+	.wizard-review-rule-item {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.25rem;
+	}
+
 	.auth-card-wide {
 		max-width: 520px;
 	}
