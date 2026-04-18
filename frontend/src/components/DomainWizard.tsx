@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type {
 	CreateDomainFullRequest,
 	DomainToggles,
@@ -17,6 +17,7 @@ import WizardReview from "./WizardReview";
 type HandlerSelection = "none" | HandlerType;
 
 export interface WizardRule {
+	key: number;
 	matchType: Exclude<MatchType, "">;
 	pathMatch: PathMatch;
 	matchValue: string;
@@ -45,12 +46,31 @@ const handlerOptions: readonly { value: HandlerSelection; label: string }[] = [
 	{ value: "static_response", label: "Static Response" },
 ] as const;
 
+const ruleMatchOptions: { value: Exclude<MatchType, "">; label: string }[] = [
+	{ value: "subdomain", label: "Subdomain" },
+	{ value: "path", label: "Path" },
+];
+
+const pathMatchOptions: { value: PathMatch; label: string }[] = [
+	{ value: "prefix", label: "Prefix" },
+	{ value: "exact", label: "Exact" },
+	{ value: "regex", label: "Regex" },
+];
+
+const handlerTypeOptions: { value: HandlerType; label: string }[] = [
+	{ value: "reverse_proxy", label: "Reverse Proxy" },
+	{ value: "redirect", label: "Redirect" },
+	{ value: "file_server", label: "File Server" },
+	{ value: "static_response", label: "Static Response" },
+];
+
 interface Props {
 	onCreate: (req: CreateDomainFullRequest) => Promise<void>;
 	onCancel: () => void;
 }
 
 export default function DomainWizard({ onCreate, onCancel }: Props) {
+	const ruleKeyRef = useRef(0);
 	const [step, setStep] = useState(0);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState("");
@@ -144,19 +164,19 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 			setError("Path value is required");
 			return;
 		}
-		if (ruleHandlerType === "reverse_proxy") {
-			const rp = ruleHandlerConfig as ReverseProxyConfig;
-			if (!rp.upstream.trim()) {
-				setError("Upstream is required");
-				return;
-			}
-		}
 		if (ruleHandlerType !== "reverse_proxy") {
 			setError("This handler type is not yet supported");
 			return;
 		}
+		const rp = ruleHandlerConfig as ReverseProxyConfig;
+		if (!rp.upstream.trim()) {
+			setError("Upstream is required");
+			return;
+		}
 
+		ruleKeyRef.current += 1;
 		const newRule: WizardRule = {
+			key: ruleKeyRef.current,
 			matchType: ruleMatchType,
 			pathMatch: rulePathMatch,
 			matchValue: ruleMatchValue.trim(),
@@ -214,24 +234,6 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 
 	const rootRuleSupported =
 		data.rootRule.handlerType === "none" || data.rootRule.handlerType === "reverse_proxy";
-
-	const ruleMatchOptions: { value: Exclude<MatchType, "">; label: string }[] = [
-		{ value: "subdomain", label: "Subdomain" },
-		{ value: "path", label: "Path" },
-	];
-
-	const pathMatchOptions: { value: PathMatch; label: string }[] = [
-		{ value: "prefix", label: "Prefix" },
-		{ value: "exact", label: "Exact" },
-		{ value: "regex", label: "Regex" },
-	];
-
-	const handlerTypeOptions: { value: HandlerType; label: string }[] = [
-		{ value: "reverse_proxy", label: "Reverse Proxy" },
-		{ value: "redirect", label: "Redirect" },
-		{ value: "file_server", label: "File Server" },
-		{ value: "static_response", label: "Static Response" },
-	];
 
 	return (
 		<div className="domain-wizard">
@@ -335,7 +337,7 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 						{data.rules.length > 0 && (
 							<div className="wizard-rule-list">
 								{data.rules.map((rule, i) => (
-									<div key={`${rule.matchType}-${rule.matchValue}`} className="wizard-rule-summary">
+									<div key={rule.key} className="wizard-rule-summary">
 										<div className="wizard-rule-summary-info">
 											<span className="wizard-rule-match">
 												{rule.matchType === "subdomain"
@@ -553,15 +555,6 @@ export default function DomainWizard({ onCreate, onCancel }: Props) {
 				{step === 0 ? (
 					<button type="button" className="btn btn-ghost" onClick={onCancel} disabled={submitting}>
 						Cancel
-					</button>
-				) : step < 4 ? (
-					<button
-						type="button"
-						className="btn btn-ghost"
-						onClick={handleBack}
-						disabled={submitting}
-					>
-						Back
 					</button>
 				) : (
 					<button
