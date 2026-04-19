@@ -25,9 +25,9 @@ export default function HandlerConfig({ type, config, onChange, disabled }: Prop
 	switch (type) {
 		case "reverse_proxy": {
 			const rpConfig = config as ReverseProxyConfig;
-			function update(patch: Partial<ReverseProxyConfig>) {
+			const update = (patch: Partial<ReverseProxyConfig>) => {
 				onChange({ ...rpConfig, ...patch });
-			}
+			};
 			return (
 				<div className="handler-config">
 					<div className="form-field">
@@ -70,7 +70,7 @@ export default function HandlerConfig({ type, config, onChange, disabled }: Prop
 			return (
 				<StaticResponseSection
 					config={config as StaticResponseConfig}
-					onChange={(c) => onChange(c)}
+					onChange={onChange}
 					disabled={disabled}
 				/>
 			);
