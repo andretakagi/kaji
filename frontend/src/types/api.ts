@@ -118,32 +118,6 @@ export interface HeadersConfig {
 	response: ResponseHeaders;
 }
 
-export interface RouteToggles {
-	enabled: boolean;
-	force_https: boolean;
-	compression: boolean;
-	headers: HeadersConfig;
-	tls_skip_verify: boolean;
-	basic_auth: {
-		enabled: boolean;
-		username: string;
-		password_hash: string;
-		password: string;
-	};
-	access_log: string;
-	websocket_passthrough: boolean;
-	load_balancing: {
-		enabled: boolean;
-		strategy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
-		upstreams: string[];
-	};
-	ip_filtering: {
-		enabled: boolean;
-		list_id: string;
-		type: "whitelist" | "blacklist" | "";
-	};
-}
-
 export interface ChangePasswordRequest {
 	new_password: string;
 }
