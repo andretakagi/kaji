@@ -50,22 +50,26 @@ func migrateV180(m map[string]any) []string {
 				continue
 			}
 
-			// Copy domain-level request headers into each reverse_proxy rule's handler_config
-			if requestData != nil {
+			// Determine which request headers to use: per-rule overrides take priority over domain-level.
+			effectiveRequest := requestData
+			if overrides, ok := rule["toggle_overrides"].(map[string]any); ok {
+				if headers, ok := overrides["headers"].(map[string]any); ok {
+					if ruleRequest, hasOverride := headers["request"]; hasOverride {
+						effectiveRequest = ruleRequest
+					}
+					delete(headers, "request")
+				}
+			}
+
+			// Copy the effective request headers into each reverse_proxy rule's handler_config.
+			if effectiveRequest != nil {
 				handlerType, _ := rule["handler_type"].(string)
 				if handlerType == "reverse_proxy" || handlerType == "" {
 					if hc, ok := rule["handler_config"].(map[string]any); ok {
 						if _, exists := hc["request_headers"]; !exists {
-							hc["request_headers"] = requestData
+							hc["request_headers"] = effectiveRequest
 						}
 					}
-				}
-			}
-
-			// Clean request from toggle_overrides.headers on each rule
-			if overrides, ok := rule["toggle_overrides"].(map[string]any); ok {
-				if headers, ok := overrides["headers"].(map[string]any); ok {
-					delete(headers, "request")
 				}
 			}
 		}
