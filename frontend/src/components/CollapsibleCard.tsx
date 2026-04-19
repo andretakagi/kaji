@@ -41,7 +41,7 @@ export default function CollapsibleCard({
 			<div
 				className={cn("card-body-wrapper", isExpanded && "expanded")}
 				aria-hidden={!isExpanded || undefined}
-				{...(disabled ? { inert: true } : {})}
+				{...(disabled && !isExpanded ? { inert: true } : {})}
 			>
 				<div className="card-body">
 					<div className="card-body-inner">{children}</div>

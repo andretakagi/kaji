@@ -2,9 +2,9 @@ import { useState } from "react";
 import { cn } from "../cn";
 import type {
 	DomainToggles,
-	HandlerType,
 	ReverseProxyConfig,
 	Rule,
+	StaticResponseConfig,
 	UpdateRuleRequest,
 } from "../types/domain";
 import CollapsibleCard from "./CollapsibleCard";
@@ -24,11 +24,12 @@ interface Props {
 	saving: boolean;
 }
 
-const handlerLabels: Record<HandlerType, string> = {
+const handlerLabels: Record<string, string> = {
 	reverse_proxy: "Reverse Proxy",
 	redirect: "Redirect",
 	file_server: "File Server",
 	static_response: "Static Response",
+	"": "None",
 };
 
 function formatMatch(rule: Rule): string {
@@ -51,7 +52,6 @@ function overrideSummary(overrides: DomainToggles | null): string | null {
 	if (overrides.access_log) parts.push("Access Log");
 	if (overrides.ip_filtering.enabled) parts.push("IP Filtering");
 	if (overrides.headers.response.enabled) parts.push("Response Headers");
-	if (overrides.headers.request.enabled) parts.push("Request Headers");
 	return parts.length > 0 ? parts.join(", ") : null;
 }
 
@@ -98,7 +98,7 @@ export default function RuleCard({
 		<CollapsibleCard
 			title={title}
 			actions={actions}
-			disabled={!rule.enabled}
+			disabled={!rule.enabled && !editing}
 			forceExpanded={editing}
 			ariaLabel={`${formatMatch(rule)} rule`}
 		>
@@ -108,6 +108,7 @@ export default function RuleCard({
 					domainToggles={domainToggles}
 					initial={rule}
 					hasRootRule={hasRootRule}
+					inline
 					onSubmit={async (req) => {
 						await onUpdate(rule.id, req as UpdateRuleRequest);
 						setEditing(false);
@@ -134,13 +135,21 @@ function RuleCardBody({ rule, onEdit }: { rule: Rule; onEdit: () => void }) {
 			{rule.handler_type === "reverse_proxy" && (
 				<ReverseProxyDetails config={rule.handler_config as ReverseProxyConfig} />
 			)}
+			{rule.handler_type === "static_response" && (
+				<StaticResponseDetails config={rule.handler_config as StaticResponseConfig} />
+			)}
 			{overrides && (
 				<div className="rule-card-detail">
 					<span className="rule-card-detail-label">Toggle overrides</span>
 					<span className="rule-card-detail-value">{overrides}</span>
 				</div>
 			)}
-			<button type="button" className="btn btn-ghost" onClick={onEdit}>
+			<button
+				type="button"
+				className="btn btn-primary"
+				style={{ alignSelf: "flex-end" }}
+				onClick={onEdit}
+			>
 				Edit
 			</button>
 		</div>
@@ -157,6 +166,37 @@ function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) {
 		details.push({
 			label: "Load balancing",
 			value: `${strategyLabel}${extra > 0 ? ` (+${extra} upstreams)` : ""}`,
+		});
+	}
+
+	if (details.length === 0) return null;
+
+	return (
+		<>
+			{details.map((d) => (
+				<div key={d.label} className="rule-card-detail">
+					<span className="rule-card-detail-label">{d.label}</span>
+					<span className="rule-card-detail-value">{d.value}</span>
+				</div>
+			))}
+		</>
+	);
+}
+
+function StaticResponseDetails({ config }: { config: StaticResponseConfig }) {
+	if (config.close) return null;
+
+	const details: { label: string; value: string }[] = [];
+	if (config.status_code) details.push({ label: "Status", value: config.status_code });
+	if (config.body) {
+		const preview = config.body.length > 60 ? `${config.body.slice(0, 60)}...` : config.body;
+		details.push({ label: "Body", value: preview });
+	}
+	const headerKeys = Object.keys(config.headers || {});
+	if (headerKeys.length > 0) {
+		details.push({
+			label: "Headers",
+			value: headerKeys.map((k) => `${k}: ${(config.headers[k] || []).join(", ")}`).join("; "),
 		});
 	}
 

@@ -329,14 +329,12 @@ func TestAdvancedEmptyEntries(t *testing.T) {
 // --- Request headers ---
 
 func TestBasicRequestHostOverride(t *testing.T) {
-	cfg := HeadersConfig{
-		Request: RequestHeaders{
-			Enabled:      true,
-			HostOverride: true,
-			HostValue:    "backend.internal",
-		},
+	req := RequestHeaders{
+		Enabled:      true,
+		HostOverride: true,
+		HostValue:    "backend.internal",
 	}
-	result := buildRequestHeaderSet(cfg, false)
+	result := BuildRequestHeaders(req, false)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -346,14 +344,12 @@ func TestBasicRequestHostOverride(t *testing.T) {
 }
 
 func TestBasicRequestAuthorization(t *testing.T) {
-	cfg := HeadersConfig{
-		Request: RequestHeaders{
-			Enabled:       true,
-			Authorization: true,
-			AuthValue:     "Bearer token123",
-		},
+	req := RequestHeaders{
+		Enabled:       true,
+		Authorization: true,
+		AuthValue:     "Bearer token123",
 	}
-	result := buildRequestHeaderSet(cfg, false)
+	result := BuildRequestHeaders(req, false)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -363,16 +359,14 @@ func TestBasicRequestAuthorization(t *testing.T) {
 }
 
 func TestBasicRequestBothHeaders(t *testing.T) {
-	cfg := HeadersConfig{
-		Request: RequestHeaders{
-			Enabled:       true,
-			HostOverride:  true,
-			HostValue:     "backend.internal",
-			Authorization: true,
-			AuthValue:     "Bearer abc",
-		},
+	req := RequestHeaders{
+		Enabled:       true,
+		HostOverride:  true,
+		HostValue:     "backend.internal",
+		Authorization: true,
+		AuthValue:     "Bearer abc",
 	}
-	result := buildRequestHeaderSet(cfg, false)
+	result := BuildRequestHeaders(req, false)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -382,46 +376,40 @@ func TestBasicRequestBothHeaders(t *testing.T) {
 }
 
 func TestBasicRequestDisabledReturnsNil(t *testing.T) {
-	cfg := HeadersConfig{
-		Request: RequestHeaders{
-			HostOverride: true,
-			HostValue:    "backend.internal",
-		},
+	req := RequestHeaders{
+		HostOverride: true,
+		HostValue:    "backend.internal",
 	}
-	result := buildRequestHeaderSet(cfg, false)
+	result := BuildRequestHeaders(req, false)
 	if result != nil {
 		t.Errorf("expected nil when disabled, got %v", result)
 	}
 }
 
 func TestBasicRequestEmptyValueSkipped(t *testing.T) {
-	cfg := HeadersConfig{
-		Request: RequestHeaders{
-			Enabled:      true,
-			HostOverride: true,
-			HostValue:    "",
-		},
+	req := RequestHeaders{
+		Enabled:      true,
+		HostOverride: true,
+		HostValue:    "",
 	}
-	result := buildRequestHeaderSet(cfg, false)
+	result := BuildRequestHeaders(req, false)
 	if result != nil {
 		t.Errorf("expected nil when host value is empty, got %v", result)
 	}
 }
 
 func TestAdvancedRequestHeaders(t *testing.T) {
-	cfg := HeadersConfig{
-		Request: RequestHeaders{
-			Enabled: true,
-			Builtin: []HeaderEntry{
-				{Key: "Host", Value: "builtin.host", Enabled: true},
-				{Key: "X-Disabled", Value: "no", Enabled: false},
-			},
-			Custom: []HeaderEntry{
-				{Key: "X-Custom-Req", Value: "custom-val", Enabled: true},
-			},
+	req := RequestHeaders{
+		Enabled: true,
+		Builtin: []HeaderEntry{
+			{Key: "Host", Value: "builtin.host", Enabled: true},
+			{Key: "X-Disabled", Value: "no", Enabled: false},
+		},
+		Custom: []HeaderEntry{
+			{Key: "X-Custom-Req", Value: "custom-val", Enabled: true},
 		},
 	}
-	result := buildRequestHeaderSet(cfg, true)
+	result := BuildRequestHeaders(req, true)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -437,18 +425,16 @@ func TestAdvancedRequestHeaders(t *testing.T) {
 }
 
 func TestAdvancedRequestCustomOverridesBuiltin(t *testing.T) {
-	cfg := HeadersConfig{
-		Request: RequestHeaders{
-			Enabled: true,
-			Builtin: []HeaderEntry{
-				{Key: "Host", Value: "builtin.host", Enabled: true},
-			},
-			Custom: []HeaderEntry{
-				{Key: "Host", Value: "custom.host", Enabled: true},
-			},
+	req := RequestHeaders{
+		Enabled: true,
+		Builtin: []HeaderEntry{
+			{Key: "Host", Value: "builtin.host", Enabled: true},
+		},
+		Custom: []HeaderEntry{
+			{Key: "Host", Value: "custom.host", Enabled: true},
 		},
 	}
-	result := buildRequestHeaderSet(cfg, true)
+	result := BuildRequestHeaders(req, true)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -495,14 +481,12 @@ func TestBuildRouteRequestHeaders(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles: RouteToggles{Headers: HeadersConfig{
-			Request: RequestHeaders{
-				Enabled:       true,
-				HostOverride:  true,
-				HostValue:     "backend.internal",
-				Authorization: true,
-				AuthValue:     "Bearer xyz",
-			},
+		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
+			Enabled:       true,
+			HostOverride:  true,
+			HostValue:     "backend.internal",
+			Authorization: true,
+			AuthValue:     "Bearer xyz",
 		}},
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
@@ -531,23 +515,25 @@ func TestBuildRouteAdvancedMode(t *testing.T) {
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
-		Toggles: RouteToggles{Headers: HeadersConfig{
-			Response: ResponseHeaders{
-				Enabled: true,
-				Builtin: []HeaderEntry{
-					{Key: "X-Frame-Options", Value: "DENY", Enabled: true},
-				},
-				Custom: []HeaderEntry{
-					{Key: "X-Custom", Value: "val", Enabled: true},
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{
+					Enabled: true,
+					Builtin: []HeaderEntry{
+						{Key: "X-Frame-Options", Value: "DENY", Enabled: true},
+					},
+					Custom: []HeaderEntry{
+						{Key: "X-Custom", Value: "val", Enabled: true},
+					},
 				},
 			},
-			Request: RequestHeaders{
+			RequestHeaders: RequestHeaders{
 				Enabled: true,
 				Builtin: []HeaderEntry{
 					{Key: "Host", Value: "advanced.host", Enabled: true},
 				},
 			},
-		}},
+		},
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
 	h := findHandler(t, handlers, "headers")
@@ -615,31 +601,29 @@ func TestParseRouteParamsRequestHeaders(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles: RouteToggles{Headers: HeadersConfig{
-			Request: RequestHeaders{
-				Enabled:       true,
-				HostOverride:  true,
-				HostValue:     "backend.internal",
-				Authorization: true,
-				AuthValue:     "Bearer tok",
-			},
+		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
+			Enabled:       true,
+			HostOverride:  true,
+			HostValue:     "backend.internal",
+			Authorization: true,
+			AuthValue:     "Bearer tok",
 		}},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.Headers.Request.Enabled {
-		t.Error("Headers.Request.Enabled should round-trip to true")
+	if !got.Toggles.RequestHeaders.Enabled {
+		t.Error("RequestHeaders.Enabled should round-trip to true")
 	}
-	if !got.Toggles.Headers.Request.HostOverride {
+	if !got.Toggles.RequestHeaders.HostOverride {
 		t.Error("HostOverride should round-trip to true")
 	}
-	if got.Toggles.Headers.Request.HostValue != "backend.internal" {
-		t.Errorf("HostValue = %q, want backend.internal", got.Toggles.Headers.Request.HostValue)
+	if got.Toggles.RequestHeaders.HostValue != "backend.internal" {
+		t.Errorf("HostValue = %q, want backend.internal", got.Toggles.RequestHeaders.HostValue)
 	}
-	if !got.Toggles.Headers.Request.Authorization {
+	if !got.Toggles.RequestHeaders.Authorization {
 		t.Error("Authorization should round-trip to true")
 	}
-	if got.Toggles.Headers.Request.AuthValue != "Bearer tok" {
-		t.Errorf("AuthValue = %q, want Bearer tok", got.Toggles.Headers.Request.AuthValue)
+	if got.Toggles.RequestHeaders.AuthValue != "Bearer tok" {
+		t.Errorf("AuthValue = %q, want Bearer tok", got.Toggles.RequestHeaders.AuthValue)
 	}
 }
 
@@ -647,23 +631,25 @@ func TestParseRouteParamsAllBasicHeaders(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles: RouteToggles{Headers: HeadersConfig{
-			Response: ResponseHeaders{
-				Enabled:      true,
-				Security:     true,
-				CORS:         true,
-				CORSOrigins:  []string{"https://app.com"},
-				CacheControl: true,
-				XRobotsTag:   true,
+		Toggles: RouteToggles{
+			Headers: HeadersConfig{
+				Response: ResponseHeaders{
+					Enabled:      true,
+					Security:     true,
+					CORS:         true,
+					CORSOrigins:  []string{"https://app.com"},
+					CacheControl: true,
+					XRobotsTag:   true,
+				},
 			},
-			Request: RequestHeaders{
+			RequestHeaders: RequestHeaders{
 				Enabled:       true,
 				HostOverride:  true,
 				HostValue:     "internal.host",
 				Authorization: true,
 				AuthValue:     "Basic creds",
 			},
-		}},
+		},
 	}
 	got := buildAndParse(t, p)
 	if !got.Toggles.Headers.Response.Security {
@@ -678,10 +664,10 @@ func TestParseRouteParamsAllBasicHeaders(t *testing.T) {
 	if !got.Toggles.Headers.Response.XRobotsTag {
 		t.Error("XRobotsTag should round-trip")
 	}
-	if !got.Toggles.Headers.Request.HostOverride {
+	if !got.Toggles.RequestHeaders.HostOverride {
 		t.Error("HostOverride should round-trip")
 	}
-	if !got.Toggles.Headers.Request.Authorization {
+	if !got.Toggles.RequestHeaders.Authorization {
 		t.Error("Authorization should round-trip")
 	}
 }
@@ -882,20 +868,18 @@ func TestRoundTripRequestHeadersPopulateBuiltin(t *testing.T) {
 	p := RouteParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
-		Toggles: RouteToggles{Headers: HeadersConfig{
-			Request: RequestHeaders{
-				Enabled:       true,
-				HostOverride:  true,
-				HostValue:     "backend.internal",
-				Authorization: true,
-				AuthValue:     "Bearer tok",
-			},
+		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
+			Enabled:       true,
+			HostOverride:  true,
+			HostValue:     "backend.internal",
+			Authorization: true,
+			AuthValue:     "Bearer tok",
 		}},
 	}
 	got := buildAndParse(t, p)
 
 	builtinKeys := map[string]string{}
-	for _, e := range got.Toggles.Headers.Request.Builtin {
+	for _, e := range got.Toggles.RequestHeaders.Builtin {
 		builtinKeys[e.Key] = e.Value
 	}
 
@@ -917,26 +901,24 @@ func TestRoundTripAdvancedRequestCustomSurvives(t *testing.T) {
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
-		Toggles: RouteToggles{Headers: HeadersConfig{
-			Request: RequestHeaders{
-				Enabled: true,
-				Builtin: []HeaderEntry{
-					{Key: "Host", Value: "custom.host", Enabled: true},
-				},
-				Custom: []HeaderEntry{
-					{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
-				},
+		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
+			Enabled: true,
+			Builtin: []HeaderEntry{
+				{Key: "Host", Value: "custom.host", Enabled: true},
+			},
+			Custom: []HeaderEntry{
+				{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
 			},
 		}},
 	}
 	got := buildAndParse(t, p)
 
 	builtinKeys := map[string]bool{}
-	for _, e := range got.Toggles.Headers.Request.Builtin {
+	for _, e := range got.Toggles.RequestHeaders.Builtin {
 		builtinKeys[e.Key] = true
 	}
 	customKeys := map[string]bool{}
-	for _, e := range got.Toggles.Headers.Request.Custom {
+	for _, e := range got.Toggles.RequestHeaders.Custom {
 		customKeys[e.Key] = true
 	}
 

@@ -29,6 +29,7 @@ type RouteToggles struct {
 	ForceHTTPS        bool            `json:"force_https"`
 	Compression       bool            `json:"compression"`
 	Headers           HeadersConfig   `json:"headers"`
+	RequestHeaders    RequestHeaders  `json:"request_headers"`
 	TLSSkipVerify     bool            `json:"tls_skip_verify"`
 	BasicAuth         BasicAuth       `json:"basic_auth"`
 	AccessLog         string          `json:"access_log"`
@@ -45,7 +46,6 @@ type LoadBalancing struct {
 
 type HeadersConfig struct {
 	Response ResponseHeaders `json:"response"`
-	Request  RequestHeaders  `json:"request"`
 }
 
 type ResponseHeaders struct {
@@ -234,7 +234,7 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 		}
 	}
 
-	if reqHeaders := buildRequestHeaderSet(p.Toggles.Headers, p.AdvancedHeaders); reqHeaders != nil {
+	if reqHeaders := BuildRequestHeaders(p.Toggles.RequestHeaders, p.AdvancedHeaders); reqHeaders != nil {
 		rp["headers"] = map[string]any{
 			"request": map[string]any{
 				"set": reqHeaders,
@@ -616,18 +616,18 @@ func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
 		return
 	}
 
-	p.Toggles.Headers.Request.Enabled = true
+	p.Toggles.RequestHeaders.Enabled = true
 
 	if vals, ok := reqSet["Host"]; ok && len(vals) > 0 {
-		p.Toggles.Headers.Request.HostOverride = true
-		p.Toggles.Headers.Request.HostValue = vals[0]
+		p.Toggles.RequestHeaders.HostOverride = true
+		p.Toggles.RequestHeaders.HostValue = vals[0]
 	}
 	if vals, ok := reqSet["Authorization"]; ok && len(vals) > 0 {
-		p.Toggles.Headers.Request.Authorization = true
-		p.Toggles.Headers.Request.AuthValue = vals[0]
+		p.Toggles.RequestHeaders.Authorization = true
+		p.Toggles.RequestHeaders.AuthValue = vals[0]
 	}
 
 	builtin, custom := classifyHeaders(reqSet, builtinRequestKeys)
-	p.Toggles.Headers.Request.Builtin = append(p.Toggles.Headers.Request.Builtin, builtin...)
-	p.Toggles.Headers.Request.Custom = append(p.Toggles.Headers.Request.Custom, custom...)
+	p.Toggles.RequestHeaders.Builtin = append(p.Toggles.RequestHeaders.Builtin, builtin...)
+	p.Toggles.RequestHeaders.Custom = append(p.Toggles.RequestHeaders.Custom, custom...)
 }

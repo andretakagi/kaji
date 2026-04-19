@@ -1,4 +1,4 @@
-import type { HeadersConfig } from "./api";
+import type { HeadersConfig, RequestHeaders } from "./api";
 
 export interface DomainToggles {
 	force_https: boolean;
@@ -27,6 +27,14 @@ export interface ReverseProxyConfig {
 		strategy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
 		upstreams: string[];
 	};
+	request_headers: RequestHeaders;
+}
+
+export interface StaticResponseConfig {
+	status_code: string;
+	body: string;
+	headers: Record<string, string[]>;
+	close: boolean;
 }
 
 export interface Rule {
@@ -37,7 +45,7 @@ export interface Rule {
 	path_match: "" | "exact" | "prefix" | "regex";
 	match_value: string;
 	handler_type: "reverse_proxy" | "redirect" | "file_server" | "static_response";
-	handler_config: ReverseProxyConfig | Record<string, unknown>;
+	handler_config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
 	toggle_overrides: DomainToggles | null;
 	advanced_headers: boolean;
 }
@@ -60,7 +68,7 @@ export interface CreateDomainFullRule {
 	path_match?: PathMatch;
 	match_value?: string;
 	handler_type: HandlerType;
-	handler_config: ReverseProxyConfig | Record<string, unknown>;
+	handler_config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
 	toggle_overrides?: DomainToggles | null;
 	advanced_headers?: boolean;
 }
@@ -82,7 +90,7 @@ export interface CreateRuleRequest {
 	path_match?: PathMatch;
 	match_value?: string;
 	handler_type: HandlerType;
-	handler_config: ReverseProxyConfig | Record<string, unknown>;
+	handler_config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
 	toggle_overrides?: DomainToggles | null;
 	advanced_headers?: boolean;
 }
@@ -103,15 +111,6 @@ export const defaultDomainToggles: DomainToggles = {
 			builtin: [],
 			custom: [],
 		},
-		request: {
-			enabled: false,
-			host_override: false,
-			host_value: "",
-			authorization: false,
-			auth_value: "",
-			builtin: [],
-			custom: [],
-		},
 	},
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
 	access_log: "",
@@ -123,4 +122,20 @@ export const defaultReverseProxyConfig: ReverseProxyConfig = {
 	tls_skip_verify: false,
 	websocket_passthrough: false,
 	load_balancing: { enabled: false, strategy: "round_robin", upstreams: [] },
+	request_headers: {
+		enabled: false,
+		host_override: false,
+		host_value: "",
+		authorization: false,
+		auth_value: "",
+		builtin: [],
+		custom: [],
+	},
+};
+
+export const defaultStaticResponseConfig: StaticResponseConfig = {
+	status_code: "200",
+	body: "",
+	headers: {},
+	close: false,
 };

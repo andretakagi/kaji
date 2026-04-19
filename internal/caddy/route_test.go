@@ -1053,11 +1053,11 @@ func TestParseRouteParamsNoHeadersEmptyBuiltinCustom(t *testing.T) {
 	if len(got.Toggles.Headers.Response.Custom) != 0 {
 		t.Errorf("expected empty Response.Custom, got %d entries", len(got.Toggles.Headers.Response.Custom))
 	}
-	if len(got.Toggles.Headers.Request.Builtin) != 0 {
-		t.Errorf("expected empty Request.Builtin, got %d entries", len(got.Toggles.Headers.Request.Builtin))
+	if len(got.Toggles.RequestHeaders.Builtin) != 0 {
+		t.Errorf("expected empty RequestHeaders.Builtin, got %d entries", len(got.Toggles.RequestHeaders.Builtin))
 	}
-	if len(got.Toggles.Headers.Request.Custom) != 0 {
-		t.Errorf("expected empty Request.Custom, got %d entries", len(got.Toggles.Headers.Request.Custom))
+	if len(got.Toggles.RequestHeaders.Custom) != 0 {
+		t.Errorf("expected empty RequestHeaders.Custom, got %d entries", len(got.Toggles.RequestHeaders.Custom))
 	}
 }
 
@@ -1119,15 +1119,13 @@ func TestParseRouteParamsCustomRequestHeaders(t *testing.T) {
 		Upstream:        "localhost:3000",
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{
-			Headers: HeadersConfig{
-				Request: RequestHeaders{
-					Enabled: true,
-					Builtin: []HeaderEntry{
-						{Key: "Host", Value: "custom.host", Enabled: true},
-					},
-					Custom: []HeaderEntry{
-						{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
-					},
+			RequestHeaders: RequestHeaders{
+				Enabled: true,
+				Builtin: []HeaderEntry{
+					{Key: "Host", Value: "custom.host", Enabled: true},
+				},
+				Custom: []HeaderEntry{
+					{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
 				},
 			},
 		},
@@ -1142,11 +1140,11 @@ func TestParseRouteParamsCustomRequestHeaders(t *testing.T) {
 	}
 
 	builtinKeys := map[string]bool{}
-	for _, e := range got.Toggles.Headers.Request.Builtin {
+	for _, e := range got.Toggles.RequestHeaders.Builtin {
 		builtinKeys[e.Key] = true
 	}
 	customKeys := map[string]bool{}
-	for _, e := range got.Toggles.Headers.Request.Custom {
+	for _, e := range got.Toggles.RequestHeaders.Custom {
 		customKeys[e.Key] = true
 	}
 

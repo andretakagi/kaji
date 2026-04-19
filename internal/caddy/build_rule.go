@@ -19,18 +19,6 @@ func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggl
 	if domainName == "" {
 		return nil, fmt.Errorf("domain name is required")
 	}
-	if rule.HandlerType != "reverse_proxy" {
-		return nil, fmt.Errorf("unsupported handler type: %q", rule.HandlerType)
-	}
-
-	var rpCfg ReverseProxyConfig
-	if err := json.Unmarshal(rule.HandlerConfig, &rpCfg); err != nil {
-		return nil, fmt.Errorf("parsing reverse proxy config: %w", err)
-	}
-	if rpCfg.Upstream == "" {
-		return nil, fmt.Errorf("upstream is required")
-	}
-
 	routeID := CaddyRouteID(rule.RuleID)
 
 	// Build match block
@@ -128,7 +116,47 @@ func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggl
 		})
 	}
 
-	// Reverse proxy (always last)
+	// Terminal handler (always last)
+	switch rule.HandlerType {
+	case "reverse_proxy":
+		rpHandler, err := buildReverseProxyHandler(rule.HandlerConfig, rule.AdvancedHeaders)
+		if err != nil {
+			return nil, err
+		}
+		handlers = append(handlers, rpHandler)
+	case "static_response":
+		srHandler, err := buildStaticResponseHandler(rule.HandlerConfig)
+		if err != nil {
+			return nil, err
+		}
+		handlers = append(handlers, srHandler)
+	default:
+		return nil, fmt.Errorf("unsupported handler type: %q", rule.HandlerType)
+	}
+
+	route := map[string]any{
+		"@id":      routeID,
+		"match":    matchBlock,
+		"handle":   handlers,
+		"terminal": true,
+	}
+
+	data, err := json.Marshal(route)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling route: %w", err)
+	}
+	return json.RawMessage(data), nil
+}
+
+func buildReverseProxyHandler(handlerConfig json.RawMessage, advancedHeaders bool) (map[string]any, error) {
+	var rpCfg ReverseProxyConfig
+	if err := json.Unmarshal(handlerConfig, &rpCfg); err != nil {
+		return nil, fmt.Errorf("parsing reverse proxy config: %w", err)
+	}
+	if rpCfg.Upstream == "" {
+		return nil, fmt.Errorf("upstream is required")
+	}
+
 	upstreams := []map[string]string{{"dial": rpCfg.Upstream}}
 	if rpCfg.LoadBalancing.Enabled {
 		for _, u := range rpCfg.LoadBalancing.Upstreams {
@@ -171,7 +199,7 @@ func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggl
 		}
 	}
 
-	if reqHeaders := buildRequestHeaderSet(toggles.Headers, rule.AdvancedHeaders); reqHeaders != nil {
+	if reqHeaders := BuildRequestHeaders(rpCfg.RequestHeaders, advancedHeaders); reqHeaders != nil {
 		rp["headers"] = map[string]any{
 			"request": map[string]any{
 				"set": reqHeaders,
@@ -179,20 +207,35 @@ func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggl
 		}
 	}
 
-	handlers = append(handlers, rp)
+	return rp, nil
+}
 
-	route := map[string]any{
-		"@id":      routeID,
-		"match":    matchBlock,
-		"handle":   handlers,
-		"terminal": true,
+func buildStaticResponseHandler(handlerConfig json.RawMessage) (map[string]any, error) {
+	var srCfg StaticResponseConfig
+	if err := json.Unmarshal(handlerConfig, &srCfg); err != nil {
+		return nil, fmt.Errorf("parsing static response config: %w", err)
 	}
 
-	data, err := json.Marshal(route)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling route: %w", err)
+	sr := map[string]any{
+		"handler": "static_response",
 	}
-	return json.RawMessage(data), nil
+
+	if srCfg.Close {
+		sr["close"] = true
+		return sr, nil
+	}
+
+	if srCfg.StatusCode != "" {
+		sr["status_code"] = srCfg.StatusCode
+	}
+	if srCfg.Body != "" {
+		sr["body"] = srCfg.Body
+	}
+	if len(srCfg.Headers) > 0 {
+		sr["headers"] = srCfg.Headers
+	}
+
+	return sr, nil
 }
 
 func buildMatchBlock(domainName string, rule RuleBuildParams) []map[string]any {

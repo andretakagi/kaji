@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDomain } from "../hooks/useDomain";
 import { useFormToggle } from "../hooks/useFormToggle";
-import type { DomainToggles, HandlerType, UpdateRuleRequest } from "../types/domain";
+import type { DomainToggles, UpdateRuleRequest } from "../types/domain";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { DomainToggleGrid } from "./DomainToggleGrid";
@@ -17,21 +17,6 @@ interface Props {
 	onToggleEnabled: (id: string, enabled: boolean) => void;
 	onDelete: (id: string) => void;
 	saving: boolean;
-}
-
-const handlerLabels: Record<HandlerType, string> = {
-	reverse_proxy: "Reverse Proxy",
-	redirect: "Redirect",
-	file_server: "File Server",
-	static_response: "Static Response",
-};
-
-function uniqueHandlerTypes(rules: { handler_type: HandlerType }[]): HandlerType[] {
-	const seen = new Set<HandlerType>();
-	for (const rule of rules) {
-		seen.add(rule.handler_type);
-	}
-	return Array.from(seen);
 }
 
 export default function DomainCard({
@@ -79,7 +64,6 @@ export default function DomainCard({
 		lastSyncedToggles.current = JSON.stringify(domain.toggles);
 	}
 
-	const handlers = uniqueHandlerTypes(domain.rules);
 	const hasRootRule = domain.rules.some((r) => r.match_type === "");
 
 	const title = (
@@ -91,11 +75,6 @@ export default function DomainCard({
 						{domain.rules.length} {domain.rules.length === 1 ? "rule" : "rules"}
 					</span>
 				)}
-				{handlers.map((h) => (
-					<span key={h} className="domain-card-handler-badge">
-						{handlerLabels[h]}
-					</span>
-				))}
 			</span>
 		</>
 	);
@@ -121,12 +100,7 @@ export default function DomainCard({
 	const isSaving = saving || detailSaving;
 
 	return (
-		<CollapsibleCard
-			title={title}
-			actions={actions}
-			disabled={!domainSummary.enabled}
-			ariaLabel={domainSummary.name}
-		>
+		<CollapsibleCard title={title} actions={actions} ariaLabel={domainSummary.name}>
 			<ErrorAlert message={error} onDismiss={() => setError("")} />
 			<Feedback msg={feedback.msg} type={feedback.type} />
 

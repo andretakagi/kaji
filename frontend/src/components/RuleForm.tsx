@@ -7,9 +7,14 @@ import type {
 	PathMatch,
 	ReverseProxyConfig,
 	Rule,
+	StaticResponseConfig,
 	UpdateRuleRequest,
 } from "../types/domain";
-import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
+import {
+	defaultDomainToggles,
+	defaultReverseProxyConfig,
+	defaultStaticResponseConfig,
+} from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
@@ -20,6 +25,7 @@ interface Props {
 	domainToggles?: DomainToggles;
 	initial?: Rule;
 	hasRootRule?: boolean;
+	inline?: boolean;
 	onSubmit: (req: CreateRuleRequest | UpdateRuleRequest) => Promise<void>;
 	onCancel: () => void;
 }
@@ -48,6 +54,7 @@ export default function RuleForm({
 	domainToggles,
 	initial,
 	hasRootRule,
+	inline,
 	onSubmit,
 	onCancel,
 }: Props) {
@@ -69,9 +76,9 @@ export default function RuleForm({
 	const [handlerType, setHandlerType] = useState<HandlerType>(
 		initial?.handler_type ?? "reverse_proxy",
 	);
-	const [handlerConfig, setHandlerConfig] = useState<ReverseProxyConfig | Record<string, unknown>>(
-		initial?.handler_config ?? { ...defaultReverseProxyConfig },
-	);
+	const [handlerConfig, setHandlerConfig] = useState<
+		ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>
+	>(initial?.handler_config ?? { ...defaultReverseProxyConfig });
 	const [overridesOpen, setOverridesOpen] = useState(initial?.toggle_overrides != null);
 	const [toggleOverrides, setToggleOverrides] = useState<DomainToggles>(
 		initial?.toggle_overrides ?? domainToggles ?? { ...defaultDomainToggles },
@@ -79,7 +86,11 @@ export default function RuleForm({
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
 
-	const supported = handlerType === "reverse_proxy";
+	const isRoot = matchType === "";
+	const supported =
+		handlerType === "reverse_proxy" ||
+		handlerType === "static_response" ||
+		(handlerType === ("" as HandlerType) && isRoot);
 
 	async function handleSubmit(e: React.SubmitEvent) {
 		e.preventDefault();
@@ -95,11 +106,22 @@ export default function RuleForm({
 			return;
 		}
 
-		if (supported) {
+		if (handlerType === "reverse_proxy") {
 			const rp = handlerConfig as ReverseProxyConfig;
 			if (!rp.upstream.trim()) {
 				setFormError("Upstream is required");
 				return;
+			}
+		}
+
+		if (handlerType === "static_response") {
+			const sr = handlerConfig as StaticResponseConfig;
+			if (!sr.close && sr.status_code) {
+				const code = Number.parseInt(sr.status_code, 10);
+				if (Number.isNaN(code) || code < 100 || code > 599) {
+					setFormError("Status code must be between 100 and 599");
+					return;
+				}
 			}
 		}
 
@@ -124,81 +146,94 @@ export default function RuleForm({
 		}
 	}
 
+	const activeHandlerOptions = isRoot
+		? [{ value: "" as HandlerType, label: "None" }, ...handlerOptions]
+		: handlerOptions;
+
 	return (
-		<form className="add-route-form" onSubmit={handleSubmit}>
-			<div className="form-row">
-				<div className="form-field">
-					<span className="form-label">Match Type</span>
-					<Toggle
-						options={availableMatchOptions}
-						value={matchType}
-						onChange={setMatchType}
-						disabled={submitting}
-					/>
-				</div>
-			</div>
+		<form
+			className={inline ? "add-route-form add-route-form-inline" : "add-route-form"}
+			onSubmit={handleSubmit}
+		>
+			{!isEdit && (
+				<>
+					<div className="form-row">
+						<div className="form-field">
+							<span className="form-label">Match Type</span>
+							<Toggle
+								options={availableMatchOptions}
+								value={matchType}
+								onChange={setMatchType}
+								disabled={submitting}
+							/>
+						</div>
+					</div>
 
-			{matchType === "subdomain" && (
-				<div className="form-row">
-					<div className="form-field">
-						<label htmlFor={`rule-match-value-${formId}`}>Subdomain</label>
-						<input
-							id={`rule-match-value-${formId}`}
-							type="text"
-							placeholder="api"
-							value={matchValue}
-							onChange={(e) => setMatchValue(e.target.value)}
-							maxLength={63}
-							required
-							disabled={submitting}
-						/>
-					</div>
-				</div>
-			)}
+					{matchType === "subdomain" && (
+						<div className="form-row">
+							<div className="form-field">
+								<label htmlFor={`rule-match-value-${formId}`}>Subdomain</label>
+								<input
+									id={`rule-match-value-${formId}`}
+									type="text"
+									placeholder="api"
+									value={matchValue}
+									onChange={(e) => setMatchValue(e.target.value)}
+									maxLength={63}
+									required
+									disabled={submitting}
+								/>
+							</div>
+						</div>
+					)}
 
-			{matchType === "path" && (
-				<div className="form-row">
-					<div className="form-field">
-						<label htmlFor={`rule-path-match-${formId}`}>Path Match</label>
-						<select
-							id={`rule-path-match-${formId}`}
-							value={pathMatch}
-							onChange={(e) => setPathMatch(e.target.value as PathMatch)}
-							disabled={submitting}
-						>
-							{pathMatchOptions.map((o) => (
-								<option key={o.value} value={o.value}>
-									{o.label}
-								</option>
-							))}
-						</select>
-					</div>
-					<div className="form-field">
-						<label htmlFor={`rule-path-value-${formId}`}>Path</label>
-						<input
-							id={`rule-path-value-${formId}`}
-							type="text"
-							placeholder="/api/*"
-							value={matchValue}
-							onChange={(e) => setMatchValue(e.target.value)}
-							maxLength={253}
-							required
-							disabled={submitting}
-						/>
-					</div>
-				</div>
+					{matchType === "path" && (
+						<div className="form-row">
+							<div className="form-field">
+								<label htmlFor={`rule-path-match-${formId}`}>Path Match</label>
+								<select
+									id={`rule-path-match-${formId}`}
+									value={pathMatch}
+									onChange={(e) => setPathMatch(e.target.value as PathMatch)}
+									disabled={submitting}
+								>
+									{pathMatchOptions.map((o) => (
+										<option key={o.value} value={o.value}>
+											{o.label}
+										</option>
+									))}
+								</select>
+							</div>
+							<div className="form-field">
+								<label htmlFor={`rule-path-value-${formId}`}>Path</label>
+								<input
+									id={`rule-path-value-${formId}`}
+									type="text"
+									placeholder="/api/*"
+									value={matchValue}
+									onChange={(e) => setMatchValue(e.target.value)}
+									maxLength={253}
+									required
+									disabled={submitting}
+								/>
+							</div>
+						</div>
+					)}
+				</>
 			)}
 
 			<div className="form-row">
 				<div className="form-field">
 					<span className="form-label">Handler Type</span>
 					<Toggle
-						options={handlerOptions}
+						options={activeHandlerOptions}
 						value={handlerType}
 						onChange={(next: HandlerType) => {
 							setHandlerType(next);
 							if (next === "reverse_proxy") {
 								setHandlerConfig({ ...defaultReverseProxyConfig });
+							} else if (next === "static_response") {
+								setHandlerConfig({ ...defaultStaticResponseConfig });
 							} else {
 								setHandlerConfig({});
 							}

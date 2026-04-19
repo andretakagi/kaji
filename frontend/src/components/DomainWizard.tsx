@@ -6,8 +6,13 @@ import type {
 	MatchType,
 	PathMatch,
 	ReverseProxyConfig,
+	StaticResponseConfig,
 } from "../types/domain";
-import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
+import {
+	defaultDomainToggles,
+	defaultReverseProxyConfig,
+	defaultStaticResponseConfig,
+} from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { validateDomain, validateUpstream } from "../utils/validate";
 import { DomainToggleGrid } from "./DomainToggleGrid";
@@ -23,7 +28,7 @@ export interface WizardRule {
 	pathMatch: PathMatch;
 	matchValue: string;
 	handlerType: HandlerType;
-	handlerConfig: ReverseProxyConfig | Record<string, unknown>;
+	handlerConfig: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
 	toggleOverrides: DomainToggles | null;
 }
 
@@ -32,7 +37,7 @@ export interface WizardData {
 	toggles: DomainToggles;
 	rootRule: {
 		handlerType: HandlerSelection;
-		handlerConfig: ReverseProxyConfig | Record<string, unknown>;
+		handlerConfig: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
 	};
 	rules: WizardRule[];
 }
@@ -92,7 +97,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	const [ruleMatchValue, setRuleMatchValue] = useState("");
 	const [ruleHandlerType, setRuleHandlerType] = useState<HandlerType>("reverse_proxy");
 	const [ruleHandlerConfig, setRuleHandlerConfig] = useState<
-		ReverseProxyConfig | Record<string, unknown>
+		ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>
 	>({ ...defaultReverseProxyConfig });
 	const [ruleOverridesOpen, setRuleOverridesOpen] = useState(false);
 	const [ruleToggleOverrides, setRuleToggleOverrides] = useState<DomainToggles>({
@@ -153,7 +158,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		}
 		if (step === 2) {
 			const ht = data.rootRule.handlerType;
-			if (ht !== "none" && ht !== "reverse_proxy") {
+			if (ht !== "none" && ht !== "reverse_proxy" && ht !== "static_response") {
 				setError("This handler type is not yet supported");
 				return false;
 			}
@@ -162,6 +167,16 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 				if (rpErr) {
 					setError(rpErr);
 					return false;
+				}
+			}
+			if (ht === "static_response") {
+				const sr = data.rootRule.handlerConfig as StaticResponseConfig;
+				if (!sr.close && sr.status_code) {
+					const code = Number.parseInt(sr.status_code, 10);
+					if (Number.isNaN(code) || code < 100 || code > 599) {
+						setError("Status code must be between 100 and 599");
+						return false;
+					}
 				}
 			}
 		}
@@ -200,15 +215,27 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			setError("Path value is required");
 			return;
 		}
-		if (ruleHandlerType !== "reverse_proxy") {
+		if (ruleHandlerType !== "reverse_proxy" && ruleHandlerType !== "static_response") {
 			setError("This handler type is not yet supported");
 			return;
 		}
-		const rp = ruleHandlerConfig as ReverseProxyConfig;
-		const rpErr = validateReverseProxy(rp);
-		if (rpErr) {
-			setError(rpErr);
-			return;
+		if (ruleHandlerType === "reverse_proxy") {
+			const rp = ruleHandlerConfig as ReverseProxyConfig;
+			const rpErr = validateReverseProxy(rp);
+			if (rpErr) {
+				setError(rpErr);
+				return;
+			}
+		}
+		if (ruleHandlerType === "static_response") {
+			const sr = ruleHandlerConfig as StaticResponseConfig;
+			if (!sr.close && sr.status_code) {
+				const code = Number.parseInt(sr.status_code, 10);
+				if (Number.isNaN(code) || code < 100 || code > 599) {
+					setError("Status code must be between 100 and 599");
+					return;
+				}
+			}
 		}
 		if (ruleOverridesOpen) {
 			const toggleErr = validateToggles(ruleToggleOverrides);
@@ -277,7 +304,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	};
 
 	const rootRuleSupported =
-		data.rootRule.handlerType === "none" || data.rootRule.handlerType === "reverse_proxy";
+		data.rootRule.handlerType === "none" ||
+		data.rootRule.handlerType === "reverse_proxy" ||
+		data.rootRule.handlerType === "static_response";
 
 	return (
 		<div className="domain-wizard">
@@ -351,7 +380,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 											rootRule: {
 												handlerType: next,
 												handlerConfig:
-													next === "reverse_proxy" ? { ...defaultReverseProxyConfig } : {},
+													next === "reverse_proxy"
+														? { ...defaultReverseProxyConfig }
+														: next === "static_response"
+															? { ...defaultStaticResponseConfig }
+															: {},
 											},
 										}));
 									}}
@@ -360,15 +393,18 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 						</div>
 
 						{data.rootRule.handlerType !== "none" &&
-							data.rootRule.handlerType !== "reverse_proxy" && (
+							data.rootRule.handlerType !== "reverse_proxy" &&
+							data.rootRule.handlerType !== "static_response" && (
 								<div className="alert-warning" role="status">
-									This handler type is not yet supported. Only reverse proxy is available for now.
+									This handler type is not yet supported. Only reverse proxy and static response are
+									available for now.
 								</div>
 							)}
 
-						{data.rootRule.handlerType === "reverse_proxy" && (
+						{(data.rootRule.handlerType === "reverse_proxy" ||
+							data.rootRule.handlerType === "static_response") && (
 							<HandlerConfig
-								type="reverse_proxy"
+								type={data.rootRule.handlerType}
 								config={data.rootRule.handlerConfig}
 								onChange={(config) =>
 									setData((prev) => ({
@@ -394,7 +430,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													? `${rule.matchValue}.${data.name}`
 													: `${data.name}${rule.matchValue}`}
 											</span>
-											<span className="rule-card-handler-badge handler-reverse_proxy">
+											<span className={`rule-card-handler-badge handler-${rule.handlerType}`}>
 												{rule.handlerType.replace("_", " ")}
 											</span>
 											{rule.handlerType === "reverse_proxy" && (
@@ -486,6 +522,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												setRuleHandlerType(next);
 												if (next === "reverse_proxy") {
 													setRuleHandlerConfig({ ...defaultReverseProxyConfig });
+												} else if (next === "static_response") {
+													setRuleHandlerConfig({ ...defaultStaticResponseConfig });
 												} else {
 													setRuleHandlerConfig({});
 												}
@@ -494,15 +532,15 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 									</div>
 								</div>
 
-								{ruleHandlerType !== "reverse_proxy" && (
+								{ruleHandlerType !== "reverse_proxy" && ruleHandlerType !== "static_response" && (
 									<div className="alert-warning" role="status">
 										This handler type is not yet supported.
 									</div>
 								)}
 
-								{ruleHandlerType === "reverse_proxy" && (
+								{(ruleHandlerType === "reverse_proxy" || ruleHandlerType === "static_response") && (
 									<HandlerConfig
-										type="reverse_proxy"
+										type={ruleHandlerType}
 										config={ruleHandlerConfig}
 										onChange={setRuleHandlerConfig}
 										disabled={false}
@@ -547,7 +585,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 										type="button"
 										className="btn btn-primary"
 										onClick={addRule}
-										disabled={ruleHandlerType !== "reverse_proxy"}
+										disabled={
+											ruleHandlerType !== "reverse_proxy" && ruleHandlerType !== "static_response"
+										}
 									>
 										Add Rule
 									</button>
@@ -556,24 +596,16 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 						) : (
 							<div className="wizard-add-rule-prompt">
 								{data.rules.length > 0 ? (
-									<>
-										<span>Add another rule?</span>
-										<div className="wizard-add-rule-actions">
-											<button
-												type="button"
-												className="btn btn-ghost"
-												onClick={() => {
-													resetRuleForm();
-													setRuleFormActive(true);
-												}}
-											>
-												Add Another
-											</button>
-											<button type="button" className="btn btn-primary" onClick={() => setStep(4)}>
-												Continue to Review
-											</button>
-										</div>
-									</>
+									<button
+										type="button"
+										className="btn btn-ghost"
+										onClick={() => {
+											resetRuleForm();
+											setRuleFormActive(true);
+										}}
+									>
+										+ Add Another Rule
+									</button>
 								) : (
 									<>
 										<div className="wizard-add-rule-empty">

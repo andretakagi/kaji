@@ -45,7 +45,6 @@ export function useDomainList() {
 			run(async () => {
 				const updated = enabled ? await enableDomain(id) : await disableDomain(id);
 				setDomains((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-				return enabled ? "Domain enabled" : "Domain disabled";
 			}),
 		[run, setDomains],
 	);

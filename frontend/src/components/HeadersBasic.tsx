@@ -5,72 +5,14 @@ interface HeadersBasicProps {
 	headers: HeadersConfig;
 	onChange: (headers: HeadersConfig) => void;
 	idPrefix: string;
-	section: "response" | "request";
 }
 
-export function HeadersBasic({ headers, onChange, idPrefix, section }: HeadersBasicProps) {
+export function HeadersBasic({ headers, onChange, idPrefix }: HeadersBasicProps) {
 	function updateResponse(key: string, value: unknown) {
 		onChange({
 			...headers,
 			response: { ...headers.response, [key]: value },
 		});
-	}
-
-	function updateRequest(key: string, value: unknown) {
-		onChange({
-			...headers,
-			request: { ...headers.request, [key]: value },
-		});
-	}
-
-	if (section === "request") {
-		return (
-			<div className="headers-basic">
-				<div className="headers-sub-group">
-					<ToggleItem
-						label="Host Override"
-						description="Replace the Host header sent to upstream"
-						checked={headers.request.host_override}
-						onChange={(v) => updateRequest("host_override", v)}
-					/>
-					{headers.request.host_override && (
-						<div className="headers-sub-detail">
-							<label htmlFor={`host-value-${idPrefix}`}>Host Value</label>
-							<input
-								id={`host-value-${idPrefix}`}
-								type="text"
-								placeholder="example.com"
-								maxLength={255}
-								value={headers.request.host_value}
-								onChange={(e) => updateRequest("host_value", e.target.value)}
-							/>
-						</div>
-					)}
-				</div>
-
-				<div className="headers-sub-group">
-					<ToggleItem
-						label="Authorization"
-						description="Set Authorization header on upstream requests"
-						checked={headers.request.authorization}
-						onChange={(v) => updateRequest("authorization", v)}
-					/>
-					{headers.request.authorization && (
-						<div className="headers-sub-detail">
-							<label htmlFor={`auth-value-${idPrefix}`}>Authorization Value</label>
-							<input
-								id={`auth-value-${idPrefix}`}
-								type="text"
-								placeholder="Bearer token..."
-								maxLength={2000}
-								value={headers.request.auth_value}
-								onChange={(e) => updateRequest("auth_value", e.target.value)}
-							/>
-						</div>
-					)}
-				</div>
-			</div>
-		);
 	}
 
 	return (

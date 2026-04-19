@@ -1,4 +1,4 @@
-import type { DomainToggles, ReverseProxyConfig } from "../types/domain";
+import type { DomainToggles, ReverseProxyConfig, StaticResponseConfig } from "../types/domain";
 import type { WizardData, WizardRule } from "./DomainWizard";
 
 interface Props {
@@ -10,7 +10,6 @@ function toggleSummary(toggles: DomainToggles): string[] {
 	const active: string[] = [];
 	if (toggles.force_https) active.push("Force HTTPS");
 	if (toggles.compression) active.push("Compression");
-	if (toggles.headers.request.enabled) active.push("Request Headers");
 	if (toggles.headers.response.enabled) active.push("Response Headers");
 	if (toggles.basic_auth.enabled) active.push("Basic Auth");
 	if (toggles.access_log) active.push("Access Log");
@@ -25,16 +24,85 @@ function ruleMatchLabel(rule: WizardRule, domainName: string): string {
 	return `${domainName}${rule.matchValue}`;
 }
 
+function ReverseProxySummary({ config }: { config: ReverseProxyConfig }) {
+	const details: { label: string; value: string }[] = [
+		{ label: "Upstream", value: config.upstream },
+	];
+	if (config.tls_skip_verify) details.push({ label: "TLS", value: "Skip verify" });
+	if (config.websocket_passthrough) details.push({ label: "WebSocket", value: "Enabled" });
+	if (config.load_balancing.enabled) {
+		const extra = config.load_balancing.upstreams.length;
+		const strategyLabel = config.load_balancing.strategy.replace(/_/g, " ");
+		details.push({
+			label: "Load balancing",
+			value: `${strategyLabel}${extra > 0 ? ` (+${extra} upstreams)` : ""}`,
+		});
+	}
+	if (config.request_headers.enabled) {
+		const parts: string[] = [];
+		if (config.request_headers.host_override)
+			parts.push(`Host: ${config.request_headers.host_value}`);
+		if (config.request_headers.authorization) parts.push("Authorization");
+		const custom = [...config.request_headers.builtin, ...config.request_headers.custom].filter(
+			(h) => h.key,
+		);
+		if (custom.length > 0) parts.push(`${custom.length} custom`);
+		if (parts.length > 0) details.push({ label: "Req headers", value: parts.join(", ") });
+	}
+
+	return (
+		<div className="wizard-review-static-details">
+			{details.map((d) => (
+				<div key={d.label} className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">{d.label}</span>
+					<span className="wizard-review-detail-value">{d.value}</span>
+				</div>
+			))}
+		</div>
+	);
+}
+
+function StaticResponseSummary({ config }: { config: StaticResponseConfig }) {
+	if (config.close) return <span className="wizard-review-upstream">Close connection</span>;
+
+	const headerKeys = Object.keys(config.headers || {});
+
+	return (
+		<div className="wizard-review-static-details">
+			{config.status_code && (
+				<div className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">Status</span>
+					<span className="wizard-review-detail-value">{config.status_code}</span>
+				</div>
+			)}
+			{config.body && (
+				<div className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">Body</span>
+					<span className="wizard-review-detail-value">
+						{config.body.length > 60 ? `${config.body.slice(0, 60)}...` : config.body}
+					</span>
+				</div>
+			)}
+			{headerKeys.length > 0 && (
+				<div className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">Headers</span>
+					<span className="wizard-review-detail-value">
+						{headerKeys.map((k) => `${k}: ${(config.headers[k] || []).join(", ")}`).join("; ")}
+					</span>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export default function WizardReview({ data, onEditStep }: Props) {
 	const activeTags = toggleSummary(data.toggles);
 
 	const rootHandlerLabel =
 		data.rootRule.handlerType !== "none" ? data.rootRule.handlerType.replace("_", " ") : null;
 
-	const rootUpstream =
-		data.rootRule.handlerType === "reverse_proxy"
-			? (data.rootRule.handlerConfig as ReverseProxyConfig).upstream
-			: null;
+	const rootIsProxy = data.rootRule.handlerType === "reverse_proxy";
+	const rootIsStatic = data.rootRule.handlerType === "static_response";
 
 	return (
 		<div className="wizard-review">
@@ -80,10 +148,17 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				<div className="wizard-review-value">
 					{rootHandlerLabel ? (
 						<div className="wizard-review-rule-detail">
-							<span className="rule-card-handler-badge handler-reverse_proxy">
+							<span className={`rule-card-handler-badge handler-${data.rootRule.handlerType}`}>
 								{rootHandlerLabel}
 							</span>
-							{rootUpstream && <span className="wizard-review-upstream">{rootUpstream}</span>}
+							{rootIsProxy && (
+								<ReverseProxySummary config={data.rootRule.handlerConfig as ReverseProxyConfig} />
+							)}
+							{rootIsStatic && (
+								<StaticResponseSummary
+									config={data.rootRule.handlerConfig as StaticResponseConfig}
+								/>
+							)}
 						</div>
 					) : (
 						<span className="text-muted">None</span>
@@ -106,13 +181,14 @@ export default function WizardReview({ data, onEditStep }: Props) {
 									<span className="wizard-review-rule-match">
 										{ruleMatchLabel(rule, data.name)}
 									</span>
-									<span className="rule-card-handler-badge handler-reverse_proxy">
+									<span className={`rule-card-handler-badge handler-${rule.handlerType}`}>
 										{rule.handlerType.replace("_", " ")}
 									</span>
 									{rule.handlerType === "reverse_proxy" && (
-										<span className="wizard-review-upstream">
-											{(rule.handlerConfig as ReverseProxyConfig).upstream}
-										</span>
+										<ReverseProxySummary config={rule.handlerConfig as ReverseProxyConfig} />
+									)}
+									{rule.handlerType === "static_response" && (
+										<StaticResponseSummary config={rule.handlerConfig as StaticResponseConfig} />
 									)}
 									{rule.toggleOverrides && <span className="wizard-review-tag">overrides</span>}
 								</div>
