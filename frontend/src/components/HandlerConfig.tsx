@@ -1,4 +1,6 @@
 import { useId, useRef, useState } from "react";
+import { cn } from "../cn";
+import type { RequestHeaders } from "../types/api";
 import type { HandlerType, ReverseProxyConfig, StaticResponseConfig } from "../types/domain";
 import { ToggleItem } from "./ToggleGrid";
 
@@ -20,52 +22,65 @@ const strategyLabels: Record<ReverseProxyConfig["load_balancing"]["strategy"], s
 export default function HandlerConfig({ type, config, onChange, disabled }: Props) {
 	const idPrefix = useId();
 
-	if (type !== "reverse_proxy") {
-		return (
-			<div className="alert-warning" role="status">
-				This handler type is not yet supported. Only reverse proxy is available for now.
-			</div>
-		);
-	}
-
-	const rpConfig = config as ReverseProxyConfig;
-
-	function update(patch: Partial<ReverseProxyConfig>) {
-		onChange({ ...rpConfig, ...patch });
-	}
-
-	return (
-		<div className="handler-config">
-			<div className="form-field">
-				<label htmlFor={`${idPrefix}-upstream`}>Upstream</label>
-				<input
-					id={`${idPrefix}-upstream`}
-					type="text"
-					placeholder="localhost:3000"
-					value={rpConfig.upstream}
-					onChange={(e) => update({ upstream: e.target.value })}
-					maxLength={260}
-					required
+	switch (type) {
+		case "reverse_proxy": {
+			const rpConfig = config as ReverseProxyConfig;
+			function update(patch: Partial<ReverseProxyConfig>) {
+				onChange({ ...rpConfig, ...patch });
+			}
+			return (
+				<div className="handler-config">
+					<div className="form-field">
+						<label htmlFor={`${idPrefix}-upstream`}>Upstream</label>
+						<input
+							id={`${idPrefix}-upstream`}
+							type="text"
+							placeholder="localhost:3000"
+							value={rpConfig.upstream}
+							onChange={(e) => update({ upstream: e.target.value })}
+							maxLength={260}
+							required
+							disabled={disabled}
+						/>
+					</div>
+					<ToggleItem
+						label="TLS Skip Verify"
+						description="Skip TLS certificate verification for upstream"
+						checked={rpConfig.tls_skip_verify}
+						onChange={(v) => update({ tls_skip_verify: v })}
+						disabled={disabled}
+					/>
+					<ToggleItem
+						label="WebSocket Passthrough"
+						description="Enable WebSocket passthrough to upstream"
+						checked={rpConfig.websocket_passthrough}
+						onChange={(v) => update({ websocket_passthrough: v })}
+						disabled={disabled}
+					/>
+					<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
+					<RequestHeadersSection
+						config={rpConfig.request_headers}
+						onChange={(rh) => update({ request_headers: rh })}
+						disabled={disabled}
+					/>
+				</div>
+			);
+		}
+		case "static_response":
+			return (
+				<StaticResponseSection
+					config={config as StaticResponseConfig}
+					onChange={(c) => onChange(c)}
 					disabled={disabled}
 				/>
-			</div>
-			<ToggleItem
-				label="TLS Skip Verify"
-				description="Skip TLS certificate verification for upstream"
-				checked={rpConfig.tls_skip_verify}
-				onChange={(v) => update({ tls_skip_verify: v })}
-				disabled={disabled}
-			/>
-			<ToggleItem
-				label="WebSocket Passthrough"
-				description="Enable WebSocket passthrough to upstream"
-				checked={rpConfig.websocket_passthrough}
-				onChange={(v) => update({ websocket_passthrough: v })}
-				disabled={disabled}
-			/>
-			<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
-		</div>
-	);
+			);
+		default:
+			return (
+				<div className="alert-warning" role="status">
+					This handler type is not yet supported.
+				</div>
+			);
+	}
 }
 
 interface LBEntry {
@@ -202,18 +217,245 @@ function LoadBalancingSection({
 	);
 }
 
+interface HeaderEntry {
+	id: number;
+	key: string;
+	value: string;
+}
+
+function StaticResponseSection({
+	config,
+	onChange,
+	disabled,
+}: {
+	config: StaticResponseConfig;
+	onChange: (config: StaticResponseConfig) => void;
+	disabled?: boolean;
+}) {
+	const idPrefix = useId();
+	const nextId = useRef(Object.keys(config.headers).length);
+	const [headerEntries, setHeaderEntries] = useState<HeaderEntry[]>(() =>
+		Object.entries(config.headers).map(([k, v], i) => ({
+			id: i,
+			key: k,
+			value: v[0] ?? "",
+		})),
+	);
+
+	function update(patch: Partial<StaticResponseConfig>) {
+		onChange({ ...config, ...patch });
+	}
+
+	function syncHeaders(next: HeaderEntry[]) {
+		setHeaderEntries(next);
+		const headers: Record<string, string[]> = {};
+		for (const entry of next) {
+			if (entry.key) {
+				headers[entry.key] = [entry.value];
+			}
+		}
+		update({ headers });
+	}
+
+	return (
+		<div className="handler-config">
+			<ToggleItem
+				label="Close Connection"
+				description="Immediately close without sending a response"
+				checked={config.close}
+				onChange={(v) => update({ close: v })}
+				disabled={disabled}
+			/>
+			{!config.close && (
+				<>
+					<div className="form-field">
+						<label htmlFor={`${idPrefix}-status`}>Status Code</label>
+						<input
+							id={`${idPrefix}-status`}
+							type="text"
+							placeholder="200"
+							value={config.status_code}
+							onChange={(e) =>
+								update({ status_code: e.target.value.replace(/\D/g, "").slice(0, 3) })
+							}
+							maxLength={3}
+							disabled={disabled}
+						/>
+					</div>
+					<div className="form-field">
+						<label htmlFor={`${idPrefix}-body`}>Body</label>
+						<textarea
+							id={`${idPrefix}-body`}
+							placeholder="Response body"
+							rows={4}
+							value={config.body}
+							onChange={(e) => update({ body: e.target.value })}
+							disabled={disabled}
+						/>
+					</div>
+					<div className="handler-static-headers">
+						<span className="toggle-detail-heading">Response Headers</span>
+						{headerEntries.map((entry, i) => (
+							<div className="lb-upstream-row" key={`${idPrefix}-sh-${entry.id}`}>
+								<input
+									type="text"
+									placeholder="Header name"
+									value={entry.key}
+									maxLength={256}
+									disabled={disabled}
+									onChange={(e) => {
+										const next = [...headerEntries];
+										next[i] = { ...entry, key: e.target.value };
+										syncHeaders(next);
+									}}
+								/>
+								<input
+									type="text"
+									placeholder="Value"
+									value={entry.value}
+									maxLength={1024}
+									disabled={disabled}
+									onChange={(e) => {
+										const next = [...headerEntries];
+										next[i] = { ...entry, value: e.target.value };
+										syncHeaders(next);
+									}}
+								/>
+								<button
+									type="button"
+									className="btn btn-ghost lb-upstream-remove"
+									onClick={() => syncHeaders(headerEntries.filter((_, j) => j !== i))}
+									aria-label="Remove header"
+									disabled={disabled}
+								>
+									&#x2715;
+								</button>
+							</div>
+						))}
+						<button
+							type="button"
+							className="btn btn-ghost lb-add-upstream"
+							onClick={() => {
+								nextId.current += 1;
+								syncHeaders([...headerEntries, { id: nextId.current, key: "", value: "" }]);
+							}}
+							disabled={disabled}
+						>
+							+ Add Header
+						</button>
+					</div>
+				</>
+			)}
+		</div>
+	);
+}
+
+function RequestHeadersSection({
+	config,
+	onChange,
+	disabled,
+}: {
+	config: RequestHeaders;
+	onChange: (config: RequestHeaders) => void;
+	disabled?: boolean;
+}) {
+	const idPrefix = useId();
+
+	function update(patch: Partial<RequestHeaders>) {
+		onChange({ ...config, ...patch });
+	}
+
+	return (
+		<div className={cn("toggle-group", config.enabled && "toggle-group-open")}>
+			<ToggleItem
+				label="Request Headers"
+				description="Modify headers sent to upstream"
+				checked={config.enabled}
+				onChange={(v) => update({ enabled: v })}
+				disabled={disabled}
+			/>
+			{config.enabled && (
+				<div className="toggle-detail">
+					<div className={cn("toggle-group", config.host_override && "toggle-group-open")}>
+						<ToggleItem
+							label="Host Override"
+							description="Set the Host header sent to upstream"
+							checked={config.host_override}
+							onChange={(v) => update({ host_override: v })}
+							disabled={disabled}
+						/>
+						{config.host_override && (
+							<div className="toggle-detail">
+								<label htmlFor={`${idPrefix}-host-value`}>Host Value</label>
+								<input
+									id={`${idPrefix}-host-value`}
+									type="text"
+									placeholder="example.com"
+									value={config.host_value}
+									onChange={(e) => update({ host_value: e.target.value })}
+									maxLength={260}
+									disabled={disabled}
+								/>
+							</div>
+						)}
+					</div>
+					<div className={cn("toggle-group", config.authorization && "toggle-group-open")}>
+						<ToggleItem
+							label="Authorization"
+							description="Set the Authorization header sent to upstream"
+							checked={config.authorization}
+							onChange={(v) => update({ authorization: v })}
+							disabled={disabled}
+						/>
+						{config.authorization && (
+							<div className="toggle-detail">
+								<label htmlFor={`${idPrefix}-auth-value`}>Authorization Value</label>
+								<input
+									id={`${idPrefix}-auth-value`}
+									type="text"
+									placeholder="Bearer token123"
+									value={config.auth_value}
+									onChange={(e) => update({ auth_value: e.target.value })}
+									maxLength={1024}
+									disabled={disabled}
+								/>
+							</div>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export function handlerSummary(
 	type: HandlerType,
 	config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>,
 ): string {
-	if (type !== "reverse_proxy") return "Not yet supported";
-	const rp = config as ReverseProxyConfig;
-	const parts: string[] = [rp.upstream];
-	if (rp.tls_skip_verify) parts.push("TLS skip");
-	if (rp.websocket_passthrough) parts.push("WS");
-	if (rp.load_balancing.enabled) {
-		const extra = rp.load_balancing.upstreams.length;
-		parts.push(`LB: ${rp.load_balancing.strategy}${extra > 0 ? ` (+${extra})` : ""}`);
+	switch (type) {
+		case "reverse_proxy": {
+			const rp = config as ReverseProxyConfig;
+			const parts: string[] = [rp.upstream];
+			if (rp.tls_skip_verify) parts.push("TLS skip");
+			if (rp.websocket_passthrough) parts.push("WS");
+			if (rp.load_balancing.enabled) {
+				const extra = rp.load_balancing.upstreams.length;
+				parts.push(`LB: ${rp.load_balancing.strategy}${extra > 0 ? ` (+${extra})` : ""}`);
+			}
+			return parts.join(" / ");
+		}
+		case "static_response": {
+			const sr = config as StaticResponseConfig;
+			if (sr.close) return "Close connection";
+			const parts: string[] = [];
+			if (sr.status_code) parts.push(sr.status_code);
+			if (sr.body) {
+				const preview = sr.body.length > 30 ? `${sr.body.slice(0, 30)}...` : sr.body;
+				parts.push(preview);
+			}
+			return parts.length > 0 ? parts.join(" - ") : "Empty response";
+		}
+		default:
+			return "Not yet supported";
 	}
-	return parts.join(" / ");
 }
