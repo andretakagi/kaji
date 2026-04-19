@@ -171,7 +171,7 @@ func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggl
 		}
 	}
 
-	if reqHeaders := buildRequestHeaderSet(toggles.Headers, rule.AdvancedHeaders); reqHeaders != nil {
+	if reqHeaders := BuildRequestHeaders(rpCfg.RequestHeaders, rule.AdvancedHeaders); reqHeaders != nil {
 		rp["headers"] = map[string]any{
 			"request": map[string]any{
 				"set": reqHeaders,

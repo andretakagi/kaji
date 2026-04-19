@@ -196,14 +196,14 @@ func buildCORSHandlers(origins []string) []any {
 	}
 }
 
-func buildRequestHeaderSet(cfg HeadersConfig, advancedMode bool) map[string][]string {
-	if !cfg.Request.Enabled {
+func BuildRequestHeaders(req RequestHeaders, advancedMode bool) map[string][]string {
+	if !req.Enabled {
 		return nil
 	}
 	if advancedMode {
-		return buildAdvancedRequestHeaders(cfg.Request)
+		return buildAdvancedRequestHeaders(req)
 	}
-	return buildBasicRequestHeaders(cfg.Request)
+	return buildBasicRequestHeaders(req)
 }
 
 func buildBasicRequestHeaders(req RequestHeaders) map[string][]string {

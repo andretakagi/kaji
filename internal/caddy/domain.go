@@ -16,10 +16,18 @@ type DomainToggles struct {
 }
 
 type ReverseProxyConfig struct {
-	Upstream          string        `json:"upstream"`
-	TLSSkipVerify     bool          `json:"tls_skip_verify"`
-	WebSocketPassthru bool          `json:"websocket_passthrough"`
-	LoadBalancing     LoadBalancing `json:"load_balancing"`
+	Upstream          string         `json:"upstream"`
+	TLSSkipVerify     bool           `json:"tls_skip_verify"`
+	WebSocketPassthru bool           `json:"websocket_passthrough"`
+	LoadBalancing     LoadBalancing  `json:"load_balancing"`
+	RequestHeaders    RequestHeaders `json:"request_headers"`
+}
+
+type StaticResponseConfig struct {
+	StatusCode string              `json:"status_code"`
+	Body       string              `json:"body"`
+	Headers    map[string][]string `json:"headers,omitempty"`
+	Close      bool                `json:"close"`
 }
 
 func generateOpaqueID(prefix string) string {
@@ -60,6 +68,22 @@ func ParseReverseProxyConfig(raw json.RawMessage) (ReverseProxyConfig, error) {
 }
 
 func MarshalReverseProxyConfig(cfg ReverseProxyConfig) (json.RawMessage, error) {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+func ParseStaticResponseConfig(raw json.RawMessage) (StaticResponseConfig, error) {
+	var cfg StaticResponseConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return StaticResponseConfig{}, err
+	}
+	return cfg, nil
+}
+
+func MarshalStaticResponseConfig(cfg StaticResponseConfig) (json.RawMessage, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, err

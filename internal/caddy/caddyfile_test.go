@@ -976,12 +976,10 @@ func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			Headers: HeadersConfig{
-				Request: RequestHeaders{
-					Enabled:      true,
-					HostOverride: true,
-					HostValue:    "backend.internal",
-				},
+			RequestHeaders: RequestHeaders{
+				Enabled:      true,
+				HostOverride: true,
+				HostValue:    "backend.internal",
 			},
 		},
 	})
@@ -1004,12 +1002,10 @@ func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			Headers: HeadersConfig{
-				Request: RequestHeaders{
-					Enabled:       true,
-					Authorization: true,
-					AuthValue:     "Bearer tok123",
-				},
+			RequestHeaders: RequestHeaders{
+				Enabled:       true,
+				Authorization: true,
+				AuthValue:     "Bearer tok123",
 			},
 		},
 	})
@@ -1032,14 +1028,12 @@ func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			Headers: HeadersConfig{
-				Request: RequestHeaders{
-					Enabled:       true,
-					HostOverride:  true,
-					HostValue:     "upstream.local",
-					Authorization: true,
-					AuthValue:     "Basic abc",
-				},
+			RequestHeaders: RequestHeaders{
+				Enabled:       true,
+				HostOverride:  true,
+				HostValue:     "upstream.local",
+				Authorization: true,
+				AuthValue:     "Basic abc",
 			},
 		},
 	})
