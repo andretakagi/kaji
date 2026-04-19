@@ -90,7 +90,6 @@ export function useDomain(id: string) {
 					await disableRule(id, ruleId);
 				}
 				await reload();
-				return enabled ? "Rule enabled" : "Rule disabled";
 			}),
 		[id, run, reload],
 	);

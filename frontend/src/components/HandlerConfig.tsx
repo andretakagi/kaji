@@ -74,6 +74,8 @@ export default function HandlerConfig({ type, config, onChange, disabled }: Prop
 					disabled={disabled}
 				/>
 			);
+		case "" as HandlerType:
+			return null;
 		default:
 			return (
 				<div className="alert-warning" role="status">
@@ -334,7 +336,8 @@ function StaticResponseSection({
 						))}
 						<button
 							type="button"
-							className="btn btn-ghost lb-add-upstream"
+							className="btn btn-primary"
+							style={{ alignSelf: "flex-start" }}
 							onClick={() => {
 								nextId.current += 1;
 								syncHeaders([...headerEntries, { id: nextId.current, key: "", value: "" }]);
@@ -447,14 +450,10 @@ export function handlerSummary(
 		case "static_response": {
 			const sr = config as StaticResponseConfig;
 			if (sr.close) return "Close connection";
-			const parts: string[] = [];
-			if (sr.status_code) parts.push(sr.status_code);
-			if (sr.body) {
-				const preview = sr.body.length > 30 ? `${sr.body.slice(0, 30)}...` : sr.body;
-				parts.push(preview);
-			}
-			return parts.length > 0 ? parts.join(" - ") : "Empty response";
+			return "Static response";
 		}
+		case "" as HandlerType:
+			return "No handler";
 		default:
 			return "Not yet supported";
 	}

@@ -1376,6 +1376,14 @@ input:disabled + .toggle-slider {
 	box-shadow: var(--shadow);
 }
 
+.add-route-form-inline {
+	background: none;
+	border: none;
+	border-radius: 0;
+	padding: 0;
+	box-shadow: none;
+}
+
 .form-row {
 	display: flex;
 	gap: 0.75rem;
@@ -1386,6 +1394,7 @@ input:disabled + .toggle-slider {
 	display: flex;
 	flex-direction: column;
 	gap: 0.35rem;
+	margin: 0.25rem 0;
 }
 
 .form-field label,
@@ -1515,7 +1524,9 @@ input:disabled + .toggle-slider {
 	display: flex;
 	flex-direction: column;
 	gap: 0.875rem;
-	transition: border-color 0.15s;
+	transition:
+		border-color 0.15s,
+		opacity 0.15s;
 }
 
 .card-body-wrapper:not(.expanded) .card-body-inner {
@@ -1752,6 +1763,13 @@ input:disabled + .toggle-slider {
 
 .toggle-radio-option span {
 	user-select: none;
+}
+
+.handler-static-headers {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	margin-top: 0.25rem;
 }
 
 .toggle-detail-heading {
@@ -3058,7 +3076,6 @@ input:disabled + .toggle-slider {
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
 	background: var(--surface);
-	margin-bottom: 1.25rem;
 }
 
 .wizard-steps {
@@ -3066,7 +3083,7 @@ input:disabled + .toggle-slider {
 	align-items: flex-start;
 	justify-content: center;
 	gap: 0;
-	margin-bottom: 1.75rem;
+	margin: 2rem 0;
 }
 
 .wizard-step {
@@ -3159,6 +3176,7 @@ input:disabled + .toggle-slider {
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
+	margin: 1.25rem 0;
 }
 
 .wizard-nav {
@@ -3296,15 +3314,45 @@ input:disabled + .toggle-slider {
 
 .wizard-review-rule-detail {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
+	align-items: flex-start;
 	gap: 0.5rem;
-	flex-wrap: wrap;
 }
 
 .wizard-review-upstream {
 	font-family: var(--font-mono);
 	font-size: 0.8125rem;
 	color: var(--text-muted);
+}
+
+.wizard-review-static-details {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	margin-top: 0.25rem;
+}
+
+.wizard-review-detail-row {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+}
+
+.wizard-review-detail-label {
+	font-size: 0.7rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	flex-shrink: 0;
+	width: 4.5rem;
+}
+
+.wizard-review-detail-value {
+	font-size: 0.8125rem;
+	color: var(--text-muted);
+	font-family: var(--font-mono);
+	word-break: break-all;
 }
 
 .wizard-review-rule-list {
@@ -3315,9 +3363,9 @@ input:disabled + .toggle-slider {
 
 .wizard-review-rule-item {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
+	align-items: flex-start;
 	gap: 0.5rem;
-	flex-wrap: wrap;
 }
 
 .wizard-review-rule-match {

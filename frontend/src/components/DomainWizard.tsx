@@ -596,24 +596,16 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 						) : (
 							<div className="wizard-add-rule-prompt">
 								{data.rules.length > 0 ? (
-									<>
-										<span>Add another rule?</span>
-										<div className="wizard-add-rule-actions">
-											<button
-												type="button"
-												className="btn btn-ghost"
-												onClick={() => {
-													resetRuleForm();
-													setRuleFormActive(true);
-												}}
-											>
-												Add Another
-											</button>
-											<button type="button" className="btn btn-primary" onClick={() => setStep(4)}>
-												Continue to Review
-											</button>
-										</div>
-									</>
+									<button
+										type="button"
+										className="btn btn-ghost"
+										onClick={() => {
+											resetRuleForm();
+											setRuleFormActive(true);
+										}}
+									>
+										+ Add Another Rule
+									</button>
 								) : (
 									<>
 										<div className="wizard-add-rule-empty">
