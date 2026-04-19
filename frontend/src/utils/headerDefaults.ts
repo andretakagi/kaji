@@ -1,4 +1,4 @@
-import type { HeaderEntry, HeadersConfig } from "../types/api";
+import type { HeaderEntry, RequestHeaders, ResponseHeaders } from "../types/api";
 
 export const defaultResponseBuiltins: HeaderEntry[] = [
 	{
@@ -48,7 +48,7 @@ const corsKeys = new Set([
 	"Access-Control-Allow-Credentials",
 ]);
 
-export function expandBasicToAdvanced(toggles: HeadersConfig["response"]): HeaderEntry[] {
+export function expandBasicToAdvanced(toggles: ResponseHeaders): HeaderEntry[] {
 	return defaultResponseBuiltins.map((entry) => {
 		let enabled = false;
 		let value = entry.value;
@@ -64,7 +64,7 @@ export function expandBasicToAdvanced(toggles: HeadersConfig["response"]): Heade
 	});
 }
 
-export function expandBasicRequestToAdvanced(toggles: HeadersConfig["request"]): HeaderEntry[] {
+export function expandBasicRequestToAdvanced(toggles: RequestHeaders): HeaderEntry[] {
 	return defaultRequestBuiltins.map((entry) => {
 		if (entry.key === "Host") {
 			return {

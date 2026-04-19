@@ -6,6 +6,7 @@ import type {
 	MatchType,
 	PathMatch,
 	ReverseProxyConfig,
+	StaticResponseConfig,
 } from "../types/domain";
 import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
@@ -23,7 +24,7 @@ export interface WizardRule {
 	pathMatch: PathMatch;
 	matchValue: string;
 	handlerType: HandlerType;
-	handlerConfig: ReverseProxyConfig | Record<string, unknown>;
+	handlerConfig: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
 	toggleOverrides: DomainToggles | null;
 }
 
@@ -32,7 +33,7 @@ export interface WizardData {
 	toggles: DomainToggles;
 	rootRule: {
 		handlerType: HandlerSelection;
-		handlerConfig: ReverseProxyConfig | Record<string, unknown>;
+		handlerConfig: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
 	};
 	rules: WizardRule[];
 }
@@ -92,7 +93,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	const [ruleMatchValue, setRuleMatchValue] = useState("");
 	const [ruleHandlerType, setRuleHandlerType] = useState<HandlerType>("reverse_proxy");
 	const [ruleHandlerConfig, setRuleHandlerConfig] = useState<
-		ReverseProxyConfig | Record<string, unknown>
+		ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>
 	>({ ...defaultReverseProxyConfig });
 	const [ruleOverridesOpen, setRuleOverridesOpen] = useState(false);
 	const [ruleToggleOverrides, setRuleToggleOverrides] = useState<DomainToggles>({

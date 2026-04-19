@@ -60,11 +60,7 @@ export function ResponseHeadersGroup({
 					</div>
 
 					{advanced ? (
-						<HeadersAdvanced
-							headers={toggles.headers}
-							onChange={updateHeaders}
-							section="response"
-						/>
+						<HeadersAdvanced headers={toggles.headers} onChange={updateHeaders} />
 					) : (
 						<>
 							{hasAdvancedResponseCustomizations(toggles.headers) && (
@@ -77,7 +73,6 @@ export function ResponseHeadersGroup({
 								headers={toggles.headers}
 								onChange={updateHeaders}
 								idPrefix={idPrefix}
-								section="response"
 							/>
 						</>
 					)}

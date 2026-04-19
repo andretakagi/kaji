@@ -51,7 +51,6 @@ function overrideSummary(overrides: DomainToggles | null): string | null {
 	if (overrides.access_log) parts.push("Access Log");
 	if (overrides.ip_filtering.enabled) parts.push("IP Filtering");
 	if (overrides.headers.response.enabled) parts.push("Response Headers");
-	if (overrides.headers.request.enabled) parts.push("Request Headers");
 	return parts.length > 0 ? parts.join(", ") : null;
 }
 

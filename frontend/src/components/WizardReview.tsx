@@ -10,7 +10,6 @@ function toggleSummary(toggles: DomainToggles): string[] {
 	const active: string[] = [];
 	if (toggles.force_https) active.push("Force HTTPS");
 	if (toggles.compression) active.push("Compression");
-	if (toggles.headers.request.enabled) active.push("Request Headers");
 	if (toggles.headers.response.enabled) active.push("Response Headers");
 	if (toggles.basic_auth.enabled) active.push("Basic Auth");
 	if (toggles.access_log) active.push("Access Log");

@@ -1,11 +1,11 @@
 import { useId, useRef, useState } from "react";
-import type { HandlerType, ReverseProxyConfig } from "../types/domain";
+import type { HandlerType, ReverseProxyConfig, StaticResponseConfig } from "../types/domain";
 import { ToggleItem } from "./ToggleGrid";
 
 interface Props {
 	type: HandlerType;
-	config: ReverseProxyConfig | Record<string, unknown>;
-	onChange: (config: ReverseProxyConfig | Record<string, unknown>) => void;
+	config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
+	onChange: (config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>) => void;
 	disabled?: boolean;
 }
 
@@ -204,7 +204,7 @@ function LoadBalancingSection({
 
 export function handlerSummary(
 	type: HandlerType,
-	config: ReverseProxyConfig | Record<string, unknown>,
+	config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>,
 ): string {
 	if (type !== "reverse_proxy") return "Not yet supported";
 	const rp = config as ReverseProxyConfig;

@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { fetchIPLists } from "../api";
 import { cn } from "../cn";
 import type { IPList, RouteToggles } from "../types/api";
-import { RequestHeadersGroup, ResponseHeadersGroup } from "./HeadersGroup";
+import { ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
 
 interface ToggleGridProps {
@@ -59,13 +59,6 @@ export default function ToggleGrid({
 				description="gzip + zstd encoding"
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
-			/>
-			<RequestHeadersGroup
-				toggles={toggles}
-				onUpdate={onUpdate}
-				idPrefix={idPrefix}
-				advancedMode={advancedMode}
-				onModeChange={onAdvancedModeChange}
 			/>
 			<ResponseHeadersGroup
 				toggles={toggles}

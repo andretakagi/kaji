@@ -7,6 +7,7 @@ import type {
 	PathMatch,
 	ReverseProxyConfig,
 	Rule,
+	StaticResponseConfig,
 	UpdateRuleRequest,
 } from "../types/domain";
 import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
@@ -69,9 +70,9 @@ export default function RuleForm({
 	const [handlerType, setHandlerType] = useState<HandlerType>(
 		initial?.handler_type ?? "reverse_proxy",
 	);
-	const [handlerConfig, setHandlerConfig] = useState<ReverseProxyConfig | Record<string, unknown>>(
-		initial?.handler_config ?? { ...defaultReverseProxyConfig },
-	);
+	const [handlerConfig, setHandlerConfig] = useState<
+		ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>
+	>(initial?.handler_config ?? { ...defaultReverseProxyConfig });
 	const [overridesOpen, setOverridesOpen] = useState(initial?.toggle_overrides != null);
 	const [toggleOverrides, setToggleOverrides] = useState<DomainToggles>(
 		initial?.toggle_overrides ?? domainToggles ?? { ...defaultDomainToggles },
