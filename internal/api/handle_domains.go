@@ -135,6 +135,11 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 					return
 				}
 			}
+			if rule.HandlerType == "static_response" {
+				if !validateStaticResponseConfig(w, rule.HandlerConfig) {
+					return
+				}
+			}
 			if rule.MatchType == "" {
 				if hasRoot {
 					writeError(w, "only one root rule is allowed", http.StatusBadRequest)
@@ -399,6 +404,11 @@ func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 				return
 			}
 		}
+		if req.HandlerType == "static_response" {
+			if !validateStaticResponseConfig(w, req.HandlerConfig) {
+				return
+			}
+		}
 
 		if req.ToggleOverrides != nil && req.ToggleOverrides.BasicAuth.Enabled {
 			if req.ToggleOverrides.BasicAuth.Username == "" {
@@ -509,6 +519,11 @@ func handleUpdateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 		}
 		if req.HandlerType == "reverse_proxy" {
 			if !validateReverseProxyConfig(w, req.HandlerConfig) {
+				return
+			}
+		}
+		if req.HandlerType == "static_response" {
+			if !validateStaticResponseConfig(w, req.HandlerConfig) {
 				return
 			}
 		}
