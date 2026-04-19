@@ -116,7 +116,6 @@ export interface RequestHeaders {
 
 export interface HeadersConfig {
 	response: ResponseHeaders;
-	request: RequestHeaders;
 }
 
 export interface RouteToggles {
