@@ -1,4 +1,4 @@
-import type { DomainToggles, ReverseProxyConfig } from "../types/domain";
+import type { DomainToggles, ReverseProxyConfig, StaticResponseConfig } from "../types/domain";
 import type { WizardData, WizardRule } from "./DomainWizard";
 
 interface Props {
@@ -24,6 +24,17 @@ function ruleMatchLabel(rule: WizardRule, domainName: string): string {
 	return `${domainName}${rule.matchValue}`;
 }
 
+function staticResponseSummary(config: StaticResponseConfig): string {
+	if (config.close) return "Close connection";
+	const parts: string[] = [];
+	if (config.status_code) parts.push(config.status_code);
+	if (config.body) {
+		const preview = config.body.length > 40 ? `${config.body.slice(0, 40)}...` : config.body;
+		parts.push(preview);
+	}
+	return parts.join(" - ") || "Empty response";
+}
+
 export default function WizardReview({ data, onEditStep }: Props) {
 	const activeTags = toggleSummary(data.toggles);
 
@@ -33,6 +44,11 @@ export default function WizardReview({ data, onEditStep }: Props) {
 	const rootUpstream =
 		data.rootRule.handlerType === "reverse_proxy"
 			? (data.rootRule.handlerConfig as ReverseProxyConfig).upstream
+			: null;
+
+	const rootStaticSummary =
+		data.rootRule.handlerType === "static_response"
+			? staticResponseSummary(data.rootRule.handlerConfig as StaticResponseConfig)
 			: null;
 
 	return (
@@ -79,10 +95,13 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				<div className="wizard-review-value">
 					{rootHandlerLabel ? (
 						<div className="wizard-review-rule-detail">
-							<span className="rule-card-handler-badge handler-reverse_proxy">
+							<span className={`rule-card-handler-badge handler-${data.rootRule.handlerType}`}>
 								{rootHandlerLabel}
 							</span>
 							{rootUpstream && <span className="wizard-review-upstream">{rootUpstream}</span>}
+							{rootStaticSummary && (
+								<span className="wizard-review-upstream">{rootStaticSummary}</span>
+							)}
 						</div>
 					) : (
 						<span className="text-muted">None</span>
@@ -105,12 +124,17 @@ export default function WizardReview({ data, onEditStep }: Props) {
 									<span className="wizard-review-rule-match">
 										{ruleMatchLabel(rule, data.name)}
 									</span>
-									<span className="rule-card-handler-badge handler-reverse_proxy">
+									<span className={`rule-card-handler-badge handler-${rule.handlerType}`}>
 										{rule.handlerType.replace("_", " ")}
 									</span>
 									{rule.handlerType === "reverse_proxy" && (
 										<span className="wizard-review-upstream">
 											{(rule.handlerConfig as ReverseProxyConfig).upstream}
+										</span>
+									)}
+									{rule.handlerType === "static_response" && (
+										<span className="wizard-review-upstream">
+											{staticResponseSummary(rule.handlerConfig as StaticResponseConfig)}
 										</span>
 									)}
 									{rule.toggleOverrides && <span className="wizard-review-tag">overrides</span>}

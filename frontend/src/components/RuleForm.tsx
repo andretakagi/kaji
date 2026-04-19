@@ -10,7 +10,11 @@ import type {
 	StaticResponseConfig,
 	UpdateRuleRequest,
 } from "../types/domain";
-import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
+import {
+	defaultDomainToggles,
+	defaultReverseProxyConfig,
+	defaultStaticResponseConfig,
+} from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
@@ -80,7 +84,7 @@ export default function RuleForm({
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
 
-	const supported = handlerType === "reverse_proxy";
+	const supported = handlerType === "reverse_proxy" || handlerType === "static_response";
 
 	async function handleSubmit(e: React.SubmitEvent) {
 		e.preventDefault();
@@ -96,11 +100,22 @@ export default function RuleForm({
 			return;
 		}
 
-		if (supported) {
+		if (handlerType === "reverse_proxy") {
 			const rp = handlerConfig as ReverseProxyConfig;
 			if (!rp.upstream.trim()) {
 				setFormError("Upstream is required");
 				return;
+			}
+		}
+
+		if (handlerType === "static_response") {
+			const sr = handlerConfig as StaticResponseConfig;
+			if (!sr.close && sr.status_code) {
+				const code = Number.parseInt(sr.status_code, 10);
+				if (Number.isNaN(code) || code < 100 || code > 599) {
+					setFormError("Status code must be between 100 and 599");
+					return;
+				}
 			}
 		}
 
@@ -200,6 +215,8 @@ export default function RuleForm({
 							setHandlerType(next);
 							if (next === "reverse_proxy") {
 								setHandlerConfig({ ...defaultReverseProxyConfig });
+							} else if (next === "static_response") {
+								setHandlerConfig({ ...defaultStaticResponseConfig });
 							} else {
 								setHandlerConfig({});
 							}
