@@ -3,7 +3,7 @@ import { fetchGlobalToggles, fetchIPLists } from "../api";
 import { cn } from "../cn";
 import type { GlobalToggles, IPList } from "../types/api";
 import type { DomainToggles } from "../types/domain";
-import { RequestHeadersGroup, ResponseHeadersGroup } from "./HeadersGroup";
+import { ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
 import { ToggleItem } from "./ToggleGrid";
 
@@ -56,7 +56,6 @@ export function DomainToggleGrid({ toggles, onUpdate, idPrefix, domain }: Props)
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
 			/>
-			<RequestHeadersGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<ResponseHeadersGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<BasicAuthGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<AccessLogGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} domain={domain} />
