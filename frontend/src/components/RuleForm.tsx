@@ -5,6 +5,7 @@ import type {
 	HandlerType,
 	MatchType,
 	PathMatch,
+	RedirectConfig,
 	ReverseProxyConfig,
 	Rule,
 	StaticResponseConfig,
@@ -12,6 +13,7 @@ import type {
 } from "../types/domain";
 import {
 	defaultDomainToggles,
+	defaultRedirectConfig,
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
 } from "../types/domain";
@@ -77,7 +79,7 @@ export default function RuleForm({
 		initial?.handler_type ?? "reverse_proxy",
 	);
 	const [handlerConfig, setHandlerConfig] = useState<
-		ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>
+		ReverseProxyConfig | StaticResponseConfig | RedirectConfig | Record<string, unknown>
 	>(initial?.handler_config ?? { ...defaultReverseProxyConfig });
 	const [overridesOpen, setOverridesOpen] = useState(initial?.toggle_overrides != null);
 	const [toggleOverrides, setToggleOverrides] = useState<DomainToggles>(
@@ -90,6 +92,7 @@ export default function RuleForm({
 	const supported =
 		handlerType === "reverse_proxy" ||
 		handlerType === "static_response" ||
+		handlerType === "redirect" ||
 		(handlerType === ("" as HandlerType) && isRoot);
 
 	async function handleSubmit(e: React.SubmitEvent) {
@@ -118,6 +121,21 @@ export default function RuleForm({
 			const sr = handlerConfig as StaticResponseConfig;
 			if (!sr.close && sr.status_code) {
 				const code = Number.parseInt(sr.status_code, 10);
+				if (Number.isNaN(code) || code < 100 || code > 599) {
+					setFormError("Status code must be between 100 and 599");
+					return;
+				}
+			}
+		}
+
+		if (handlerType === "redirect") {
+			const rd = handlerConfig as RedirectConfig;
+			if (!rd.target_url.trim()) {
+				setFormError("Target URL is required");
+				return;
+			}
+			if (rd.status_code) {
+				const code = Number.parseInt(rd.status_code, 10);
 				if (Number.isNaN(code) || code < 100 || code > 599) {
 					setFormError("Status code must be between 100 and 599");
 					return;
@@ -234,6 +252,8 @@ export default function RuleForm({
 								setHandlerConfig({ ...defaultReverseProxyConfig });
 							} else if (next === "static_response") {
 								setHandlerConfig({ ...defaultStaticResponseConfig });
+							} else if (next === "redirect") {
+								setHandlerConfig({ ...defaultRedirectConfig });
 							} else {
 								setHandlerConfig({});
 							}

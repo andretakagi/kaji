@@ -37,6 +37,12 @@ export interface StaticResponseConfig {
 	close: boolean;
 }
 
+export interface RedirectConfig {
+	target_url: string;
+	status_code: string;
+	preserve_path: boolean;
+}
+
 export interface Rule {
 	id: string;
 	label: string;
@@ -45,7 +51,11 @@ export interface Rule {
 	path_match: "" | "exact" | "prefix" | "regex";
 	match_value: string;
 	handler_type: "reverse_proxy" | "redirect" | "file_server" | "static_response";
-	handler_config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
+	handler_config:
+		| ReverseProxyConfig
+		| StaticResponseConfig
+		| RedirectConfig
+		| Record<string, unknown>;
 	toggle_overrides: DomainToggles | null;
 	advanced_headers: boolean;
 }
@@ -68,7 +78,11 @@ export interface CreateDomainFullRule {
 	path_match?: PathMatch;
 	match_value?: string;
 	handler_type: HandlerType;
-	handler_config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
+	handler_config:
+		| ReverseProxyConfig
+		| StaticResponseConfig
+		| RedirectConfig
+		| Record<string, unknown>;
 	toggle_overrides?: DomainToggles | null;
 	advanced_headers?: boolean;
 }
@@ -90,7 +104,11 @@ export interface CreateRuleRequest {
 	path_match?: PathMatch;
 	match_value?: string;
 	handler_type: HandlerType;
-	handler_config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
+	handler_config:
+		| ReverseProxyConfig
+		| StaticResponseConfig
+		| RedirectConfig
+		| Record<string, unknown>;
 	toggle_overrides?: DomainToggles | null;
 	advanced_headers?: boolean;
 }
@@ -138,4 +156,10 @@ export const defaultStaticResponseConfig: StaticResponseConfig = {
 	body: "",
 	headers: {},
 	close: false,
+};
+
+export const defaultRedirectConfig: RedirectConfig = {
+	target_url: "",
+	status_code: "301",
+	preserve_path: true,
 };
