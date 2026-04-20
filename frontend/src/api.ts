@@ -561,16 +561,24 @@ export function testLokiConnection(): Promise<LokiTestResult> {
 	return request("/api/loki/test", { method: "POST" }, validateLokiTestResult);
 }
 
+function normalizeDomain(d: Domain): Domain {
+	return { ...d, subdomains: d.subdomains ?? [] };
+}
+
 export function fetchDomains(): Promise<Domain[]> {
-	return request("/api/domains", undefined, (d) => d as Domain[]);
+	return request("/api/domains", undefined, (d) => (d as Domain[]).map(normalizeDomain));
 }
 
 export function fetchDomain(id: string): Promise<Domain> {
-	return request(`/api/domains/${encodeURIComponent(id)}`, undefined, (d) => d as Domain);
+	return request(`/api/domains/${encodeURIComponent(id)}`, undefined, (d) =>
+		normalizeDomain(d as Domain),
+	);
 }
 
 export function createDomainFull(req: CreateDomainFullRequest): Promise<Domain> {
-	return request("/api/domains/full", { method: "POST", ...jsonBody(req) }, (d) => d as Domain);
+	return request("/api/domains/full", { method: "POST", ...jsonBody(req) }, (d) =>
+		normalizeDomain(d as Domain),
+	);
 }
 
 export function updateDomain(id: string, req: UpdateDomainRequest): Promise<Domain> {

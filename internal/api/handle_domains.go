@@ -188,11 +188,12 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 		}
 
 		domain := config.Domain{
-			ID:      domainID,
-			Name:    req.Name,
-			Enabled: true,
-			Toggles: req.Toggles,
-			Rules:   rules,
+			ID:         domainID,
+			Name:       req.Name,
+			Enabled:    true,
+			Toggles:    req.Toggles,
+			Rules:      rules,
+			Subdomains: []config.Subdomain{},
 		}
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain created: "+req.Name)
