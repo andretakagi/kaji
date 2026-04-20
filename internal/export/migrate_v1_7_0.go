@@ -212,7 +212,7 @@ func convertSubdomainRules(dom map[string]any) string {
 	}
 
 	var subdomains []any
-	var remaining []any
+	remaining := []any{}
 	for _, ruleRaw := range rules {
 		rule, ok := ruleRaw.(map[string]any)
 		if !ok {

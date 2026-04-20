@@ -347,11 +347,11 @@ func TestValidateMatchType(t *testing.T) {
 		want  string
 	}{
 		{"empty", "", ""},
-		{"subdomain", "subdomain", ""},
 		{"path", "path", ""},
-		{"invalid", "host", "invalid match type: host (must be empty, subdomain, or path)"},
-		{"uppercase", "SUBDOMAIN", "invalid match type: SUBDOMAIN (must be empty, subdomain, or path)"},
-		{"partial match", "sub", "invalid match type: sub (must be empty, subdomain, or path)"},
+		{"subdomain rejected", "subdomain", "invalid match type: subdomain (must be empty or path)"},
+		{"invalid", "host", "invalid match type: host (must be empty or path)"},
+		{"uppercase", "SUBDOMAIN", "invalid match type: SUBDOMAIN (must be empty or path)"},
+		{"partial match", "sub", "invalid match type: sub (must be empty or path)"},
 	}
 
 	for _, tc := range cases {
