@@ -2,6 +2,12 @@ package caddy
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -598,5 +604,493 @@ func TestOrderedAdds(t *testing.T) {
 		if ids[i] != want {
 			t.Errorf("ordered[%d] = %q, want %q", i, ids[i], want)
 		}
+	}
+}
+
+// mockCaddyServer is a minimal in-memory Caddy admin API mock.
+// It holds a map of route ID -> route JSON under a single server ("srv0").
+// Mutations via DELETE /id/{id}, PATCH /config/.../routes/{idx}, and
+// POST /config/.../routes are applied to the in-memory state so that
+// subsequent GET /config/ calls return the updated config.
+type mockCaddyServer struct {
+	mu     sync.Mutex
+	routes []json.RawMessage // ordered list of routes for srv0
+}
+
+func newMockCaddyServer(initial []json.RawMessage) *mockCaddyServer {
+	out := make([]json.RawMessage, len(initial))
+	copy(out, initial)
+	return &mockCaddyServer{routes: out}
+}
+
+func (m *mockCaddyServer) buildConfig() json.RawMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	routes := make([]json.RawMessage, len(m.routes))
+	copy(routes, m.routes)
+	cfg := map[string]any{
+		"apps": map[string]any{
+			"http": map[string]any{
+				"servers": map[string]any{
+					"srv0": map[string]any{
+						"routes": routes,
+					},
+				},
+			},
+		},
+	}
+	b, _ := json.Marshal(cfg)
+	return b
+}
+
+func (m *mockCaddyServer) deleteByID(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, raw := range m.routes {
+		var r struct {
+			ID string `json:"@id"`
+		}
+		if json.Unmarshal(raw, &r) == nil && r.ID == id {
+			m.routes = append(m.routes[:i], m.routes[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func (m *mockCaddyServer) replaceAtIndex(idx int, route json.RawMessage) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if idx < 0 || idx >= len(m.routes) {
+		return false
+	}
+	m.routes[idx] = route
+	return true
+}
+
+func (m *mockCaddyServer) appendRoute(route json.RawMessage) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.routes = append(m.routes, route)
+}
+
+// handler returns an http.Handler that speaks enough of the Caddy admin API
+// for SyncDomains to operate against.
+func (m *mockCaddyServer) handler() http.Handler {
+	mux := http.NewServeMux()
+
+	// GET /config/ - return full config
+	// Also handles sub-paths under /config/
+	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
+		routesPath := "/config/apps/http/servers/srv0/routes"
+
+		// GET /config/ - full config
+		if r.Method == http.MethodGet && r.URL.Path == "/config/" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(m.buildConfig())
+			return
+		}
+
+		// GET /config/apps/http/servers/srv0/routes - for AddRoute existence check
+		if r.Method == http.MethodGet && r.URL.Path == routesPath {
+			m.mu.Lock()
+			b, _ := json.Marshal(m.routes)
+			m.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(b)
+			return
+		}
+
+		// PATCH /config/apps/http/servers/srv0/routes/{idx} - replace route in place
+		if r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, routesPath+"/") {
+			idxStr := strings.TrimPrefix(r.URL.Path, routesPath+"/")
+			var idx int
+			if _, err := fmt.Sscan(idxStr, &idx); err != nil {
+				http.Error(w, "bad index", http.StatusBadRequest)
+				return
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "read body", http.StatusInternalServerError)
+				return
+			}
+			if !m.replaceAtIndex(idx, json.RawMessage(body)) {
+				http.Error(w, "index out of range", http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// POST /config/apps/http/servers/srv0/routes - append route
+		if r.Method == http.MethodPost && r.URL.Path == routesPath {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, "read body", http.StatusInternalServerError)
+				return
+			}
+			m.appendRoute(json.RawMessage(body))
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Access log and logging config paths - return 200
+		if strings.Contains(r.URL.Path, "/logs/") || strings.Contains(r.URL.Path, "/logging/") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		http.NotFound(w, r)
+	})
+
+	// DELETE /id/{id} - delete route by ID
+	mux.HandleFunc("/id/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, "/id/")
+		if !m.deleteByID(id) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+
+	return mux
+}
+
+// newMockCaddyClient creates a test Client backed by a mockCaddyServer.
+// The httptest.Server is registered for cleanup.
+func newMockCaddyClient(t *testing.T, mock *mockCaddyServer) *Client {
+	t.Helper()
+	srv := httptest.NewServer(mock.handler())
+	t.Cleanup(srv.Close)
+	return NewClient(func() string { return srv.URL })
+}
+
+// kajiRoute returns a minimal kaji-prefixed route JSON for use in mock state.
+func kajiRoute(t *testing.T, id, upstream string) json.RawMessage {
+	t.Helper()
+	r := map[string]any{
+		"@id": id,
+		"match": []any{
+			map[string]any{"host": []string{strings.TrimPrefix(id, "kaji_rule_") + ".example.com"}},
+		},
+		"handle": []any{
+			map[string]any{
+				"handler": "reverse_proxy",
+				"upstreams": []any{
+					map[string]any{"dial": upstream},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(r)
+	if err != nil {
+		t.Fatalf("kajiRoute marshal: %v", err)
+	}
+	return json.RawMessage(b)
+}
+
+// syncDomain builds a minimal SyncDomain with a single enabled rule.
+func syncDomain(ruleID, upstream string) SyncDomain {
+	return SyncDomain{
+		Name:    ruleID + ".example.com",
+		Enabled: true,
+		Toggles: DomainToggles{},
+		Rules: []SyncRule{
+			{
+				RuleBuildParams: RuleBuildParams{
+					RuleID:        ruleID,
+					HandlerType:   "reverse_proxy",
+					HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: upstream}),
+				},
+				Enabled: true,
+			},
+		},
+	}
+}
+
+// mustMarshalStatic marshals v to JSON and panics on error.
+// Used in test helpers that cannot receive *testing.T.
+func mustMarshalStatic(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("mustMarshalStatic: %v", err))
+	}
+	return json.RawMessage(b)
+}
+
+func TestReadCurrentKajiRoutes_EmptyConfig(t *testing.T) {
+	mock := newMockCaddyServer(nil)
+	cc := newMockCaddyClient(t, mock)
+
+	routes, server, err := ReadCurrentKajiRoutes(cc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(routes) != 0 {
+		t.Errorf("routes count = %d, want 0", len(routes))
+	}
+	if server != "" {
+		t.Errorf("server = %q, want empty", server)
+	}
+}
+
+func TestReadCurrentKajiRoutes_IgnoresNonKajiRoutes(t *testing.T) {
+	nonKaji := json.RawMessage(`{"@id":"custom_route","match":[{"host":["other.com"]}]}`)
+	kajiOne := kajiRoute(t, "kaji_rule_aaa", "localhost:3000")
+
+	mock := newMockCaddyServer([]json.RawMessage{nonKaji, kajiOne})
+	cc := newMockCaddyClient(t, mock)
+
+	routes, serverName, err := ReadCurrentKajiRoutes(cc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(routes) != 1 {
+		t.Fatalf("routes count = %d, want 1", len(routes))
+	}
+	if _, ok := routes["kaji_rule_aaa"]; !ok {
+		t.Error("missing kaji_rule_aaa in result")
+	}
+	if _, ok := routes["custom_route"]; ok {
+		t.Error("non-kaji route should be excluded")
+	}
+	if serverName != "srv0" {
+		t.Errorf("server = %q, want srv0", serverName)
+	}
+}
+
+func TestReadCurrentKajiRoutes_ReadsMultiple(t *testing.T) {
+	initial := []json.RawMessage{
+		kajiRoute(t, "kaji_rule_x1", "localhost:3001"),
+		kajiRoute(t, "kaji_rule_x2", "localhost:3002"),
+		json.RawMessage(`{"@id":"unmanaged"}`),
+	}
+	mock := newMockCaddyServer(initial)
+	cc := newMockCaddyClient(t, mock)
+
+	got, _, err := ReadCurrentKajiRoutes(cc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("routes count = %d, want 2", len(got))
+	}
+}
+
+func TestSyncDomains_AddsNewRoute(t *testing.T) {
+	mock := newMockCaddyServer(nil)
+	cc := newMockCaddyClient(t, mock)
+
+	domains := []SyncDomain{syncDomain("rule_new1", "localhost:4000")}
+
+	result, err := SyncDomains(cc, domains, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Added != 1 {
+		t.Errorf("Added = %d, want 1", result.Added)
+	}
+	if result.Updated != 0 {
+		t.Errorf("Updated = %d, want 0", result.Updated)
+	}
+	if result.Deleted != 0 {
+		t.Errorf("Deleted = %d, want 0", result.Deleted)
+	}
+
+	got, _, err := ReadCurrentKajiRoutes(cc)
+	if err != nil {
+		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+	}
+	if _, ok := got["kaji_rule_new1"]; !ok {
+		t.Error("kaji_rule_new1 not found in config after sync")
+	}
+}
+
+func TestSyncDomains_DeletesOrphanRoute(t *testing.T) {
+	orphan := kajiRoute(t, "kaji_rule_orphan", "localhost:9999")
+	mock := newMockCaddyServer([]json.RawMessage{orphan})
+	cc := newMockCaddyClient(t, mock)
+
+	result, err := SyncDomains(cc, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Deleted != 1 {
+		t.Errorf("Deleted = %d, want 1", result.Deleted)
+	}
+
+	got, _, err := ReadCurrentKajiRoutes(cc)
+	if err != nil {
+		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+	}
+	if _, ok := got["kaji_rule_orphan"]; ok {
+		t.Error("kaji_rule_orphan should have been deleted")
+	}
+}
+
+func TestSyncDomains_UpdatesChangedRoute(t *testing.T) {
+	existing := kajiRoute(t, "kaji_rule_upd", "localhost:1111")
+	mock := newMockCaddyServer([]json.RawMessage{existing})
+	cc := newMockCaddyClient(t, mock)
+
+	// Same rule ID, different upstream - should produce an update
+	domains := []SyncDomain{syncDomain("rule_upd", "localhost:2222")}
+
+	result, err := SyncDomains(cc, domains, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Updated != 1 {
+		t.Errorf("Updated = %d, want 1", result.Updated)
+	}
+	if result.Added != 0 {
+		t.Errorf("Added = %d, want 0", result.Added)
+	}
+	if result.Deleted != 0 {
+		t.Errorf("Deleted = %d, want 0", result.Deleted)
+	}
+}
+
+func TestSyncDomains_MixedAddUpdateDelete(t *testing.T) {
+	existing := []json.RawMessage{
+		kajiRoute(t, "kaji_rule_upd2", "localhost:1001"),
+		kajiRoute(t, "kaji_rule_gone", "localhost:1002"),
+	}
+	mock := newMockCaddyServer(existing)
+	cc := newMockCaddyClient(t, mock)
+
+	domains := []SyncDomain{
+		syncDomain("rule_upd2", "localhost:9001"),
+		syncDomain("rule_new2", "localhost:9002"),
+	}
+
+	result, err := SyncDomains(cc, domains, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Added != 1 {
+		t.Errorf("Added = %d, want 1", result.Added)
+	}
+	if result.Updated != 1 {
+		t.Errorf("Updated = %d, want 1", result.Updated)
+	}
+	if result.Deleted != 1 {
+		t.Errorf("Deleted = %d, want 1", result.Deleted)
+	}
+
+	got, _, err := ReadCurrentKajiRoutes(cc)
+	if err != nil {
+		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+	}
+	if _, ok := got["kaji_rule_gone"]; ok {
+		t.Error("kaji_rule_gone should have been deleted")
+	}
+	if _, ok := got["kaji_rule_new2"]; !ok {
+		t.Error("kaji_rule_new2 should have been added")
+	}
+	if _, ok := got["kaji_rule_upd2"]; !ok {
+		t.Error("kaji_rule_upd2 should still exist after update")
+	}
+}
+
+func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
+	disabledDomainRoute := kajiRoute(t, "kaji_rule_dis_dom", "localhost:7001")
+	disabledRuleRoute := kajiRoute(t, "kaji_rule_dis_rule", "localhost:7002")
+	mock := newMockCaddyServer([]json.RawMessage{disabledDomainRoute, disabledRuleRoute})
+	cc := newMockCaddyClient(t, mock)
+
+	domains := []SyncDomain{
+		{
+			Name:    "dis_dom.example.com",
+			Enabled: false,
+			Rules: []SyncRule{
+				{
+					RuleBuildParams: RuleBuildParams{
+						RuleID:        "rule_dis_dom",
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:7001"}),
+					},
+					Enabled: true,
+				},
+			},
+		},
+		{
+			Name:    "dis_rule.example.com",
+			Enabled: true,
+			Rules: []SyncRule{
+				{
+					RuleBuildParams: RuleBuildParams{
+						RuleID:        "rule_dis_rule",
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:7002"}),
+					},
+					Enabled: false,
+				},
+			},
+		},
+	}
+
+	result, err := SyncDomains(cc, domains, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Deleted != 0 {
+		t.Errorf("Deleted = %d, want 0 (disabled routes must be protected)", result.Deleted)
+	}
+
+	got, _, err := ReadCurrentKajiRoutes(cc)
+	if err != nil {
+		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+	}
+	if _, ok := got["kaji_rule_dis_dom"]; !ok {
+		t.Error("kaji_rule_dis_dom should not be deleted (disabled domain)")
+	}
+	if _, ok := got["kaji_rule_dis_rule"]; !ok {
+		t.Error("kaji_rule_dis_rule should not be deleted (disabled rule)")
+	}
+}
+
+func TestSyncDomains_ErrorOnIPListResolutionFailure(t *testing.T) {
+	mock := newMockCaddyServer(nil)
+	cc := newMockCaddyClient(t, mock)
+
+	domains := []SyncDomain{
+		{
+			Name:    "secure.example.com",
+			Enabled: true,
+			Toggles: DomainToggles{
+				IPFiltering: IPFilteringOpts{
+					Enabled: true,
+					ListID:  "bad_list",
+					Type:    "whitelist",
+				},
+			},
+			Rules: []SyncRule{
+				{
+					RuleBuildParams: RuleBuildParams{
+						RuleID:        "rule_secure",
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:5000"}),
+					},
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	resolveIPs := func(listID string) ([]string, string, error) {
+		return nil, "", fmt.Errorf("list %q not found", listID)
+	}
+
+	_, err := SyncDomains(cc, domains, resolveIPs)
+	if err == nil {
+		t.Fatal("expected error when IP list resolution fails")
+	}
+	if !strings.Contains(err.Error(), "building desired state") {
+		t.Errorf("error = %q, want to mention 'building desired state'", err)
 	}
 }
