@@ -269,6 +269,7 @@ export default function RuleForm({
 				config={handlerConfig}
 				onChange={setHandlerConfig}
 				disabled={submitting}
+				domain={domainName}
 			/>
 
 			<div className="rule-form-overrides">

@@ -15,6 +15,7 @@ interface Props {
 	config: HandlerConfigValue;
 	onChange: (config: HandlerConfigValue) => void;
 	disabled?: boolean;
+	domain?: string;
 }
 
 const strategyLabels: Record<ReverseProxyConfig["load_balancing"]["strategy"], string> = {
@@ -25,7 +26,7 @@ const strategyLabels: Record<ReverseProxyConfig["load_balancing"]["strategy"], s
 	ip_hash: "IP Hash",
 };
 
-export default function HandlerConfig({ type, config, onChange, disabled }: Props) {
+export default function HandlerConfig({ type, config, onChange, disabled, domain }: Props) {
 	const idPrefix = useId();
 
 	switch (type) {
@@ -86,6 +87,7 @@ export default function HandlerConfig({ type, config, onChange, disabled }: Prop
 					config={config as RedirectConfig}
 					onChange={onChange}
 					disabled={disabled}
+					domain={domain}
 				/>
 			);
 		case "" as HandlerType:
@@ -376,14 +378,23 @@ const redirectStatusOptions = [
 	{ value: "custom", label: "Custom..." },
 ];
 
+function redirectPlaceholder(domain: string | undefined): string {
+	if (!domain) return "https://example.com or /new-path";
+	const parts = domain.split(".");
+	parts[0] = `new-${parts[0]}`;
+	return `https://${parts.join(".")}`;
+}
+
 function RedirectSection({
 	config,
 	onChange,
 	disabled,
+	domain,
 }: {
 	config: RedirectConfig;
 	onChange: (config: RedirectConfig) => void;
 	disabled?: boolean;
+	domain?: string;
 }) {
 	const idPrefix = useId();
 	const [customMode, setCustomMode] = useState(
@@ -407,7 +418,7 @@ function RedirectSection({
 				<input
 					id={`${idPrefix}-target`}
 					type="text"
-					placeholder="https://example.com or /new-path"
+					placeholder={redirectPlaceholder(domain)}
 					value={config.target_url}
 					onChange={(e) => update({ target_url: e.target.value })}
 					maxLength={2048}

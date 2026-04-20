@@ -155,5 +155,5 @@ export const defaultStaticResponseConfig: StaticResponseConfig = {
 export const defaultRedirectConfig: RedirectConfig = {
 	target_url: "",
 	status_code: "301",
-	preserve_path: true,
+	preserve_path: false,
 };

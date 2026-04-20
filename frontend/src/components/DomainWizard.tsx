@@ -457,6 +457,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 									}))
 								}
 								disabled={false}
+								domain={data.name}
 							/>
 						)}
 					</div>
@@ -594,6 +595,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 										config={ruleHandlerConfig}
 										onChange={setRuleHandlerConfig}
 										disabled={false}
+										domain={data.name}
 									/>
 								)}
 
