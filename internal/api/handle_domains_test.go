@@ -619,3 +619,475 @@ func TestHandleDisableDomainNotFound(t *testing.T) {
 		t.Errorf("disable nonexistent domain: got %d, want 404", rec.Code)
 	}
 }
+
+// --- handleCreateRule ---
+
+// getRuleID returns the ID of the first rule in the given domain.
+func getRuleID(t *testing.T, th *testHarness, domainID string) string {
+	t.Helper()
+	cfg := th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == domainID {
+			if len(d.Rules) == 0 {
+				t.Fatal("domain has no rules")
+			}
+			return d.Rules[0].ID
+		}
+	}
+	t.Fatalf("domain %s not found in store", domainID)
+	return ""
+}
+
+func TestHandleCreateRule(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	body := `{"match_type":"path","path_match":"prefix","match_value":"/api","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg := th.store.Get()
+	var dom *config.Domain
+	for i := range cfg.Domains {
+		if cfg.Domains[i].ID == domainID {
+			dom = &cfg.Domains[i]
+			break
+		}
+	}
+	if dom == nil {
+		t.Fatal("domain not found in store after rule creation")
+	}
+	if len(dom.Rules) != 1 {
+		t.Fatalf("expected 1 rule, got %d", len(dom.Rules))
+	}
+	if dom.Rules[0].HandlerType != "reverse_proxy" {
+		t.Errorf("rule handler_type = %s, want reverse_proxy", dom.Rules[0].HandlerType)
+	}
+	if !dom.Rules[0].Enabled {
+		t.Error("new rule should be enabled")
+	}
+}
+
+func TestHandleCreateRuleDomainNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	body := `{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/nonexistent/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("create rule on nonexistent domain: got %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleCreateRuleDuplicateRoot(t *testing.T) {
+	th := newTestHarness(t)
+
+	// Create domain with a root rule already present
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}]}`)
+	domainID := created["id"].(string)
+
+	// Attempt to add another root rule
+	body := `{"match_type":"","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9090"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Errorf("duplicate root rule: got %d, want 409", rec.Code)
+	}
+}
+
+func TestHandleCreateRuleInvalidMatchType(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	body := `{"match_type":"bogus","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid match_type: got %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleCreateRuleInvalidHandlerType(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	body := `{"handler_type":"not_a_real_handler","handler_config":{}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid handler_type: got %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleCreateRuleInvalidPathMatch(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	body := `{"match_type":"path","path_match":"invalid","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid path_match: got %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleCreateRuleInvalidHandlerConfig(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	// reverse_proxy missing upstream
+	body := `{"handler_type":"reverse_proxy","handler_config":{}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("reverse_proxy missing upstream: got %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleCreateRuleHashesBasicAuthInToggleOverrides(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	body := `{
+		"handler_type":"reverse_proxy",
+		"handler_config":{"upstream":"127.0.0.1:8080"},
+		"toggle_overrides":{"basic_auth":{"enabled":true,"username":"user","password":"secret"}}
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create rule with basic auth: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg := th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == domainID {
+			if len(d.Rules) != 1 {
+				t.Fatalf("expected 1 rule, got %d", len(d.Rules))
+			}
+			overrides := d.Rules[0].ToggleOverrides
+			if overrides == nil {
+				t.Fatal("expected toggle_overrides on rule")
+			}
+			hash := overrides.BasicAuth.PasswordHash
+			if hash == "" {
+				t.Error("expected password to be hashed, got empty")
+			}
+			if hash == "secret" {
+				t.Error("password stored as plaintext")
+			}
+			return
+		}
+	}
+	t.Fatal("domain not found in store")
+}
+
+// --- handleUpdateRule ---
+
+func TestHandleUpdateRule(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[{"label":"old","match_type":"path","path_match":"prefix","match_value":"/old","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}]}`)
+	domainID := created["id"].(string)
+	ruleID := getRuleID(t, th, domainID)
+
+	updateBody := `{"label":"new","match_type":"path","path_match":"prefix","match_value":"/new","handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9090"}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/domains/"+domainID+"/rules/"+ruleID, strings.NewReader(updateBody))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg := th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == domainID {
+			if len(d.Rules) != 1 {
+				t.Fatalf("expected 1 rule, got %d", len(d.Rules))
+			}
+			r := d.Rules[0]
+			if r.Label != "new" {
+				t.Errorf("rule label = %s, want new", r.Label)
+			}
+			if r.MatchValue != "/new" {
+				t.Errorf("rule match_value = %s, want /new", r.MatchValue)
+			}
+			return
+		}
+	}
+	t.Fatal("domain not found in store after update")
+}
+
+func TestHandleUpdateRuleDomainNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	body := `{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/domains/nonexistent/rules/somerule", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("update rule on nonexistent domain: got %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleUpdateRuleNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	body := `{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}`
+	req := httptest.NewRequest(http.MethodPut, "/api/domains/"+domainID+"/rules/nonexistent", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("update nonexistent rule: got %d, want 404", rec.Code)
+	}
+}
+
+// --- handleDeleteRule ---
+
+func TestHandleDeleteRule(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}]}`)
+	domainID := created["id"].(string)
+	ruleID := getRuleID(t, th, domainID)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/domains/"+domainID+"/rules/"+ruleID, nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg := th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == domainID {
+			if len(d.Rules) != 0 {
+				t.Errorf("expected 0 rules after delete, got %d", len(d.Rules))
+			}
+			return
+		}
+	}
+	t.Fatal("domain not found in store after rule delete")
+}
+
+func TestHandleDeleteRuleDomainNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/domains/nonexistent/rules/somerule", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("delete rule on nonexistent domain: got %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleDeleteRuleNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/domains/"+domainID+"/rules/nonexistent", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("delete nonexistent rule: got %d, want 404", rec.Code)
+	}
+}
+
+// --- handleEnableRule / handleDisableRule ---
+
+func TestHandleEnableDisableRule(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}]}`)
+	domainID := created["id"].(string)
+	ruleID := getRuleID(t, th, domainID)
+
+	// Disable
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules/"+ruleID+"/disable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disable rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg := th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == domainID {
+			if len(d.Rules) != 1 {
+				t.Fatalf("expected 1 rule, got %d", len(d.Rules))
+			}
+			if d.Rules[0].Enabled {
+				t.Error("rule should be disabled")
+			}
+		}
+	}
+
+	// Enable
+	req = httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules/"+ruleID+"/enable", nil)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enable rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg = th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == domainID {
+			if len(d.Rules) != 1 {
+				t.Fatalf("expected 1 rule, got %d", len(d.Rules))
+			}
+			if !d.Rules[0].Enabled {
+				t.Error("rule should be enabled")
+			}
+			return
+		}
+	}
+	t.Fatal("domain not found in store after enable")
+}
+
+func TestHandleEnableRuleNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules/nonexistent/enable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("enable nonexistent rule: got %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleDisableRuleNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[]}`)
+	domainID := created["id"].(string)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules/nonexistent/disable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("disable nonexistent rule: got %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleEnableRuleDomainNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/nonexistent/rules/somerule/enable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("enable rule on nonexistent domain: got %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleDisableRuleDomainNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/nonexistent/rules/somerule/disable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("disable rule on nonexistent domain: got %d, want 404", rec.Code)
+	}
+}
+
+// --- handleRuleToggle (response shape) ---
+
+func TestHandleRuleToggleResponseShape(t *testing.T) {
+	th := newTestHarness(t)
+
+	created := mustCreateDomain(t, th, `{"name":"example.com","toggles":{},"rules":[{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}]}`)
+	domainID := created["id"].(string)
+	ruleID := getRuleID(t, th, domainID)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domainID+"/rules/"+ruleID+"/disable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disable rule: got %d; body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Response should be the domain object
+	var dom map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &dom); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if dom["id"] != domainID {
+		t.Errorf("response id = %v, want %s", dom["id"], domainID)
+	}
+	rules, ok := dom["rules"].([]any)
+	if !ok || len(rules) == 0 {
+		t.Fatal("response should include rules array")
+	}
+	rule, ok := rules[0].(map[string]any)
+	if !ok {
+		t.Fatal("rule should be an object")
+	}
+	if rule["enabled"] != false {
+		t.Errorf("rule enabled = %v, want false", rule["enabled"])
+	}
+}
