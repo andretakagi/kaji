@@ -2,6 +2,7 @@ package export
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 )
 
@@ -45,6 +46,22 @@ func migrateV170(m map[string]any) []string {
 
 	if c := setDefault(m, "domains", []any{}); c != "" {
 		changes = append(changes, c)
+	}
+
+	// Convert subdomain rules to first-class subdomain entities
+	domainsRaw, ok := m["domains"]
+	if ok {
+		if domains, ok := domainsRaw.([]any); ok {
+			for _, domRaw := range domains {
+				dom, ok := domRaw.(map[string]any)
+				if !ok {
+					continue
+				}
+				if c := convertSubdomainRules(dom); c != "" {
+					changes = append(changes, c)
+				}
+			}
+		}
 	}
 
 	return changes
@@ -180,4 +197,83 @@ func ensureDomains(m map[string]any) []any {
 		}
 	}
 	return []any{}
+}
+
+func convertSubdomainRules(dom map[string]any) string {
+	rulesRaw, ok := dom["rules"]
+	if !ok {
+		dom["subdomains"] = []any{}
+		return ""
+	}
+	rules, ok := rulesRaw.([]any)
+	if !ok {
+		dom["subdomains"] = []any{}
+		return ""
+	}
+
+	var subdomains []any
+	var remaining []any
+	for _, ruleRaw := range rules {
+		rule, ok := ruleRaw.(map[string]any)
+		if !ok {
+			remaining = append(remaining, ruleRaw)
+			continue
+		}
+		matchType, _ := rule["match_type"].(string)
+		if matchType != "subdomain" {
+			remaining = append(remaining, ruleRaw)
+			continue
+		}
+
+		name, _ := rule["match_value"].(string)
+		if name == "" {
+			remaining = append(remaining, ruleRaw)
+			continue
+		}
+
+		handlerType, _ := rule["handler_type"].(string)
+		handlerConfig := rule["handler_config"]
+		enabled, _ := rule["enabled"].(bool)
+		advancedHeaders, _ := rule["advanced_headers"].(bool)
+
+		toggles := map[string]any{}
+		if overrides, ok := rule["toggle_overrides"].(map[string]any); ok {
+			toggles = overrides
+		} else if domToggles, ok := dom["toggles"].(map[string]any); ok {
+			copied, err := json.Marshal(domToggles)
+			if err == nil {
+				var t map[string]any
+				if json.Unmarshal(copied, &t) == nil {
+					toggles = t
+				}
+			}
+		}
+
+		sanitized := sanitizeForID(name)
+		sub := map[string]any{
+			"id":               "sub_migrated_" + sanitized,
+			"name":             name,
+			"enabled":          enabled,
+			"handler_type":     handlerType,
+			"handler_config":   handlerConfig,
+			"toggles":          toggles,
+			"advanced_headers": advancedHeaders,
+			"rules":            []any{},
+		}
+		subdomains = append(subdomains, sub)
+	}
+
+	if len(subdomains) == 0 {
+		dom["subdomains"] = []any{}
+		return ""
+	}
+
+	dom["rules"] = remaining
+	dom["subdomains"] = subdomains
+
+	domName, _ := dom["name"].(string)
+	if domName == "" {
+		domName, _ = dom["id"].(string)
+	}
+	return fmt.Sprintf("converted %d subdomain rules to subdomain entities for %s", len(subdomains), domName)
 }
