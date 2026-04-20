@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cn } from "../cn";
 import type {
 	DomainToggles,
+	FileServerConfig,
 	ReverseProxyConfig,
 	Rule,
 	StaticResponseConfig,
@@ -138,6 +139,9 @@ function RuleCardBody({ rule, onEdit }: { rule: Rule; onEdit: () => void }) {
 			{rule.handler_type === "static_response" && (
 				<StaticResponseDetails config={rule.handler_config as StaticResponseConfig} />
 			)}
+			{rule.handler_type === "file_server" && (
+				<FileServerDetails config={rule.handler_config as FileServerConfig} />
+			)}
 			{overrides && (
 				<div className="rule-card-detail">
 					<span className="rule-card-detail-label">Toggle overrides</span>
@@ -201,6 +205,28 @@ function StaticResponseDetails({ config }: { config: StaticResponseConfig }) {
 	}
 
 	if (details.length === 0) return null;
+
+	return (
+		<>
+			{details.map((d) => (
+				<div key={d.label} className="rule-card-detail">
+					<span className="rule-card-detail-label">{d.label}</span>
+					<span className="rule-card-detail-value">{d.value}</span>
+				</div>
+			))}
+		</>
+	);
+}
+
+function FileServerDetails({ config }: { config: FileServerConfig }) {
+	const details: { label: string; value: string }[] = [{ label: "Root", value: config.root }];
+	if (config.browse) details.push({ label: "Browse", value: "Enabled" });
+	if (config.index_names?.length > 0) {
+		details.push({ label: "Index files", value: config.index_names.join(", ") });
+	}
+	if (config.hide?.length > 0) {
+		details.push({ label: "Hidden", value: config.hide.join(", ") });
+	}
 
 	return (
 		<>

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import type {
 	CreateDomainFullRequest,
 	DomainToggles,
+	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
 	MatchType,
@@ -12,6 +13,7 @@ import type {
 } from "../types/domain";
 import {
 	defaultDomainToggles,
+	defaultFileServerConfig,
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
@@ -165,7 +167,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 				ht !== "none" &&
 				ht !== "reverse_proxy" &&
 				ht !== "static_response" &&
-				ht !== "redirect"
+				ht !== "redirect" &&
+				ht !== "file_server"
 			) {
 				setError("This handler type is not yet supported");
 				return false;
@@ -199,6 +202,13 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 						setError("Status code must be between 100 and 599");
 						return false;
 					}
+				}
+			}
+			if (ht === "file_server") {
+				const fs = data.rootRule.handlerConfig as FileServerConfig;
+				if (!fs.root.trim()) {
+					setError("Root directory is required");
+					return false;
 				}
 			}
 		}
@@ -240,7 +250,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		if (
 			ruleHandlerType !== "reverse_proxy" &&
 			ruleHandlerType !== "static_response" &&
-			ruleHandlerType !== "redirect"
+			ruleHandlerType !== "redirect" &&
+			ruleHandlerType !== "file_server"
 		) {
 			setError("This handler type is not yet supported");
 			return;
@@ -275,6 +286,13 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 					setError("Status code must be between 100 and 599");
 					return;
 				}
+			}
+		}
+		if (ruleHandlerType === "file_server") {
+			const fs = ruleHandlerConfig as FileServerConfig;
+			if (!fs.root.trim()) {
+				setError("Root directory is required");
+				return;
 			}
 		}
 		if (ruleOverridesOpen) {
@@ -347,7 +365,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		data.rootRule.handlerType === "none" ||
 		data.rootRule.handlerType === "reverse_proxy" ||
 		data.rootRule.handlerType === "static_response" ||
-		data.rootRule.handlerType === "redirect";
+		data.rootRule.handlerType === "redirect" ||
+		data.rootRule.handlerType === "file_server";
 
 	return (
 		<div className="domain-wizard">
@@ -427,7 +446,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 															? { ...defaultStaticResponseConfig }
 															: next === "redirect"
 																? { ...defaultRedirectConfig }
-																: {},
+																: next === "file_server"
+																	? { ...defaultFileServerConfig }
+																	: {},
 											},
 										}));
 									}}
@@ -438,7 +459,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 						{data.rootRule.handlerType !== "none" &&
 							data.rootRule.handlerType !== "reverse_proxy" &&
 							data.rootRule.handlerType !== "static_response" &&
-							data.rootRule.handlerType !== "redirect" && (
+							data.rootRule.handlerType !== "redirect" &&
+							data.rootRule.handlerType !== "file_server" && (
 								<div className="alert-warning" role="status">
 									This handler type is not yet supported.
 								</div>
@@ -446,7 +468,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 
 						{(data.rootRule.handlerType === "reverse_proxy" ||
 							data.rootRule.handlerType === "static_response" ||
-							data.rootRule.handlerType === "redirect") && (
+							data.rootRule.handlerType === "redirect" ||
+							data.rootRule.handlerType === "file_server") && (
 							<HandlerConfig
 								type={data.rootRule.handlerType}
 								config={data.rootRule.handlerConfig}
@@ -571,6 +594,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													setRuleHandlerConfig({ ...defaultStaticResponseConfig });
 												} else if (next === "redirect") {
 													setRuleHandlerConfig({ ...defaultRedirectConfig });
+												} else if (next === "file_server") {
+													setRuleHandlerConfig({ ...defaultFileServerConfig });
 												} else {
 													setRuleHandlerConfig({});
 												}
@@ -581,7 +606,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 
 								{ruleHandlerType !== "reverse_proxy" &&
 									ruleHandlerType !== "static_response" &&
-									ruleHandlerType !== "redirect" && (
+									ruleHandlerType !== "redirect" &&
+									ruleHandlerType !== "file_server" && (
 										<div className="alert-warning" role="status">
 											This handler type is not yet supported.
 										</div>
@@ -589,7 +615,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 
 								{(ruleHandlerType === "reverse_proxy" ||
 									ruleHandlerType === "static_response" ||
-									ruleHandlerType === "redirect") && (
+									ruleHandlerType === "redirect" ||
+									ruleHandlerType === "file_server") && (
 									<HandlerConfig
 										type={ruleHandlerType}
 										config={ruleHandlerConfig}
@@ -640,7 +667,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 										disabled={
 											ruleHandlerType !== "reverse_proxy" &&
 											ruleHandlerType !== "static_response" &&
-											ruleHandlerType !== "redirect"
+											ruleHandlerType !== "redirect" &&
+											ruleHandlerType !== "file_server"
 										}
 									>
 										Add Rule

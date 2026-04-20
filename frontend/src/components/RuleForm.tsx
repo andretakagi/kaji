@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import type {
 	CreateRuleRequest,
 	DomainToggles,
+	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
 	MatchType,
@@ -14,6 +15,7 @@ import type {
 } from "../types/domain";
 import {
 	defaultDomainToggles,
+	defaultFileServerConfig,
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
@@ -94,6 +96,7 @@ export default function RuleForm({
 		handlerType === "reverse_proxy" ||
 		handlerType === "static_response" ||
 		handlerType === "redirect" ||
+		handlerType === "file_server" ||
 		(handlerType === ("" as HandlerType) && isRoot);
 
 	async function handleSubmit(e: React.SubmitEvent) {
@@ -141,6 +144,14 @@ export default function RuleForm({
 					setFormError("Status code must be between 100 and 599");
 					return;
 				}
+			}
+		}
+
+		if (handlerType === "file_server") {
+			const fs = handlerConfig as FileServerConfig;
+			if (!fs.root.trim()) {
+				setFormError("Root directory is required");
+				return;
 			}
 		}
 
@@ -255,6 +266,8 @@ export default function RuleForm({
 								setHandlerConfig({ ...defaultStaticResponseConfig });
 							} else if (next === "redirect") {
 								setHandlerConfig({ ...defaultRedirectConfig });
+							} else if (next === "file_server") {
+								setHandlerConfig({ ...defaultFileServerConfig });
 							} else {
 								setHandlerConfig({});
 							}
