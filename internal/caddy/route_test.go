@@ -1213,3 +1213,160 @@ func TestParseRouteParamsSecurityPlusCORSCombined(t *testing.T) {
 		}
 	}
 }
+
+// --- Redirect / static_response parsing ---
+
+func buildRuleAndParse(t *testing.T, domainName string, rule RuleBuildParams, toggles DomainToggles) RouteParams {
+	t.Helper()
+	raw, err := BuildRuleRoute(domainName, rule, toggles, nil, "")
+	if err != nil {
+		t.Fatalf("BuildRuleRoute failed: %v", err)
+	}
+	result, err := ParseRouteParams(raw)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+	return result
+}
+
+func TestParseRouteParamsRedirectBasic(t *testing.T) {
+	cfg, _ := json.Marshal(RedirectConfig{
+		TargetURL:    "https://example.com",
+		StatusCode:   "301",
+		PreservePath: false,
+	})
+	got := buildRuleAndParse(t, "old.example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "redirect",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "redirect" {
+		t.Fatalf("HandlerType = %q, want redirect", got.HandlerType)
+	}
+	var rd RedirectConfig
+	if err := json.Unmarshal(got.HandlerConfig, &rd); err != nil {
+		t.Fatalf("unmarshal redirect config: %v", err)
+	}
+	if rd.TargetURL != "https://example.com" {
+		t.Errorf("TargetURL = %q, want https://example.com", rd.TargetURL)
+	}
+	if rd.StatusCode != "301" {
+		t.Errorf("StatusCode = %q, want 301", rd.StatusCode)
+	}
+	if rd.PreservePath {
+		t.Error("expected PreservePath to be false")
+	}
+}
+
+func TestParseRouteParamsRedirectPreservePath(t *testing.T) {
+	cfg, _ := json.Marshal(RedirectConfig{
+		TargetURL:    "https://new.example.com",
+		StatusCode:   "302",
+		PreservePath: true,
+	})
+	got := buildRuleAndParse(t, "old.example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "redirect",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "redirect" {
+		t.Fatalf("HandlerType = %q, want redirect", got.HandlerType)
+	}
+	var rd RedirectConfig
+	if err := json.Unmarshal(got.HandlerConfig, &rd); err != nil {
+		t.Fatalf("unmarshal redirect config: %v", err)
+	}
+	if rd.TargetURL != "https://new.example.com" {
+		t.Errorf("TargetURL = %q, want https://new.example.com", rd.TargetURL)
+	}
+	if rd.StatusCode != "302" {
+		t.Errorf("StatusCode = %q, want 302", rd.StatusCode)
+	}
+	if !rd.PreservePath {
+		t.Error("expected PreservePath to be true")
+	}
+}
+
+func TestParseRouteParamsRedirectWithToggles(t *testing.T) {
+	cfg, _ := json.Marshal(RedirectConfig{
+		TargetURL:    "https://example.com",
+		StatusCode:   "308",
+		PreservePath: false,
+	})
+	got := buildRuleAndParse(t, "old.example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "redirect",
+		HandlerConfig: cfg,
+	}, DomainToggles{
+		ForceHTTPS:  true,
+		Compression: true,
+	})
+
+	if got.HandlerType != "redirect" {
+		t.Fatalf("HandlerType = %q, want redirect", got.HandlerType)
+	}
+	if !got.Toggles.ForceHTTPS {
+		t.Error("expected ForceHTTPS to be true")
+	}
+	if !got.Toggles.Compression {
+		t.Error("expected Compression to be true")
+	}
+	var rd RedirectConfig
+	if err := json.Unmarshal(got.HandlerConfig, &rd); err != nil {
+		t.Fatalf("unmarshal redirect config: %v", err)
+	}
+	if rd.TargetURL != "https://example.com" {
+		t.Errorf("TargetURL = %q, want https://example.com", rd.TargetURL)
+	}
+}
+
+func TestParseRouteParamsStaticResponseNoLocation(t *testing.T) {
+	cfg, _ := json.Marshal(StaticResponseConfig{
+		StatusCode: "200",
+		Body:       "OK",
+		Headers:    map[string][]string{"Content-Type": {"text/plain"}},
+	})
+	got := buildRuleAndParse(t, "example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "static_response",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "static_response" {
+		t.Fatalf("HandlerType = %q, want static_response", got.HandlerType)
+	}
+	var sr StaticResponseConfig
+	if err := json.Unmarshal(got.HandlerConfig, &sr); err != nil {
+		t.Fatalf("unmarshal static_response config: %v", err)
+	}
+	if sr.StatusCode != "200" {
+		t.Errorf("StatusCode = %q, want 200", sr.StatusCode)
+	}
+	if sr.Body != "OK" {
+		t.Errorf("Body = %q, want OK", sr.Body)
+	}
+}
+
+func TestParseRouteParamsStaticResponseClose(t *testing.T) {
+	cfg, _ := json.Marshal(StaticResponseConfig{
+		Close: true,
+	})
+	got := buildRuleAndParse(t, "example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "static_response",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "static_response" {
+		t.Fatalf("HandlerType = %q, want static_response", got.HandlerType)
+	}
+	var sr StaticResponseConfig
+	if err := json.Unmarshal(got.HandlerConfig, &sr); err != nil {
+		t.Fatalf("unmarshal static_response config: %v", err)
+	}
+	if !sr.Close {
+		t.Error("expected Close to be true")
+	}
+}
