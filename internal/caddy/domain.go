@@ -36,6 +36,13 @@ type RedirectConfig struct {
 	PreservePath bool   `json:"preserve_path"`
 }
 
+type FileServerConfig struct {
+	Root       string   `json:"root"`
+	Browse     bool     `json:"browse"`
+	IndexNames []string `json:"index_names"`
+	Hide       []string `json:"hide"`
+}
+
 func generateOpaqueID(prefix string) string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
@@ -106,6 +113,22 @@ func ParseRedirectConfig(raw json.RawMessage) (RedirectConfig, error) {
 }
 
 func MarshalRedirectConfig(cfg RedirectConfig) (json.RawMessage, error) {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+func ParseFileServerConfig(raw json.RawMessage) (FileServerConfig, error) {
+	var cfg FileServerConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return FileServerConfig{}, err
+	}
+	return cfg, nil
+}
+
+func MarshalFileServerConfig(cfg FileServerConfig) (json.RawMessage, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, err
