@@ -4,9 +4,21 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
+
+func waitForPosition(pos *PositionStore, path string, want int64, timeout time.Duration) int64 {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if got := pos.Get(path); got == want {
+			return got
+		}
+		runtime.Gosched()
+	}
+	return pos.Get(path)
+}
 
 func TestTailerReadsExistingLines(t *testing.T) {
 	dir := t.TempDir()
@@ -378,8 +390,9 @@ func TestTailerRotationResetsPositionStore(t *testing.T) {
 		t.Fatal("timed out waiting for original line")
 	}
 
-	// Position should be at end of "original\n" (9 bytes)
-	if got := pos.Get(logPath); got != 9 {
+	// Position should be at end of "original\n" (9 bytes).
+	// The tailer updates position after sending to the channel, so poll briefly.
+	if got := waitForPosition(pos, logPath, 9, 2*time.Second); got != 9 {
 		t.Fatalf("expected offset 9 after reading original, got %d", got)
 	}
 
@@ -396,12 +409,12 @@ func TestTailerRotationResetsPositionStore(t *testing.T) {
 		t.Fatal("timed out waiting for rotated line")
 	}
 
-	cancel()
-
-	// After rotation, position should reflect the new file's offset, not the old one
-	if got := pos.Get(logPath); got != 8 {
+	// The tailer updates position after sending to the channel, so poll briefly.
+	if got := waitForPosition(pos, logPath, 8, 2*time.Second); got != 8 {
 		t.Errorf("expected offset 8 after rotation (len of 'rotated\\n'), got %d", got)
 	}
+
+	cancel()
 }
 
 func TestTailerRetriesOnNonContextError(t *testing.T) {
