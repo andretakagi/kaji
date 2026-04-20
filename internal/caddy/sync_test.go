@@ -42,8 +42,9 @@ func TestBuildDesiredState_EnabledDomains(t *testing.T) {
 				{
 					RuleBuildParams: RuleBuildParams{
 						RuleID:        "rule_bbb",
-						MatchType:     "subdomain",
-						MatchValue:    "api",
+						MatchType:     "path",
+						PathMatch:     "prefix",
+						MatchValue:    "/api",
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:4000"),
 					},
@@ -500,12 +501,11 @@ func TestSortRules_Priority(t *testing.T) {
 		{RuleBuildParams: RuleBuildParams{RuleID: "regex", MatchType: "path", PathMatch: "regex"}},
 		{RuleBuildParams: RuleBuildParams{RuleID: "prefix", MatchType: "path", PathMatch: "prefix"}},
 		{RuleBuildParams: RuleBuildParams{RuleID: "exact", MatchType: "path", PathMatch: "exact"}},
-		{RuleBuildParams: RuleBuildParams{RuleID: "subdomain", MatchType: "subdomain"}},
 	}
 
 	sorted := sortRules(rules)
 
-	expected := []string{"exact", "prefix", "subdomain", "regex", "root"}
+	expected := []string{"exact", "prefix", "regex", "root"}
 	for i, want := range expected {
 		if sorted[i].RuleID != want {
 			t.Errorf("sorted[%d].RuleID = %q, want %q", i, sorted[i].RuleID, want)

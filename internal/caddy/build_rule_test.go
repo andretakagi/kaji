@@ -33,7 +33,7 @@ func TestBuildRuleRoute_RootRule(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,17 +61,16 @@ func TestBuildRuleRoute_RootRule(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_SubdomainRule(t *testing.T) {
+func TestBuildRuleRoute_SubdomainHost(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:8080"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_sub1",
-		MatchType:     "subdomain",
-		MatchValue:    "api",
+		MatchType:     "",
 		HandlerType:   "reverse_proxy",
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	result, err := BuildRuleRoute("api.example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -96,7 +95,7 @@ func TestBuildRuleRoute_PathPrefix(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,7 +120,7 @@ func TestBuildRuleRoute_PathExact(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -146,7 +145,7 @@ func TestBuildRuleRoute_PathRegex(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -173,7 +172,7 @@ func TestBuildRuleRoute_WithToggles(t *testing.T) {
 		Compression: true,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, toggles, nil, "")
+	result, err := BuildRuleRoute("example.com", rule, toggles, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -211,7 +210,7 @@ func TestBuildRuleRoute_UnsupportedHandler(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{}`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for unsupported handler type")
 	}
@@ -240,7 +239,7 @@ func TestBuildRuleRoute_ReverseProxyConfig(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -289,7 +288,7 @@ func TestBuildRuleRoute_EmptyDomainName(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	_, err := BuildRuleRoute("", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty domain name")
 	}
@@ -307,7 +306,7 @@ func TestBuildRuleRoute_UnsupportedHandlerType(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{}`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for unsupported handler type")
 	}
@@ -325,7 +324,7 @@ func TestBuildRuleRoute_MalformedReverseProxyConfig(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{invalid json}`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed config")
 	}
@@ -343,7 +342,7 @@ func TestBuildRuleRoute_EmptyReverseProxyUpstream(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty upstream")
 	}
@@ -361,7 +360,7 @@ func TestBuildRuleRoute_MalformedRedirectConfig(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{bad`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed redirect config")
 	}
@@ -379,7 +378,7 @@ func TestBuildRuleRoute_EmptyRedirectTargetURL(t *testing.T) {
 		HandlerConfig: rdCfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty target URL")
 	}
@@ -397,7 +396,7 @@ func TestBuildRuleRoute_MalformedFileServerConfig(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{broken`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed file server config")
 	}
@@ -415,7 +414,7 @@ func TestBuildRuleRoute_EmptyFileServerRoot(t *testing.T) {
 		HandlerConfig: fsCfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty root directory")
 	}
@@ -433,7 +432,7 @@ func TestBuildRuleRoute_MalformedStaticResponseConfig(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{malformed`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed static response config")
 	}

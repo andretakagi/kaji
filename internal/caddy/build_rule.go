@@ -8,7 +8,7 @@ import (
 
 type RuleBuildParams struct {
 	RuleID          string
-	MatchType       string // "", "subdomain", "path"
+	MatchType       string // "", "path"
 	PathMatch       string // "exact", "prefix", "regex"
 	MatchValue      string
 	HandlerType     string
@@ -16,7 +16,7 @@ type RuleBuildParams struct {
 	AdvancedHeaders bool
 }
 
-func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string) (json.RawMessage, error) {
+func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string, logSkip bool) (json.RawMessage, error) {
 	if domainName == "" {
 		return nil, fmt.Errorf("domain name is required")
 	}
@@ -302,13 +302,8 @@ func buildFileServerHandler(handlerConfig json.RawMessage) (map[string]any, erro
 }
 
 func buildMatchBlock(domainName string, rule RuleBuildParams) []map[string]any {
-	host := domainName
-	if rule.MatchType == "subdomain" && rule.MatchValue != "" {
-		host = rule.MatchValue + "." + domainName
-	}
-
 	match := map[string]any{
-		"host": []string{host},
+		"host": []string{domainName},
 	}
 
 	if rule.MatchType == "path" && rule.MatchValue != "" {

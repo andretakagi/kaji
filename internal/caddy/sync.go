@@ -45,6 +45,8 @@ type SyncResult struct {
 func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips []string, listType string, err error)) (map[string]json.RawMessage, error) {
 	desired := make(map[string]json.RawMessage)
 
+	_, logSkipRuleIDs := CollectAccessLogState(domains)
+
 	for _, dom := range domains {
 		if !dom.Enabled {
 			continue
@@ -70,13 +72,87 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 				ipListType = typ
 			}
 
-			routeJSON, err := BuildRuleRoute(dom.Name, rule.RuleBuildParams, toggles, ipListIPs, ipListType)
+			caddyID := CaddyRouteID(rule.RuleID)
+			logSkip := logSkipRuleIDs[caddyID]
+
+			routeJSON, err := BuildRuleRoute(dom.Name, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
 			if err != nil {
 				return nil, fmt.Errorf("building route for rule %s: %w", rule.RuleID, err)
 			}
 
-			caddyID := CaddyRouteID(rule.RuleID)
 			desired[caddyID] = routeJSON
+		}
+
+		for _, sub := range dom.Subdomains {
+			if !sub.Enabled {
+				continue
+			}
+
+			subHost := sub.Name + "." + dom.Name
+			subToggles := sub.Toggles
+
+			// Build subdomain handler route (skip "none")
+			if sub.HandlerType != "none" {
+				params := RuleBuildParams{
+					RuleID:          sub.ID,
+					MatchType:       "",
+					HandlerType:     sub.HandlerType,
+					HandlerConfig:   sub.HandlerConfig,
+					AdvancedHeaders: sub.AdvancedHeaders,
+				}
+
+				var ipListIPs []string
+				var ipListType string
+				if subToggles.IPFiltering.Enabled && subToggles.IPFiltering.ListID != "" && resolveIPs != nil {
+					ips, typ, err := resolveIPs(subToggles.IPFiltering.ListID)
+					if err != nil {
+						return nil, fmt.Errorf("resolving IP list for subdomain %s: %w", sub.ID, err)
+					}
+					ipListIPs = ips
+					ipListType = typ
+				}
+
+				caddyID := CaddyRouteID(sub.ID)
+				logSkip := logSkipRuleIDs[caddyID]
+
+				routeJSON, err := BuildRuleRoute(subHost, params, subToggles, ipListIPs, ipListType, logSkip)
+				if err != nil {
+					return nil, fmt.Errorf("building route for subdomain %s: %w", sub.ID, err)
+				}
+
+				desired[caddyID] = routeJSON
+			}
+
+			// Build subdomain path rules
+			sortedSubRules := sortRules(sub.Rules)
+			for _, rule := range sortedSubRules {
+				if !rule.Enabled {
+					continue
+				}
+
+				toggles := MergeToggles(subToggles, rule.ToggleOverrides)
+
+				var ipListIPs []string
+				var ipListType string
+				if toggles.IPFiltering.Enabled && toggles.IPFiltering.ListID != "" && resolveIPs != nil {
+					ips, typ, err := resolveIPs(toggles.IPFiltering.ListID)
+					if err != nil {
+						return nil, fmt.Errorf("resolving IP list for rule %s: %w", rule.RuleID, err)
+					}
+					ipListIPs = ips
+					ipListType = typ
+				}
+
+				caddyID := CaddyRouteID(rule.RuleID)
+				logSkip := logSkipRuleIDs[caddyID]
+
+				routeJSON, err := BuildRuleRoute(subHost, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
+				if err != nil {
+					return nil, fmt.Errorf("building route for rule %s: %w", rule.RuleID, err)
+				}
+
+				desired[caddyID] = routeJSON
+			}
 		}
 	}
 
@@ -126,8 +202,76 @@ func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 				ids[CaddyRouteID(rule.RuleID)] = true
 			}
 		}
+		for _, sub := range dom.Subdomains {
+			if !dom.Enabled || !sub.Enabled {
+				if sub.HandlerType != "none" {
+					ids[CaddyRouteID(sub.ID)] = true
+				}
+			}
+			for _, rule := range sub.Rules {
+				if !dom.Enabled || !sub.Enabled || !rule.Enabled {
+					ids[CaddyRouteID(rule.RuleID)] = true
+				}
+			}
+		}
 	}
 	return ids
+}
+
+// CollectAccessLogState returns hostname-to-sink mappings for all enabled
+// domains/subdomains, and the set of rule IDs that should skip access logging.
+func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]string, logSkipRuleIDs map[string]bool) {
+	hostnameToSink = make(map[string]string)
+	logSkipRuleIDs = make(map[string]bool)
+
+	for _, dom := range domains {
+		if !dom.Enabled {
+			continue
+		}
+
+		hostnameToSink[dom.Name] = dom.Toggles.AccessLog
+
+		for _, rule := range dom.Rules {
+			if !rule.Enabled || rule.ToggleOverrides == nil {
+				continue
+			}
+			merged := MergeToggles(dom.Toggles, rule.ToggleOverrides)
+			if merged.AccessLog == "" && dom.Toggles.AccessLog != "" {
+				logSkipRuleIDs[CaddyRouteID(rule.RuleID)] = true
+			}
+		}
+
+		for _, sub := range dom.Subdomains {
+			if !sub.Enabled {
+				continue
+			}
+			subHost := sub.Name + "." + dom.Name
+			hostnameToSink[subHost] = sub.Toggles.AccessLog
+
+			for _, rule := range sub.Rules {
+				if !rule.Enabled || rule.ToggleOverrides == nil {
+					continue
+				}
+				merged := MergeToggles(sub.Toggles, rule.ToggleOverrides)
+				if merged.AccessLog == "" && sub.Toggles.AccessLog != "" {
+					logSkipRuleIDs[CaddyRouteID(rule.RuleID)] = true
+				}
+			}
+		}
+	}
+
+	return hostnameToSink, logSkipRuleIDs
+}
+
+func collectKajiHostnames(domains []SyncDomain) map[string]bool {
+	hosts := make(map[string]bool)
+	for _, dom := range domains {
+		hosts[dom.Name] = true
+		for _, sub := range dom.Subdomains {
+			hosts[sub.Name+"."+dom.Name] = true
+		}
+	}
+	return hosts
 }
 
 const kajiRulePrefix = "kaji_rule_"
@@ -226,7 +370,7 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 }
 
 // sortRules returns a copy of rules sorted by match specificity. Exact paths
-// come first, then prefix/subdomain, then regex, then root (no match type).
+// come first, then prefix, then regex, then root (no match type).
 func sortRules(rules []SyncRule) []SyncRule {
 	sorted := make([]SyncRule, len(rules))
 	copy(sorted, rules)
@@ -241,9 +385,6 @@ func rulePriority(r SyncRule) int {
 		return 3
 	}
 	if r.MatchType == "path" && r.PathMatch == "prefix" {
-		return 2
-	}
-	if r.MatchType == "subdomain" {
 		return 2
 	}
 	if r.MatchType == "path" && r.PathMatch == "regex" {
