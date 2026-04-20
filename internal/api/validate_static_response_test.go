@@ -13,7 +13,7 @@ func TestValidateHandlerType(t *testing.T) {
 	}{
 		{"reverse_proxy", "reverse_proxy", ""},
 		{"static_response", "static_response", ""},
-		{"redirect not yet supported", "redirect", `handler type "redirect" is not yet supported`},
+		{"redirect", "redirect", ""},
 		{"file_server not yet supported", "file_server", `handler type "file_server" is not yet supported`},
 		{"unknown type", "websocket", "unknown handler type: websocket"},
 		{"empty", "", "unknown handler type: "},
