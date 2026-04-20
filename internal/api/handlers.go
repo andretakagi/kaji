@@ -63,6 +63,17 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("DELETE /api/domains/{id}/rules/{ruleId}", handleDeleteRule(store, cc, ss, version))
 	mux.HandleFunc("POST /api/domains/{id}/rules/{ruleId}/enable", handleEnableRule(store, cc, ss, version))
 	mux.HandleFunc("POST /api/domains/{id}/rules/{ruleId}/disable", handleDisableRule(store, cc, ss, version))
+	// Subdomain management
+	mux.HandleFunc("POST /api/domains/{id}/subdomains", handleCreateSubdomain(store, cc, ss, version))
+	mux.HandleFunc("PUT /api/domains/{id}/subdomains/{subId}", handleUpdateSubdomain(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/domains/{id}/subdomains/{subId}", handleDeleteSubdomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/subdomains/{subId}/enable", handleEnableSubdomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/subdomains/{subId}/disable", handleDisableSubdomain(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/subdomains/{subId}/rules", handleCreateSubdomainRule(store, cc, ss, version))
+	mux.HandleFunc("PUT /api/domains/{id}/subdomains/{subId}/rules/{ruleId}", handleUpdateSubdomainRule(store, cc, ss, version))
+	mux.HandleFunc("DELETE /api/domains/{id}/subdomains/{subId}/rules/{ruleId}", handleDeleteSubdomainRule(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/subdomains/{subId}/rules/{ruleId}/enable", handleEnableSubdomainRule(store, cc, ss, version))
+	mux.HandleFunc("POST /api/domains/{id}/subdomains/{subId}/rules/{ruleId}/disable", handleDisableSubdomainRule(store, cc, ss, version))
 
 	mux.HandleFunc("GET /api/logs", handleLogs(store))
 	mux.HandleFunc("GET /api/logs/stream", handleLogStream(store))

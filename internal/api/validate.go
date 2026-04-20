@@ -223,10 +223,10 @@ func validateIPListChildren(children []string, parentType string, parentID strin
 
 func validateMatchType(matchType string) string {
 	switch matchType {
-	case "", "subdomain", "path":
+	case "", "path":
 		return ""
 	default:
-		return fmt.Sprintf("invalid match type: %s (must be empty, subdomain, or path)", matchType)
+		return fmt.Sprintf("invalid match type: %s (must be empty or path)", matchType)
 	}
 }
 
@@ -328,6 +328,15 @@ func validateFileServerConfig(w http.ResponseWriter, raw json.RawMessage) bool {
 func validateHandlerType(handlerType string) string {
 	switch handlerType {
 	case "reverse_proxy", "static_response", "redirect", "file_server":
+		return ""
+	default:
+		return fmt.Sprintf("unknown handler type: %s", handlerType)
+	}
+}
+
+func validateSubdomainHandlerType(handlerType string) string {
+	switch handlerType {
+	case "none", "reverse_proxy", "static_response", "redirect", "file_server":
 		return ""
 	default:
 		return fmt.Sprintf("unknown handler type: %s", handlerType)
