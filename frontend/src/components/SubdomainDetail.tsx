@@ -166,6 +166,7 @@ export default function SubdomainDetail({
 				{ruleForm.visible && (
 					<RuleForm
 						domainName={fullName}
+						hasRootRule
 						onSubmit={async (req) => {
 							await onCreateRule(subdomain.id, req as CreateRuleRequest);
 							ruleForm.close();

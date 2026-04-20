@@ -343,6 +343,24 @@ func validateSubdomainHandlerType(handlerType string) string {
 	}
 }
 
+func validateSubdomainName(name string) string {
+	if name == "" {
+		return "subdomain name is required"
+	}
+	if len(name) > 63 {
+		return "subdomain name too long (max 63 characters)"
+	}
+	for _, c := range name {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
+			return "subdomain name may only contain letters, digits, and hyphens"
+		}
+	}
+	if name[0] == '-' || name[len(name)-1] == '-' {
+		return "subdomain name must not start or end with a hyphen"
+	}
+	return ""
+}
+
 func validateLoadBalancing(w http.ResponseWriter, lb caddy.LoadBalancing) bool {
 	if !lb.Enabled {
 		return true

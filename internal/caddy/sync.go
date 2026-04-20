@@ -263,17 +263,6 @@ func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]stri
 	return hostnameToSink, logSkipRuleIDs
 }
 
-func collectKajiHostnames(domains []SyncDomain) map[string]bool {
-	hosts := make(map[string]bool)
-	for _, dom := range domains {
-		hosts[dom.Name] = true
-		for _, sub := range dom.Subdomains {
-			hosts[sub.Name+"."+dom.Name] = true
-		}
-	}
-	return hosts
-}
-
 const kajiRulePrefix = "kaji_rule_"
 
 // ReadCurrentKajiRoutes reads all routes with the kaji_rule_ prefix from
@@ -356,13 +345,22 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 		result.Added++
 	}
 
-	// Set or clear access log entries for each enabled domain
+	// Set or clear access log entries for each enabled domain and subdomain
 	for _, dom := range domains {
 		if !dom.Enabled {
 			continue
 		}
 		if err := cc.SetRouteAccessLog(serverName, dom.Name, dom.Toggles.AccessLog); err != nil {
 			return result, fmt.Errorf("setting access log for %s: %w", dom.Name, err)
+		}
+		for _, sub := range dom.Subdomains {
+			if !sub.Enabled {
+				continue
+			}
+			subHost := sub.Name + "." + dom.Name
+			if err := cc.SetRouteAccessLog(serverName, subHost, sub.Toggles.AccessLog); err != nil {
+				return result, fmt.Errorf("setting access log for %s: %w", subHost, err)
+			}
 		}
 	}
 

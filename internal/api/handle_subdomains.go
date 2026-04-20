@@ -36,8 +36,8 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 		}
 
 		name := strings.TrimSpace(req.Name)
-		if name == "" {
-			writeError(w, "subdomain name is required", http.StatusBadRequest)
+		if msg := validateSubdomainName(name); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
 
@@ -162,8 +162,8 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 		}
 
 		name := strings.TrimSpace(req.Name)
-		if name == "" {
-			writeError(w, "subdomain name is required", http.StatusBadRequest)
+		if msg := validateSubdomainName(name); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
 			return
 		}
 
@@ -225,6 +225,11 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			if s == nil {
 				return nil, fmt.Errorf("subdomain not found")
 			}
+			for _, other := range d.Subdomains {
+				if other.ID != subID && strings.EqualFold(other.Name, name) {
+					return nil, fmt.Errorf("duplicate name")
+				}
+			}
 			s.Name = name
 			s.HandlerType = req.HandlerType
 			s.HandlerConfig = req.HandlerConfig
@@ -239,6 +244,10 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			}
 			if errMsg == "applying config update: subdomain not found" {
 				writeError(w, "subdomain not found", http.StatusNotFound)
+				return
+			}
+			if errMsg == "applying config update: duplicate name" {
+				writeError(w, "a subdomain with this name already exists", http.StatusConflict)
 				return
 			}
 			log.Printf("handleUpdateSubdomain: save config: %v", err)
