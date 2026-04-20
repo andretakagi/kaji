@@ -504,6 +504,8 @@ function RedirectSection({
 	);
 }
 
+type FSEntry = { id: number; value: string };
+
 function FileServerSection({
 	config,
 	onChange,
@@ -517,8 +519,62 @@ function FileServerSection({
 	const [newIndex, setNewIndex] = useState("");
 	const [newHide, setNewHide] = useState("");
 
+	const nextIndexId = useRef(config.index_names.length);
+	const [indexEntries, setIndexEntries] = useState<FSEntry[]>(() =>
+		config.index_names.map((v, i) => ({ id: i, value: v })),
+	);
+
+	const prevIndexNames = useRef(config.index_names);
+	if (
+		config.index_names.length !== prevIndexNames.current.length ||
+		config.index_names.some((v, i) => v !== prevIndexNames.current[i])
+	) {
+		const currentValues = indexEntries.map((e) => e.value);
+		if (
+			config.index_names.length !== currentValues.length ||
+			config.index_names.some((v, i) => v !== currentValues[i])
+		) {
+			const fresh = config.index_names.map((v, i) => ({ id: nextIndexId.current + i, value: v }));
+			nextIndexId.current += config.index_names.length;
+			setIndexEntries(fresh);
+		}
+		prevIndexNames.current = config.index_names;
+	}
+
+	const nextHideId = useRef(config.hide.length);
+	const [hideEntries, setHideEntries] = useState<FSEntry[]>(() =>
+		config.hide.map((v, i) => ({ id: i, value: v })),
+	);
+
+	const prevHide = useRef(config.hide);
+	if (
+		config.hide.length !== prevHide.current.length ||
+		config.hide.some((v, i) => v !== prevHide.current[i])
+	) {
+		const currentValues = hideEntries.map((e) => e.value);
+		if (
+			config.hide.length !== currentValues.length ||
+			config.hide.some((v, i) => v !== currentValues[i])
+		) {
+			const fresh = config.hide.map((v, i) => ({ id: nextHideId.current + i, value: v }));
+			nextHideId.current += config.hide.length;
+			setHideEntries(fresh);
+		}
+		prevHide.current = config.hide;
+	}
+
 	function update(patch: Partial<FileServerConfig>) {
 		onChange({ ...config, ...patch });
+	}
+
+	function syncIndex(next: FSEntry[]) {
+		setIndexEntries(next);
+		update({ index_names: next.map((e) => e.value) });
+	}
+
+	function syncHide(next: FSEntry[]) {
+		setHideEntries(next);
+		update({ hide: next.map((e) => e.value) });
 	}
 
 	return (
@@ -545,17 +601,25 @@ function FileServerSection({
 			/>
 			<div className="handler-static-headers">
 				<span className="toggle-detail-heading">Index Files</span>
-				{config.index_names.map((name, i) => (
-					<div className="lb-upstream-row" key={`${idPrefix}-idx-${name}`}>
-						<input type="text" value={name} disabled readOnly />
+				{indexEntries.map((entry) => (
+					<div className="lb-upstream-row" key={entry.id}>
+						<input
+							type="text"
+							value={entry.value}
+							onChange={(e) =>
+								syncIndex(
+									indexEntries.map((x) =>
+										x.id === entry.id ? { ...x, value: e.target.value } : x,
+									),
+								)
+							}
+							maxLength={256}
+							disabled={disabled}
+						/>
 						<button
 							type="button"
 							className="btn btn-ghost lb-upstream-remove"
-							onClick={() =>
-								update({
-									index_names: config.index_names.filter((_, idx) => idx !== i),
-								})
-							}
+							onClick={() => syncIndex(indexEntries.filter((x) => x.id !== entry.id))}
 							aria-label="Remove index file"
 							disabled={disabled}
 						>
@@ -577,9 +641,8 @@ function FileServerSection({
 						className="btn btn-primary"
 						onClick={() => {
 							if (newIndex.trim()) {
-								update({
-									index_names: [...config.index_names, newIndex.trim()],
-								});
+								nextIndexId.current += 1;
+								syncIndex([...indexEntries, { id: nextIndexId.current, value: newIndex.trim() }]);
 								setNewIndex("");
 							}
 						}}
@@ -591,17 +654,23 @@ function FileServerSection({
 			</div>
 			<div className="handler-static-headers">
 				<span className="toggle-detail-heading">Hidden Files</span>
-				{config.hide.map((pattern, i) => (
-					<div className="lb-upstream-row" key={`${idPrefix}-hide-${pattern}`}>
-						<input type="text" value={pattern} disabled readOnly />
+				{hideEntries.map((entry) => (
+					<div className="lb-upstream-row" key={entry.id}>
+						<input
+							type="text"
+							value={entry.value}
+							onChange={(e) =>
+								syncHide(
+									hideEntries.map((x) => (x.id === entry.id ? { ...x, value: e.target.value } : x)),
+								)
+							}
+							maxLength={256}
+							disabled={disabled}
+						/>
 						<button
 							type="button"
 							className="btn btn-ghost lb-upstream-remove"
-							onClick={() =>
-								update({
-									hide: config.hide.filter((_, idx) => idx !== i),
-								})
-							}
+							onClick={() => syncHide(hideEntries.filter((x) => x.id !== entry.id))}
 							aria-label="Remove hidden pattern"
 							disabled={disabled}
 						>
@@ -623,9 +692,8 @@ function FileServerSection({
 						className="btn btn-primary"
 						onClick={() => {
 							if (newHide.trim()) {
-								update({
-									hide: [...config.hide, newHide.trim()],
-								});
+								nextHideId.current += 1;
+								syncHide([...hideEntries, { id: nextHideId.current, value: newHide.trim() }]);
 								setNewHide("");
 							}
 						}}
