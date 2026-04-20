@@ -30,6 +30,12 @@ type StaticResponseConfig struct {
 	Close      bool                `json:"close"`
 }
 
+type RedirectConfig struct {
+	TargetURL    string `json:"target_url"`
+	StatusCode   string `json:"status_code"`
+	PreservePath bool   `json:"preserve_path"`
+}
+
 func generateOpaqueID(prefix string) string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
@@ -84,6 +90,22 @@ func ParseStaticResponseConfig(raw json.RawMessage) (StaticResponseConfig, error
 }
 
 func MarshalStaticResponseConfig(cfg StaticResponseConfig) (json.RawMessage, error) {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+func ParseRedirectConfig(raw json.RawMessage) (RedirectConfig, error) {
+	var cfg RedirectConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return RedirectConfig{}, err
+	}
+	return cfg, nil
+}
+
+func MarshalRedirectConfig(cfg RedirectConfig) (json.RawMessage, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, err

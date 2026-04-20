@@ -3,6 +3,7 @@ package caddy
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type RuleBuildParams struct {
@@ -130,6 +131,12 @@ func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggl
 			return nil, err
 		}
 		handlers = append(handlers, srHandler)
+	case "redirect":
+		rdHandler, err := buildRedirectHandler(rule.HandlerConfig)
+		if err != nil {
+			return nil, err
+		}
+		handlers = append(handlers, rdHandler)
 	default:
 		return nil, fmt.Errorf("unsupported handler type: %q", rule.HandlerType)
 	}
@@ -236,6 +243,29 @@ func buildStaticResponseHandler(handlerConfig json.RawMessage) (map[string]any, 
 	}
 
 	return sr, nil
+}
+
+func buildRedirectHandler(handlerConfig json.RawMessage) (map[string]any, error) {
+	var cfg RedirectConfig
+	if err := json.Unmarshal(handlerConfig, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing redirect config: %w", err)
+	}
+	if cfg.TargetURL == "" {
+		return nil, fmt.Errorf("target URL is required")
+	}
+
+	target := cfg.TargetURL
+	if cfg.PreservePath {
+		target = strings.TrimRight(target, "/") + "{http.request.uri}"
+	}
+
+	return map[string]any{
+		"handler":     "static_response",
+		"status_code": cfg.StatusCode,
+		"headers": map[string][]string{
+			"Location": {target},
+		},
+	}, nil
 }
 
 func buildMatchBlock(domainName string, rule RuleBuildParams) []map[string]any {
