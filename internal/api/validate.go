@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -290,12 +291,44 @@ func validateRedirectConfig(w http.ResponseWriter, raw json.RawMessage) bool {
 	return true
 }
 
+func validateFileServerConfig(w http.ResponseWriter, raw json.RawMessage) bool {
+	var fs caddy.FileServerConfig
+	if err := json.Unmarshal(raw, &fs); err != nil {
+		writeError(w, "invalid handler config", http.StatusBadRequest)
+		return false
+	}
+	if strings.TrimSpace(fs.Root) == "" {
+		writeError(w, "root directory is required", http.StatusBadRequest)
+		return false
+	}
+	info, err := os.Stat(fs.Root)
+	if err != nil {
+		writeError(w, "root directory does not exist", http.StatusBadRequest)
+		return false
+	}
+	if !info.IsDir() {
+		writeError(w, "root path is not a directory", http.StatusBadRequest)
+		return false
+	}
+	for _, name := range fs.IndexNames {
+		if strings.TrimSpace(name) == "" {
+			writeError(w, "index_names entries must not be empty", http.StatusBadRequest)
+			return false
+		}
+	}
+	for _, pattern := range fs.Hide {
+		if strings.TrimSpace(pattern) == "" {
+			writeError(w, "hide entries must not be empty", http.StatusBadRequest)
+			return false
+		}
+	}
+	return true
+}
+
 func validateHandlerType(handlerType string) string {
 	switch handlerType {
-	case "reverse_proxy", "static_response", "redirect":
+	case "reverse_proxy", "static_response", "redirect", "file_server":
 		return ""
-	case "file_server":
-		return fmt.Sprintf("handler type %q is not yet supported", handlerType)
 	default:
 		return fmt.Sprintf("unknown handler type: %s", handlerType)
 	}

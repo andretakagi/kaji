@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import { cn } from "../cn";
 import type { RequestHeaders } from "../types/api";
 import type {
+	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
 	RedirectConfig,
@@ -88,6 +89,14 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 					onChange={onChange}
 					disabled={disabled}
 					domain={domain}
+				/>
+			);
+		case "file_server":
+			return (
+				<FileServerSection
+					config={config as FileServerConfig}
+					onChange={onChange}
+					disabled={disabled}
 				/>
 			);
 		case "" as HandlerType:
@@ -495,6 +504,182 @@ function RedirectSection({
 	);
 }
 
+type FSEntry = { id: number; value: string };
+
+function FileServerSection({
+	config,
+	onChange,
+	disabled,
+}: {
+	config: FileServerConfig;
+	onChange: (config: FileServerConfig) => void;
+	disabled?: boolean;
+}) {
+	const idPrefix = useId();
+	const nextIndexId = useRef(config.index_names.length);
+	const [indexEntries, setIndexEntries] = useState<FSEntry[]>(() =>
+		config.index_names.map((v, i) => ({ id: i, value: v })),
+	);
+
+	const prevIndexNames = useRef(config.index_names);
+	if (
+		config.index_names.length !== prevIndexNames.current.length ||
+		config.index_names.some((v, i) => v !== prevIndexNames.current[i])
+	) {
+		const currentValues = indexEntries.map((e) => e.value);
+		if (
+			config.index_names.length !== currentValues.length ||
+			config.index_names.some((v, i) => v !== currentValues[i])
+		) {
+			const fresh = config.index_names.map((v, i) => ({ id: nextIndexId.current + i, value: v }));
+			nextIndexId.current += config.index_names.length;
+			setIndexEntries(fresh);
+		}
+		prevIndexNames.current = config.index_names;
+	}
+
+	const nextHideId = useRef(config.hide.length);
+	const [hideEntries, setHideEntries] = useState<FSEntry[]>(() =>
+		config.hide.map((v, i) => ({ id: i, value: v })),
+	);
+
+	const prevHide = useRef(config.hide);
+	if (
+		config.hide.length !== prevHide.current.length ||
+		config.hide.some((v, i) => v !== prevHide.current[i])
+	) {
+		const currentValues = hideEntries.map((e) => e.value);
+		if (
+			config.hide.length !== currentValues.length ||
+			config.hide.some((v, i) => v !== currentValues[i])
+		) {
+			const fresh = config.hide.map((v, i) => ({ id: nextHideId.current + i, value: v }));
+			nextHideId.current += config.hide.length;
+			setHideEntries(fresh);
+		}
+		prevHide.current = config.hide;
+	}
+
+	function update(patch: Partial<FileServerConfig>) {
+		onChange({ ...config, ...patch });
+	}
+
+	function syncIndex(next: FSEntry[]) {
+		setIndexEntries(next);
+		update({ index_names: next.map((e) => e.value) });
+	}
+
+	function syncHide(next: FSEntry[]) {
+		setHideEntries(next);
+		update({ hide: next.map((e) => e.value) });
+	}
+
+	return (
+		<div className="handler-config">
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-root`}>Root Directory</label>
+				<input
+					id={`${idPrefix}-root`}
+					type="text"
+					placeholder="/var/www/html"
+					value={config.root}
+					onChange={(e) => update({ root: e.target.value })}
+					maxLength={4096}
+					required
+					disabled={disabled}
+				/>
+			</div>
+			<ToggleItem
+				label="Directory Browsing"
+				description="Show a file listing when no index file exists"
+				checked={config.browse}
+				onChange={(v) => update({ browse: v })}
+				disabled={disabled}
+			/>
+			<div className="handler-static-headers">
+				<span className="toggle-detail-heading">Index Files</span>
+				{indexEntries.map((entry) => (
+					<div className="lb-upstream-row" key={entry.id}>
+						<input
+							type="text"
+							value={entry.value}
+							onChange={(e) =>
+								syncIndex(
+									indexEntries.map((x) =>
+										x.id === entry.id ? { ...x, value: e.target.value } : x,
+									),
+								)
+							}
+							maxLength={256}
+							disabled={disabled}
+						/>
+						<button
+							type="button"
+							className="btn btn-ghost lb-upstream-remove"
+							onClick={() => syncIndex(indexEntries.filter((x) => x.id !== entry.id))}
+							aria-label="Remove index file"
+							disabled={disabled}
+						>
+							&#x2715;
+						</button>
+					</div>
+				))}
+				<button
+					type="button"
+					className="btn btn-primary"
+					style={{ alignSelf: "flex-start" }}
+					onClick={() => {
+						nextIndexId.current += 1;
+						syncIndex([...indexEntries, { id: nextIndexId.current, value: "" }]);
+					}}
+					disabled={disabled}
+				>
+					+ Add Index File
+				</button>
+			</div>
+			<div className="handler-static-headers">
+				<span className="toggle-detail-heading">Hidden Files</span>
+				{hideEntries.map((entry) => (
+					<div className="lb-upstream-row" key={entry.id}>
+						<input
+							type="text"
+							value={entry.value}
+							onChange={(e) =>
+								syncHide(
+									hideEntries.map((x) => (x.id === entry.id ? { ...x, value: e.target.value } : x)),
+								)
+							}
+							maxLength={256}
+							disabled={disabled}
+						/>
+						<button
+							type="button"
+							className="btn btn-ghost lb-upstream-remove"
+							onClick={() => syncHide(hideEntries.filter((x) => x.id !== entry.id))}
+							aria-label="Remove hidden pattern"
+							disabled={disabled}
+						>
+							&#x2715;
+						</button>
+					</div>
+				))}
+				<button
+					type="button"
+					className="btn btn-primary"
+					style={{ alignSelf: "flex-start" }}
+					onClick={() => {
+						nextHideId.current += 1;
+						syncHide([...hideEntries, { id: nextHideId.current, value: "" }]);
+					}}
+					disabled={disabled}
+				>
+					+ Add Hidden Pattern
+				</button>
+			</div>
+		</div>
+	);
+}
+
 function RequestHeadersSection({
 	config,
 	onChange,
@@ -596,6 +781,12 @@ export function handlerSummary(type: HandlerType, config: HandlerConfigValue): s
 			const target = rd.target_url || "...";
 			const suffix = rd.preserve_path ? " (+ path)" : "";
 			return `${rd.status_code} -> ${target}${suffix}`;
+		}
+		case "file_server": {
+			const fs = config as FileServerConfig;
+			const parts: string[] = [fs.root || "..."];
+			if (fs.browse) parts.push("browse");
+			return parts.join(" / ");
 		}
 		case "" as HandlerType:
 			return "No handler";

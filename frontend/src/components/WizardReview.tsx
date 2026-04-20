@@ -1,5 +1,6 @@
 import type {
 	DomainToggles,
+	FileServerConfig,
 	RedirectConfig,
 	ReverseProxyConfig,
 	StaticResponseConfig,
@@ -123,6 +124,33 @@ function RedirectSummary({ config }: { config: RedirectConfig }) {
 	);
 }
 
+function FileServerSummary({ config }: { config: FileServerConfig }) {
+	return (
+		<div className="wizard-review-static-details">
+			<div className="wizard-review-detail-row">
+				<span className="wizard-review-detail-label">Root</span>
+				<span className="wizard-review-detail-value">{config.root}</span>
+			</div>
+			<div className="wizard-review-detail-row">
+				<span className="wizard-review-detail-label">Browse</span>
+				<span className="wizard-review-detail-value">{config.browse ? "Yes" : "No"}</span>
+			</div>
+			{config.index_names?.length > 0 && (
+				<div className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">Index files</span>
+					<span className="wizard-review-detail-value">{config.index_names.join(", ")}</span>
+				</div>
+			)}
+			{config.hide?.length > 0 && (
+				<div className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">Hidden</span>
+					<span className="wizard-review-detail-value">{config.hide.join(", ")}</span>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export default function WizardReview({ data, onEditStep }: Props) {
 	const activeTags = toggleSummary(data.toggles);
 
@@ -132,6 +160,7 @@ export default function WizardReview({ data, onEditStep }: Props) {
 	const rootIsProxy = data.rootRule.handlerType === "reverse_proxy";
 	const rootIsStatic = data.rootRule.handlerType === "static_response";
 	const rootIsRedirect = data.rootRule.handlerType === "redirect";
+	const rootIsFileServer = data.rootRule.handlerType === "file_server";
 
 	return (
 		<div className="wizard-review">
@@ -191,6 +220,9 @@ export default function WizardReview({ data, onEditStep }: Props) {
 							{rootIsRedirect && (
 								<RedirectSummary config={data.rootRule.handlerConfig as RedirectConfig} />
 							)}
+							{rootIsFileServer && (
+								<FileServerSummary config={data.rootRule.handlerConfig as FileServerConfig} />
+							)}
 						</div>
 					) : (
 						<span className="text-muted">None</span>
@@ -224,6 +256,9 @@ export default function WizardReview({ data, onEditStep }: Props) {
 									)}
 									{rule.handlerType === "redirect" && (
 										<RedirectSummary config={rule.handlerConfig as RedirectConfig} />
+									)}
+									{rule.handlerType === "file_server" && (
+										<FileServerSummary config={rule.handlerConfig as FileServerConfig} />
 									)}
 									{rule.toggleOverrides && <span className="wizard-review-tag">overrides</span>}
 								</div>

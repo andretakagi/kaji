@@ -602,6 +602,9 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 
 		case "static_response":
 			parseStaticResponseHandler(h, p)
+
+		case "file_server":
+			parseFileServerHandler(h, p)
 		}
 	}
 }
@@ -639,6 +642,31 @@ func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
 }
 
 const requestURIPlaceholder = "{http.request.uri}"
+
+func parseFileServerHandler(raw json.RawMessage, p *RouteParams) {
+	var fs struct {
+		Root       string   `json:"root"`
+		Browse     any      `json:"browse"`
+		IndexNames []string `json:"index_names"`
+		Hide       []string `json:"hide"`
+	}
+	if json.Unmarshal(raw, &fs) != nil {
+		return
+	}
+
+	cfg := FileServerConfig{
+		Root:       fs.Root,
+		Browse:     fs.Browse != nil,
+		IndexNames: fs.IndexNames,
+		Hide:       fs.Hide,
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return
+	}
+	p.HandlerType = "file_server"
+	p.HandlerConfig = data
+}
 
 func parseStaticResponseHandler(raw json.RawMessage, p *RouteParams) {
 	var sr struct {
