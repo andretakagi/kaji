@@ -1370,3 +1370,275 @@ func TestParseRouteParamsStaticResponseClose(t *testing.T) {
 		t.Error("expected Close to be true")
 	}
 }
+
+// --- Tests for new handler types: static_response, redirect, file_server ---
+
+func TestParseRouteParams_StaticResponseRoundTrip(t *testing.T) {
+	cfg, _ := json.Marshal(StaticResponseConfig{
+		StatusCode: "403",
+		Body:       "Forbidden",
+		Headers:    map[string][]string{"Content-Type": {"text/plain"}},
+	})
+	got := buildRuleAndParse(t, "example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "static_response",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "static_response" {
+		t.Fatalf("HandlerType = %q, want static_response", got.HandlerType)
+	}
+
+	var sr StaticResponseConfig
+	if err := json.Unmarshal(got.HandlerConfig, &sr); err != nil {
+		t.Fatalf("unmarshal static_response config: %v", err)
+	}
+	if sr.StatusCode != "403" {
+		t.Errorf("StatusCode = %q, want 403", sr.StatusCode)
+	}
+	if sr.Body != "Forbidden" {
+		t.Errorf("Body = %q, want Forbidden", sr.Body)
+	}
+	if _, ok := sr.Headers["Content-Type"]; !ok {
+		t.Error("missing Content-Type header")
+	}
+}
+
+func TestParseRouteParams_RedirectRoundTrip(t *testing.T) {
+	cfg, _ := json.Marshal(RedirectConfig{
+		TargetURL:    "https://example.com",
+		StatusCode:   "301",
+		PreservePath: false,
+	})
+	got := buildRuleAndParse(t, "old.example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "redirect",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "redirect" {
+		t.Fatalf("HandlerType = %q, want redirect", got.HandlerType)
+	}
+
+	var rd RedirectConfig
+	if err := json.Unmarshal(got.HandlerConfig, &rd); err != nil {
+		t.Fatalf("unmarshal redirect config: %v", err)
+	}
+	if rd.TargetURL != "https://example.com" {
+		t.Errorf("TargetURL = %q, want https://example.com", rd.TargetURL)
+	}
+	if rd.StatusCode != "301" {
+		t.Errorf("StatusCode = %q, want 301", rd.StatusCode)
+	}
+	if rd.PreservePath {
+		t.Error("PreservePath should be false")
+	}
+}
+
+func TestParseRouteParams_RedirectWithPreservePath(t *testing.T) {
+	cfg, _ := json.Marshal(RedirectConfig{
+		TargetURL:    "https://new.example.com",
+		StatusCode:   "308",
+		PreservePath: true,
+	})
+	got := buildRuleAndParse(t, "old.example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "redirect",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "redirect" {
+		t.Fatalf("HandlerType = %q, want redirect", got.HandlerType)
+	}
+
+	var rd RedirectConfig
+	if err := json.Unmarshal(got.HandlerConfig, &rd); err != nil {
+		t.Fatalf("unmarshal redirect config: %v", err)
+	}
+	if rd.TargetURL != "https://new.example.com" {
+		t.Errorf("TargetURL = %q, want https://new.example.com", rd.TargetURL)
+	}
+	if rd.StatusCode != "308" {
+		t.Errorf("StatusCode = %q, want 308", rd.StatusCode)
+	}
+	if !rd.PreservePath {
+		t.Error("PreservePath should be true")
+	}
+}
+
+func TestParseRouteParams_FileServerRoundTrip(t *testing.T) {
+	cfg, _ := json.Marshal(FileServerConfig{
+		Root:       "/var/www",
+		Browse:     false,
+		IndexNames: []string{"index.html"},
+		Hide:       []string{".git", ".env"},
+	})
+	got := buildRuleAndParse(t, "example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "file_server",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "file_server" {
+		t.Fatalf("HandlerType = %q, want file_server", got.HandlerType)
+	}
+
+	var fs FileServerConfig
+	if err := json.Unmarshal(got.HandlerConfig, &fs); err != nil {
+		t.Fatalf("unmarshal file_server config: %v", err)
+	}
+	if fs.Root != "/var/www" {
+		t.Errorf("Root = %q, want /var/www", fs.Root)
+	}
+	if fs.Browse {
+		t.Error("Browse should be false")
+	}
+	if len(fs.IndexNames) != 1 || fs.IndexNames[0] != "index.html" {
+		t.Errorf("IndexNames = %v, want [index.html]", fs.IndexNames)
+	}
+	if len(fs.Hide) != 2 || fs.Hide[0] != ".git" || fs.Hide[1] != ".env" {
+		t.Errorf("Hide = %v, want [.git .env]", fs.Hide)
+	}
+}
+
+func TestParseRouteParams_FileServerWithBrowse(t *testing.T) {
+	cfg, _ := json.Marshal(FileServerConfig{
+		Root:   "/var/www",
+		Browse: true,
+	})
+	got := buildRuleAndParse(t, "example.com", RuleBuildParams{
+		RuleID:        "rule_test",
+		HandlerType:   "file_server",
+		HandlerConfig: cfg,
+	}, DomainToggles{})
+
+	if got.HandlerType != "file_server" {
+		t.Fatalf("HandlerType = %q, want file_server", got.HandlerType)
+	}
+
+	var fs FileServerConfig
+	if err := json.Unmarshal(got.HandlerConfig, &fs); err != nil {
+		t.Fatalf("unmarshal file_server config: %v", err)
+	}
+	if !fs.Browse {
+		t.Error("Browse should be true")
+	}
+}
+
+func TestParseRouteParams_IPFilteringBlacklistDetected(t *testing.T) {
+	route := json.RawMessage(`{
+		"@id": "kaji_example_com",
+		"match": [{"host": ["example.com"]}],
+		"handle": [{
+			"handler": "subroute",
+			"routes": [{
+				"match": [{"remote_ip": {"ranges": ["192.168.1.0/24", "10.0.0.1"]}}],
+				"handle": [{
+					"handler": "static_response",
+					"status_code": "403",
+					"body": "Forbidden"
+				}]
+			}]
+		}, {
+			"handler": "reverse_proxy",
+			"upstreams": [{"dial": "localhost:8080"}]
+		}],
+		"terminal": true
+	}`)
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	if !got.Toggles.IPFiltering.Enabled {
+		t.Error("IPFiltering.Enabled should be true")
+	}
+	if got.Toggles.IPFiltering.Type != "blacklist" {
+		t.Errorf("IPFiltering.Type = %q, want blacklist", got.Toggles.IPFiltering.Type)
+	}
+}
+
+func TestParseRouteParams_IPFilteringWhitelistDetected(t *testing.T) {
+	route := json.RawMessage(`{
+		"@id": "kaji_example_com",
+		"match": [{"host": ["example.com"]}],
+		"handle": [{
+			"handler": "subroute",
+			"routes": [{
+				"match": [{"not": [{"remote_ip": {"ranges": ["192.168.0.0/16"]}}]}],
+				"handle": [{
+					"handler": "static_response",
+					"status_code": "403",
+					"body": "Forbidden"
+				}]
+			}]
+		}, {
+			"handler": "reverse_proxy",
+			"upstreams": [{"dial": "localhost:8080"}]
+		}],
+		"terminal": true
+	}`)
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	if !got.Toggles.IPFiltering.Enabled {
+		t.Error("IPFiltering.Enabled should be true")
+	}
+	if got.Toggles.IPFiltering.Type != "whitelist" {
+		t.Errorf("IPFiltering.Type = %q, want whitelist", got.Toggles.IPFiltering.Type)
+	}
+}
+
+func TestParseRouteParams_UnknownHandlerSilentlySkipped(t *testing.T) {
+	route := json.RawMessage(`{
+		"@id": "kaji_example_com",
+		"match": [{"host": ["example.com"]}],
+		"handle": [{
+			"handler": "unknown_handler_type",
+			"some_field": "some_value"
+		}, {
+			"handler": "reverse_proxy",
+			"upstreams": [{"dial": "localhost:8080"}]
+		}],
+		"terminal": true
+	}`)
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	if got.Upstream != "localhost:8080" {
+		t.Errorf("Upstream = %q, want localhost:8080", got.Upstream)
+	}
+	if got.HandlerType != "reverse_proxy" {
+		t.Errorf("HandlerType = %q, want reverse_proxy", got.HandlerType)
+	}
+}
+
+func TestParseRouteParams_MalformedHandlerDoesntCrash(t *testing.T) {
+	route := json.RawMessage(`{
+		"@id": "kaji_example_com",
+		"match": [{"host": ["example.com"]}],
+		"handle": [{
+			"handler": "static_response"
+		}, {
+			"handler": "reverse_proxy",
+			"upstreams": [{"dial": "localhost:8080"}]
+		}],
+		"terminal": true
+	}`)
+
+	got, err := ParseRouteParams(route)
+	if err != nil {
+		t.Fatalf("ParseRouteParams failed: %v", err)
+	}
+
+	if got.Upstream != "localhost:8080" {
+		t.Errorf("Upstream = %q, want localhost:8080", got.Upstream)
+	}
+}
