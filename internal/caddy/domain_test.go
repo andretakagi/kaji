@@ -132,3 +132,131 @@ func TestParseReverseProxyConfig(t *testing.T) {
 		t.Fatalf("Upstreams length = %d, want 2", len(parsed.LoadBalancing.Upstreams))
 	}
 }
+
+func TestParseStaticResponseConfig(t *testing.T) {
+	original := StaticResponseConfig{
+		StatusCode: "200",
+		Body:       "Hello, World!",
+		Headers: map[string][]string{
+			"Content-Type": {"text/plain"},
+			"X-Custom":     {"value1", "value2"},
+		},
+		Close: true,
+	}
+
+	data, err := MarshalStaticResponseConfig(original)
+	if err != nil {
+		t.Fatalf("MarshalStaticResponseConfig: %v", err)
+	}
+
+	parsed, err := ParseStaticResponseConfig(json.RawMessage(data))
+	if err != nil {
+		t.Fatalf("ParseStaticResponseConfig: %v", err)
+	}
+
+	if parsed.StatusCode != original.StatusCode {
+		t.Errorf("StatusCode = %q, want %q", parsed.StatusCode, original.StatusCode)
+	}
+	if parsed.Body != original.Body {
+		t.Errorf("Body = %q, want %q", parsed.Body, original.Body)
+	}
+	if !parsed.Close {
+		t.Error("expected Close = true")
+	}
+	if len(parsed.Headers) != 2 {
+		t.Fatalf("Headers length = %d, want 2", len(parsed.Headers))
+	}
+	if val, ok := parsed.Headers["Content-Type"]; !ok || len(val) != 1 || val[0] != "text/plain" {
+		t.Errorf("Content-Type header mismatch")
+	}
+	if val, ok := parsed.Headers["X-Custom"]; !ok || len(val) != 2 {
+		t.Errorf("X-Custom header mismatch")
+	}
+}
+
+func TestParseStaticResponseConfigInvalid(t *testing.T) {
+	_, err := ParseStaticResponseConfig(json.RawMessage(`{invalid`))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestParseRedirectConfig(t *testing.T) {
+	original := RedirectConfig{
+		TargetURL:    "https://example.com/new",
+		StatusCode:   "301",
+		PreservePath: true,
+	}
+
+	data, err := MarshalRedirectConfig(original)
+	if err != nil {
+		t.Fatalf("MarshalRedirectConfig: %v", err)
+	}
+
+	parsed, err := ParseRedirectConfig(json.RawMessage(data))
+	if err != nil {
+		t.Fatalf("ParseRedirectConfig: %v", err)
+	}
+
+	if parsed.TargetURL != original.TargetURL {
+		t.Errorf("TargetURL = %q, want %q", parsed.TargetURL, original.TargetURL)
+	}
+	if parsed.StatusCode != original.StatusCode {
+		t.Errorf("StatusCode = %q, want %q", parsed.StatusCode, original.StatusCode)
+	}
+	if !parsed.PreservePath {
+		t.Error("expected PreservePath = true")
+	}
+}
+
+func TestParseRedirectConfigInvalid(t *testing.T) {
+	_, err := ParseRedirectConfig(json.RawMessage(`{bad json`))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestParseFileServerConfig(t *testing.T) {
+	original := FileServerConfig{
+		Root:       "/var/www",
+		Browse:     true,
+		IndexNames: []string{"index.html", "index.htm"},
+		Hide:       []string{".git", ".env"},
+	}
+
+	data, err := MarshalFileServerConfig(original)
+	if err != nil {
+		t.Fatalf("MarshalFileServerConfig: %v", err)
+	}
+
+	parsed, err := ParseFileServerConfig(json.RawMessage(data))
+	if err != nil {
+		t.Fatalf("ParseFileServerConfig: %v", err)
+	}
+
+	if parsed.Root != original.Root {
+		t.Errorf("Root = %q, want %q", parsed.Root, original.Root)
+	}
+	if !parsed.Browse {
+		t.Error("expected Browse = true")
+	}
+	if len(parsed.IndexNames) != 2 {
+		t.Fatalf("IndexNames length = %d, want 2", len(parsed.IndexNames))
+	}
+	if parsed.IndexNames[0] != "index.html" || parsed.IndexNames[1] != "index.htm" {
+		t.Errorf("IndexNames = %v, want [index.html index.htm]", parsed.IndexNames)
+	}
+	if len(parsed.Hide) != 2 {
+		t.Fatalf("Hide length = %d, want 2", len(parsed.Hide))
+	}
+	if parsed.Hide[0] != ".git" || parsed.Hide[1] != ".env" {
+		t.Errorf("Hide = %v, want [.git .env]", parsed.Hide)
+	}
+}
+
+func TestParseFileServerConfigInvalid(t *testing.T) {
+	_, err := ParseFileServerConfig(json.RawMessage(`{malformed`))
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
