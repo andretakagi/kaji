@@ -43,10 +43,18 @@ export interface RedirectConfig {
 	preserve_path: boolean;
 }
 
+export interface FileServerConfig {
+	root: string;
+	browse: boolean;
+	index_names: string[];
+	hide: string[];
+}
+
 export type HandlerConfigValue =
 	| ReverseProxyConfig
 	| StaticResponseConfig
 	| RedirectConfig
+	| FileServerConfig
 	| Record<string, unknown>;
 
 export interface Rule {
@@ -156,4 +164,11 @@ export const defaultRedirectConfig: RedirectConfig = {
 	target_url: "",
 	status_code: "301",
 	preserve_path: false,
+};
+
+export const defaultFileServerConfig: FileServerConfig = {
+	root: "",
+	browse: false,
+	index_names: ["index.html"],
+	hide: [".*"],
 };
