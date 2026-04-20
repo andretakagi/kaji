@@ -31,6 +31,9 @@ config.json
 # Docs (internal reference only)
 docs/
 
+# Worktrees
+.worktrees/
+
 # Claude Code
 .claude/
 CLAUDE.md
