@@ -137,6 +137,12 @@ func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggl
 			return nil, err
 		}
 		handlers = append(handlers, rdHandler)
+	case "file_server":
+		fsHandler, err := buildFileServerHandler(rule.HandlerConfig)
+		if err != nil {
+			return nil, err
+		}
+		handlers = append(handlers, fsHandler)
 	default:
 		return nil, fmt.Errorf("unsupported handler type: %q", rule.HandlerType)
 	}
@@ -266,6 +272,33 @@ func buildRedirectHandler(handlerConfig json.RawMessage) (map[string]any, error)
 			"Location": {target},
 		},
 	}, nil
+}
+
+func buildFileServerHandler(handlerConfig json.RawMessage) (map[string]any, error) {
+	var cfg FileServerConfig
+	if err := json.Unmarshal(handlerConfig, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing file server config: %w", err)
+	}
+	if cfg.Root == "" {
+		return nil, fmt.Errorf("root directory is required")
+	}
+
+	fs := map[string]any{
+		"handler": "file_server",
+		"root":    cfg.Root,
+	}
+
+	if cfg.Browse {
+		fs["browse"] = map[string]any{}
+	}
+	if len(cfg.IndexNames) > 0 {
+		fs["index_names"] = cfg.IndexNames
+	}
+	if len(cfg.Hide) > 0 {
+		fs["hide"] = cfg.Hide
+	}
+
+	return fs, nil
 }
 
 func buildMatchBlock(domainName string, rule RuleBuildParams) []map[string]any {
