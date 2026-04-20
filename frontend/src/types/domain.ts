@@ -43,6 +43,12 @@ export interface RedirectConfig {
 	preserve_path: boolean;
 }
 
+export type HandlerConfigValue =
+	| ReverseProxyConfig
+	| StaticResponseConfig
+	| RedirectConfig
+	| Record<string, unknown>;
+
 export interface Rule {
 	id: string;
 	label: string;
@@ -51,11 +57,7 @@ export interface Rule {
 	path_match: "" | "exact" | "prefix" | "regex";
 	match_value: string;
 	handler_type: "reverse_proxy" | "redirect" | "file_server" | "static_response";
-	handler_config:
-		| ReverseProxyConfig
-		| StaticResponseConfig
-		| RedirectConfig
-		| Record<string, unknown>;
+	handler_config: HandlerConfigValue;
 	toggle_overrides: DomainToggles | null;
 	advanced_headers: boolean;
 }
@@ -78,11 +80,7 @@ export interface CreateDomainFullRule {
 	path_match?: PathMatch;
 	match_value?: string;
 	handler_type: HandlerType;
-	handler_config:
-		| ReverseProxyConfig
-		| StaticResponseConfig
-		| RedirectConfig
-		| Record<string, unknown>;
+	handler_config: HandlerConfigValue;
 	toggle_overrides?: DomainToggles | null;
 	advanced_headers?: boolean;
 }
@@ -104,11 +102,7 @@ export interface CreateRuleRequest {
 	path_match?: PathMatch;
 	match_value?: string;
 	handler_type: HandlerType;
-	handler_config:
-		| ReverseProxyConfig
-		| StaticResponseConfig
-		| RedirectConfig
-		| Record<string, unknown>;
+	handler_config: HandlerConfigValue;
 	toggle_overrides?: DomainToggles | null;
 	advanced_headers?: boolean;
 }

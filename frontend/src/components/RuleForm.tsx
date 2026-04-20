@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import type {
 	CreateRuleRequest,
 	DomainToggles,
+	HandlerConfigValue,
 	HandlerType,
 	MatchType,
 	PathMatch,
@@ -78,9 +79,9 @@ export default function RuleForm({
 	const [handlerType, setHandlerType] = useState<HandlerType>(
 		initial?.handler_type ?? "reverse_proxy",
 	);
-	const [handlerConfig, setHandlerConfig] = useState<
-		ReverseProxyConfig | StaticResponseConfig | RedirectConfig | Record<string, unknown>
-	>(initial?.handler_config ?? { ...defaultReverseProxyConfig });
+	const [handlerConfig, setHandlerConfig] = useState<HandlerConfigValue>(
+		initial?.handler_config ?? { ...defaultReverseProxyConfig },
+	);
 	const [overridesOpen, setOverridesOpen] = useState(initial?.toggle_overrides != null);
 	const [toggleOverrides, setToggleOverrides] = useState<DomainToggles>(
 		initial?.toggle_overrides ?? domainToggles ?? { ...defaultDomainToggles },

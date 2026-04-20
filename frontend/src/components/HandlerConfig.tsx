@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import { cn } from "../cn";
 import type { RequestHeaders } from "../types/api";
 import type {
+	HandlerConfigValue,
 	HandlerType,
 	RedirectConfig,
 	ReverseProxyConfig,
@@ -11,10 +12,8 @@ import { ToggleItem } from "./ToggleGrid";
 
 interface Props {
 	type: HandlerType;
-	config: ReverseProxyConfig | StaticResponseConfig | RedirectConfig | Record<string, unknown>;
-	onChange: (
-		config: ReverseProxyConfig | StaticResponseConfig | RedirectConfig | Record<string, unknown>,
-	) => void;
+	config: HandlerConfigValue;
+	onChange: (config: HandlerConfigValue) => void;
 	disabled?: boolean;
 }
 
@@ -563,10 +562,7 @@ function RequestHeadersSection({
 	);
 }
 
-export function handlerSummary(
-	type: HandlerType,
-	config: ReverseProxyConfig | StaticResponseConfig | RedirectConfig | Record<string, unknown>,
-): string {
+export function handlerSummary(type: HandlerType, config: HandlerConfigValue): string {
 	switch (type) {
 		case "reverse_proxy": {
 			const rp = config as ReverseProxyConfig;

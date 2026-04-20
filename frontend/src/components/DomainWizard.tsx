@@ -2,14 +2,17 @@ import { useCallback, useRef, useState } from "react";
 import type {
 	CreateDomainFullRequest,
 	DomainToggles,
+	HandlerConfigValue,
 	HandlerType,
 	MatchType,
 	PathMatch,
+	RedirectConfig,
 	ReverseProxyConfig,
 	StaticResponseConfig,
 } from "../types/domain";
 import {
 	defaultDomainToggles,
+	defaultRedirectConfig,
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
 } from "../types/domain";
@@ -28,7 +31,7 @@ export interface WizardRule {
 	pathMatch: PathMatch;
 	matchValue: string;
 	handlerType: HandlerType;
-	handlerConfig: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
+	handlerConfig: HandlerConfigValue;
 	toggleOverrides: DomainToggles | null;
 }
 
@@ -37,7 +40,7 @@ export interface WizardData {
 	toggles: DomainToggles;
 	rootRule: {
 		handlerType: HandlerSelection;
-		handlerConfig: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
+		handlerConfig: HandlerConfigValue;
 	};
 	rules: WizardRule[];
 }
@@ -96,9 +99,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	const [rulePathMatch, setRulePathMatch] = useState<PathMatch>("prefix");
 	const [ruleMatchValue, setRuleMatchValue] = useState("");
 	const [ruleHandlerType, setRuleHandlerType] = useState<HandlerType>("reverse_proxy");
-	const [ruleHandlerConfig, setRuleHandlerConfig] = useState<
-		ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>
-	>({ ...defaultReverseProxyConfig });
+	const [ruleHandlerConfig, setRuleHandlerConfig] = useState<HandlerConfigValue>({
+		...defaultReverseProxyConfig,
+	});
 	const [ruleOverridesOpen, setRuleOverridesOpen] = useState(false);
 	const [ruleToggleOverrides, setRuleToggleOverrides] = useState<DomainToggles>({
 		...defaultDomainToggles,
@@ -158,7 +161,12 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		}
 		if (step === 2) {
 			const ht = data.rootRule.handlerType;
-			if (ht !== "none" && ht !== "reverse_proxy" && ht !== "static_response") {
+			if (
+				ht !== "none" &&
+				ht !== "reverse_proxy" &&
+				ht !== "static_response" &&
+				ht !== "redirect"
+			) {
 				setError("This handler type is not yet supported");
 				return false;
 			}
@@ -173,6 +181,20 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 				const sr = data.rootRule.handlerConfig as StaticResponseConfig;
 				if (!sr.close && sr.status_code) {
 					const code = Number.parseInt(sr.status_code, 10);
+					if (Number.isNaN(code) || code < 100 || code > 599) {
+						setError("Status code must be between 100 and 599");
+						return false;
+					}
+				}
+			}
+			if (ht === "redirect") {
+				const rd = data.rootRule.handlerConfig as RedirectConfig;
+				if (!rd.target_url.trim()) {
+					setError("Target URL is required");
+					return false;
+				}
+				if (rd.status_code) {
+					const code = Number.parseInt(rd.status_code, 10);
 					if (Number.isNaN(code) || code < 100 || code > 599) {
 						setError("Status code must be between 100 and 599");
 						return false;
@@ -215,7 +237,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			setError("Path value is required");
 			return;
 		}
-		if (ruleHandlerType !== "reverse_proxy" && ruleHandlerType !== "static_response") {
+		if (
+			ruleHandlerType !== "reverse_proxy" &&
+			ruleHandlerType !== "static_response" &&
+			ruleHandlerType !== "redirect"
+		) {
 			setError("This handler type is not yet supported");
 			return;
 		}
@@ -231,6 +257,20 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			const sr = ruleHandlerConfig as StaticResponseConfig;
 			if (!sr.close && sr.status_code) {
 				const code = Number.parseInt(sr.status_code, 10);
+				if (Number.isNaN(code) || code < 100 || code > 599) {
+					setError("Status code must be between 100 and 599");
+					return;
+				}
+			}
+		}
+		if (ruleHandlerType === "redirect") {
+			const rd = ruleHandlerConfig as RedirectConfig;
+			if (!rd.target_url.trim()) {
+				setError("Target URL is required");
+				return;
+			}
+			if (rd.status_code) {
+				const code = Number.parseInt(rd.status_code, 10);
 				if (Number.isNaN(code) || code < 100 || code > 599) {
 					setError("Status code must be between 100 and 599");
 					return;
@@ -384,7 +424,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 														? { ...defaultReverseProxyConfig }
 														: next === "static_response"
 															? { ...defaultStaticResponseConfig }
-															: {},
+															: next === "redirect"
+																? { ...defaultRedirectConfig }
+																: {},
 											},
 										}));
 									}}
@@ -394,10 +436,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 
 						{data.rootRule.handlerType !== "none" &&
 							data.rootRule.handlerType !== "reverse_proxy" &&
-							data.rootRule.handlerType !== "static_response" && (
+							data.rootRule.handlerType !== "static_response" &&
+							data.rootRule.handlerType !== "redirect" && (
 								<div className="alert-warning" role="status">
-									This handler type is not yet supported. Only reverse proxy and static response are
-									available for now.
+									This handler type is not yet supported.
 								</div>
 							)}
 
@@ -524,6 +566,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													setRuleHandlerConfig({ ...defaultReverseProxyConfig });
 												} else if (next === "static_response") {
 													setRuleHandlerConfig({ ...defaultStaticResponseConfig });
+												} else if (next === "redirect") {
+													setRuleHandlerConfig({ ...defaultRedirectConfig });
 												} else {
 													setRuleHandlerConfig({});
 												}
@@ -532,11 +576,13 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 									</div>
 								</div>
 
-								{ruleHandlerType !== "reverse_proxy" && ruleHandlerType !== "static_response" && (
-									<div className="alert-warning" role="status">
-										This handler type is not yet supported.
-									</div>
-								)}
+								{ruleHandlerType !== "reverse_proxy" &&
+									ruleHandlerType !== "static_response" &&
+									ruleHandlerType !== "redirect" && (
+										<div className="alert-warning" role="status">
+											This handler type is not yet supported.
+										</div>
+									)}
 
 								{(ruleHandlerType === "reverse_proxy" || ruleHandlerType === "static_response") && (
 									<HandlerConfig
