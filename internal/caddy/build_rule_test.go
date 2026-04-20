@@ -2,6 +2,7 @@ package caddy
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -275,5 +276,169 @@ func TestBuildRuleRoute_ReverseProxyConfig(t *testing.T) {
 	sp := lb["selection_policy"].(map[string]any)
 	if sp["policy"] != "least_conn" {
 		t.Errorf("load balancing policy = %v, want least_conn", sp["policy"])
+	}
+}
+
+// Error case tests
+
+func TestBuildRuleRoute_EmptyDomainName(t *testing.T) {
+	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:3000"})
+	rule := RuleBuildParams{
+		RuleID:        "rule_nodomain",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
+	}
+
+	_, err := BuildRuleRoute("", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for empty domain name")
+	}
+
+	want := "domain name is required"
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestBuildRuleRoute_UnsupportedHandlerType(t *testing.T) {
+	rule := RuleBuildParams{
+		RuleID:        "rule_badhandler",
+		HandlerType:   "unknown_handler",
+		HandlerConfig: json.RawMessage(`{}`),
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for unsupported handler type")
+	}
+
+	want := `unsupported handler type: "unknown_handler"`
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestBuildRuleRoute_MalformedReverseProxyConfig(t *testing.T) {
+	rule := RuleBuildParams{
+		RuleID:        "rule_badconfig",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: json.RawMessage(`{invalid json}`),
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for malformed config")
+	}
+
+	if !strings.Contains(err.Error(), "parsing reverse proxy config") {
+		t.Errorf("error = %q, want to contain 'parsing reverse proxy config'", err.Error())
+	}
+}
+
+func TestBuildRuleRoute_EmptyReverseProxyUpstream(t *testing.T) {
+	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: ""})
+	rule := RuleBuildParams{
+		RuleID:        "rule_noupstream",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for empty upstream")
+	}
+
+	want := "upstream is required"
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestBuildRuleRoute_MalformedRedirectConfig(t *testing.T) {
+	rule := RuleBuildParams{
+		RuleID:        "rule_badredirect",
+		HandlerType:   "redirect",
+		HandlerConfig: json.RawMessage(`{bad`),
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for malformed redirect config")
+	}
+
+	if !strings.Contains(err.Error(), "parsing redirect config") {
+		t.Errorf("error = %q, want to contain 'parsing redirect config'", err.Error())
+	}
+}
+
+func TestBuildRuleRoute_EmptyRedirectTargetURL(t *testing.T) {
+	rdCfg := mustMarshal(t, RedirectConfig{TargetURL: ""})
+	rule := RuleBuildParams{
+		RuleID:        "rule_notarget",
+		HandlerType:   "redirect",
+		HandlerConfig: rdCfg,
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for empty target URL")
+	}
+
+	want := "target URL is required"
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestBuildRuleRoute_MalformedFileServerConfig(t *testing.T) {
+	rule := RuleBuildParams{
+		RuleID:        "rule_badfs",
+		HandlerType:   "file_server",
+		HandlerConfig: json.RawMessage(`{broken`),
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for malformed file server config")
+	}
+
+	if !strings.Contains(err.Error(), "parsing file server config") {
+		t.Errorf("error = %q, want to contain 'parsing file server config'", err.Error())
+	}
+}
+
+func TestBuildRuleRoute_EmptyFileServerRoot(t *testing.T) {
+	fsCfg := mustMarshal(t, FileServerConfig{Root: ""})
+	rule := RuleBuildParams{
+		RuleID:        "rule_noroot",
+		HandlerType:   "file_server",
+		HandlerConfig: fsCfg,
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for empty root directory")
+	}
+
+	want := "root directory is required"
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestBuildRuleRoute_MalformedStaticResponseConfig(t *testing.T) {
+	rule := RuleBuildParams{
+		RuleID:        "rule_badsr",
+		HandlerType:   "static_response",
+		HandlerConfig: json.RawMessage(`{malformed`),
+	}
+
+	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "")
+	if err == nil {
+		t.Fatal("expected error for malformed static response config")
+	}
+
+	if !strings.Contains(err.Error(), "parsing static response config") {
+		t.Errorf("error = %q, want to contain 'parsing static response config'", err.Error())
 	}
 }
