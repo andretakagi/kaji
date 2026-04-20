@@ -585,7 +585,7 @@ export function updateDomain(id: string, req: UpdateDomainRequest): Promise<Doma
 	return request(
 		`/api/domains/${encodeURIComponent(id)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -598,18 +598,14 @@ export function deleteDomain(id: string): Promise<{ status: string }> {
 }
 
 export function enableDomain(id: string): Promise<Domain> {
-	return request(
-		`/api/domains/${encodeURIComponent(id)}/enable`,
-		{ method: "POST" },
-		(d) => d as Domain,
+	return request(`/api/domains/${encodeURIComponent(id)}/enable`, { method: "POST" }, (d) =>
+		normalizeDomain(d as Domain),
 	);
 }
 
 export function disableDomain(id: string): Promise<Domain> {
-	return request(
-		`/api/domains/${encodeURIComponent(id)}/disable`,
-		{ method: "POST" },
-		(d) => d as Domain,
+	return request(`/api/domains/${encodeURIComponent(id)}/disable`, { method: "POST" }, (d) =>
+		normalizeDomain(d as Domain),
 	);
 }
 
@@ -617,7 +613,7 @@ export function createRule(domainId: string, req: CreateRuleRequest): Promise<Do
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules`,
 		{ method: "POST", ...jsonBody(req) },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -629,7 +625,7 @@ export function updateRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -637,7 +633,7 @@ export function deleteRule(domainId: string, ruleId: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
 		{ method: "DELETE" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -645,7 +641,7 @@ export function enableRule(domainId: string, ruleId: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/enable`,
 		{ method: "POST" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -653,7 +649,7 @@ export function disableRule(domainId: string, ruleId: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/disable`,
 		{ method: "POST" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -661,7 +657,7 @@ export function createSubdomain(domainId: string, req: CreateSubdomainRequest): 
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains`,
 		{ method: "POST", ...jsonBody(req) },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -673,7 +669,7 @@ export function updateSubdomain(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -681,7 +677,7 @@ export function deleteSubdomain(domainId: string, subId: string): Promise<Domain
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}`,
 		{ method: "DELETE" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -689,7 +685,7 @@ export function enableSubdomain(domainId: string, subId: string): Promise<Domain
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/enable`,
 		{ method: "POST" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -697,7 +693,7 @@ export function disableSubdomain(domainId: string, subId: string): Promise<Domai
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/disable`,
 		{ method: "POST" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -709,7 +705,7 @@ export function createSubdomainRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules`,
 		{ method: "POST", ...jsonBody(req) },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -722,7 +718,7 @@ export function updateSubdomainRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -734,7 +730,7 @@ export function deleteSubdomainRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}`,
 		{ method: "DELETE" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -746,7 +742,7 @@ export function enableSubdomainRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}/enable`,
 		{ method: "POST" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }
 
@@ -758,6 +754,6 @@ export function disableSubdomainRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}/disable`,
 		{ method: "POST" },
-		(d) => d as Domain,
+		(d) => normalizeDomain(d as Domain),
 	);
 }

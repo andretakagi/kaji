@@ -116,6 +116,7 @@ func ParseZIP(r io.Reader, size int64, runningVersion string) (*Backup, error) {
 	if err := json.Unmarshal(migratedData, &backup.AppConfig); err != nil {
 		return nil, fmt.Errorf("parsing migrated config: %w", err)
 	}
+	backup.AppConfig.NormalizeSlices()
 
 	backup.MigrationLog = migrationLog
 

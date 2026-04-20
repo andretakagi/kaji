@@ -189,7 +189,24 @@ func LoadFrom(path string) (*AppConfig, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("config validation: %w", err)
 	}
+	cfg.NormalizeSlices()
 	return cfg, nil
+}
+
+func (c *AppConfig) NormalizeSlices() {
+	for i := range c.Domains {
+		if c.Domains[i].Rules == nil {
+			c.Domains[i].Rules = []Rule{}
+		}
+		if c.Domains[i].Subdomains == nil {
+			c.Domains[i].Subdomains = []Subdomain{}
+		}
+		for j := range c.Domains[i].Subdomains {
+			if c.Domains[i].Subdomains[j].Rules == nil {
+				c.Domains[i].Subdomains[j].Rules = []Rule{}
+			}
+		}
+	}
 }
 
 func (c *AppConfig) validate() error {
@@ -275,6 +292,7 @@ func (s *ConfigStore) Update(fn func(current AppConfig) (*AppConfig, error)) err
 	if err := next.validate(); err != nil {
 		return fmt.Errorf("config validation: %w", err)
 	}
+	next.NormalizeSlices()
 	if s.path != "" {
 		if err := SaveTo(next, s.path); err != nil {
 			return fmt.Errorf("saving updated config: %w", err)
