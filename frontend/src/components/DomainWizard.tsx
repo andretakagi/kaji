@@ -346,7 +346,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	const rootRuleSupported =
 		data.rootRule.handlerType === "none" ||
 		data.rootRule.handlerType === "reverse_proxy" ||
-		data.rootRule.handlerType === "static_response";
+		data.rootRule.handlerType === "static_response" ||
+		data.rootRule.handlerType === "redirect";
 
 	return (
 		<div className="domain-wizard">
@@ -444,7 +445,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 							)}
 
 						{(data.rootRule.handlerType === "reverse_proxy" ||
-							data.rootRule.handlerType === "static_response") && (
+							data.rootRule.handlerType === "static_response" ||
+							data.rootRule.handlerType === "redirect") && (
 							<HandlerConfig
 								type={data.rootRule.handlerType}
 								config={data.rootRule.handlerConfig}
@@ -584,7 +586,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 										</div>
 									)}
 
-								{(ruleHandlerType === "reverse_proxy" || ruleHandlerType === "static_response") && (
+								{(ruleHandlerType === "reverse_proxy" ||
+									ruleHandlerType === "static_response" ||
+									ruleHandlerType === "redirect") && (
 									<HandlerConfig
 										type={ruleHandlerType}
 										config={ruleHandlerConfig}
@@ -632,7 +636,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 										className="btn btn-primary"
 										onClick={addRule}
 										disabled={
-											ruleHandlerType !== "reverse_proxy" && ruleHandlerType !== "static_response"
+											ruleHandlerType !== "reverse_proxy" &&
+											ruleHandlerType !== "static_response" &&
+											ruleHandlerType !== "redirect"
 										}
 									>
 										Add Rule
