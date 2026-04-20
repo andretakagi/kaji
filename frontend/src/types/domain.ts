@@ -170,5 +170,5 @@ export const defaultFileServerConfig: FileServerConfig = {
 	root: "",
 	browse: false,
 	index_names: ["index.html"],
-	hide: [".*"],
+	hide: [],
 };

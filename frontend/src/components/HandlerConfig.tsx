@@ -516,9 +516,6 @@ function FileServerSection({
 	disabled?: boolean;
 }) {
 	const idPrefix = useId();
-	const [newIndex, setNewIndex] = useState("");
-	const [newHide, setNewHide] = useState("");
-
 	const nextIndexId = useRef(config.index_names.length);
 	const [indexEntries, setIndexEntries] = useState<FSEntry[]>(() =>
 		config.index_names.map((v, i) => ({ id: i, value: v })),
@@ -627,30 +624,18 @@ function FileServerSection({
 						</button>
 					</div>
 				))}
-				<div className="lb-upstream-row">
-					<input
-						type="text"
-						placeholder="index.html"
-						value={newIndex}
-						onChange={(e) => setNewIndex(e.target.value)}
-						maxLength={256}
-						disabled={disabled}
-					/>
-					<button
-						type="button"
-						className="btn btn-primary"
-						onClick={() => {
-							if (newIndex.trim()) {
-								nextIndexId.current += 1;
-								syncIndex([...indexEntries, { id: nextIndexId.current, value: newIndex.trim() }]);
-								setNewIndex("");
-							}
-						}}
-						disabled={disabled || !newIndex.trim()}
-					>
-						Add
-					</button>
-				</div>
+				<button
+					type="button"
+					className="btn btn-primary"
+					style={{ alignSelf: "flex-start" }}
+					onClick={() => {
+						nextIndexId.current += 1;
+						syncIndex([...indexEntries, { id: nextIndexId.current, value: "" }]);
+					}}
+					disabled={disabled}
+				>
+					+ Add Index File
+				</button>
 			</div>
 			<div className="handler-static-headers">
 				<span className="toggle-detail-heading">Hidden Files</span>
@@ -678,30 +663,18 @@ function FileServerSection({
 						</button>
 					</div>
 				))}
-				<div className="lb-upstream-row">
-					<input
-						type="text"
-						placeholder=".*"
-						value={newHide}
-						onChange={(e) => setNewHide(e.target.value)}
-						maxLength={256}
-						disabled={disabled}
-					/>
-					<button
-						type="button"
-						className="btn btn-primary"
-						onClick={() => {
-							if (newHide.trim()) {
-								nextHideId.current += 1;
-								syncHide([...hideEntries, { id: nextHideId.current, value: newHide.trim() }]);
-								setNewHide("");
-							}
-						}}
-						disabled={disabled || !newHide.trim()}
-					>
-						Add
-					</button>
-				</div>
+				<button
+					type="button"
+					className="btn btn-primary"
+					style={{ alignSelf: "flex-start" }}
+					onClick={() => {
+						nextHideId.current += 1;
+						syncHide([...hideEntries, { id: nextHideId.current, value: "" }]);
+					}}
+					disabled={disabled}
+				>
+					+ Add Hidden Pattern
+				</button>
 			</div>
 		</div>
 	);

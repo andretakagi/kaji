@@ -1021,7 +1021,6 @@ input:disabled + .toggle-slider {
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 0.5rem;
-	margin-bottom: 0.75rem;
 }
 
 .setup-toggle-row span {
