@@ -24,9 +24,6 @@ function toggleSummary(toggles: DomainToggles): string[] {
 }
 
 function ruleMatchLabel(rule: WizardRule, domainName: string): string {
-	if (rule.matchType === "subdomain") {
-		return `${rule.matchValue}.${domainName}`;
-	}
 	return `${domainName}${rule.matchValue}`;
 }
 

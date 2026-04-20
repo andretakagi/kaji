@@ -57,11 +57,14 @@ export type HandlerConfigValue =
 	| FileServerConfig
 	| Record<string, unknown>;
 
+export type HandlerType = "reverse_proxy" | "redirect" | "file_server" | "static_response";
+export type SubdomainHandlerType = "none" | HandlerType;
+
 export interface Rule {
 	id: string;
 	label: string;
 	enabled: boolean;
-	match_type: "" | "subdomain" | "path";
+	match_type: "" | "path";
 	path_match: "" | "exact" | "prefix" | "regex";
 	match_value: string;
 	handler_type: "reverse_proxy" | "redirect" | "file_server" | "static_response";
@@ -70,16 +73,27 @@ export interface Rule {
 	advanced_headers: boolean;
 }
 
+export interface Subdomain {
+	id: string;
+	name: string;
+	enabled: boolean;
+	handler_type: SubdomainHandlerType;
+	handler_config: HandlerConfigValue;
+	toggles: DomainToggles;
+	advanced_headers: boolean;
+	rules: Rule[];
+}
+
 export interface Domain {
 	id: string;
 	name: string;
 	enabled: boolean;
 	toggles: DomainToggles;
 	rules: Rule[];
+	subdomains: Subdomain[];
 }
 
-export type HandlerType = "reverse_proxy" | "redirect" | "file_server" | "static_response";
-export type MatchType = "" | "subdomain" | "path";
+export type MatchType = "" | "path";
 export type PathMatch = "exact" | "prefix" | "regex";
 
 export interface CreateDomainFullRule {
@@ -116,6 +130,22 @@ export interface CreateRuleRequest {
 }
 
 export interface UpdateRuleRequest extends CreateRuleRequest {}
+
+export interface CreateSubdomainRequest {
+	name: string;
+	handler_type: SubdomainHandlerType;
+	handler_config: HandlerConfigValue | null;
+	toggles?: DomainToggles;
+	advanced_headers?: boolean;
+}
+
+export interface UpdateSubdomainRequest {
+	name: string;
+	handler_type: SubdomainHandlerType;
+	handler_config: HandlerConfigValue | null;
+	toggles: DomainToggles;
+	advanced_headers?: boolean;
+}
 
 export const defaultDomainToggles: DomainToggles = {
 	force_https: true,

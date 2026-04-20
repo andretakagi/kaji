@@ -44,7 +44,6 @@ const handlerOptions: { value: HandlerType; label: string }[] = [
 
 const matchOptions: { value: MatchType; label: string }[] = [
 	{ value: "", label: "Root (entire domain)" },
-	{ value: "subdomain", label: "Subdomain" },
 	{ value: "path", label: "Path" },
 ];
 
@@ -72,7 +71,7 @@ export default function RuleForm({
 		: matchOptions;
 
 	const [matchType, setMatchType] = useState<MatchType>(
-		initial?.match_type ?? (hideRoot ? "subdomain" : ""),
+		initial?.match_type ?? (hideRoot ? "path" : ""),
 	);
 	const [pathMatch, setPathMatch] = useState<PathMatch>(
 		initial?.path_match === "" ? "prefix" : (initial?.path_match ?? "prefix"),
@@ -102,11 +101,6 @@ export default function RuleForm({
 	async function handleSubmit(e: React.SubmitEvent) {
 		e.preventDefault();
 		setFormError(null);
-
-		if (matchType === "subdomain" && !matchValue.trim()) {
-			setFormError("Subdomain value is required");
-			return;
-		}
 
 		if (matchType === "path" && !matchValue.trim()) {
 			setFormError("Path value is required");
@@ -198,24 +192,6 @@ export default function RuleForm({
 							/>
 						</div>
 					</div>
-
-					{matchType === "subdomain" && (
-						<div className="form-row">
-							<div className="form-field">
-								<label htmlFor={`rule-match-value-${formId}`}>Subdomain</label>
-								<input
-									id={`rule-match-value-${formId}`}
-									type="text"
-									placeholder="api"
-									value={matchValue}
-									onChange={(e) => setMatchValue(e.target.value)}
-									maxLength={63}
-									required
-									disabled={submitting}
-								/>
-							</div>
-						</div>
-					)}
 
 					{matchType === "path" && (
 						<div className="form-row">

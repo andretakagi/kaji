@@ -58,7 +58,6 @@ const handlerOptions: readonly { value: HandlerSelection; label: string }[] = [
 ] as const;
 
 const ruleMatchOptions: { value: Exclude<MatchType, "">; label: string }[] = [
-	{ value: "subdomain", label: "Subdomain" },
 	{ value: "path", label: "Path" },
 ];
 
@@ -97,7 +96,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	});
 
 	const [ruleFormActive, setRuleFormActive] = useState(false);
-	const [ruleMatchType, setRuleMatchType] = useState<Exclude<MatchType, "">>("subdomain");
+	const [ruleMatchType, setRuleMatchType] = useState<Exclude<MatchType, "">>("path");
 	const [rulePathMatch, setRulePathMatch] = useState<PathMatch>("prefix");
 	const [ruleMatchValue, setRuleMatchValue] = useState("");
 	const [ruleHandlerType, setRuleHandlerType] = useState<HandlerType>("reverse_proxy");
@@ -110,7 +109,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	});
 
 	const resetRuleForm = useCallback(() => {
-		setRuleMatchType("subdomain");
+		setRuleMatchType("path");
 		setRulePathMatch("prefix");
 		setRuleMatchValue("");
 		setRuleHandlerType("reverse_proxy");
@@ -239,10 +238,6 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 
 	const addRule = () => {
 		setError("");
-		if (ruleMatchType === "subdomain" && !ruleMatchValue.trim()) {
-			setError("Subdomain value is required");
-			return;
-		}
 		if (ruleMatchType === "path" && !ruleMatchValue.trim()) {
 			setError("Path value is required");
 			return;
@@ -493,11 +488,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 								{data.rules.map((rule, i) => (
 									<div key={rule.key} className="wizard-rule-summary">
 										<div className="wizard-rule-summary-info">
-											<span className="wizard-rule-match">
-												{rule.matchType === "subdomain"
-													? `${rule.matchValue}.${data.name}`
-													: `${data.name}${rule.matchValue}`}
-											</span>
+											<span className="wizard-rule-match">{`${data.name}${rule.matchValue}`}</span>
 											<span className={`rule-card-handler-badge handler-${rule.handlerType}`}>
 												{rule.handlerType.replace("_", " ")}
 											</span>
@@ -531,23 +522,6 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 										/>
 									</div>
 								</div>
-
-								{ruleMatchType === "subdomain" && (
-									<div className="form-row">
-										<div className="form-field">
-											<label htmlFor="wizard-rule-match-value">Subdomain</label>
-											<input
-												id="wizard-rule-match-value"
-												type="text"
-												placeholder="api"
-												value={ruleMatchValue}
-												onChange={(e) => setRuleMatchValue(e.target.value)}
-												maxLength={63}
-												required
-											/>
-										</div>
-									</div>
-								)}
 
 								{ruleMatchType === "path" && (
 									<div className="form-row">
@@ -691,7 +665,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 								) : (
 									<>
 										<div className="wizard-add-rule-empty">
-											No rules added yet. Add subdomain or path rules, or skip to review.
+											No rules added yet. Add path rules, or skip to review.
 										</div>
 										<div className="wizard-add-rule-actions">
 											<button

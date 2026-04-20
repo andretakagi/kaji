@@ -21,9 +21,11 @@ import type { CertInfo } from "./types/certs";
 import type {
 	CreateDomainFullRequest,
 	CreateRuleRequest,
+	CreateSubdomainRequest,
 	Domain,
 	UpdateDomainRequest,
 	UpdateRuleRequest,
+	UpdateSubdomainRequest,
 } from "./types/domain";
 import type {
 	CaddyLoggingConfig,
@@ -642,6 +644,111 @@ export function enableRule(domainId: string, ruleId: string): Promise<Domain> {
 export function disableRule(domainId: string, ruleId: string): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/disable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
+}
+
+export function createSubdomain(domainId: string, req: CreateSubdomainRequest): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains`,
+		{ method: "POST", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function updateSubdomain(
+	domainId: string,
+	subId: string,
+	req: UpdateSubdomainRequest,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function deleteSubdomain(domainId: string, subId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}`,
+		{ method: "DELETE" },
+		(d) => d as Domain,
+	);
+}
+
+export function enableSubdomain(domainId: string, subId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/enable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
+}
+
+export function disableSubdomain(domainId: string, subId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/disable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
+}
+
+export function createSubdomainRule(
+	domainId: string,
+	subId: string,
+	req: CreateRuleRequest,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules`,
+		{ method: "POST", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function updateSubdomainRule(
+	domainId: string,
+	subId: string,
+	ruleId: string,
+	req: UpdateRuleRequest,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => d as Domain,
+	);
+}
+
+export function deleteSubdomainRule(
+	domainId: string,
+	subId: string,
+	ruleId: string,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}`,
+		{ method: "DELETE" },
+		(d) => d as Domain,
+	);
+}
+
+export function enableSubdomainRule(
+	domainId: string,
+	subId: string,
+	ruleId: string,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}/enable`,
+		{ method: "POST" },
+		(d) => d as Domain,
+	);
+}
+
+export function disableSubdomainRule(
+	domainId: string,
+	subId: string,
+	ruleId: string,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}/disable`,
 		{ method: "POST" },
 		(d) => d as Domain,
 	);

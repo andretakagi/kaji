@@ -35,7 +35,6 @@ const handlerLabels: Record<string, string> = {
 
 function formatMatch(rule: Rule): string {
 	if (rule.match_type === "") return "Root";
-	if (rule.match_type === "subdomain") return `Subdomain: ${rule.match_value}`;
 	if (rule.match_type === "path") {
 		if (rule.path_match === "exact") return `Path: ${rule.match_value} (exact)`;
 		if (rule.path_match === "prefix") return `Path: ${rule.match_value}*`;
