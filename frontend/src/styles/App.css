@@ -3070,6 +3070,20 @@ input:disabled + .toggle-slider {
 	flex-direction: column;
 }
 
+.redirect-status-custom {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.redirect-status-custom input {
+	flex: 1;
+}
+
+.field-hint-warn {
+	color: var(--color-warning, #e8a735);
+}
+
 /* Domain Wizard */
 .domain-wizard {
 	padding: 1.25rem;

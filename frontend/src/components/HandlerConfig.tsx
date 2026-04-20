@@ -1,14 +1,21 @@
 import { useId, useRef, useState } from "react";
 import { cn } from "../cn";
 import type { RequestHeaders } from "../types/api";
-import type { HandlerType, ReverseProxyConfig, StaticResponseConfig } from "../types/domain";
+import type {
+	HandlerConfigValue,
+	HandlerType,
+	RedirectConfig,
+	ReverseProxyConfig,
+	StaticResponseConfig,
+} from "../types/domain";
 import { ToggleItem } from "./ToggleGrid";
 
 interface Props {
 	type: HandlerType;
-	config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>;
-	onChange: (config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>) => void;
+	config: HandlerConfigValue;
+	onChange: (config: HandlerConfigValue) => void;
 	disabled?: boolean;
+	domain?: string;
 }
 
 const strategyLabels: Record<ReverseProxyConfig["load_balancing"]["strategy"], string> = {
@@ -19,7 +26,7 @@ const strategyLabels: Record<ReverseProxyConfig["load_balancing"]["strategy"], s
 	ip_hash: "IP Hash",
 };
 
-export default function HandlerConfig({ type, config, onChange, disabled }: Props) {
+export default function HandlerConfig({ type, config, onChange, disabled, domain }: Props) {
 	const idPrefix = useId();
 
 	switch (type) {
@@ -72,6 +79,15 @@ export default function HandlerConfig({ type, config, onChange, disabled }: Prop
 					config={config as StaticResponseConfig}
 					onChange={onChange}
 					disabled={disabled}
+				/>
+			);
+		case "redirect":
+			return (
+				<RedirectSection
+					config={config as RedirectConfig}
+					onChange={onChange}
+					disabled={disabled}
+					domain={domain}
 				/>
 			);
 		case "" as HandlerType:
@@ -353,6 +369,132 @@ function StaticResponseSection({
 	);
 }
 
+const redirectStatusOptions = [
+	{ value: "301", label: "301 - Permanent Redirect" },
+	{ value: "302", label: "302 - Found (Temporary)" },
+	{ value: "303", label: "303 - See Other" },
+	{ value: "307", label: "307 - Temporary Redirect" },
+	{ value: "308", label: "308 - Permanent Redirect (Strict)" },
+	{ value: "custom", label: "Custom..." },
+];
+
+function redirectPlaceholder(domain: string | undefined): string {
+	if (!domain) return "https://example.com or /new-path";
+	const parts = domain.split(".");
+	parts[0] = `new-${parts[0]}`;
+	return `https://${parts.join(".")}`;
+}
+
+function RedirectSection({
+	config,
+	onChange,
+	disabled,
+	domain,
+}: {
+	config: RedirectConfig;
+	onChange: (config: RedirectConfig) => void;
+	disabled?: boolean;
+	domain?: string;
+}) {
+	const idPrefix = useId();
+	const [customMode, setCustomMode] = useState(
+		() => !redirectStatusOptions.some((o) => o.value === config.status_code),
+	);
+
+	function update(patch: Partial<RedirectConfig>) {
+		onChange({ ...config, ...patch });
+	}
+
+	const statusCode = Number.parseInt(config.status_code, 10);
+	const showWarning =
+		config.status_code !== "" &&
+		!Number.isNaN(statusCode) &&
+		(statusCode < 300 || statusCode > 399);
+
+	return (
+		<div className="handler-config">
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-target`}>Target URL</label>
+				<input
+					id={`${idPrefix}-target`}
+					type="text"
+					placeholder={redirectPlaceholder(domain)}
+					value={config.target_url}
+					onChange={(e) => update({ target_url: e.target.value })}
+					maxLength={2048}
+					required
+					disabled={disabled}
+				/>
+			</div>
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-status`}>Status Code</label>
+				{customMode ? (
+					<div className="redirect-status-custom">
+						<input
+							id={`${idPrefix}-status`}
+							type="text"
+							placeholder="301"
+							value={config.status_code}
+							onChange={(e) =>
+								update({ status_code: e.target.value.replace(/\D/g, "").slice(0, 3) })
+							}
+							maxLength={3}
+							disabled={disabled}
+						/>
+						<button
+							type="button"
+							className="btn btn-ghost"
+							onClick={() => {
+								setCustomMode(false);
+								update({ status_code: "301" });
+							}}
+							disabled={disabled}
+						>
+							Presets
+						</button>
+					</div>
+				) : (
+					<select
+						id={`${idPrefix}-status`}
+						value={
+							redirectStatusOptions.some((o) => o.value === config.status_code)
+								? config.status_code
+								: "custom"
+						}
+						onChange={(e) => {
+							if (e.target.value === "custom") {
+								setCustomMode(true);
+								update({ status_code: "" });
+							} else {
+								update({ status_code: e.target.value });
+							}
+						}}
+						disabled={disabled}
+					>
+						{redirectStatusOptions.map((o) => (
+							<option key={o.value} value={o.value}>
+								{o.label}
+							</option>
+						))}
+					</select>
+				)}
+				{showWarning && (
+					<span className="field-hint field-hint-warn">
+						Non-3xx status codes may not trigger a browser redirect.
+					</span>
+				)}
+			</div>
+			<ToggleItem
+				label="Preserve Path"
+				description="Appends the original request path and query string to the target URL"
+				checked={config.preserve_path}
+				onChange={(v) => update({ preserve_path: v })}
+				disabled={disabled}
+			/>
+		</div>
+	);
+}
+
 function RequestHeadersSection({
 	config,
 	onChange,
@@ -431,10 +573,7 @@ function RequestHeadersSection({
 	);
 }
 
-export function handlerSummary(
-	type: HandlerType,
-	config: ReverseProxyConfig | StaticResponseConfig | Record<string, unknown>,
-): string {
+export function handlerSummary(type: HandlerType, config: HandlerConfigValue): string {
 	switch (type) {
 		case "reverse_proxy": {
 			const rp = config as ReverseProxyConfig;
@@ -451,6 +590,12 @@ export function handlerSummary(
 			const sr = config as StaticResponseConfig;
 			if (sr.close) return "Close connection";
 			return "Static response";
+		}
+		case "redirect": {
+			const rd = config as RedirectConfig;
+			const target = rd.target_url || "...";
+			const suffix = rd.preserve_path ? " (+ path)" : "";
+			return `${rd.status_code} -> ${target}${suffix}`;
 		}
 		case "" as HandlerType:
 			return "No handler";

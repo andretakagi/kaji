@@ -270,11 +270,31 @@ func validateStaticResponseConfig(w http.ResponseWriter, raw json.RawMessage) bo
 	return true
 }
 
+func validateRedirectConfig(w http.ResponseWriter, raw json.RawMessage) bool {
+	var rd caddy.RedirectConfig
+	if err := json.Unmarshal(raw, &rd); err != nil {
+		writeError(w, "invalid handler config", http.StatusBadRequest)
+		return false
+	}
+	if strings.TrimSpace(rd.TargetURL) == "" {
+		writeError(w, "target URL is required", http.StatusBadRequest)
+		return false
+	}
+	if rd.StatusCode != "" {
+		code, err := strconv.Atoi(rd.StatusCode)
+		if err != nil || code < 100 || code > 599 {
+			writeError(w, "status code must be between 100 and 599", http.StatusBadRequest)
+			return false
+		}
+	}
+	return true
+}
+
 func validateHandlerType(handlerType string) string {
 	switch handlerType {
-	case "reverse_proxy", "static_response":
+	case "reverse_proxy", "static_response", "redirect":
 		return ""
-	case "redirect", "file_server":
+	case "file_server":
 		return fmt.Sprintf("handler type %q is not yet supported", handlerType)
 	default:
 		return fmt.Sprintf("unknown handler type: %s", handlerType)

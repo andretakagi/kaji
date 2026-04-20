@@ -206,7 +206,7 @@ func TestBuildRuleRoute_WithToggles(t *testing.T) {
 func TestBuildRuleRoute_UnsupportedHandler(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_bad1",
-		HandlerType:   "redirect",
+		HandlerType:   "unknown",
 		HandlerConfig: json.RawMessage(`{}`),
 	}
 
@@ -215,7 +215,7 @@ func TestBuildRuleRoute_UnsupportedHandler(t *testing.T) {
 		t.Fatal("expected error for unsupported handler type")
 	}
 
-	want := `unsupported handler type: "redirect"`
+	want := `unsupported handler type: "unknown"`
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err.Error(), want)
 	}

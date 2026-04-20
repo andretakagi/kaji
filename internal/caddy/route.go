@@ -9,13 +9,15 @@ import (
 )
 
 type RouteParams struct {
-	ID              string       `json:"@id"`
-	Domain          string       `json:"domain"`
-	Upstream        string       `json:"upstream"`
-	Toggles         RouteToggles `json:"toggles"`
-	AdvancedHeaders bool         `json:"-"`
-	IPListIPs       []string     `json:"-"`
-	IPListType      string       `json:"-"`
+	ID              string          `json:"@id"`
+	Domain          string          `json:"domain"`
+	Upstream        string          `json:"upstream"`
+	HandlerType     string          `json:"handler_type"`
+	HandlerConfig   json.RawMessage `json:"handler_config,omitempty"`
+	Toggles         RouteToggles    `json:"toggles"`
+	AdvancedHeaders bool            `json:"-"`
+	IPListIPs       []string        `json:"-"`
+	IPListType      string          `json:"-"`
 }
 
 type IPFilteringOpts struct {
@@ -467,6 +469,7 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 
 		switch handler.Handler {
 		case "reverse_proxy":
+			p.HandlerType = "reverse_proxy"
 			if len(handler.Upstreams) > 0 {
 				p.Upstream = handler.Upstreams[0].Dial
 				for _, u := range handler.Upstreams[1:] {
@@ -596,6 +599,9 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 					p.Toggles.BasicAuth.PasswordHash = providers.HTTPBasic.Accounts[0].Password
 				}
 			}
+
+		case "static_response":
+			parseStaticResponseHandler(h, p)
 		}
 	}
 }
@@ -630,4 +636,54 @@ func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
 	builtin, custom := classifyHeaders(reqSet, builtinRequestKeys)
 	p.Toggles.RequestHeaders.Builtin = append(p.Toggles.RequestHeaders.Builtin, builtin...)
 	p.Toggles.RequestHeaders.Custom = append(p.Toggles.RequestHeaders.Custom, custom...)
+}
+
+const requestURIPlaceholder = "{http.request.uri}"
+
+func parseStaticResponseHandler(raw json.RawMessage, p *RouteParams) {
+	var sr struct {
+		StatusCode string              `json:"status_code"`
+		Body       string              `json:"body"`
+		Headers    map[string][]string `json:"headers"`
+		Close      bool                `json:"close"`
+	}
+	if json.Unmarshal(raw, &sr) != nil {
+		return
+	}
+
+	locations, hasLocation := sr.Headers["Location"]
+	if hasLocation && len(locations) > 0 {
+		target := locations[0]
+		preservePath := false
+		if strings.HasSuffix(target, requestURIPlaceholder) {
+			preservePath = true
+			target = strings.TrimSuffix(target, requestURIPlaceholder)
+			target = strings.TrimRight(target, "/")
+		}
+		cfg := RedirectConfig{
+			TargetURL:    target,
+			StatusCode:   sr.StatusCode,
+			PreservePath: preservePath,
+		}
+		data, err := json.Marshal(cfg)
+		if err != nil {
+			return
+		}
+		p.HandlerType = "redirect"
+		p.HandlerConfig = data
+		return
+	}
+
+	cfg := StaticResponseConfig{
+		StatusCode: sr.StatusCode,
+		Body:       sr.Body,
+		Headers:    sr.Headers,
+		Close:      sr.Close,
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return
+	}
+	p.HandlerType = "static_response"
+	p.HandlerConfig = data
 }

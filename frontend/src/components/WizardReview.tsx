@@ -1,4 +1,9 @@
-import type { DomainToggles, ReverseProxyConfig, StaticResponseConfig } from "../types/domain";
+import type {
+	DomainToggles,
+	RedirectConfig,
+	ReverseProxyConfig,
+	StaticResponseConfig,
+} from "../types/domain";
 import type { WizardData, WizardRule } from "./DomainWizard";
 
 interface Props {
@@ -95,6 +100,29 @@ function StaticResponseSummary({ config }: { config: StaticResponseConfig }) {
 	);
 }
 
+function RedirectSummary({ config }: { config: RedirectConfig }) {
+	return (
+		<div className="wizard-review-static-details">
+			{config.target_url && (
+				<div className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">Target</span>
+					<span className="wizard-review-detail-value">{config.target_url}</span>
+				</div>
+			)}
+			{config.status_code && (
+				<div className="wizard-review-detail-row">
+					<span className="wizard-review-detail-label">Status</span>
+					<span className="wizard-review-detail-value">{config.status_code}</span>
+				</div>
+			)}
+			<div className="wizard-review-detail-row">
+				<span className="wizard-review-detail-label">Preserve path</span>
+				<span className="wizard-review-detail-value">{config.preserve_path ? "Yes" : "No"}</span>
+			</div>
+		</div>
+	);
+}
+
 export default function WizardReview({ data, onEditStep }: Props) {
 	const activeTags = toggleSummary(data.toggles);
 
@@ -103,6 +131,7 @@ export default function WizardReview({ data, onEditStep }: Props) {
 
 	const rootIsProxy = data.rootRule.handlerType === "reverse_proxy";
 	const rootIsStatic = data.rootRule.handlerType === "static_response";
+	const rootIsRedirect = data.rootRule.handlerType === "redirect";
 
 	return (
 		<div className="wizard-review">
@@ -159,6 +188,9 @@ export default function WizardReview({ data, onEditStep }: Props) {
 									config={data.rootRule.handlerConfig as StaticResponseConfig}
 								/>
 							)}
+							{rootIsRedirect && (
+								<RedirectSummary config={data.rootRule.handlerConfig as RedirectConfig} />
+							)}
 						</div>
 					) : (
 						<span className="text-muted">None</span>
@@ -189,6 +221,9 @@ export default function WizardReview({ data, onEditStep }: Props) {
 									)}
 									{rule.handlerType === "static_response" && (
 										<StaticResponseSummary config={rule.handlerConfig as StaticResponseConfig} />
+									)}
+									{rule.handlerType === "redirect" && (
+										<RedirectSummary config={rule.handlerConfig as RedirectConfig} />
 									)}
 									{rule.toggleOverrides && <span className="wizard-review-tag">overrides</span>}
 								</div>

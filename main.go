@@ -326,14 +326,25 @@ func migrateActiveCaddyRoutes(cc *caddy.Client) []config.Domain {
 				continue
 			}
 
-			rpCfg := caddy.ReverseProxyConfig{
-				Upstream:          params.Upstream,
-				TLSSkipVerify:     params.Toggles.TLSSkipVerify,
-				WebSocketPassthru: params.Toggles.WebSocketPassthru,
+			handlerType := params.HandlerType
+			if handlerType == "" {
+				handlerType = "reverse_proxy"
 			}
-			hcData, err := caddy.MarshalReverseProxyConfig(rpCfg)
-			if err != nil {
-				continue
+
+			var hcData json.RawMessage
+			switch handlerType {
+			case "redirect", "static_response":
+				hcData = params.HandlerConfig
+			default:
+				rpCfg := caddy.ReverseProxyConfig{
+					Upstream:          params.Upstream,
+					TLSSkipVerify:     params.Toggles.TLSSkipVerify,
+					WebSocketPassthru: params.Toggles.WebSocketPassthru,
+				}
+				hcData, err = caddy.MarshalReverseProxyConfig(rpCfg)
+				if err != nil {
+					continue
+				}
 			}
 
 			ruleID := caddy.GenerateRuleID()
@@ -346,7 +357,7 @@ func migrateActiveCaddyRoutes(cc *caddy.Client) []config.Domain {
 						ID:            ruleID,
 						Enabled:       true,
 						MatchType:     "",
-						HandlerType:   "reverse_proxy",
+						HandlerType:   handlerType,
 						HandlerConfig: hcData,
 					},
 				},
