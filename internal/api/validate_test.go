@@ -339,3 +339,52 @@ func TestValidateIPListChildren(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateMatchType(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"empty", "", ""},
+		{"subdomain", "subdomain", ""},
+		{"path", "path", ""},
+		{"invalid", "host", "invalid match type: host (must be empty, subdomain, or path)"},
+		{"uppercase", "SUBDOMAIN", "invalid match type: SUBDOMAIN (must be empty, subdomain, or path)"},
+		{"partial match", "sub", "invalid match type: sub (must be empty, subdomain, or path)"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := validateMatchType(tc.input)
+			if got != tc.want {
+				t.Errorf("validateMatchType(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidatePathMatch(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"exact", "exact", ""},
+		{"prefix", "prefix", ""},
+		{"regex", "regex", ""},
+		{"invalid", "glob", "invalid path match: glob (must be exact, prefix, or regex)"},
+		{"uppercase", "EXACT", "invalid path match: EXACT (must be exact, prefix, or regex)"},
+		{"partial match", "prex", "invalid path match: prex (must be exact, prefix, or regex)"},
+		{"empty", "", "invalid path match:  (must be exact, prefix, or regex)"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := validatePathMatch(tc.input)
+			if got != tc.want {
+				t.Errorf("validatePathMatch(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
