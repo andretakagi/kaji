@@ -126,7 +126,7 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 		setNewSubHandlerConfig({});
 	}
 
-	async function handleSubmitSubdomain(e: React.FormEvent) {
+	async function handleSubmitSubdomain(e: React.SubmitEvent) {
 		e.preventDefault();
 		if (!newSubName.trim()) return;
 		const req: CreateSubdomainRequest = {

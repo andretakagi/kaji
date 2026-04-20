@@ -94,10 +94,7 @@ export default function SubdomainDetail({
 							aria-label={subdomain.enabled ? "Disable subdomain" : "Enable subdomain"}
 						/>
 						<ConfirmDeleteButton
-							onConfirm={() => {
-								onDelete(subdomain.id);
-								onBack();
-							}}
+							onConfirm={() => onDelete(subdomain.id)}
 							label={`Delete ${fullName} and all ${ruleCount} ${ruleCount === 1 ? "rule" : "rules"}`}
 							disabled={saving}
 						/>

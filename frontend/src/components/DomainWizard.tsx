@@ -385,6 +385,7 @@ export default function DomainWizard({
 					};
 					const created = await createDomainFull(parentReq);
 					parentId = created.id;
+					setSubdomainMode((prev) => (prev ? { ...prev, parentId } : prev));
 				}
 				const handlerType = data.rootRule.handlerType as SubdomainHandlerType;
 				const subReq: CreateSubdomainRequest = {
