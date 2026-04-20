@@ -358,11 +358,43 @@ func ToSyncDomains(domains []config.Domain) []caddy.SyncDomain {
 				ToggleOverrides: r.ToggleOverrides,
 			}
 		}
+
+		var subs []caddy.SyncSubdomain
+		for _, s := range d.Subdomains {
+			subRules := make([]caddy.SyncRule, len(s.Rules))
+			for j, r := range s.Rules {
+				subRules[j] = caddy.SyncRule{
+					RuleBuildParams: caddy.RuleBuildParams{
+						RuleID:          r.ID,
+						MatchType:       r.MatchType,
+						PathMatch:       r.PathMatch,
+						MatchValue:      r.MatchValue,
+						HandlerType:     r.HandlerType,
+						HandlerConfig:   r.HandlerConfig,
+						AdvancedHeaders: r.AdvancedHeaders,
+					},
+					Enabled:         r.Enabled,
+					ToggleOverrides: r.ToggleOverrides,
+				}
+			}
+			subs = append(subs, caddy.SyncSubdomain{
+				ID:              s.ID,
+				Name:            s.Name,
+				Enabled:         s.Enabled,
+				HandlerType:     s.HandlerType,
+				HandlerConfig:   s.HandlerConfig,
+				Toggles:         s.Toggles,
+				AdvancedHeaders: s.AdvancedHeaders,
+				Rules:           subRules,
+			})
+		}
+
 		result[i] = caddy.SyncDomain{
-			Name:    d.Name,
-			Enabled: d.Enabled,
-			Toggles: d.Toggles,
-			Rules:   rules,
+			Name:       d.Name,
+			Enabled:    d.Enabled,
+			Toggles:    d.Toggles,
+			Rules:      rules,
+			Subdomains: subs,
 		}
 	}
 	return result

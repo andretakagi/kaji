@@ -8,10 +8,22 @@ import (
 )
 
 type SyncDomain struct {
-	Name    string
-	Enabled bool
-	Toggles DomainToggles
-	Rules   []SyncRule
+	Name       string
+	Enabled    bool
+	Toggles    DomainToggles
+	Rules      []SyncRule
+	Subdomains []SyncSubdomain
+}
+
+type SyncSubdomain struct {
+	ID              string
+	Name            string
+	Enabled         bool
+	HandlerType     string
+	HandlerConfig   json.RawMessage
+	Toggles         DomainToggles
+	AdvancedHeaders bool
+	Rules           []SyncRule
 }
 
 type SyncRule struct {
