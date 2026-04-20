@@ -2,16 +2,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteDomain, disableDomain, enableDomain } from "../api";
 import { useDomain } from "../hooks/useDomain";
 import { useFormToggle } from "../hooks/useFormToggle";
-import type { DomainToggles, UpdateRuleRequest } from "../types/domain";
+import type {
+	CreateSubdomainRequest,
+	DomainToggles,
+	HandlerConfigValue,
+	HandlerType,
+	SubdomainHandlerType,
+	UpdateRuleRequest,
+} from "../types/domain";
+import {
+	defaultFileServerConfig,
+	defaultRedirectConfig,
+	defaultReverseProxyConfig,
+	defaultStaticResponseConfig,
+} from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import { ErrorAlert } from "./ErrorAlert";
 import Feedback from "./Feedback";
+import HandlerConfig from "./HandlerConfig";
 import LoadingState from "./LoadingState";
 import RuleCard from "./RuleCard";
 import RuleForm from "./RuleForm";
 import { SectionHeader } from "./SectionHeader";
+import SubdomainCard from "./SubdomainCard";
+import SubdomainDetail from "./SubdomainDetail";
 import { Toggle } from "./Toggle";
 
 interface Props {
@@ -34,12 +50,25 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 		handleUpdateRule,
 		handleDeleteRule,
 		handleToggleRule,
+		handleCreateSubdomain,
+		handleUpdateSubdomain,
+		handleDeleteSubdomain,
+		handleToggleSubdomain,
+		handleCreateSubdomainRule,
+		handleUpdateSubdomainRule,
+		handleDeleteSubdomainRule,
+		handleToggleSubdomainRule,
 	} = useDomain(id);
 
 	const [deleting, setDeleting] = useState(false);
 	const [localToggles, setLocalToggles] = useState<DomainToggles | null>(null);
 	const lastSyncedToggles = useRef<string>("");
 	const ruleForm = useFormToggle();
+	const [selectedSubdomain, setSelectedSubdomain] = useState<string | null>(null);
+	const subdomainForm = useFormToggle();
+	const [newSubName, setNewSubName] = useState("");
+	const [newSubHandlerType, setNewSubHandlerType] = useState<SubdomainHandlerType>("none");
+	const [newSubHandlerConfig, setNewSubHandlerConfig] = useState<HandlerConfigValue>({});
 
 	useEffect(() => {
 		if (!domain.id) return;
@@ -91,8 +120,52 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 		lastSyncedToggles.current = JSON.stringify(domain.toggles);
 	}
 
+	function resetSubdomainForm() {
+		setNewSubName("");
+		setNewSubHandlerType("none");
+		setNewSubHandlerConfig({});
+	}
+
+	async function handleSubmitSubdomain(e: React.FormEvent) {
+		e.preventDefault();
+		if (!newSubName.trim()) return;
+		const req: CreateSubdomainRequest = {
+			name: newSubName.trim(),
+			handler_type: newSubHandlerType,
+			handler_config: newSubHandlerType === "none" ? null : newSubHandlerConfig,
+		};
+		await handleCreateSubdomain(req);
+		resetSubdomainForm();
+		subdomainForm.close();
+	}
+
 	if (loading) {
 		return <LoadingState label="domain" />;
+	}
+
+	const activeSub = selectedSubdomain
+		? domain.subdomains.find((s) => s.id === selectedSubdomain)
+		: null;
+
+	if (activeSub) {
+		return (
+			<SubdomainDetail
+				subdomain={activeSub}
+				domainName={domain.name}
+				onBack={() => setSelectedSubdomain(null)}
+				onUpdate={handleUpdateSubdomain}
+				onDelete={(subId) => {
+					handleDeleteSubdomain(subId);
+					setSelectedSubdomain(null);
+				}}
+				onToggle={handleToggleSubdomain}
+				onCreateRule={handleCreateSubdomainRule}
+				onUpdateRule={handleUpdateSubdomainRule}
+				onDeleteRule={handleDeleteSubdomainRule}
+				onToggleRule={handleToggleSubdomainRule}
+				saving={saving}
+			/>
+		);
 	}
 
 	const ruleCount = domain.rules.length;
@@ -161,6 +234,115 @@ export default function DomainDetail({ id, onBack, onDelete }: Props) {
 					/>
 				</section>
 			)}
+
+			<section className="domain-detail-section">
+				<SectionHeader title="Subdomains">
+					<button
+						type="button"
+						className="btn btn-primary"
+						onClick={subdomainForm.toggle}
+						disabled={saving}
+					>
+						{subdomainForm.visible ? "Cancel" : "Add Subdomain"}
+					</button>
+				</SectionHeader>
+
+				{subdomainForm.visible && (
+					<form className="subdomain-create-form" onSubmit={handleSubmitSubdomain}>
+						<div className="form-row">
+							<div className="form-field">
+								<label htmlFor="new-sub-name">Subdomain Name</label>
+								<div className="subdomain-name-input">
+									<input
+										id="new-sub-name"
+										type="text"
+										placeholder="api"
+										value={newSubName}
+										onChange={(e) => setNewSubName(e.target.value)}
+										maxLength={63}
+										required
+									/>
+									<span className="subdomain-name-suffix">.{domain.name}</span>
+								</div>
+							</div>
+						</div>
+						<div className="form-row">
+							<div className="form-field">
+								<label htmlFor="new-sub-handler">Handler Type</label>
+								<select
+									id="new-sub-handler"
+									value={newSubHandlerType}
+									onChange={(e) => {
+										const next = e.target.value as SubdomainHandlerType;
+										setNewSubHandlerType(next);
+										if (next === "none") {
+											setNewSubHandlerConfig({});
+										} else if (next === "reverse_proxy") {
+											setNewSubHandlerConfig({ ...defaultReverseProxyConfig });
+										} else if (next === "redirect") {
+											setNewSubHandlerConfig({ ...defaultRedirectConfig });
+										} else if (next === "file_server") {
+											setNewSubHandlerConfig({ ...defaultFileServerConfig });
+										} else if (next === "static_response") {
+											setNewSubHandlerConfig({ ...defaultStaticResponseConfig });
+										}
+									}}
+								>
+									<option value="none">None (rules only)</option>
+									<option value="reverse_proxy">Reverse Proxy</option>
+									<option value="redirect">Redirect</option>
+									<option value="file_server">File Server</option>
+									<option value="static_response">Static Response</option>
+								</select>
+							</div>
+						</div>
+						{newSubHandlerType !== "none" && (
+							<HandlerConfig
+								type={newSubHandlerType as HandlerType}
+								config={newSubHandlerConfig}
+								onChange={setNewSubHandlerConfig}
+								domain={`${newSubName}.${domain.name}`}
+							/>
+						)}
+						<div className="form-row" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
+							<button
+								type="button"
+								className="btn btn-ghost"
+								onClick={() => {
+									resetSubdomainForm();
+									subdomainForm.close();
+								}}
+							>
+								Cancel
+							</button>
+							<button type="submit" className="btn btn-primary" disabled={saving}>
+								{saving ? "Creating..." : "Add Subdomain"}
+							</button>
+						</div>
+					</form>
+				)}
+
+				{domain.subdomains.length === 0 && !subdomainForm.visible ? (
+					<div className="empty-state">
+						No subdomains. Subdomains let you route prefixed names like api.{domain.name}{" "}
+						separately.
+					</div>
+				) : (
+					<div className="subdomain-list">
+						{domain.subdomains.map((sub) => (
+							<SubdomainCard
+								key={sub.id}
+								subdomain={sub}
+								domainName={domain.name}
+								onSelect={setSelectedSubdomain}
+								onToggle={handleToggleSubdomain}
+								onDelete={handleDeleteSubdomain}
+								saving={saving}
+							/>
+						))}
+					</div>
+				)}
+			</section>
 
 			<section className="domain-detail-section">
 				<SectionHeader title="Rules">

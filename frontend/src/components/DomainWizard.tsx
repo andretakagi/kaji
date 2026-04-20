@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from "react";
+import { createDomainFull } from "../api";
 import type {
 	CreateDomainFullRequest,
+	CreateSubdomainRequest,
+	Domain,
 	DomainToggles,
 	FileServerConfig,
 	HandlerConfigValue,
@@ -10,6 +13,7 @@ import type {
 	RedirectConfig,
 	ReverseProxyConfig,
 	StaticResponseConfig,
+	SubdomainHandlerType,
 } from "../types/domain";
 import {
 	defaultDomainToggles,
@@ -47,7 +51,8 @@ export interface WizardData {
 	rules: WizardRule[];
 }
 
-const STEP_LABELS = ["Domain", "Toggles", "Root Rule", "Rules", "Review"];
+const STEP_LABELS_DOMAIN = ["Domain", "Toggles", "Root Rule", "Rules", "Review"];
+const STEP_LABELS_SUBDOMAIN = ["Domain", "Toggles", "Handler", "Review"];
 
 const handlerOptions: readonly { value: HandlerSelection; label: string }[] = [
 	{ value: "none", label: "None" },
@@ -74,17 +79,37 @@ const handlerTypeOptions: { value: HandlerType; label: string }[] = [
 	{ value: "static_response", label: "Static Response" },
 ];
 
-interface Props {
-	onCreate: (req: CreateDomainFullRequest) => Promise<void>;
-	onCancel: () => void;
-	existingDomains: string[];
+function parseSubdomainInput(input: string): { prefix: string; parent: string } | null {
+	const parts = input.trim().split(".");
+	if (parts.length < 3) return null;
+	return {
+		prefix: parts[0],
+		parent: parts.slice(1).join("."),
+	};
 }
 
-export default function DomainWizard({ onCreate, onCancel, existingDomains }: Props) {
+interface Props {
+	onCreate: (req: CreateDomainFullRequest) => Promise<void>;
+	onCreateSubdomain: (parentId: string, req: CreateSubdomainRequest) => Promise<void>;
+	onCancel: () => void;
+	existingDomains: Domain[];
+}
+
+export default function DomainWizard({
+	onCreate,
+	onCreateSubdomain,
+	onCancel,
+	existingDomains,
+}: Props) {
 	const ruleKeyRef = useRef(0);
 	const [step, setStep] = useState(0);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState("");
+	const [subdomainMode, setSubdomainMode] = useState<{
+		prefix: string;
+		parentDomain: string;
+		parentId: string | null;
+	} | null>(null);
 	const [data, setData] = useState<WizardData>({
 		name: "",
 		toggles: { ...defaultDomainToggles },
@@ -148,9 +173,30 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 				setError(domainErr);
 				return false;
 			}
-			if (existingDomains.some((d) => d.toLowerCase() === data.name.trim().toLowerCase())) {
+			const trimmed = data.name.trim().toLowerCase();
+			if (existingDomains.some((d) => d.name.toLowerCase() === trimmed)) {
 				setError("A domain with this name already exists");
 				return false;
+			}
+			const parsed = parseSubdomainInput(data.name);
+			if (parsed) {
+				const parent = existingDomains.find(
+					(d) => d.name.toLowerCase() === parsed.parent.toLowerCase(),
+				);
+				const existingSub = parent?.subdomains?.some(
+					(s) => s.name.toLowerCase() === parsed.prefix.toLowerCase(),
+				);
+				if (existingSub) {
+					setError(`Subdomain "${parsed.prefix}" already exists under ${parsed.parent}`);
+					return false;
+				}
+				setSubdomainMode({
+					prefix: parsed.prefix,
+					parentDomain: parsed.parent,
+					parentId: parent?.id ?? null,
+				});
+			} else {
+				setSubdomainMode(null);
 			}
 		}
 		if (step === 1) {
@@ -217,7 +263,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	const handleNext = () => {
 		if (!validateStep()) return;
 		setError("");
-		setStep((s) => s + 1);
+		if (step === 2 && subdomainMode) {
+			setStep(4);
+		} else {
+			setStep((s) => s + 1);
+		}
 		if (step === 2) {
 			resetRuleForm();
 			setRuleFormActive(false);
@@ -226,7 +276,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 
 	const handleBack = () => {
 		setError("");
-		setStep((s) => s - 1);
+		if (step === 4 && subdomainMode) {
+			setStep(2);
+		} else {
+			setStep((s) => s - 1);
+		}
 	};
 
 	const handleStepClick = (targetStep: number) => {
@@ -320,35 +374,56 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		setSubmitting(true);
 		setError("");
 
-		const rules: CreateDomainFullRequest["rules"] = [];
-
-		if (data.rootRule.handlerType !== "none") {
-			rules.push({
-				match_type: "",
-				handler_type: data.rootRule.handlerType as HandlerType,
-				handler_config: data.rootRule.handlerConfig,
-			});
-		}
-
-		for (const rule of data.rules) {
-			rules.push({
-				match_type: rule.matchType,
-				...(rule.matchType === "path" ? { path_match: rule.pathMatch } : {}),
-				match_value: rule.matchValue,
-				handler_type: rule.handlerType,
-				handler_config: rule.handlerConfig,
-				toggle_overrides: rule.toggleOverrides,
-			});
-		}
-
-		const req: CreateDomainFullRequest = {
-			name: data.name.trim(),
-			toggles: data.toggles,
-			rules,
-		};
-
 		try {
-			await onCreate(req);
+			if (subdomainMode) {
+				let parentId = subdomainMode.parentId;
+				if (!parentId) {
+					const parentReq: CreateDomainFullRequest = {
+						name: subdomainMode.parentDomain,
+						toggles: { ...defaultDomainToggles },
+						rules: [],
+					};
+					const created = await createDomainFull(parentReq);
+					parentId = created.id;
+				}
+				const handlerType = data.rootRule.handlerType as SubdomainHandlerType;
+				const subReq: CreateSubdomainRequest = {
+					name: subdomainMode.prefix,
+					handler_type: handlerType,
+					handler_config: handlerType === "none" ? null : data.rootRule.handlerConfig,
+					toggles: data.toggles,
+				};
+				await onCreateSubdomain(parentId, subReq);
+			} else {
+				const rules: CreateDomainFullRequest["rules"] = [];
+
+				if (data.rootRule.handlerType !== "none") {
+					rules.push({
+						match_type: "",
+						handler_type: data.rootRule.handlerType as HandlerType,
+						handler_config: data.rootRule.handlerConfig,
+					});
+				}
+
+				for (const rule of data.rules) {
+					rules.push({
+						match_type: rule.matchType,
+						...(rule.matchType === "path" ? { path_match: rule.pathMatch } : {}),
+						match_value: rule.matchValue,
+						handler_type: rule.handlerType,
+						handler_config: rule.handlerConfig,
+						toggle_overrides: rule.toggleOverrides,
+					});
+				}
+
+				const req: CreateDomainFullRequest = {
+					name: data.name.trim(),
+					toggles: data.toggles,
+					rules,
+				};
+
+				await onCreate(req);
+			}
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to create domain"));
 		} finally {
@@ -363,17 +438,21 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		data.rootRule.handlerType === "redirect" ||
 		data.rootRule.handlerType === "file_server";
 
+	const stepLabels = subdomainMode ? STEP_LABELS_SUBDOMAIN : STEP_LABELS_DOMAIN;
+	const stepIndices = subdomainMode ? [0, 1, 2, 4] : [0, 1, 2, 3, 4];
+	const displayStepIndex = stepIndices.indexOf(step);
+
 	return (
 		<div className="domain-wizard">
 			<div className="wizard-steps">
-				{STEP_LABELS.map((label, i) => (
+				{stepLabels.map((label, i) => (
 					<button
 						type="button"
 						key={label}
-						className={`wizard-step${i === step ? " active" : ""}${i < step ? " completed" : ""}`}
-						onClick={() => handleStepClick(i)}
-						tabIndex={i < step ? 0 : -1}
-						disabled={i >= step}
+						className={`wizard-step${i === displayStepIndex ? " active" : ""}${i < displayStepIndex ? " completed" : ""}`}
+						onClick={() => handleStepClick(stepIndices[i])}
+						tabIndex={i < displayStepIndex ? 0 : -1}
+						disabled={i >= displayStepIndex}
 					>
 						{i > 0 && <div className="wizard-step-connector" />}
 						<div className="wizard-step-number">{i + 1}</div>
@@ -405,6 +484,20 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 								/>
 							</div>
 						</div>
+						{(() => {
+							const parsed = parseSubdomainInput(data.name);
+							if (!parsed) return null;
+							const parentExists = existingDomains.some(
+								(d) => d.name.toLowerCase() === parsed.parent.toLowerCase(),
+							);
+							return (
+								<div className="wizard-subdomain-hint">
+									This will create subdomain <strong>{parsed.prefix}</strong> under{" "}
+									<strong>{parsed.parent}</strong>
+									{!parentExists && " (parent will be auto-created)"}
+								</div>
+							);
+						})()}
 					</div>
 				)}
 
@@ -686,7 +779,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 					</div>
 				)}
 
-				{step === 4 && <WizardReview data={data} onEditStep={setStep} />}
+				{step === 4 && (
+					<WizardReview data={data} onEditStep={setStep} subdomainMode={subdomainMode} />
+				)}
 			</div>
 
 			<div className="wizard-nav">
@@ -733,7 +828,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 							onClick={handleSubmit}
 							disabled={submitting}
 						>
-							{submitting ? "Creating..." : "Create Domain"}
+							{submitting ? "Creating..." : subdomainMode ? "Create Subdomain" : "Create Domain"}
 						</button>
 					)}
 				</div>

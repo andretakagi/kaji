@@ -10,6 +10,7 @@ import type { WizardData, WizardRule } from "./DomainWizard";
 interface Props {
 	data: WizardData;
 	onEditStep: (step: number) => void;
+	subdomainMode?: { prefix: string; parentDomain: string } | null;
 }
 
 function toggleSummary(toggles: DomainToggles): string[] {
@@ -148,7 +149,7 @@ function FileServerSummary({ config }: { config: FileServerConfig }) {
 	);
 }
 
-export default function WizardReview({ data, onEditStep }: Props) {
+export default function WizardReview({ data, onEditStep, subdomainMode }: Props) {
 	const activeTags = toggleSummary(data.toggles);
 
 	const rootHandlerLabel =
@@ -163,12 +164,14 @@ export default function WizardReview({ data, onEditStep }: Props) {
 		<div className="wizard-review">
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
-					<h4>Domain</h4>
+					<h4>{subdomainMode ? "Subdomain" : "Domain"}</h4>
 					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(0)}>
 						Edit
 					</button>
 				</div>
-				<div className="wizard-review-value">{data.name}</div>
+				<div className="wizard-review-value">
+					{subdomainMode ? `${subdomainMode.prefix}.${subdomainMode.parentDomain}` : data.name}
+				</div>
 			</div>
 
 			<div className="wizard-review-section">
@@ -195,7 +198,7 @@ export default function WizardReview({ data, onEditStep }: Props) {
 
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
-					<h4>Root Rule</h4>
+					<h4>{subdomainMode ? "Handler" : "Root Rule"}</h4>
 					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(2)}>
 						Edit
 					</button>
@@ -227,45 +230,47 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				</div>
 			</div>
 
-			<div className="wizard-review-section">
-				<div className="wizard-review-header">
-					<h4>Rules</h4>
-					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(3)}>
-						Edit
-					</button>
+			{!subdomainMode && (
+				<div className="wizard-review-section">
+					<div className="wizard-review-header">
+						<h4>Rules</h4>
+						<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(3)}>
+							Edit
+						</button>
+					</div>
+					<div className="wizard-review-value">
+						{data.rules.length > 0 ? (
+							<div className="wizard-review-rule-list">
+								{data.rules.map((rule) => (
+									<div key={rule.key} className="wizard-review-rule-item">
+										<span className="wizard-review-rule-match">
+											{ruleMatchLabel(rule, data.name)}
+										</span>
+										<span className={`rule-card-handler-badge handler-${rule.handlerType}`}>
+											{rule.handlerType.replace("_", " ")}
+										</span>
+										{rule.handlerType === "reverse_proxy" && (
+											<ReverseProxySummary config={rule.handlerConfig as ReverseProxyConfig} />
+										)}
+										{rule.handlerType === "static_response" && (
+											<StaticResponseSummary config={rule.handlerConfig as StaticResponseConfig} />
+										)}
+										{rule.handlerType === "redirect" && (
+											<RedirectSummary config={rule.handlerConfig as RedirectConfig} />
+										)}
+										{rule.handlerType === "file_server" && (
+											<FileServerSummary config={rule.handlerConfig as FileServerConfig} />
+										)}
+										{rule.toggleOverrides && <span className="wizard-review-tag">overrides</span>}
+									</div>
+								))}
+							</div>
+						) : (
+							<span className="text-muted">No additional rules</span>
+						)}
+					</div>
 				</div>
-				<div className="wizard-review-value">
-					{data.rules.length > 0 ? (
-						<div className="wizard-review-rule-list">
-							{data.rules.map((rule) => (
-								<div key={rule.key} className="wizard-review-rule-item">
-									<span className="wizard-review-rule-match">
-										{ruleMatchLabel(rule, data.name)}
-									</span>
-									<span className={`rule-card-handler-badge handler-${rule.handlerType}`}>
-										{rule.handlerType.replace("_", " ")}
-									</span>
-									{rule.handlerType === "reverse_proxy" && (
-										<ReverseProxySummary config={rule.handlerConfig as ReverseProxyConfig} />
-									)}
-									{rule.handlerType === "static_response" && (
-										<StaticResponseSummary config={rule.handlerConfig as StaticResponseConfig} />
-									)}
-									{rule.handlerType === "redirect" && (
-										<RedirectSummary config={rule.handlerConfig as RedirectConfig} />
-									)}
-									{rule.handlerType === "file_server" && (
-										<FileServerSummary config={rule.handlerConfig as FileServerConfig} />
-									)}
-									{rule.toggleOverrides && <span className="wizard-review-tag">overrides</span>}
-								</div>
-							))}
-						</div>
-					) : (
-						<span className="text-muted">No additional rules</span>
-					)}
-				</div>
-			</div>
+			)}
 		</div>
 	);
 }

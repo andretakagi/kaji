@@ -3275,6 +3275,20 @@ input:disabled + .toggle-slider {
 	gap: 0.5rem;
 }
 
+.wizard-subdomain-hint {
+	margin-top: 0.5rem;
+	padding: 0.625rem 0.75rem;
+	border-radius: var(--radius);
+	background: var(--surface);
+	border: 1px solid var(--card-border);
+	font-size: 0.85rem;
+	color: var(--text-secondary);
+}
+
+.wizard-subdomain-hint strong {
+	color: var(--text);
+}
+
 /* Wizard Review */
 
 .wizard-review {
@@ -4628,4 +4642,96 @@ input:disabled + .toggle-slider {
 .mini-editor select:focus {
 	border-color: var(--accent);
 	outline: none;
+}
+
+/* Subdomain cards */
+
+.subdomain-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.subdomain-card-name {
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--text-emphasis);
+	min-width: 0;
+}
+
+.subdomain-card-rule-count {
+	font-size: 0.75rem;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+.subdomain-card-summary {
+	padding: 0.375rem 1.125rem 0.625rem;
+	font-size: 0.8125rem;
+	font-family: var(--font-mono);
+	color: var(--text-muted);
+	border-top: 1px solid var(--border);
+}
+
+.handler-none {
+	background: rgba(var(--text-secondary-rgb), 0.1);
+	color: var(--text-muted);
+}
+
+.subdomain-create-form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 1rem 1.125rem;
+}
+
+.subdomain-name-input {
+	display: flex;
+	align-items: center;
+	gap: 0;
+}
+
+.subdomain-name-input input {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	flex: 1;
+	min-width: 0;
+}
+
+.subdomain-name-suffix {
+	font-size: 0.8125rem;
+	font-family: var(--font-mono);
+	color: var(--text-muted);
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-left: none;
+	border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+	padding: 0.5rem 0.625rem;
+	white-space: nowrap;
+}
+
+.subdomain-handler-info {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	font-size: 0.875rem;
+}
+
+.subdomain-handler-label {
+	font-weight: 600;
+	color: var(--text-secondary);
+	text-transform: capitalize;
+	flex-shrink: 0;
+}
+
+.subdomain-handler-value {
+	font-family: var(--font-mono);
+	color: var(--text);
+	word-break: break-all;
+	min-width: 0;
 }

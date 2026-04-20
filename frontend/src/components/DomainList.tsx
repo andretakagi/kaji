@@ -18,6 +18,7 @@ export default function DomainList() {
 		saving,
 		feedback,
 		handleCreate,
+		handleCreateSubdomain,
 		handleDelete,
 		handleToggleEnabled,
 	} = useDomainList();
@@ -26,6 +27,11 @@ export default function DomainList() {
 
 	async function onCreateDomain(req: Parameters<typeof handleCreate>[0]) {
 		await handleCreate(req);
+		form.close();
+	}
+
+	async function onCreateSubdomain(...args: Parameters<typeof handleCreateSubdomain>) {
+		await handleCreateSubdomain(...args);
 		form.close();
 	}
 
@@ -56,8 +62,9 @@ export default function DomainList() {
 			{form.visible && (
 				<DomainWizard
 					onCreate={onCreateDomain}
+					onCreateSubdomain={onCreateSubdomain}
 					onCancel={form.close}
-					existingDomains={domains.map((d) => d.name)}
+					existingDomains={domains}
 				/>
 			)}
 
