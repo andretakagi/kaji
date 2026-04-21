@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBuildRuleRoute_StaticResponseClose(t *testing.T) {
+func TestBuildRuleDomain_StaticResponseClose(t *testing.T) {
 	srCfg := mustMarshal(t, StaticResponseConfig{Close: true})
 	rule := RuleBuildParams{
 		RuleID:        "rule_sr_close",
@@ -13,7 +13,7 @@ func TestBuildRuleRoute_StaticResponseClose(t *testing.T) {
 		HandlerConfig: srCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestBuildRuleRoute_StaticResponseClose(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_StaticResponseFull(t *testing.T) {
+func TestBuildRuleDomain_StaticResponseFull(t *testing.T) {
 	srCfg := mustMarshal(t, StaticResponseConfig{
 		StatusCode: "200",
 		Body:       "Hello, world!",
@@ -53,7 +53,7 @@ func TestBuildRuleRoute_StaticResponseFull(t *testing.T) {
 		HandlerConfig: srCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestBuildRuleRoute_StaticResponseFull(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_StaticResponseMinimal(t *testing.T) {
+func TestBuildRuleDomain_StaticResponseMinimal(t *testing.T) {
 	srCfg := mustMarshal(t, StaticResponseConfig{
 		StatusCode: "204",
 	})
@@ -88,7 +88,7 @@ func TestBuildRuleRoute_StaticResponseMinimal(t *testing.T) {
 		HandlerConfig: srCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestBuildRuleRoute_StaticResponseMinimal(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_StaticResponseWithToggles(t *testing.T) {
+func TestBuildRuleDomain_StaticResponseWithToggles(t *testing.T) {
 	srCfg := mustMarshal(t, StaticResponseConfig{
 		StatusCode: "403",
 		Body:       "Forbidden",
@@ -126,7 +126,7 @@ func TestBuildRuleRoute_StaticResponseWithToggles(t *testing.T) {
 		Compression: true,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, toggles, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, toggles, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -154,14 +154,14 @@ func TestBuildRuleRoute_StaticResponseWithToggles(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_StaticResponseInvalidJSON(t *testing.T) {
+func TestBuildRuleDomain_StaticResponseInvalidJSON(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_sr_bad",
 		HandlerType:   "static_response",
 		HandlerConfig: json.RawMessage(`{invalid`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for invalid handler config JSON")
 	}

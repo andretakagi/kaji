@@ -27,12 +27,12 @@ func TestGenerateRouteID(t *testing.T) {
 	}
 }
 
-func TestBuildRouteMinimal(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainMinimal(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 	}
-	raw, err := BuildRoute(p)
+	raw, err := BuildDomain(p)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,23 +78,23 @@ func TestBuildRouteMinimal(t *testing.T) {
 	}
 }
 
-func TestBuildRouteErrorsOnEmptyFields(t *testing.T) {
-	_, err := BuildRoute(RouteParams{Domain: "", Upstream: "localhost:8080"})
+func TestBuildDomainErrorsOnEmptyFields(t *testing.T) {
+	_, err := BuildDomain(DomainParams{Domain: "", Upstream: "localhost:8080"})
 	if err == nil {
 		t.Error("expected error for empty domain")
 	}
 
-	_, err = BuildRoute(RouteParams{Domain: "example.com", Upstream: ""})
+	_, err = BuildDomain(DomainParams{Domain: "example.com", Upstream: ""})
 	if err == nil {
 		t.Error("expected error for empty upstream")
 	}
 }
 
-func buildAndUnmarshalHandlers(t *testing.T, p RouteParams) []json.RawMessage {
+func buildAndUnmarshalHandlers(t *testing.T, p DomainParams) []json.RawMessage {
 	t.Helper()
-	raw, err := BuildRoute(p)
+	raw, err := BuildDomain(p)
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 	var route struct {
 		Handle []json.RawMessage `json:"handle"`
@@ -137,8 +137,8 @@ func findHandler(t *testing.T, handlers []json.RawMessage, name string) json.Raw
 	return nil
 }
 
-func TestBuildRouteForceHTTPS(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainForceHTTPS(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{ForceHTTPS: true},
@@ -165,8 +165,8 @@ func TestBuildRouteForceHTTPS(t *testing.T) {
 	}
 }
 
-func TestBuildRouteCompression(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainCompression(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{Compression: true},
@@ -197,8 +197,8 @@ func TestBuildRouteCompression(t *testing.T) {
 	}
 }
 
-func TestBuildRouteSecurityHeaders(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainSecurityHeaders(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -228,8 +228,8 @@ func TestBuildRouteSecurityHeaders(t *testing.T) {
 	}
 }
 
-func TestBuildRouteCORSSingleOrigin(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainCORSSingleOrigin(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -257,8 +257,8 @@ func TestBuildRouteCORSSingleOrigin(t *testing.T) {
 	}
 }
 
-func TestBuildRouteCORSWildcard(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainCORSWildcard(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -286,8 +286,8 @@ func TestBuildRouteCORSWildcard(t *testing.T) {
 	}
 }
 
-func TestBuildRouteCORSMultiOrigin(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainCORSMultiOrigin(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -345,8 +345,8 @@ func TestBuildRouteCORSMultiOrigin(t *testing.T) {
 	}
 }
 
-func TestBuildRouteBasicAuth(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainBasicAuth(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -384,8 +384,8 @@ func TestBuildRouteBasicAuth(t *testing.T) {
 	}
 }
 
-func TestBuildRouteTLSSkipVerify(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainTLSSkipVerify(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8443",
 		Toggles:  RouteToggles{TLSSkipVerify: true},
@@ -407,8 +407,8 @@ func TestBuildRouteTLSSkipVerify(t *testing.T) {
 	}
 }
 
-func TestBuildRouteWebSocket(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainWebSocket(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{WebSocketPassthru: true},
@@ -426,8 +426,8 @@ func TestBuildRouteWebSocket(t *testing.T) {
 	}
 }
 
-func TestBuildRouteLoadBalancingRoundRobin(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainLoadBalancingRoundRobin(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -465,8 +465,8 @@ func TestBuildRouteLoadBalancingRoundRobin(t *testing.T) {
 	}
 }
 
-func TestBuildRouteLoadBalancingFirst(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainLoadBalancingFirst(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -508,21 +508,21 @@ func TestBuildRouteLoadBalancingFirst(t *testing.T) {
 
 // round-trip helpers
 
-func buildAndParse(t *testing.T, p RouteParams) RouteParams {
+func buildAndParse(t *testing.T, p DomainParams) DomainParams {
 	t.Helper()
-	raw, err := BuildRoute(p)
+	raw, err := BuildDomain(p)
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
-	result, err := ParseRouteParams(raw)
+	result, err := ParseDomainParams(raw)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 	return result
 }
 
-func TestParseRouteParamsMinimal(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsMinimal(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 	}
@@ -538,8 +538,8 @@ func TestParseRouteParamsMinimal(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsForceHTTPS(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsForceHTTPS(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{ForceHTTPS: true},
@@ -556,8 +556,8 @@ func TestParseRouteParamsForceHTTPS(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsCompression(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsCompression(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{Compression: true},
@@ -568,8 +568,8 @@ func TestParseRouteParamsCompression(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsSecurityHeaders(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsSecurityHeaders(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -582,8 +582,8 @@ func TestParseRouteParamsSecurityHeaders(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsCORSSingleOrigin(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsCORSSingleOrigin(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -601,9 +601,9 @@ func TestParseRouteParamsCORSSingleOrigin(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsCORSWildcard(t *testing.T) {
+func TestParseDomainParamsCORSWildcard(t *testing.T) {
 	// Wildcard origin (*) does not round-trip CORSOrigins - only CORS bool does
-	p := RouteParams{
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -621,9 +621,9 @@ func TestParseRouteParamsCORSWildcard(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsCORSMultiOrigin(t *testing.T) {
+func TestParseDomainParamsCORSMultiOrigin(t *testing.T) {
 	origins := []string{"https://a.example.com", "https://b.example.com"}
-	p := RouteParams{
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -646,8 +646,8 @@ func TestParseRouteParamsCORSMultiOrigin(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsBasicAuth(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsBasicAuth(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -670,8 +670,8 @@ func TestParseRouteParamsBasicAuth(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsTLSSkipVerify(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsTLSSkipVerify(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8443",
 		Toggles:  RouteToggles{TLSSkipVerify: true},
@@ -682,8 +682,8 @@ func TestParseRouteParamsTLSSkipVerify(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsWebSocket(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsWebSocket(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{WebSocketPassthru: true},
@@ -694,8 +694,8 @@ func TestParseRouteParamsWebSocket(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsLoadBalancingRoundRobin(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsLoadBalancingRoundRobin(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -727,8 +727,8 @@ func TestParseRouteParamsLoadBalancingRoundRobin(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsLoadBalancingFirst(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsLoadBalancingFirst(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -756,8 +756,8 @@ func TestParseRouteParamsLoadBalancingFirst(t *testing.T) {
 
 // --- IP filtering ---
 
-func TestBuildRouteIPFilteringBlacklist(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainIPFilteringBlacklist(t *testing.T) {
+	p := DomainParams{
 		Domain:     "example.com",
 		Upstream:   "localhost:8080",
 		IPListIPs:  []string{"10.0.0.1", "192.168.1.0/24"},
@@ -801,8 +801,8 @@ func TestBuildRouteIPFilteringBlacklist(t *testing.T) {
 	}
 }
 
-func TestBuildRouteIPFilteringWhitelist(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainIPFilteringWhitelist(t *testing.T) {
+	p := DomainParams{
 		Domain:     "example.com",
 		Upstream:   "localhost:8080",
 		IPListIPs:  []string{"10.0.0.0/8"},
@@ -847,8 +847,8 @@ func TestBuildRouteIPFilteringWhitelist(t *testing.T) {
 	}
 }
 
-func TestBuildRouteIPFilteringSkippedWhenEmpty(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainIPFilteringSkippedWhenEmpty(t *testing.T) {
+	p := DomainParams{
 		Domain:     "example.com",
 		Upstream:   "localhost:8080",
 		IPListIPs:  []string{},
@@ -861,20 +861,20 @@ func TestBuildRouteIPFilteringSkippedWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsIPFilteringBlacklist(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsIPFilteringBlacklist(t *testing.T) {
+	p := DomainParams{
 		Domain:     "example.com",
 		Upstream:   "localhost:8080",
 		IPListIPs:  []string{"10.0.0.1"},
 		IPListType: "blacklist",
 	}
-	raw, err := BuildRoute(p)
+	raw, err := BuildDomain(p)
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
-	got, err := ParseRouteParams(raw)
+	got, err := ParseDomainParams(raw)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 	if !got.Toggles.IPFiltering.Enabled {
 		t.Error("IPFiltering.Enabled should be true")
@@ -884,20 +884,20 @@ func TestParseRouteParamsIPFilteringBlacklist(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsIPFilteringWhitelist(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsIPFilteringWhitelist(t *testing.T) {
+	p := DomainParams{
 		Domain:     "example.com",
 		Upstream:   "localhost:8080",
 		IPListIPs:  []string{"10.0.0.0/8"},
 		IPListType: "whitelist",
 	}
-	raw, err := BuildRoute(p)
+	raw, err := BuildDomain(p)
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
-	got, err := ParseRouteParams(raw)
+	got, err := ParseDomainParams(raw)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 	if !got.Toggles.IPFiltering.Enabled {
 		t.Error("IPFiltering.Enabled should be true")
@@ -909,7 +909,7 @@ func TestParseRouteParamsIPFilteringWhitelist(t *testing.T) {
 
 // --- Caddyfile-adapted route structure ---
 
-func TestParseRouteParamsCaddyfileWrappedSubroute(t *testing.T) {
+func TestParseDomainParamsCaddyfileWrappedSubroute(t *testing.T) {
 	// Caddyfile-adapted routes wrap all handlers inside a single top-level
 	// subroute, with each handler in its own nested route.
 	caddyfileRoute := json.RawMessage(`{
@@ -936,9 +936,9 @@ func TestParseRouteParamsCaddyfileWrappedSubroute(t *testing.T) {
 		"terminal": true
 	}`)
 
-	got, err := ParseRouteParams(caddyfileRoute)
+	got, err := ParseDomainParams(caddyfileRoute)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 	if got.Domain != "example.com" {
 		t.Errorf("Domain = %q, want example.com", got.Domain)
@@ -951,7 +951,7 @@ func TestParseRouteParamsCaddyfileWrappedSubroute(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsCaddyfileForceHTTPSWithHandlers(t *testing.T) {
+func TestParseDomainParamsCaddyfileForceHTTPSWithHandlers(t *testing.T) {
 	// Caddyfile-adapted route where ForceHTTPS subroute also contains
 	// additional handlers (like reverse_proxy) in non-redirect routes.
 	caddyfileRoute := json.RawMessage(`{
@@ -979,9 +979,9 @@ func TestParseRouteParamsCaddyfileForceHTTPSWithHandlers(t *testing.T) {
 		"terminal": true
 	}`)
 
-	got, err := ParseRouteParams(caddyfileRoute)
+	got, err := ParseDomainParams(caddyfileRoute)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 	if !got.Toggles.ForceHTTPS {
 		t.Error("ForceHTTPS should be detected")
@@ -993,22 +993,22 @@ func TestParseRouteParamsCaddyfileForceHTTPSWithHandlers(t *testing.T) {
 
 // --- Malformed / empty JSON ---
 
-func TestParseRouteParamsEmptyInput(t *testing.T) {
-	_, err := ParseRouteParams(json.RawMessage(``))
+func TestParseDomainParamsEmptyInput(t *testing.T) {
+	_, err := ParseDomainParams(json.RawMessage(``))
 	if err == nil {
 		t.Error("expected error for empty input")
 	}
 }
 
-func TestParseRouteParamsInvalidJSON(t *testing.T) {
-	_, err := ParseRouteParams(json.RawMessage(`{not json`))
+func TestParseDomainParamsInvalidJSON(t *testing.T) {
+	_, err := ParseDomainParams(json.RawMessage(`{not json`))
 	if err == nil {
 		t.Error("expected error for invalid JSON")
 	}
 }
 
-func TestParseRouteParamsEmptyObject(t *testing.T) {
-	got, err := ParseRouteParams(json.RawMessage(`{}`))
+func TestParseDomainParamsEmptyObject(t *testing.T) {
+	got, err := ParseDomainParams(json.RawMessage(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1020,8 +1020,8 @@ func TestParseRouteParamsEmptyObject(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsNoMatchNoHandle(t *testing.T) {
-	got, err := ParseRouteParams(json.RawMessage(`{"@id": "test_route"}`))
+func TestParseDomainParamsNoMatchNoHandle(t *testing.T) {
+	got, err := ParseDomainParams(json.RawMessage(`{"@id": "test_route"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1033,18 +1033,18 @@ func TestParseRouteParamsNoMatchNoHandle(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsNoHeadersEmptyBuiltinCustom(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+func TestParseDomainParamsNoHeadersEmptyBuiltinCustom(t *testing.T) {
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:3000",
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	if len(got.Toggles.Headers.Response.Builtin) != 0 {
@@ -1061,8 +1061,8 @@ func TestParseRouteParamsNoHeadersEmptyBuiltinCustom(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsCustomResponseHeaders(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+func TestParseDomainParamsCustomResponseHeaders(t *testing.T) {
+	route, err := BuildDomain(DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:3000",
 		AdvancedHeaders: true,
@@ -1082,12 +1082,12 @@ func TestParseRouteParamsCustomResponseHeaders(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	builtinKeys := map[string]bool{}
@@ -1113,8 +1113,8 @@ func TestParseRouteParamsCustomResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsCustomRequestHeaders(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+func TestParseDomainParamsCustomRequestHeaders(t *testing.T) {
+	route, err := BuildDomain(DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:3000",
 		AdvancedHeaders: true,
@@ -1131,12 +1131,12 @@ func TestParseRouteParamsCustomRequestHeaders(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	builtinKeys := map[string]bool{}
@@ -1159,8 +1159,8 @@ func TestParseRouteParamsCustomRequestHeaders(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsSecurityPlusCORSCombined(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+func TestParseDomainParamsSecurityPlusCORSCombined(t *testing.T) {
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:3000",
 		Toggles: RouteToggles{
@@ -1175,12 +1175,12 @@ func TestParseRouteParamsSecurityPlusCORSCombined(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	if !got.Toggles.Headers.Response.Security {
@@ -1216,20 +1216,20 @@ func TestParseRouteParamsSecurityPlusCORSCombined(t *testing.T) {
 
 // --- Redirect / static_response parsing ---
 
-func buildRuleAndParse(t *testing.T, domainName string, rule RuleBuildParams, toggles DomainToggles) RouteParams {
+func buildRuleAndParse(t *testing.T, domainName string, rule RuleBuildParams, toggles DomainToggles) DomainParams {
 	t.Helper()
-	raw, err := BuildRuleRoute(domainName, rule, toggles, nil, "", false)
+	raw, err := BuildRuleDomain(domainName, rule, toggles, nil, "", false)
 	if err != nil {
-		t.Fatalf("BuildRuleRoute failed: %v", err)
+		t.Fatalf("BuildRuleDomain failed: %v", err)
 	}
-	result, err := ParseRouteParams(raw)
+	result, err := ParseDomainParams(raw)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 	return result
 }
 
-func TestParseRouteParamsRedirectBasic(t *testing.T) {
+func TestParseDomainParamsRedirectBasic(t *testing.T) {
 	cfg, _ := json.Marshal(RedirectConfig{
 		TargetURL:    "https://example.com",
 		StatusCode:   "301",
@@ -1259,7 +1259,7 @@ func TestParseRouteParamsRedirectBasic(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsRedirectPreservePath(t *testing.T) {
+func TestParseDomainParamsRedirectPreservePath(t *testing.T) {
 	cfg, _ := json.Marshal(RedirectConfig{
 		TargetURL:    "https://new.example.com",
 		StatusCode:   "302",
@@ -1289,7 +1289,7 @@ func TestParseRouteParamsRedirectPreservePath(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsRedirectWithToggles(t *testing.T) {
+func TestParseDomainParamsRedirectWithToggles(t *testing.T) {
 	cfg, _ := json.Marshal(RedirectConfig{
 		TargetURL:    "https://example.com",
 		StatusCode:   "308",
@@ -1322,7 +1322,7 @@ func TestParseRouteParamsRedirectWithToggles(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsStaticResponseNoLocation(t *testing.T) {
+func TestParseDomainParamsStaticResponseNoLocation(t *testing.T) {
 	cfg, _ := json.Marshal(StaticResponseConfig{
 		StatusCode: "200",
 		Body:       "OK",
@@ -1349,7 +1349,7 @@ func TestParseRouteParamsStaticResponseNoLocation(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsStaticResponseClose(t *testing.T) {
+func TestParseDomainParamsStaticResponseClose(t *testing.T) {
 	cfg, _ := json.Marshal(StaticResponseConfig{
 		Close: true,
 	})
@@ -1373,7 +1373,7 @@ func TestParseRouteParamsStaticResponseClose(t *testing.T) {
 
 // --- Tests for new handler types: static_response, redirect, file_server ---
 
-func TestParseRouteParams_StaticResponseRoundTrip(t *testing.T) {
+func TestParseDomainParams_StaticResponseRoundTrip(t *testing.T) {
 	cfg, _ := json.Marshal(StaticResponseConfig{
 		StatusCode: "403",
 		Body:       "Forbidden",
@@ -1404,7 +1404,7 @@ func TestParseRouteParams_StaticResponseRoundTrip(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_RedirectRoundTrip(t *testing.T) {
+func TestParseDomainParams_RedirectRoundTrip(t *testing.T) {
 	cfg, _ := json.Marshal(RedirectConfig{
 		TargetURL:    "https://example.com",
 		StatusCode:   "301",
@@ -1435,7 +1435,7 @@ func TestParseRouteParams_RedirectRoundTrip(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_RedirectWithPreservePath(t *testing.T) {
+func TestParseDomainParams_RedirectWithPreservePath(t *testing.T) {
 	cfg, _ := json.Marshal(RedirectConfig{
 		TargetURL:    "https://new.example.com",
 		StatusCode:   "308",
@@ -1466,7 +1466,7 @@ func TestParseRouteParams_RedirectWithPreservePath(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_FileServerRoundTrip(t *testing.T) {
+func TestParseDomainParams_FileServerRoundTrip(t *testing.T) {
 	cfg, _ := json.Marshal(FileServerConfig{
 		Root:       "/var/www",
 		Browse:     false,
@@ -1501,7 +1501,7 @@ func TestParseRouteParams_FileServerRoundTrip(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_FileServerWithBrowse(t *testing.T) {
+func TestParseDomainParams_FileServerWithBrowse(t *testing.T) {
 	cfg, _ := json.Marshal(FileServerConfig{
 		Root:   "/var/www",
 		Browse: true,
@@ -1525,7 +1525,7 @@ func TestParseRouteParams_FileServerWithBrowse(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_IPFilteringBlacklistDetected(t *testing.T) {
+func TestParseDomainParams_IPFilteringBlacklistDetected(t *testing.T) {
 	route := json.RawMessage(`{
 		"@id": "kaji_example_com",
 		"match": [{"host": ["example.com"]}],
@@ -1546,9 +1546,9 @@ func TestParseRouteParams_IPFilteringBlacklistDetected(t *testing.T) {
 		"terminal": true
 	}`)
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	if !got.Toggles.IPFiltering.Enabled {
@@ -1559,7 +1559,7 @@ func TestParseRouteParams_IPFilteringBlacklistDetected(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_IPFilteringWhitelistDetected(t *testing.T) {
+func TestParseDomainParams_IPFilteringWhitelistDetected(t *testing.T) {
 	route := json.RawMessage(`{
 		"@id": "kaji_example_com",
 		"match": [{"host": ["example.com"]}],
@@ -1580,9 +1580,9 @@ func TestParseRouteParams_IPFilteringWhitelistDetected(t *testing.T) {
 		"terminal": true
 	}`)
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	if !got.Toggles.IPFiltering.Enabled {
@@ -1593,7 +1593,7 @@ func TestParseRouteParams_IPFilteringWhitelistDetected(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_UnknownHandlerSilentlySkipped(t *testing.T) {
+func TestParseDomainParams_UnknownHandlerSilentlySkipped(t *testing.T) {
 	route := json.RawMessage(`{
 		"@id": "kaji_example_com",
 		"match": [{"host": ["example.com"]}],
@@ -1607,9 +1607,9 @@ func TestParseRouteParams_UnknownHandlerSilentlySkipped(t *testing.T) {
 		"terminal": true
 	}`)
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	if got.Upstream != "localhost:8080" {
@@ -1620,7 +1620,7 @@ func TestParseRouteParams_UnknownHandlerSilentlySkipped(t *testing.T) {
 	}
 }
 
-func TestParseRouteParams_MalformedHandlerDoesntCrash(t *testing.T) {
+func TestParseDomainParams_MalformedHandlerDoesntCrash(t *testing.T) {
 	route := json.RawMessage(`{
 		"@id": "kaji_example_com",
 		"match": [{"host": ["example.com"]}],
@@ -1633,9 +1633,9 @@ func TestParseRouteParams_MalformedHandlerDoesntCrash(t *testing.T) {
 		"terminal": true
 	}`)
 
-	got, err := ParseRouteParams(route)
+	got, err := ParseDomainParams(route)
 	if err != nil {
-		t.Fatalf("ParseRouteParams failed: %v", err)
+		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
 	if got.Upstream != "localhost:8080" {

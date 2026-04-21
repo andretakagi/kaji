@@ -53,7 +53,7 @@ export default function Certificates() {
 	const [forceDelete, setForceDelete] = useState<{
 		issuerKey: string;
 		domain: string;
-		affectedRoutes: string[];
+		affectedDomains: string[];
 	} | null>(null);
 
 	const handleRenew = (cert: CertInfo) =>
@@ -74,7 +74,7 @@ export default function Certificates() {
 					setForceDelete({
 						issuerKey: cert.issuer_key,
 						domain: cert.domain,
-						affectedRoutes: err.affectedRoutes,
+						affectedDomains: err.affectedDomains,
 					});
 				}
 				throw err;
@@ -126,12 +126,12 @@ export default function Certificates() {
 			{forceDelete && (
 				<div className="cert-force-delete-banner" role="alert">
 					<p>
-						This certificate's domain has active routes. Deleting it may cause TLS errors until
-						Caddy provisions a replacement.
+						This certificate's domain has active configurations. Deleting it may cause TLS errors
+						until Caddy provisions a replacement.
 					</p>
-					<ul className="cert-affected-routes">
-						{forceDelete.affectedRoutes.map((route) => (
-							<li key={route}>{route}</li>
+					<ul className="cert-affected-domains">
+						{forceDelete.affectedDomains.map((d) => (
+							<li key={d}>{d}</li>
 						))}
 					</ul>
 					<div className="cert-force-delete-actions">
@@ -157,8 +157,8 @@ export default function Certificates() {
 
 			{certs.length === 0 ? (
 				<div className="empty-state">
-					No certificates found. Caddy automatically provisions TLS certificates when you create
-					routes with public domains.
+					No certificates found. Caddy automatically provisions TLS certificates when you add
+					domains with public hostnames.
 				</div>
 			) : (
 				<div className="cert-list">

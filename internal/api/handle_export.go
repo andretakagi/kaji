@@ -127,14 +127,14 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 			}
 		}
 
-		routeCount := 0
+		domainCount := 0
 		if settings != nil {
-			routeCount = settings.RouteCount
+			domainCount = settings.DomainCount
 		}
 
 		writeJSON(w, map[string]any{
-			"status":      "ok",
-			"route_count": routeCount,
+			"status":       "ok",
+			"domain_count": domainCount,
 		})
 	}
 }
@@ -170,11 +170,11 @@ func handleImportFull(cc *caddy.Client, store *config.ConfigStore, ss *snapshot.
 			snapshotCount = len(backup.Snapshots.Index.Snapshots)
 		}
 
-		routeCount := caddy.CountRoutes(backup.CaddyConfig)
+		domainCount := caddy.CountDomains(backup.CaddyConfig)
 
 		resp := map[string]any{
 			"status":         "ok",
-			"route_count":    routeCount,
+			"domain_count":   domainCount,
 			"snapshot_count": snapshotCount,
 		}
 		if len(backup.MigrationLog) > 0 {
@@ -219,7 +219,7 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 			return
 		}
 
-		routes := caddy.ExtractReviewRoutes(adaptedJSON)
+		routes := caddy.ExtractReviewDomains(adaptedJSON)
 
 		adminListen := settings.AdminListen
 		if adminListen == "" {
@@ -229,9 +229,9 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 		resp := map[string]any{
 			"acme_email":     settings.ACMEEmail,
 			"global_toggles": settings.Toggles,
-			"route_count":    settings.RouteCount,
+			"domain_count":   settings.DomainCount,
 			"adapted_config": adaptedJSON,
-			"routes":         routes,
+			"domains":        routes,
 		}
 		if adminListen != "" {
 			resp["admin_listen"] = adminListen
@@ -276,7 +276,7 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 		if settings, err := caddy.ExtractCaddyfileSettings(backup.CaddyConfig); err == nil {
 			resp["acme_email"] = settings.ACMEEmail
 			resp["global_toggles"] = settings.Toggles
-			resp["route_count"] = settings.RouteCount
+			resp["domain_count"] = settings.DomainCount
 		}
 		if len(backup.MigrationLog) > 0 {
 			resp["migrated_from"] = backup.Manifest.KajiVersion
@@ -284,7 +284,7 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 		}
 
 		// Build review routes from domain model
-		routes := caddy.ExtractReviewRoutes(backup.CaddyConfig)
+		routes := caddy.ExtractReviewDomains(backup.CaddyConfig)
 		for _, d := range backup.AppConfig.Domains {
 			for _, r := range d.Rules {
 				upstream := ""
@@ -294,7 +294,7 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 						upstream = rpc.Upstream
 					}
 				}
-				routes = append(routes, caddy.ReviewRoute{
+				routes = append(routes, caddy.ReviewDomain{
 					Domain:   d.Name,
 					Upstream: upstream,
 					Enabled:  d.Enabled && r.Enabled,
@@ -333,7 +333,7 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 		}
 
 		resp["review"] = map[string]any{
-			"routes": routes,
+			"domains": routes,
 			"logging": map[string]any{
 				"log_file":      backup.AppConfig.LogFile,
 				"log_dir":       backup.AppConfig.LogDir,

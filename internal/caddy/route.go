@@ -1,4 +1,4 @@
-// Route building and parsing. Turns RouteParams into Caddy JSON and back.
+// Domain building and parsing. Turns DomainParams into Caddy JSON and back.
 package caddy
 
 import (
@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-type RouteParams struct {
+type DomainParams struct {
 	ID              string          `json:"@id"`
 	Domain          string          `json:"domain"`
 	Upstream        string          `json:"upstream"`
@@ -91,7 +91,7 @@ func GenerateRouteID(domain string) string {
 	return "kaji_" + safe
 }
 
-func BuildRoute(p RouteParams) (json.RawMessage, error) {
+func BuildDomain(p DomainParams) (json.RawMessage, error) {
 	if p.Domain == "" {
 		return nil, fmt.Errorf("domain is required")
 	}
@@ -260,14 +260,14 @@ func BuildRoute(p RouteParams) (json.RawMessage, error) {
 	return json.RawMessage(data), nil
 }
 
-// ParseRouteParams extracts RouteParams from an existing Caddy route JSON.
-// Used to populate the toggle panel from a live route.
+// ParseDomainParams extracts DomainParams from an existing Caddy route JSON.
+// Used to populate the toggle panel from a live domain.
 //
 // Handles two route structures:
 //   - Admin API routes (Kaji-created): handlers are a flat array at the top level
 //   - Caddyfile-adapted routes: all handlers are wrapped in a single top-level
 //     subroute, with each handler in its own nested route
-func ParseRouteParams(raw json.RawMessage) (RouteParams, error) {
+func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 	var route struct {
 		ID    string `json:"@id"`
 		Match []struct {
@@ -276,10 +276,10 @@ func ParseRouteParams(raw json.RawMessage) (RouteParams, error) {
 		Handle []json.RawMessage `json:"handle"`
 	}
 	if err := json.Unmarshal(raw, &route); err != nil {
-		return RouteParams{}, err
+		return DomainParams{}, err
 	}
 
-	p := RouteParams{ID: route.ID}
+	p := DomainParams{ID: route.ID}
 	p.Toggles.Enabled = true
 	if len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
 		p.Domain = route.Match[0].Host[0]
@@ -449,7 +449,7 @@ func parseIPFilteringSubroute(routes []struct {
 	}
 }
 
-func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
+func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 	for _, h := range handlers {
 		var handler struct {
 			Handler       string          `json:"handler"`
@@ -609,7 +609,7 @@ func parseHandlers(handlers []json.RawMessage, p *RouteParams) {
 	}
 }
 
-func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
+func parseReverseProxyRequestHeaders(raw json.RawMessage, p *DomainParams) {
 	var rp struct {
 		Headers struct {
 			Request struct {
@@ -643,7 +643,7 @@ func parseReverseProxyRequestHeaders(raw json.RawMessage, p *RouteParams) {
 
 const requestURIPlaceholder = "{http.request.uri}"
 
-func parseFileServerHandler(raw json.RawMessage, p *RouteParams) {
+func parseFileServerHandler(raw json.RawMessage, p *DomainParams) {
 	var fs struct {
 		Root       string   `json:"root"`
 		Browse     any      `json:"browse"`
@@ -668,7 +668,7 @@ func parseFileServerHandler(raw json.RawMessage, p *RouteParams) {
 	p.HandlerConfig = data
 }
 
-func parseStaticResponseHandler(raw json.RawMessage, p *RouteParams) {
+func parseStaticResponseHandler(raw json.RawMessage, p *DomainParams) {
 	var sr struct {
 		StatusCode string              `json:"status_code"`
 		Body       string              `json:"body"`

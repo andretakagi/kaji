@@ -12,9 +12,16 @@ interface Props {
 	onUpdate: <K extends keyof DomainToggles>(key: K, value: DomainToggles[K]) => void;
 	idPrefix: string;
 	domain?: string;
+	hideResponseHeaders?: boolean;
 }
 
-export function DomainToggleGrid({ toggles, onUpdate, idPrefix, domain }: Props) {
+export function DomainToggleGrid({
+	toggles,
+	onUpdate,
+	idPrefix,
+	domain,
+	hideResponseHeaders,
+}: Props) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 	const [autoHttps, setAutoHttps] = useState<GlobalToggles["auto_https"] | null>(null);
 
@@ -56,7 +63,9 @@ export function DomainToggleGrid({ toggles, onUpdate, idPrefix, domain }: Props)
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
 			/>
-			<ResponseHeadersGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
+			{!hideResponseHeaders && (
+				<ResponseHeadersGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
+			)}
 			<BasicAuthGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
 			<AccessLogGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} domain={domain} />
 			<IPFilteringGroup toggles={toggles} onUpdate={onUpdate} ipLists={ipLists} />
@@ -120,7 +129,7 @@ function AccessLogGroup({ toggles, onUpdate, idPrefix, domain }: GroupProps & { 
 		<div className={cn("toggle-group", toggles.access_log && "toggle-group-open")}>
 			<ToggleItem
 				label="Access Log"
-				description="Log requests to routes under this domain"
+				description="Log requests to this domain and its subdomains"
 				checked={toggles.access_log !== ""}
 				onChange={(v) => onUpdate("access_log", v ? "kaji_access" : "")}
 			/>

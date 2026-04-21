@@ -451,7 +451,7 @@ function StepImport({
 			update("caddyfileText", text);
 			update("adaptedConfig", result.adapted_config);
 			update("importedSettings", result);
-			update("reviewData", { routes: result.routes ?? [] });
+			update("reviewData", { domains: result.domains ?? [] });
 			if (result.acme_email) update("acmeEmail", result.acme_email);
 			update("globalToggles", result.global_toggles);
 		} catch (err) {
@@ -503,7 +503,7 @@ function StepImport({
 					onClick={() => handleModeChange("caddyfile")}
 				>
 					<strong>Import Caddyfile</strong>
-					<span>Bring in routes from an existing Caddyfile</span>
+					<span>Bring in domains from an existing Caddyfile</span>
 				</button>
 				<button
 					type="button"
@@ -531,8 +531,8 @@ function StepImport({
 					{data.importedSettings && (
 						<div className="setup-import-result">
 							<div className="setup-import-result-item">
-								<span>Routes found</span>
-								<strong>{data.importedSettings.route_count}</strong>
+								<span>Domains found</span>
+								<strong>{data.importedSettings.domain_count}</strong>
 							</div>
 							{data.importedSettings.acme_email && (
 								<div className="setup-import-result-item">
@@ -567,8 +567,8 @@ function StepImport({
 								<strong>{data.backupSummary.summary.ip_lists}</strong>
 							</div>
 							<div className="setup-import-result-item">
-								<span>Disabled routes</span>
-								<strong>{data.backupSummary.summary.disabled_routes}</strong>
+								<span>Disabled domains</span>
+								<strong>{data.backupSummary.summary.disabled_domains}</strong>
 							</div>
 							<div className="setup-import-result-item">
 								<span>Snapshots</span>
@@ -608,24 +608,24 @@ function StepReview({ data }: { data: WizardData }) {
 
 	return (
 		<div className="setup-review">
-			{review.routes.length > 0 && (
+			{review.domains.length > 0 && (
 				<div className="setup-review-section">
-					<h3 className="setup-review-heading">Routes</h3>
+					<h3 className="setup-review-heading">Domains</h3>
 					<div className="setup-review-table">
 						<div className="setup-review-table-header">
 							<span>Domain</span>
 							<span>Upstream</span>
 							<span>Status</span>
 						</div>
-						{review.routes.map((route) => (
+						{review.domains.map((d) => (
 							<div
-								key={`${route.domain}-${route.enabled}`}
-								className={cn("setup-review-table-row", !route.enabled && "disabled")}
+								key={`${d.domain}-${d.enabled}`}
+								className={cn("setup-review-table-row", !d.enabled && "disabled")}
 							>
-								<span className="setup-review-domain">{route.domain}</span>
-								<span className="setup-review-upstream">{route.upstream}</span>
-								<span className={cn("setup-review-status", route.enabled ? "on" : "off")}>
-									{route.enabled ? "Enabled" : "Disabled"}
+								<span className="setup-review-domain">{d.domain}</span>
+								<span className="setup-review-upstream">{d.upstream}</span>
+								<span className={cn("setup-review-status", d.enabled ? "on" : "off")}>
+									{d.enabled ? "Enabled" : "Disabled"}
 								</span>
 							</div>
 						))}

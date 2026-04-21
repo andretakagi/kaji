@@ -201,7 +201,7 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		maybeAutoSnapshot(cc, ss, store, version, "IP list updated: "+updated.Name)
 		if err := cascadeIPListChange(cc, store); err != nil {
 			log.Printf("handleUpdateIPList: %v", err)
-			writeError(w, "IP list saved but some routes failed to update: "+err.Error(), http.StatusInternalServerError)
+			writeError(w, "IP list saved but some domains failed to update: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		persistCaddyConfig(cc, store)
@@ -268,10 +268,10 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
-		// Re-sync domain routes so they drop the now-missing IP filtering
+		// Re-sync domains so they drop the now-missing IP filtering
 		if err := cascadeIPListChange(cc, store); err != nil {
 			log.Printf("handleDeleteIPList: cascade sync: %v", err)
-			writeError(w, "IP list deleted but some routes failed to update: "+err.Error(), http.StatusInternalServerError)
+			writeError(w, "IP list deleted but some domains failed to update: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		persistCaddyConfig(cc, store)
@@ -326,7 +326,7 @@ func handleIPListUsage(store *config.ConfigStore, cc *caddy.Client) http.Handler
 	}
 }
 
-func handleRouteIPListBindings(store *config.ConfigStore) http.HandlerFunc {
+func handleDomainIPListBindings(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
 

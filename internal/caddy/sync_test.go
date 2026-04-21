@@ -295,13 +295,13 @@ func TestBuildDesiredState_EmptyDomains(t *testing.T) {
 	}
 }
 
-func TestDiffRoutes_AddNew(t *testing.T) {
+func TestDiffDomains_AddNew(t *testing.T) {
 	desired := map[string]json.RawMessage{
 		"kaji_rule_new": json.RawMessage(`{"@id":"kaji_rule_new"}`),
 	}
 	current := map[string]json.RawMessage{}
 
-	adds, updates, deletes := DiffRoutes(desired, current, nil)
+	adds, updates, deletes := DiffDomains(desired, current, nil)
 
 	if len(adds) != 1 {
 		t.Fatalf("adds count = %d, want 1", len(adds))
@@ -317,7 +317,7 @@ func TestDiffRoutes_AddNew(t *testing.T) {
 	}
 }
 
-func TestDiffRoutes_UpdateChanged(t *testing.T) {
+func TestDiffDomains_UpdateChanged(t *testing.T) {
 	desired := map[string]json.RawMessage{
 		"kaji_rule_x": json.RawMessage(`{"@id":"kaji_rule_x","version":2}`),
 	}
@@ -325,7 +325,7 @@ func TestDiffRoutes_UpdateChanged(t *testing.T) {
 		"kaji_rule_x": json.RawMessage(`{"@id":"kaji_rule_x","version":1}`),
 	}
 
-	adds, updates, deletes := DiffRoutes(desired, current, nil)
+	adds, updates, deletes := DiffDomains(desired, current, nil)
 
 	if len(adds) != 0 {
 		t.Errorf("adds count = %d, want 0", len(adds))
@@ -341,12 +341,12 @@ func TestDiffRoutes_UpdateChanged(t *testing.T) {
 	}
 }
 
-func TestDiffRoutes_Unchanged(t *testing.T) {
+func TestDiffDomains_Unchanged(t *testing.T) {
 	route := json.RawMessage(`{"@id":"kaji_rule_same","handle":[]}`)
 	desired := map[string]json.RawMessage{"kaji_rule_same": route}
 	current := map[string]json.RawMessage{"kaji_rule_same": route}
 
-	adds, updates, deletes := DiffRoutes(desired, current, nil)
+	adds, updates, deletes := DiffDomains(desired, current, nil)
 
 	if len(adds) != 0 {
 		t.Errorf("adds count = %d, want 0", len(adds))
@@ -359,13 +359,13 @@ func TestDiffRoutes_Unchanged(t *testing.T) {
 	}
 }
 
-func TestDiffRoutes_DeleteOrphan(t *testing.T) {
+func TestDiffDomains_DeleteOrphan(t *testing.T) {
 	desired := map[string]json.RawMessage{}
 	current := map[string]json.RawMessage{
 		"kaji_rule_orphan": json.RawMessage(`{"@id":"kaji_rule_orphan"}`),
 	}
 
-	adds, updates, deletes := DiffRoutes(desired, current, nil)
+	adds, updates, deletes := DiffDomains(desired, current, nil)
 
 	if len(adds) != 0 {
 		t.Errorf("adds count = %d, want 0", len(adds))
@@ -381,7 +381,7 @@ func TestDiffRoutes_DeleteOrphan(t *testing.T) {
 	}
 }
 
-func TestDiffRoutes_DisabledNotDeleted(t *testing.T) {
+func TestDiffDomains_DisabledNotDeleted(t *testing.T) {
 	desired := map[string]json.RawMessage{}
 	current := map[string]json.RawMessage{
 		"kaji_rule_disabled": json.RawMessage(`{"@id":"kaji_rule_disabled"}`),
@@ -391,7 +391,7 @@ func TestDiffRoutes_DisabledNotDeleted(t *testing.T) {
 		"kaji_rule_disabled": true,
 	}
 
-	_, _, deletes := DiffRoutes(desired, current, disabled)
+	_, _, deletes := DiffDomains(desired, current, disabled)
 
 	if len(deletes) != 1 {
 		t.Fatalf("deletes count = %d, want 1", len(deletes))
@@ -401,7 +401,7 @@ func TestDiffRoutes_DisabledNotDeleted(t *testing.T) {
 	}
 }
 
-func TestDiffRoutes_Mixed(t *testing.T) {
+func TestDiffDomains_Mixed(t *testing.T) {
 	desired := map[string]json.RawMessage{
 		"kaji_rule_new":       json.RawMessage(`{"@id":"kaji_rule_new"}`),
 		"kaji_rule_changed":   json.RawMessage(`{"@id":"kaji_rule_changed","v":2}`),
@@ -413,7 +413,7 @@ func TestDiffRoutes_Mixed(t *testing.T) {
 		"kaji_rule_stale":     json.RawMessage(`{"@id":"kaji_rule_stale"}`),
 	}
 
-	a, u, d := DiffRoutes(desired, current, nil)
+	a, u, d := DiffDomains(desired, current, nil)
 
 	if len(a) != 1 {
 		t.Errorf("adds count = %d, want 1", len(a))
@@ -691,7 +691,7 @@ func (m *mockCaddyServer) handler() http.Handler {
 			return
 		}
 
-		// GET /config/apps/http/servers/srv0/routes - for AddRoute existence check
+		// GET /config/apps/http/servers/srv0/routes - for AddDomain existence check
 		if r.Method == http.MethodGet && r.URL.Path == routesPath {
 			m.mu.Lock()
 			b, _ := json.Marshal(m.routes)
@@ -822,11 +822,11 @@ func mustMarshalStatic(v any) json.RawMessage {
 	return json.RawMessage(b)
 }
 
-func TestReadCurrentKajiRoutes_EmptyConfig(t *testing.T) {
+func TestReadCurrentKajiDomains_EmptyConfig(t *testing.T) {
 	mock := newMockCaddyServer(nil)
 	cc := newMockCaddyClient(t, mock)
 
-	routes, server, err := ReadCurrentKajiRoutes(cc)
+	routes, server, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -838,14 +838,14 @@ func TestReadCurrentKajiRoutes_EmptyConfig(t *testing.T) {
 	}
 }
 
-func TestReadCurrentKajiRoutes_IgnoresNonKajiRoutes(t *testing.T) {
+func TestReadCurrentKajiDomains_IgnoresNonKajiRoutes(t *testing.T) {
 	nonKaji := json.RawMessage(`{"@id":"custom_route","match":[{"host":["other.com"]}]}`)
 	kajiOne := kajiRoute(t, "kaji_rule_aaa", "localhost:3000")
 
 	mock := newMockCaddyServer([]json.RawMessage{nonKaji, kajiOne})
 	cc := newMockCaddyClient(t, mock)
 
-	routes, serverName, err := ReadCurrentKajiRoutes(cc)
+	routes, serverName, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -863,7 +863,7 @@ func TestReadCurrentKajiRoutes_IgnoresNonKajiRoutes(t *testing.T) {
 	}
 }
 
-func TestReadCurrentKajiRoutes_ReadsMultiple(t *testing.T) {
+func TestReadCurrentKajiDomains_ReadsMultiple(t *testing.T) {
 	initial := []json.RawMessage{
 		kajiRoute(t, "kaji_rule_x1", "localhost:3001"),
 		kajiRoute(t, "kaji_rule_x2", "localhost:3002"),
@@ -872,7 +872,7 @@ func TestReadCurrentKajiRoutes_ReadsMultiple(t *testing.T) {
 	mock := newMockCaddyServer(initial)
 	cc := newMockCaddyClient(t, mock)
 
-	got, _, err := ReadCurrentKajiRoutes(cc)
+	got, _, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -901,9 +901,9 @@ func TestSyncDomains_AddsNewRoute(t *testing.T) {
 		t.Errorf("Deleted = %d, want 0", result.Deleted)
 	}
 
-	got, _, err := ReadCurrentKajiRoutes(cc)
+	got, _, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
-		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+		t.Fatalf("ReadCurrentKajiDomains: %v", err)
 	}
 	if _, ok := got["kaji_rule_new1"]; !ok {
 		t.Error("kaji_rule_new1 not found in config after sync")
@@ -923,9 +923,9 @@ func TestSyncDomains_DeletesOrphanRoute(t *testing.T) {
 		t.Errorf("Deleted = %d, want 1", result.Deleted)
 	}
 
-	got, _, err := ReadCurrentKajiRoutes(cc)
+	got, _, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
-		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+		t.Fatalf("ReadCurrentKajiDomains: %v", err)
 	}
 	if _, ok := got["kaji_rule_orphan"]; ok {
 		t.Error("kaji_rule_orphan should have been deleted")
@@ -982,9 +982,9 @@ func TestSyncDomains_MixedAddUpdateDelete(t *testing.T) {
 		t.Errorf("Deleted = %d, want 1", result.Deleted)
 	}
 
-	got, _, err := ReadCurrentKajiRoutes(cc)
+	got, _, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
-		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+		t.Fatalf("ReadCurrentKajiDomains: %v", err)
 	}
 	if _, ok := got["kaji_rule_gone"]; ok {
 		t.Error("kaji_rule_gone should have been deleted")
@@ -1042,9 +1042,9 @@ func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
 		t.Errorf("Deleted = %d, want 0 (disabled routes must be protected)", result.Deleted)
 	}
 
-	got, _, err := ReadCurrentKajiRoutes(cc)
+	got, _, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
-		t.Fatalf("ReadCurrentKajiRoutes: %v", err)
+		t.Fatalf("ReadCurrentKajiDomains: %v", err)
 	}
 	if _, ok := got["kaji_rule_dis_dom"]; !ok {
 		t.Error("kaji_rule_dis_dom should not be deleted (disabled domain)")

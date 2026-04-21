@@ -38,7 +38,7 @@ type SyncResult struct {
 	Deleted int
 }
 
-// BuildDesiredState generates a map of CaddyRouteID -> route JSON for all
+// BuildDesiredState generates a map of CaddyDomainID -> domain JSON for all
 // enabled domains and enabled rules. Disabled domains and rules are skipped.
 // Toggle inheritance is resolved via MergeToggles. IP lists are resolved
 // through the provided callback.
@@ -72,10 +72,10 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 				ipListType = typ
 			}
 
-			caddyID := CaddyRouteID(rule.RuleID)
+			caddyID := CaddyDomainID(rule.RuleID)
 			logSkip := logSkipRuleIDs[caddyID]
 
-			routeJSON, err := BuildRuleRoute(dom.Name, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
+			routeJSON, err := BuildRuleDomain(dom.Name, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
 			if err != nil {
 				return nil, fmt.Errorf("building route for rule %s: %w", rule.RuleID, err)
 			}
@@ -112,10 +112,10 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 					ipListType = typ
 				}
 
-				caddyID := CaddyRouteID(sub.ID)
+				caddyID := CaddyDomainID(sub.ID)
 				logSkip := logSkipRuleIDs[caddyID]
 
-				routeJSON, err := BuildRuleRoute(subHost, params, subToggles, ipListIPs, ipListType, logSkip)
+				routeJSON, err := BuildRuleDomain(subHost, params, subToggles, ipListIPs, ipListType, logSkip)
 				if err != nil {
 					return nil, fmt.Errorf("building route for subdomain %s: %w", sub.ID, err)
 				}
@@ -143,10 +143,10 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 					ipListType = typ
 				}
 
-				caddyID := CaddyRouteID(rule.RuleID)
+				caddyID := CaddyDomainID(rule.RuleID)
 				logSkip := logSkipRuleIDs[caddyID]
 
-				routeJSON, err := BuildRuleRoute(subHost, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
+				routeJSON, err := BuildRuleDomain(subHost, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
 				if err != nil {
 					return nil, fmt.Errorf("building route for rule %s: %w", rule.RuleID, err)
 				}
@@ -159,10 +159,10 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 	return desired, nil
 }
 
-// DiffRoutes compares desired state against current Caddy state. Routes in
+// DiffDomains compares desired state against current Caddy state. Domains in
 // current but not in desired are deleted unless they appear in disabledIDs
 // (which protects disabled rules from being treated as orphans).
-func DiffRoutes(desired, current map[string]json.RawMessage, disabledIDs map[string]bool) (adds, updates map[string]json.RawMessage, deletes []string) {
+func DiffDomains(desired, current map[string]json.RawMessage, disabledIDs map[string]bool) (adds, updates map[string]json.RawMessage, deletes []string) {
 	adds = make(map[string]json.RawMessage)
 	updates = make(map[string]json.RawMessage)
 
@@ -191,7 +191,7 @@ func DiffRoutes(desired, current map[string]json.RawMessage, disabledIDs map[str
 	return adds, updates, deletes
 }
 
-// CollectDisabledIDs returns the set of CaddyRouteIDs for rules that are
+// CollectDisabledIDs returns the set of CaddyDomainIDs for rules that are
 // disabled or belong to disabled domains. These IDs are protected from
 // deletion during sync.
 func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
@@ -199,18 +199,18 @@ func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 	for _, dom := range domains {
 		for _, rule := range dom.Rules {
 			if !dom.Enabled || !rule.Enabled {
-				ids[CaddyRouteID(rule.RuleID)] = true
+				ids[CaddyDomainID(rule.RuleID)] = true
 			}
 		}
 		for _, sub := range dom.Subdomains {
 			if !dom.Enabled || !sub.Enabled {
 				if sub.HandlerType != "none" {
-					ids[CaddyRouteID(sub.ID)] = true
+					ids[CaddyDomainID(sub.ID)] = true
 				}
 			}
 			for _, rule := range sub.Rules {
 				if !dom.Enabled || !sub.Enabled || !rule.Enabled {
-					ids[CaddyRouteID(rule.RuleID)] = true
+					ids[CaddyDomainID(rule.RuleID)] = true
 				}
 			}
 		}
@@ -237,7 +237,7 @@ func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]stri
 			}
 			merged := MergeToggles(dom.Toggles, rule.ToggleOverrides)
 			if merged.AccessLog == "" && dom.Toggles.AccessLog != "" {
-				logSkipRuleIDs[CaddyRouteID(rule.RuleID)] = true
+				logSkipRuleIDs[CaddyDomainID(rule.RuleID)] = true
 			}
 		}
 
@@ -254,7 +254,7 @@ func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]stri
 				}
 				merged := MergeToggles(sub.Toggles, rule.ToggleOverrides)
 				if merged.AccessLog == "" && sub.Toggles.AccessLog != "" {
-					logSkipRuleIDs[CaddyRouteID(rule.RuleID)] = true
+					logSkipRuleIDs[CaddyDomainID(rule.RuleID)] = true
 				}
 			}
 		}
@@ -265,10 +265,10 @@ func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]stri
 
 const kajiRulePrefix = "kaji_rule_"
 
-// ReadCurrentKajiRoutes reads all routes with the kaji_rule_ prefix from
-// Caddy's live config. Returns a map of route ID -> route JSON and the
+// ReadCurrentKajiDomains reads all domains with the kaji_rule_ prefix from
+// Caddy's live config. Returns a map of domain ID -> domain JSON and the
 // server name where they were found.
-func ReadCurrentKajiRoutes(cc *Client) (map[string]json.RawMessage, string, error) {
+func ReadCurrentKajiDomains(cc *Client) (map[string]json.RawMessage, string, error) {
 	raw, err := cc.GetConfig()
 	if err != nil {
 		return nil, "", fmt.Errorf("reading caddy config: %w", err)
@@ -303,14 +303,14 @@ func ReadCurrentKajiRoutes(cc *Client) (map[string]json.RawMessage, string, erro
 }
 
 // SyncDomains orchestrates a full sync: builds desired state from domains,
-// reads current kaji routes from Caddy, diffs, and applies changes.
+// reads current kaji domains from Caddy, diffs, and applies changes.
 func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]string, string, error)) (*SyncResult, error) {
 	desired, err := BuildDesiredState(domains, resolveIPs)
 	if err != nil {
 		return nil, fmt.Errorf("building desired state: %w", err)
 	}
 
-	current, serverName, err := ReadCurrentKajiRoutes(cc)
+	current, serverName, err := ReadCurrentKajiDomains(cc)
 	if err != nil {
 		return nil, fmt.Errorf("reading current state: %w", err)
 	}
@@ -320,27 +320,27 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 	}
 
 	disabledIDs := CollectDisabledIDs(domains)
-	adds, updates, deletes := DiffRoutes(desired, current, disabledIDs)
+	adds, updates, deletes := DiffDomains(desired, current, disabledIDs)
 
 	result := &SyncResult{}
 
 	for _, id := range deletes {
 		if err := cc.DeleteByID(id); err != nil {
-			return result, fmt.Errorf("deleting route %s: %w", id, err)
+			return result, fmt.Errorf("deleting domain %s: %w", id, err)
 		}
 		result.Deleted++
 	}
 
 	for id, route := range updates {
-		if _, err := cc.ReplaceRouteByID(id, route); err != nil {
-			return result, fmt.Errorf("updating route %s: %w", id, err)
+		if _, err := cc.ReplaceDomainByID(id, route); err != nil {
+			return result, fmt.Errorf("updating domain %s: %w", id, err)
 		}
 		result.Updated++
 	}
 
 	for _, route := range orderedAdds(adds) {
-		if err := cc.AddRoute(serverName, route); err != nil {
-			return result, fmt.Errorf("adding route: %w", err)
+		if err := cc.AddDomain(serverName, route); err != nil {
+			return result, fmt.Errorf("adding domain: %w", err)
 		}
 		result.Added++
 	}
@@ -350,7 +350,7 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 		if !dom.Enabled {
 			continue
 		}
-		if err := cc.SetRouteAccessLog(serverName, dom.Name, dom.Toggles.AccessLog); err != nil {
+		if err := cc.SetDomainAccessLog(serverName, dom.Name, dom.Toggles.AccessLog); err != nil {
 			return result, fmt.Errorf("setting access log for %s: %w", dom.Name, err)
 		}
 		for _, sub := range dom.Subdomains {
@@ -358,7 +358,7 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 				continue
 			}
 			subHost := sub.Name + "." + dom.Name
-			if err := cc.SetRouteAccessLog(serverName, subHost, sub.Toggles.AccessLog); err != nil {
+			if err := cc.SetDomainAccessLog(serverName, subHost, sub.Toggles.AccessLog); err != nil {
 				return result, fmt.Errorf("setting access log for %s: %w", subHost, err)
 			}
 		}

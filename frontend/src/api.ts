@@ -51,6 +51,7 @@ import {
 	validateCaddyStatus,
 	validateCertificates,
 	validateDNSProvider,
+	validateDomainIPListBindings,
 	validateExportCaddyfile,
 	validateGenerateAPIKey,
 	validateGlobalToggles,
@@ -63,7 +64,6 @@ import {
 	validateLokiConfig,
 	validateLokiStatus,
 	validateLokiTestResult,
-	validateRouteIPListBindings,
 	validateSetupImportFullResponse,
 	validateSetupResponse,
 	validateSetupStatus,
@@ -466,8 +466,8 @@ export function fetchIPListUsage(id: string): Promise<IPListUsage> {
 	return request(`/api/ip-lists/${encodeURIComponent(id)}/usage`, undefined, validateIPListUsage);
 }
 
-export function fetchRouteIPListBindings(): Promise<Record<string, string>> {
-	return request("/api/ip-lists/bindings", undefined, validateRouteIPListBindings);
+export function fetchDomainIPListBindings(): Promise<Record<string, string>> {
+	return request("/api/ip-lists/bindings", undefined, validateDomainIPListBindings);
 }
 
 export function fetchCertificates(): Promise<CertInfo[]> {
@@ -483,10 +483,10 @@ export function renewCertificate(issuerKey: string, domain: string): Promise<{ s
 }
 
 export class CertInUseError extends Error {
-	affectedRoutes: string[];
-	constructor(message: string, affectedRoutes: string[]) {
+	affectedDomains: string[];
+	constructor(message: string, affectedDomains: string[]) {
 		super(message);
-		this.affectedRoutes = affectedRoutes;
+		this.affectedDomains = affectedDomains;
 	}
 }
 
@@ -501,16 +501,16 @@ export async function deleteCertificate(
 		method: "DELETE",
 		parseError: (_status, text, statusText) => {
 			let message = text || statusText;
-			let affectedRoutes: string[] | undefined;
+			let affectedDomains: string[] | undefined;
 			try {
 				const json = JSON.parse(text);
 				if (json.error) message = json.error;
-				if (Array.isArray(json.affected_routes)) affectedRoutes = json.affected_routes;
+				if (Array.isArray(json.affected_domains)) affectedDomains = json.affected_domains;
 			} catch {
 				// not JSON
 			}
-			if (affectedRoutes && affectedRoutes.length > 0) {
-				return new CertInUseError(message, affectedRoutes);
+			if (affectedDomains && affectedDomains.length > 0) {
+				return new CertInUseError(message, affectedDomains);
 			}
 			return new Error(message);
 		},

@@ -61,8 +61,8 @@ func domainReferencesLists(d config.Domain, listIDs map[string]bool) bool {
 	return false
 }
 
-// cascadeIPListChange re-syncs all domain routes after an IP list change.
-// The sync engine rebuilds routes with the updated resolved IPs.
+// cascadeIPListChange re-syncs all domains after an IP list change.
+// The sync engine rebuilds domain configs with the updated resolved IPs.
 func cascadeIPListChange(cc *caddy.Client, store *config.ConfigStore) error {
 	return syncAfterMutation(cc, store)
 }

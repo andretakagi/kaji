@@ -152,7 +152,7 @@ export function validateAdaptCaddyfileResponse(data: unknown): AdaptCaddyfileRes
 		hasFields(d, {
 			acme_email: is.string,
 			global_toggles: is.object,
-			route_count: is.number,
+			domain_count: is.number,
 		}),
 	);
 }
@@ -227,12 +227,12 @@ export function validateIPListSingle(data: unknown): IPList {
 
 export function validateIPListUsage(data: unknown): IPListUsage {
 	return assertValid("IPListUsage", data, (d) =>
-		hasFields(d, { routes: is.array, composite_lists: is.array }),
+		hasFields(d, { domains: is.array, composite_lists: is.array }),
 	);
 }
 
-export function validateRouteIPListBindings(data: unknown): Record<string, string> {
-	return assertValid("RouteIPListBindings", data, (d) => {
+export function validateDomainIPListBindings(data: unknown): Record<string, string> {
+	return assertValid("DomainIPListBindings", data, (d) => {
 		if (!is.object(d)) return false;
 		for (const v of Object.values(d)) {
 			if (!is.string(v)) return false;

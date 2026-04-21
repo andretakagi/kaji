@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBuildRuleRoute_FileServerBasic(t *testing.T) {
+func TestBuildRuleDomain_FileServerBasic(t *testing.T) {
 	cfg := mustMarshal(t, FileServerConfig{
 		Root: "/var/www/html",
 	})
@@ -15,7 +15,7 @@ func TestBuildRuleRoute_FileServerBasic(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestBuildRuleRoute_FileServerBasic(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_FileServerBrowse(t *testing.T) {
+func TestBuildRuleDomain_FileServerBrowse(t *testing.T) {
 	cfg := mustMarshal(t, FileServerConfig{
 		Root:   "/var/www/html",
 		Browse: true,
@@ -52,7 +52,7 @@ func TestBuildRuleRoute_FileServerBrowse(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestBuildRuleRoute_FileServerBrowse(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_FileServerCustomIndexNames(t *testing.T) {
+func TestBuildRuleDomain_FileServerCustomIndexNames(t *testing.T) {
 	cfg := mustMarshal(t, FileServerConfig{
 		Root:       "/var/www/html",
 		IndexNames: []string{"index.html", "index.htm", "default.html"},
@@ -85,7 +85,7 @@ func TestBuildRuleRoute_FileServerCustomIndexNames(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestBuildRuleRoute_FileServerCustomIndexNames(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_FileServerCustomHide(t *testing.T) {
+func TestBuildRuleDomain_FileServerCustomHide(t *testing.T) {
 	cfg := mustMarshal(t, FileServerConfig{
 		Root: "/var/www/html",
 		Hide: []string{".htaccess", ".git", "*.secret"},
@@ -118,7 +118,7 @@ func TestBuildRuleRoute_FileServerCustomHide(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestBuildRuleRoute_FileServerCustomHide(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_FileServerAllOptions(t *testing.T) {
+func TestBuildRuleDomain_FileServerAllOptions(t *testing.T) {
 	cfg := mustMarshal(t, FileServerConfig{
 		Root:       "/srv/files",
 		Browse:     true,
@@ -157,7 +157,7 @@ func TestBuildRuleRoute_FileServerAllOptions(t *testing.T) {
 		Compression: true,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, toggles, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, toggles, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestBuildRuleRoute_FileServerAllOptions(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_FileServerMissingRoot(t *testing.T) {
+func TestBuildRuleDomain_FileServerMissingRoot(t *testing.T) {
 	cfg := mustMarshal(t, FileServerConfig{
 		Root: "",
 	})
@@ -207,20 +207,20 @@ func TestBuildRuleRoute_FileServerMissingRoot(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty root")
 	}
 }
 
-func TestBuildRuleRoute_FileServerInvalidJSON(t *testing.T) {
+func TestBuildRuleDomain_FileServerInvalidJSON(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_fs_bad",
 		HandlerType:   "file_server",
 		HandlerConfig: json.RawMessage(`{invalid`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for invalid handler config JSON")
 	}

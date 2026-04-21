@@ -443,10 +443,10 @@ func TestAdvancedRequestCustomOverridesBuiltin(t *testing.T) {
 	}
 }
 
-// --- BuildRoute integration ---
+// --- BuildDomain integration ---
 
-func TestBuildRouteBasicCacheControl(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainBasicCacheControl(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -461,8 +461,8 @@ func TestBuildRouteBasicCacheControl(t *testing.T) {
 	}
 }
 
-func TestBuildRouteBasicXRobotsTag(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainBasicXRobotsTag(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -477,8 +477,8 @@ func TestBuildRouteBasicXRobotsTag(t *testing.T) {
 	}
 }
 
-func TestBuildRouteRequestHeaders(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainRequestHeaders(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
@@ -510,8 +510,8 @@ func TestBuildRouteRequestHeaders(t *testing.T) {
 	}
 }
 
-func TestBuildRouteAdvancedMode(t *testing.T) {
-	p := RouteParams{
+func TestBuildDomainAdvancedMode(t *testing.T) {
+	p := DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
@@ -561,10 +561,10 @@ func TestBuildRouteAdvancedMode(t *testing.T) {
 	}
 }
 
-// --- ParseRouteParams round-trip ---
+// --- ParseDomainParams round-trip ---
 
-func TestParseRouteParamsCacheControl(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsCacheControl(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -580,8 +580,8 @@ func TestParseRouteParamsCacheControl(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsXRobotsTag(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsXRobotsTag(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -597,8 +597,8 @@ func TestParseRouteParamsXRobotsTag(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsRequestHeaders(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsRequestHeaders(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
@@ -627,8 +627,8 @@ func TestParseRouteParamsRequestHeaders(t *testing.T) {
 	}
 }
 
-func TestParseRouteParamsAllBasicHeaders(t *testing.T) {
-	p := RouteParams{
+func TestParseDomainParamsAllBasicHeaders(t *testing.T) {
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -765,7 +765,7 @@ func TestClassifyHeadersRequestKeys(t *testing.T) {
 // --- Round-trip: Builtin/Custom array population ---
 
 func TestRoundTripSecurityPopulatesBuiltin(t *testing.T) {
-	p := RouteParams{
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -798,7 +798,7 @@ func TestRoundTripSecurityPopulatesBuiltin(t *testing.T) {
 }
 
 func TestRoundTripCacheControlPopulatesBuiltin(t *testing.T) {
-	p := RouteParams{
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -825,7 +825,7 @@ func TestRoundTripCacheControlPopulatesBuiltin(t *testing.T) {
 }
 
 func TestRoundTripAdvancedCustomHeadersSurvive(t *testing.T) {
-	p := RouteParams{
+	p := DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
@@ -865,7 +865,7 @@ func TestRoundTripAdvancedCustomHeadersSurvive(t *testing.T) {
 }
 
 func TestRoundTripRequestHeadersPopulateBuiltin(t *testing.T) {
-	p := RouteParams{
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
@@ -897,7 +897,7 @@ func TestRoundTripRequestHeadersPopulateBuiltin(t *testing.T) {
 }
 
 func TestRoundTripAdvancedRequestCustomSurvives(t *testing.T) {
-	p := RouteParams{
+	p := DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,
@@ -931,7 +931,7 @@ func TestRoundTripAdvancedRequestCustomSurvives(t *testing.T) {
 }
 
 func TestRoundTripMultiOriginCORSPopulatesBuiltin(t *testing.T) {
-	p := RouteParams{
+	p := DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -972,7 +972,7 @@ func TestRoundTripMultiOriginCORSPopulatesBuiltin(t *testing.T) {
 }
 
 func TestRoundTripAdvancedDisabledEntriesNotInOutput(t *testing.T) {
-	p := RouteParams{
+	p := DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
 		AdvancedHeaders: true,

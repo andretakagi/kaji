@@ -93,13 +93,13 @@ func handleCertificateDelete(store *config.ConfigStore, cc *caddy.Client) http.H
 		if r.URL.Query().Get("force") != "true" {
 			configJSON, err := cc.GetConfig()
 			if err == nil {
-				routes := routesUsingDomain(configJSON, domain)
+				routes := configsUsingDomain(configJSON, domain)
 				if len(routes) > 0 {
 					setAPIHeaders(w)
 					w.WriteHeader(http.StatusConflict)
 					json.NewEncoder(w).Encode(map[string]any{
-						"error":           fmt.Sprintf("domain %q has an active route - use force=true to delete anyway", domain),
-						"affected_routes": routes,
+						"error":            fmt.Sprintf("domain %q has an active configuration - use force=true to delete anyway", domain),
+						"affected_domains": routes,
 					})
 					return
 				}
@@ -152,7 +152,7 @@ func handleCertificateDownload(store *config.ConfigStore) http.HandlerFunc {
 	}
 }
 
-func routesUsingDomain(configJSON []byte, domain string) []string {
+func configsUsingDomain(configJSON []byte, domain string) []string {
 	var cfg struct {
 		Apps struct {
 			HTTP struct {

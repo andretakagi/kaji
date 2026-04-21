@@ -39,7 +39,7 @@ func TestGenerateRuleID(t *testing.T) {
 	}
 }
 
-func TestCaddyRouteID(t *testing.T) {
+func TestCaddyDomainID(t *testing.T) {
 	cases := []struct {
 		ruleID string
 		want   string
@@ -48,9 +48,9 @@ func TestCaddyRouteID(t *testing.T) {
 		{"rule_0000000000000000", "kaji_rule_0000000000000000"},
 	}
 	for _, c := range cases {
-		got := CaddyRouteID(c.ruleID)
+		got := CaddyDomainID(c.ruleID)
 		if got != c.want {
-			t.Errorf("CaddyRouteID(%q) = %q, want %q", c.ruleID, got, c.want)
+			t.Errorf("CaddyDomainID(%q) = %q, want %q", c.ruleID, got, c.want)
 		}
 	}
 }

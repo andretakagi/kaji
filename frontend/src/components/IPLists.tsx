@@ -264,7 +264,7 @@ export default function IPLists() {
 			{lists.length === 0 ? (
 				<div className="empty-state">
 					No IP lists yet. Lists let you define reusable groups of IP addresses or CIDR ranges that
-					can be attached to routes as allowlists or blocklists.
+					can be attached to domains as allowlists or blocklists.
 				</div>
 			) : (
 				<div className="ip-list-items">

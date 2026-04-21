@@ -2295,8 +2295,8 @@ func TestHandleImportFull(t *testing.T) {
 	if resp["status"] != "ok" {
 		t.Errorf("import status = %v, want ok", resp["status"])
 	}
-	if _, ok := resp["route_count"]; !ok {
-		t.Error("import response missing route_count")
+	if _, ok := resp["domain_count"]; !ok {
+		t.Error("import response missing domain_count")
 	}
 	if _, ok := resp["snapshot_count"]; !ok {
 		t.Error("import response missing snapshot_count")

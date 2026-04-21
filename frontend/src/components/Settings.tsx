@@ -198,8 +198,8 @@ function ExportImportSection({ onImport }: { onImport: () => void }) {
 			const result = await importFull(file);
 			onImport();
 			const parts = ["Full backup imported"];
-			if (result.route_count !== undefined) {
-				parts.push(`${result.route_count} ${result.route_count === 1 ? "route" : "routes"}`);
+			if (result.domain_count !== undefined) {
+				parts.push(`${result.domain_count} ${result.domain_count === 1 ? "domain" : "domains"}`);
 			}
 			if (result.snapshot_count) {
 				parts.push(
@@ -296,8 +296,8 @@ function ExportImportSection({ onImport }: { onImport: () => void }) {
 						<h4 id="confirm-import-title">Confirm Import</h4>
 						<p>
 							{confirmAction === "full"
-								? "This will replace all current settings, routes, and configuration with the backup. A snapshot of the current state will be created first."
-								: "This will load the Caddyfile into Caddy, replacing the current route configuration. A snapshot of the current state will be created first."}
+								? "This will replace all current settings, domains, and configuration with the backup. A snapshot of the current state will be created first."
+								: "This will load the Caddyfile into Caddy, replacing the current domain configuration. A snapshot of the current state will be created first."}
 						</p>
 						<div className="confirm-dialog-actions">
 							<button type="button" className="btn btn-ghost" onClick={handleCancelImport}>

@@ -58,7 +58,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 	}
 }
 
-type View = "routes" | "ip-lists" | "certificates" | "logs" | "snapshots" | "settings";
+type View = "domains" | "ip-lists" | "certificates" | "logs" | "snapshots" | "settings";
 type AppState = "loading" | "setup" | "login" | "ready";
 
 function pathToView(pathname: string): View {
@@ -71,7 +71,7 @@ function pathToView(pathname: string): View {
 		segment === "settings"
 	)
 		return segment;
-	return "routes";
+	return "domains";
 }
 
 function App() {
@@ -83,7 +83,7 @@ function App() {
 	const [serviceError, setServiceError] = useState<string | null>(null);
 
 	const navigate = useCallback((v: View) => {
-		const path = v === "routes" ? "/" : `/${v}`;
+		const path = v === "domains" ? "/" : `/${v}`;
 		window.history.pushState(null, "", path);
 		setView(v);
 	}, []);
@@ -168,7 +168,7 @@ function App() {
 				<Setup
 					onComplete={async () => {
 						window.history.replaceState(null, "", "/");
-						setView("routes");
+						setView("domains");
 						try {
 							const s = await fetchStatus();
 							setCaddyRunning(s.running);
@@ -201,7 +201,7 @@ function App() {
 	};
 
 	const navItems: { key: View; label: string }[] = [
-		{ key: "routes", label: "Routes" },
+		{ key: "domains", label: "Domains" },
 		{ key: "ip-lists", label: "IP Lists" },
 		{ key: "certificates", label: "Certificates" },
 		{ key: "logs", label: "Logs" },
@@ -293,7 +293,7 @@ function App() {
 
 				<CaddyProvider running={running}>
 					<main id="main-content" className="app-content">
-						{view === "routes" && <DomainList />}
+						{view === "domains" && <DomainList />}
 						{view === "ip-lists" && <IPLists />}
 						{view === "certificates" && <Certificates />}
 						{view === "logs" && <Logs />}

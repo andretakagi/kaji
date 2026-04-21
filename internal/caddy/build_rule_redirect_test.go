@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBuildRuleRoute_RedirectBasic(t *testing.T) {
+func TestBuildRuleDomain_RedirectBasic(t *testing.T) {
 	cfg := mustMarshal(t, RedirectConfig{
 		TargetURL:    "https://example.com",
 		StatusCode:   "301",
@@ -17,7 +17,7 @@ func TestBuildRuleRoute_RedirectBasic(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("old.example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("old.example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestBuildRuleRoute_RedirectBasic(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_RedirectPreservePath(t *testing.T) {
+func TestBuildRuleDomain_RedirectPreservePath(t *testing.T) {
 	cfg := mustMarshal(t, RedirectConfig{
 		TargetURL:    "https://new.example.com",
 		StatusCode:   "302",
@@ -51,7 +51,7 @@ func TestBuildRuleRoute_RedirectPreservePath(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("old.example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("old.example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestBuildRuleRoute_RedirectPreservePath(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_RedirectPreservePathTrailingSlash(t *testing.T) {
+func TestBuildRuleDomain_RedirectPreservePathTrailingSlash(t *testing.T) {
 	cfg := mustMarshal(t, RedirectConfig{
 		TargetURL:    "https://new.example.com/",
 		StatusCode:   "301",
@@ -80,7 +80,7 @@ func TestBuildRuleRoute_RedirectPreservePathTrailingSlash(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("old.example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("old.example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestBuildRuleRoute_RedirectPreservePathTrailingSlash(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_RedirectPreservePathWithSubpath(t *testing.T) {
+func TestBuildRuleDomain_RedirectPreservePathWithSubpath(t *testing.T) {
 	cfg := mustMarshal(t, RedirectConfig{
 		TargetURL:    "https://new.example.com/docs",
 		StatusCode:   "301",
@@ -109,7 +109,7 @@ func TestBuildRuleRoute_RedirectPreservePathWithSubpath(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleRoute("old.example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("old.example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestBuildRuleRoute_RedirectPreservePathWithSubpath(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_RedirectWithToggles(t *testing.T) {
+func TestBuildRuleDomain_RedirectWithToggles(t *testing.T) {
 	cfg := mustMarshal(t, RedirectConfig{
 		TargetURL:    "https://example.com",
 		StatusCode:   "301",
@@ -142,7 +142,7 @@ func TestBuildRuleRoute_RedirectWithToggles(t *testing.T) {
 		Compression: true,
 	}
 
-	result, err := BuildRuleRoute("old.example.com", rule, toggles, nil, "", false)
+	result, err := BuildRuleDomain("old.example.com", rule, toggles, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestBuildRuleRoute_RedirectWithToggles(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_RedirectEmptyTarget(t *testing.T) {
+func TestBuildRuleDomain_RedirectEmptyTarget(t *testing.T) {
 	cfg := mustMarshal(t, RedirectConfig{
 		TargetURL:  "",
 		StatusCode: "301",
@@ -181,20 +181,20 @@ func TestBuildRuleRoute_RedirectEmptyTarget(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty target URL")
 	}
 }
 
-func TestBuildRuleRoute_RedirectInvalidJSON(t *testing.T) {
+func TestBuildRuleDomain_RedirectInvalidJSON(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_rd_bad",
 		HandlerType:   "redirect",
 		HandlerConfig: json.RawMessage(`{invalid`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for invalid handler config JSON")
 	}

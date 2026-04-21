@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestCountRoutes(t *testing.T) {
+func TestCountDomains(t *testing.T) {
 	cases := []struct {
 		name string
 		json string
@@ -50,9 +50,9 @@ func TestCountRoutes(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := CountRoutes(json.RawMessage(tc.json))
+			got := CountDomains(json.RawMessage(tc.json))
 			if got != tc.want {
-				t.Errorf("CountRoutes() = %d, want %d", got, tc.want)
+				t.Errorf("CountDomains() = %d, want %d", got, tc.want)
 			}
 		})
 	}
@@ -211,7 +211,7 @@ func TestClientDeleteByIDNon200(t *testing.T) {
 	}
 }
 
-func TestClientAddRouteServerExists(t *testing.T) {
+func TestClientAddDomainServerExists(t *testing.T) {
 	var postedPath string
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -227,7 +227,7 @@ func TestClientAddRouteServerExists(t *testing.T) {
 	}))
 
 	route := json.RawMessage(`{"@id":"kaji_example_com"}`)
-	if err := c.AddRoute("srv0", route); err != nil {
+	if err := c.AddDomain("srv0", route); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if postedPath != "/config/apps/http/servers/srv0/routes" {
@@ -235,7 +235,7 @@ func TestClientAddRouteServerExists(t *testing.T) {
 	}
 }
 
-func TestClientAddRouteBootstrapsServer(t *testing.T) {
+func TestClientAddDomainBootstrapsServer(t *testing.T) {
 	// First GET returns null (server missing), then POST to bootstrap, then POST route
 	var calls []string
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +254,7 @@ func TestClientAddRouteBootstrapsServer(t *testing.T) {
 	}))
 
 	route := json.RawMessage(`{"@id":"kaji_test_com"}`)
-	if err := c.AddRoute("newserver", route); err != nil {
+	if err := c.AddDomain("newserver", route); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -276,7 +276,7 @@ func TestClientAddRouteBootstrapsServer(t *testing.T) {
 	}
 }
 
-func TestClientReplaceRouteByID(t *testing.T) {
+func TestClientReplaceDomainByID(t *testing.T) {
 	configWithRoute := map[string]any{
 		"apps": map[string]any{
 			"http": map[string]any{
@@ -310,7 +310,7 @@ func TestClientReplaceRouteByID(t *testing.T) {
 	}))
 
 	newRoute := json.RawMessage(`{"@id":"kaji_old_com","match":[{"host":["new.example.com"]}]}`)
-	serverName, err := c.ReplaceRouteByID("kaji_old_com", newRoute)
+	serverName, err := c.ReplaceDomainByID("kaji_old_com", newRoute)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestClientReplaceRouteByID(t *testing.T) {
 	}
 }
 
-func TestClientReplaceRouteByIDNotFound(t *testing.T) {
+func TestClientReplaceDomainByIDNotFound(t *testing.T) {
 	configWithRoute := map[string]any{
 		"apps": map[string]any{
 			"http": map[string]any{
@@ -350,7 +350,7 @@ func TestClientReplaceRouteByIDNotFound(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 
-	_, err := c.ReplaceRouteByID("kaji_nonexistent", json.RawMessage(`{}`))
+	_, err := c.ReplaceDomainByID("kaji_nonexistent", json.RawMessage(`{}`))
 	if err == nil {
 		t.Fatal("expected error for missing route")
 	}
@@ -359,7 +359,7 @@ func TestClientReplaceRouteByIDNotFound(t *testing.T) {
 	}
 }
 
-func TestClientFindRouteServer(t *testing.T) {
+func TestClientFindDomainServer(t *testing.T) {
 	configWithRoutes := map[string]any{
 		"apps": map[string]any{
 			"http": map[string]any{
@@ -389,16 +389,16 @@ func TestClientFindRouteServer(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 
-	name, err := c.FindRouteServer("kaji_example_com")
+	name, err := c.FindDomainServer("kaji_example_com")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if name != "srv0" {
-		t.Errorf("FindRouteServer = %q, want srv0", name)
+		t.Errorf("FindDomainServer = %q, want srv0", name)
 	}
 }
 
-func TestClientFindRouteServerNotFound(t *testing.T) {
+func TestClientFindDomainServerNotFound(t *testing.T) {
 	configJSON, _ := json.Marshal(map[string]any{
 		"apps": map[string]any{
 			"http": map[string]any{
@@ -412,7 +412,7 @@ func TestClientFindRouteServerNotFound(t *testing.T) {
 		w.Write(configJSON)
 	}))
 
-	_, err := c.FindRouteServer("kaji_missing")
+	_, err := c.FindDomainServer("kaji_missing")
 	if err == nil {
 		t.Fatal("expected error for missing route")
 	}
@@ -617,7 +617,7 @@ func TestClientGetAllAccessLogDomains(t *testing.T) {
 	}
 }
 
-func TestClientSetRouteAccessLog(t *testing.T) {
+func TestClientSetDomainAccessLog(t *testing.T) {
 	var postedPath string
 	var postedBody string
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -638,7 +638,7 @@ func TestClientSetRouteAccessLog(t *testing.T) {
 		}
 	}))
 
-	if err := c.SetRouteAccessLog("srv0", "example.com", "kaji_access"); err != nil {
+	if err := c.SetDomainAccessLog("srv0", "example.com", "kaji_access"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	wantPath := "/config/apps/http/servers/srv0/logs/logger_names/example.com"
@@ -650,7 +650,7 @@ func TestClientSetRouteAccessLog(t *testing.T) {
 	}
 }
 
-func TestClientSetRouteAccessLogRemove(t *testing.T) {
+func TestClientSetDomainAccessLogRemove(t *testing.T) {
 	var deletedPath string
 	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/config/apps/http/servers/srv0/logs/logger_names/") {
@@ -661,7 +661,7 @@ func TestClientSetRouteAccessLogRemove(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	if err := c.SetRouteAccessLog("srv0", "example.com", ""); err != nil {
+	if err := c.SetDomainAccessLog("srv0", "example.com", ""); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	wantPath := "/config/apps/http/servers/srv0/logs/logger_names/example.com"
@@ -799,15 +799,15 @@ func TestClientIsSinkReferencedFalse(t *testing.T) {
 	}
 }
 
-func buildCaddyConfig(t *testing.T, servers map[string][]RouteParams) json.RawMessage {
+func buildCaddyConfig(t *testing.T, servers map[string][]DomainParams) json.RawMessage {
 	t.Helper()
 	srvMap := make(map[string]any, len(servers))
 	for name, params := range servers {
 		routes := make([]json.RawMessage, 0, len(params))
 		for _, p := range params {
-			r, err := BuildRoute(p)
+			r, err := BuildDomain(p)
 			if err != nil {
-				t.Fatalf("BuildRoute(%+v): %v", p, err)
+				t.Fatalf("BuildDomain(%+v): %v", p, err)
 			}
 			routes = append(routes, r)
 		}
@@ -827,20 +827,20 @@ func buildCaddyConfig(t *testing.T, servers map[string][]RouteParams) json.RawMe
 	return b
 }
 
-func TestExtractReviewRoutesBasic(t *testing.T) {
-	raw := buildCaddyConfig(t, map[string][]RouteParams{
+func TestExtractReviewDomainsBasic(t *testing.T) {
+	raw := buildCaddyConfig(t, map[string][]DomainParams{
 		"srv0": {
 			{Domain: "example.com", Upstream: "localhost:3000"},
 			{Domain: "api.example.com", Upstream: "localhost:8080"},
 		},
 	})
 
-	got := ExtractReviewRoutes(raw)
+	got := ExtractReviewDomains(raw)
 	if len(got) != 2 {
 		t.Fatalf("got %d routes, want 2", len(got))
 	}
 
-	byDomain := make(map[string]ReviewRoute, len(got))
+	byDomain := make(map[string]ReviewDomain, len(got))
 	for _, r := range got {
 		byDomain[r.Domain] = r
 	}
@@ -863,13 +863,13 @@ func TestExtractReviewRoutesBasic(t *testing.T) {
 	}
 }
 
-func TestExtractReviewRoutesMultipleServers(t *testing.T) {
-	raw := buildCaddyConfig(t, map[string][]RouteParams{
+func TestExtractReviewDomainsMultipleServers(t *testing.T) {
+	raw := buildCaddyConfig(t, map[string][]DomainParams{
 		"srv0": {{Domain: "a.com", Upstream: "localhost:3000"}},
 		"srv1": {{Domain: "b.com", Upstream: "localhost:4000"}},
 	})
 
-	got := ExtractReviewRoutes(raw)
+	got := ExtractReviewDomains(raw)
 	if len(got) != 2 {
 		t.Fatalf("got %d routes, want 2", len(got))
 	}
@@ -883,8 +883,8 @@ func TestExtractReviewRoutesMultipleServers(t *testing.T) {
 	}
 }
 
-func TestExtractReviewRoutesInvalidJSON(t *testing.T) {
-	got := ExtractReviewRoutes(json.RawMessage(`not json`))
+func TestExtractReviewDomainsInvalidJSON(t *testing.T) {
+	got := ExtractReviewDomains(json.RawMessage(`not json`))
 	if got == nil {
 		t.Fatal("expected non-nil slice")
 	}
@@ -893,9 +893,9 @@ func TestExtractReviewRoutesInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestExtractReviewRoutesEmptyConfig(t *testing.T) {
+func TestExtractReviewDomainsEmptyConfig(t *testing.T) {
 	raw := json.RawMessage(`{"apps":{"http":{"servers":{}}}}`)
-	got := ExtractReviewRoutes(raw)
+	got := ExtractReviewDomains(raw)
 	if got == nil {
 		t.Fatal("expected non-nil slice")
 	}
@@ -1003,10 +1003,10 @@ func TestClientValidateConfigNotJSON(t *testing.T) {
 	}
 }
 
-func TestExtractReviewRoutesSkipsNoHost(t *testing.T) {
+func TestExtractReviewDomainsSkipsNoHost(t *testing.T) {
 	// A route with no match/host should be skipped
 	raw := json.RawMessage(`{"apps":{"http":{"servers":{"srv0":{"routes":[{"handle":[]}]}}}}}`)
-	got := ExtractReviewRoutes(raw)
+	got := ExtractReviewDomains(raw)
 	if len(got) != 0 {
 		t.Errorf("got %d routes, want 0 (no-host route should be skipped)", len(got))
 	}

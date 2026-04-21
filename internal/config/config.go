@@ -36,7 +36,7 @@ type LokiConfig struct {
 	Sinks                []string          `json:"sinks"`
 }
 
-type DisabledRoute struct {
+type DisabledDomain struct {
 	ID         string          `json:"id"`
 	Server     string          `json:"server"`
 	DisabledAt string          `json:"disabled_at"`
@@ -100,27 +100,27 @@ func IPListsToEntries(lists []IPList) []caddy.IPListEntry {
 }
 
 type AppConfig struct {
-	AuthEnabled     bool                     `json:"auth_enabled"`
-	PasswordHash    string                   `json:"password_hash"`
-	SessionSecret   string                   `json:"session_secret"`
-	SessionMaxAge   int                      `json:"session_max_age"`
-	APIKeyHash      string                   `json:"api_key_hash"`
-	CaddyAdminURL   string                   `json:"caddy_admin_url"`
-	CaddyConfigPath string                   `json:"caddy_config_path"`
-	CaddyDataDir    string                   `json:"caddy_data_dir"`
-	SecureCookies   string                   `json:"secure_cookies"`
-	LogFile         string                   `json:"log_file"`
-	LogDir          string                   `json:"log_dir"`
-	Loki            LokiConfig               `json:"loki"`
-	Domains         []Domain                 `json:"domains"`
-	KajiVersion     string                   `json:"kaji_version,omitempty"`
-	DisabledRoutes  []DisabledRoute          `json:"disabled_routes"`
-	IPLists         []IPList                 `json:"ip_lists"`
-	RouteIPLists    map[string]string        `json:"route_ip_lists"`
-	RouteSettings   map[string]RouteSettings `json:"route_settings"`
+	AuthEnabled     bool                      `json:"auth_enabled"`
+	PasswordHash    string                    `json:"password_hash"`
+	SessionSecret   string                    `json:"session_secret"`
+	SessionMaxAge   int                       `json:"session_max_age"`
+	APIKeyHash      string                    `json:"api_key_hash"`
+	CaddyAdminURL   string                    `json:"caddy_admin_url"`
+	CaddyConfigPath string                    `json:"caddy_config_path"`
+	CaddyDataDir    string                    `json:"caddy_data_dir"`
+	SecureCookies   string                    `json:"secure_cookies"`
+	LogFile         string                    `json:"log_file"`
+	LogDir          string                    `json:"log_dir"`
+	Loki            LokiConfig                `json:"loki"`
+	Domains         []Domain                  `json:"domains"`
+	KajiVersion     string                    `json:"kaji_version,omitempty"`
+	DisabledDomains []DisabledDomain          `json:"disabled_routes"`
+	IPLists         []IPList                  `json:"ip_lists"`
+	DomainIPLists   map[string]string         `json:"domain_ip_lists"`
+	DomainSettings  map[string]DomainSettings `json:"route_settings"`
 }
 
-type RouteSettings struct {
+type DomainSettings struct {
 	AdvancedHeaders bool `json:"advanced_headers"`
 }
 

@@ -24,7 +24,7 @@ func unmarshalRoute(t *testing.T, raw json.RawMessage) map[string]any {
 	return m
 }
 
-func TestBuildRuleRoute_RootRule(t *testing.T) {
+func TestBuildRuleDomain_RootRule(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:3000"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_abc123",
@@ -33,7 +33,7 @@ func TestBuildRuleRoute_RootRule(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestBuildRuleRoute_RootRule(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_SubdomainHost(t *testing.T) {
+func TestBuildRuleDomain_SubdomainHost(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:8080"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_sub1",
@@ -70,7 +70,7 @@ func TestBuildRuleRoute_SubdomainHost(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("api.example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("api.example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestBuildRuleRoute_SubdomainHost(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_PathPrefix(t *testing.T) {
+func TestBuildRuleDomain_PathPrefix(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:9000"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_prefix1",
@@ -95,7 +95,7 @@ func TestBuildRuleRoute_PathPrefix(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestBuildRuleRoute_PathPrefix(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_PathExact(t *testing.T) {
+func TestBuildRuleDomain_PathExact(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:9000"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_exact1",
@@ -120,7 +120,7 @@ func TestBuildRuleRoute_PathExact(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestBuildRuleRoute_PathExact(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_PathRegex(t *testing.T) {
+func TestBuildRuleDomain_PathRegex(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:9000"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_regex1",
@@ -145,7 +145,7 @@ func TestBuildRuleRoute_PathRegex(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestBuildRuleRoute_PathRegex(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_WithToggles(t *testing.T) {
+func TestBuildRuleDomain_WithToggles(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:3000"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_toggles1",
@@ -172,7 +172,7 @@ func TestBuildRuleRoute_WithToggles(t *testing.T) {
 		Compression: true,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, toggles, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, toggles, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -203,14 +203,14 @@ func TestBuildRuleRoute_WithToggles(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_UnsupportedHandler(t *testing.T) {
+func TestBuildRuleDomain_UnsupportedHandler(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_bad1",
 		HandlerType:   "unknown",
 		HandlerConfig: json.RawMessage(`{}`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for unsupported handler type")
 	}
@@ -221,7 +221,7 @@ func TestBuildRuleRoute_UnsupportedHandler(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_ReverseProxyConfig(t *testing.T) {
+func TestBuildRuleDomain_ReverseProxyConfig(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{
 		Upstream:          "localhost:4000",
 		TLSSkipVerify:     true,
@@ -239,7 +239,7 @@ func TestBuildRuleRoute_ReverseProxyConfig(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	result, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestBuildRuleRoute_ReverseProxyConfig(t *testing.T) {
 
 // Error case tests
 
-func TestBuildRuleRoute_EmptyDomainName(t *testing.T) {
+func TestBuildRuleDomain_EmptyDomainName(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: "localhost:3000"})
 	rule := RuleBuildParams{
 		RuleID:        "rule_nodomain",
@@ -288,7 +288,7 @@ func TestBuildRuleRoute_EmptyDomainName(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	_, err := BuildRuleRoute("", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty domain name")
 	}
@@ -299,14 +299,14 @@ func TestBuildRuleRoute_EmptyDomainName(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_UnsupportedHandlerType(t *testing.T) {
+func TestBuildRuleDomain_UnsupportedHandlerType(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_badhandler",
 		HandlerType:   "unknown_handler",
 		HandlerConfig: json.RawMessage(`{}`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for unsupported handler type")
 	}
@@ -317,14 +317,14 @@ func TestBuildRuleRoute_UnsupportedHandlerType(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_MalformedReverseProxyConfig(t *testing.T) {
+func TestBuildRuleDomain_MalformedReverseProxyConfig(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_badconfig",
 		HandlerType:   "reverse_proxy",
 		HandlerConfig: json.RawMessage(`{invalid json}`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed config")
 	}
@@ -334,7 +334,7 @@ func TestBuildRuleRoute_MalformedReverseProxyConfig(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_EmptyReverseProxyUpstream(t *testing.T) {
+func TestBuildRuleDomain_EmptyReverseProxyUpstream(t *testing.T) {
 	rpCfg := mustMarshal(t, ReverseProxyConfig{Upstream: ""})
 	rule := RuleBuildParams{
 		RuleID:        "rule_noupstream",
@@ -342,7 +342,7 @@ func TestBuildRuleRoute_EmptyReverseProxyUpstream(t *testing.T) {
 		HandlerConfig: rpCfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty upstream")
 	}
@@ -353,14 +353,14 @@ func TestBuildRuleRoute_EmptyReverseProxyUpstream(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_MalformedRedirectConfig(t *testing.T) {
+func TestBuildRuleDomain_MalformedRedirectConfig(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_badredirect",
 		HandlerType:   "redirect",
 		HandlerConfig: json.RawMessage(`{bad`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed redirect config")
 	}
@@ -370,7 +370,7 @@ func TestBuildRuleRoute_MalformedRedirectConfig(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_EmptyRedirectTargetURL(t *testing.T) {
+func TestBuildRuleDomain_EmptyRedirectTargetURL(t *testing.T) {
 	rdCfg := mustMarshal(t, RedirectConfig{TargetURL: ""})
 	rule := RuleBuildParams{
 		RuleID:        "rule_notarget",
@@ -378,7 +378,7 @@ func TestBuildRuleRoute_EmptyRedirectTargetURL(t *testing.T) {
 		HandlerConfig: rdCfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty target URL")
 	}
@@ -389,14 +389,14 @@ func TestBuildRuleRoute_EmptyRedirectTargetURL(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_MalformedFileServerConfig(t *testing.T) {
+func TestBuildRuleDomain_MalformedFileServerConfig(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_badfs",
 		HandlerType:   "file_server",
 		HandlerConfig: json.RawMessage(`{broken`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed file server config")
 	}
@@ -406,7 +406,7 @@ func TestBuildRuleRoute_MalformedFileServerConfig(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_EmptyFileServerRoot(t *testing.T) {
+func TestBuildRuleDomain_EmptyFileServerRoot(t *testing.T) {
 	fsCfg := mustMarshal(t, FileServerConfig{Root: ""})
 	rule := RuleBuildParams{
 		RuleID:        "rule_noroot",
@@ -414,7 +414,7 @@ func TestBuildRuleRoute_EmptyFileServerRoot(t *testing.T) {
 		HandlerConfig: fsCfg,
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for empty root directory")
 	}
@@ -425,14 +425,14 @@ func TestBuildRuleRoute_EmptyFileServerRoot(t *testing.T) {
 	}
 }
 
-func TestBuildRuleRoute_MalformedStaticResponseConfig(t *testing.T) {
+func TestBuildRuleDomain_MalformedStaticResponseConfig(t *testing.T) {
 	rule := RuleBuildParams{
 		RuleID:        "rule_badsr",
 		HandlerType:   "static_response",
 		HandlerConfig: json.RawMessage(`{malformed`),
 	}
 
-	_, err := BuildRuleRoute("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
 	if err == nil {
 		t.Fatal("expected error for malformed static response config")
 	}

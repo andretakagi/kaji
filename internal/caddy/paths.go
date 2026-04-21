@@ -13,11 +13,11 @@ func serverPath(server string) string {
 	return httpServersPath + "/" + server
 }
 
-func serverRoutesPath(server string) string {
+func serverCaddyRoutesPath(server string) string {
 	return serverPath(server) + "/routes"
 }
 
-func serverRoutePath(server string, index int) string {
+func serverCaddyRoutePath(server string, index int) string {
 	return fmt.Sprintf("%s/routes/%d", serverPath(server), index)
 }
 

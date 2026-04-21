@@ -16,11 +16,11 @@ type RuleBuildParams struct {
 	AdvancedHeaders bool
 }
 
-func BuildRuleRoute(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string, logSkip bool) (json.RawMessage, error) {
+func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string, logSkip bool) (json.RawMessage, error) {
 	if domainName == "" {
 		return nil, fmt.Errorf("domain name is required")
 	}
-	routeID := CaddyRouteID(rule.RuleID)
+	routeID := CaddyDomainID(rule.RuleID)
 
 	// Build match block
 	matchBlock := buildMatchBlock(domainName, rule)

@@ -17,8 +17,8 @@ export default function DomainList() {
 		setError,
 		saving,
 		feedback,
+		reload,
 		handleCreate,
-		handleCreateSubdomain,
 		handleDelete,
 		handleToggleEnabled,
 	} = useDomainList();
@@ -30,18 +30,13 @@ export default function DomainList() {
 		form.close();
 	}
 
-	async function onCreateSubdomain(...args: Parameters<typeof handleCreateSubdomain>) {
-		await handleCreateSubdomain(...args);
-		form.close();
-	}
-
 	if (loading) {
 		return <LoadingState label="domains" />;
 	}
 
 	return (
 		<div className="domains">
-			<SectionHeader title="Routes">
+			<SectionHeader title="Domains">
 				{!form.visible && (
 					<button
 						type="button"
@@ -62,8 +57,8 @@ export default function DomainList() {
 			{form.visible && (
 				<DomainWizard
 					onCreate={onCreateDomain}
-					onCreateSubdomain={onCreateSubdomain}
 					onCancel={form.close}
+					onReload={reload}
 					existingDomains={domains}
 				/>
 			)}

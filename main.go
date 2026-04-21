@@ -245,7 +245,7 @@ func runStartupMigration(store *config.ConfigStore, cc *caddy.Client, ver string
 	// If the migration didn't produce any domains, convert active Caddy
 	// routes (old kaji_ prefix, not kaji_rule_) into domain entries.
 	if len(migrated.Domains) == 0 {
-		active := migrateActiveCaddyRoutes(cc)
+		active := migrateActiveCaddyDomains(cc)
 		if len(active) > 0 {
 			migrated.Domains = active
 			log.Printf("Migration: converted %d active Caddy routes to domains", len(active))
@@ -253,7 +253,7 @@ func runStartupMigration(store *config.ConfigStore, cc *caddy.Client, ver string
 	} else if len(changes) > 0 {
 		// Migration produced domains (from disabled_routes). Also pull in
 		// active Caddy routes that aren't already covered.
-		active := migrateActiveCaddyRoutes(cc)
+		active := migrateActiveCaddyDomains(cc)
 		if len(active) > 0 {
 			existing := make(map[string]bool, len(migrated.Domains))
 			for _, d := range migrated.Domains {
@@ -286,7 +286,7 @@ func runStartupMigration(store *config.ConfigStore, cc *caddy.Client, ver string
 	}
 }
 
-func migrateActiveCaddyRoutes(cc *caddy.Client) []config.Domain {
+func migrateActiveCaddyDomains(cc *caddy.Client) []config.Domain {
 	raw, err := cc.GetConfig()
 	if err != nil || raw == nil {
 		return nil
@@ -321,7 +321,7 @@ func migrateActiveCaddyRoutes(cc *caddy.Client) []config.Domain {
 				continue
 			}
 
-			params, err := caddy.ParseRouteParams(routeRaw)
+			params, err := caddy.ParseDomainParams(routeRaw)
 			if err != nil || params.Domain == "" {
 				continue
 			}

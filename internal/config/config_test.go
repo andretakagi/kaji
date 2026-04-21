@@ -79,7 +79,7 @@ func TestLoadFromSaveToRoundTrip(t *testing.T) {
 			BatchSize:            512000,
 			FlushIntervalSeconds: 10,
 		},
-		DisabledRoutes: []DisabledRoute{
+		DisabledDomains: []DisabledDomain{
 			{
 				ID:         "route-1",
 				Server:     "srv0",
@@ -140,11 +140,11 @@ func TestLoadFromSaveToRoundTrip(t *testing.T) {
 	if loaded.Loki.Labels["app"] != original.Loki.Labels["app"] {
 		t.Errorf("Loki.Labels[app] = %q, want %q", loaded.Loki.Labels["app"], original.Loki.Labels["app"])
 	}
-	if len(loaded.DisabledRoutes) != 1 {
-		t.Fatalf("DisabledRoutes len = %d, want 1", len(loaded.DisabledRoutes))
+	if len(loaded.DisabledDomains) != 1 {
+		t.Fatalf("DisabledDomains len = %d, want 1", len(loaded.DisabledDomains))
 	}
-	if loaded.DisabledRoutes[0].ID != original.DisabledRoutes[0].ID {
-		t.Errorf("DisabledRoutes[0].ID = %q, want %q", loaded.DisabledRoutes[0].ID, original.DisabledRoutes[0].ID)
+	if loaded.DisabledDomains[0].ID != original.DisabledDomains[0].ID {
+		t.Errorf("DisabledDomains[0].ID = %q, want %q", loaded.DisabledDomains[0].ID, original.DisabledDomains[0].ID)
 	}
 }
 

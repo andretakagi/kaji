@@ -12,7 +12,7 @@ type CaddyfileSettings struct {
 	ACMEEmail   string        `json:"acme_email"`
 	AdminListen string        `json:"admin_listen"`
 	Toggles     GlobalToggles `json:"global_toggles"`
-	RouteCount  int           `json:"route_count"`
+	DomainCount int           `json:"domain_count"`
 }
 
 func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, error) {
@@ -41,9 +41,9 @@ func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, 
 		toggles.PerHostMetrics = cfg.PerHostMetrics
 	}
 
-	routeCount := 0
+	domainCount := 0
 	for _, srv := range cfg.Servers {
-		routeCount += len(srv.Routes)
+		domainCount += len(srv.Domains)
 	}
 
 	adminListen := ""
@@ -55,7 +55,7 @@ func ExtractCaddyfileSettings(adaptedJSON json.RawMessage) (*CaddyfileSettings, 
 		ACMEEmail:   cfg.ACMEEmail,
 		AdminListen: adminListen,
 		Toggles:     toggles,
-		RouteCount:  routeCount,
+		DomainCount: domainCount,
 	}, nil
 }
 
@@ -137,7 +137,7 @@ type caddyfileConfig struct {
 }
 
 type caddyfileServer struct {
-	Routes     []RouteParams
+	Domains    []DomainParams
 	LogDomains map[string]string // domain -> sink name
 }
 
@@ -195,7 +195,7 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 		break
 	}
 
-	// Routes and access log domains per server
+	// Domains and access log mappings per server
 	for name, srv := range full.Apps.HTTP.Servers {
 		cs := caddyfileServer{
 			LogDomains: make(map[string]string),
@@ -206,12 +206,12 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 			}
 		}
 		for _, raw := range srv.Routes {
-			params, err := ParseRouteParams(raw)
+			params, err := ParseDomainParams(raw)
 			if err != nil || params.Domain == "" {
 				continue
 			}
 			params.Toggles.AccessLog = cs.LogDomains[params.Domain]
-			cs.Routes = append(cs.Routes, params)
+			cs.Domains = append(cs.Domains, params)
 		}
 		cfg.Servers[name] = cs
 	}
@@ -244,7 +244,7 @@ func GenerateCaddyfile(raw json.RawMessage, logFile string) (string, error) {
 
 	for _, name := range serverNames {
 		srv := cfg.Servers[name]
-		for _, route := range srv.Routes {
+		for _, route := range srv.Domains {
 			writeSiteBlock(&b, route, logWriter)
 		}
 	}
@@ -398,7 +398,7 @@ func writeLogWriter(b *strings.Builder, w *caddyfileLogWriter) {
 	}
 }
 
-func writeSiteBlock(b *strings.Builder, p RouteParams, logWriter *caddyfileLogWriter) {
+func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogWriter) {
 	if p.Toggles.ForceHTTPS {
 		b.WriteString("http://" + p.Domain + " {\n")
 		b.WriteString("\tredir https://{host}{uri} 301\n")

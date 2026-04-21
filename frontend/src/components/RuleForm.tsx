@@ -176,7 +176,7 @@ export default function RuleForm({
 
 	return (
 		<form
-			className={inline ? "add-route-form add-route-form-inline" : "add-route-form"}
+			className={inline ? "add-domain-form add-domain-form-inline" : "add-domain-form"}
 			onSubmit={handleSubmit}
 		>
 			{!isEdit && (

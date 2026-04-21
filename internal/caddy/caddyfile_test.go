@@ -68,12 +68,12 @@ func buildFullConfig(t *testing.T, routes []json.RawMessage, acmeEmail string, a
 
 func minimalRoute(t *testing.T) json.RawMessage {
 	t.Helper()
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 	return raw
 }
@@ -231,13 +231,13 @@ func TestGenerateCaddyfileMetricsNoPerHost(t *testing.T) {
 // TestGenerateCaddyfileCompression verifies that enable gzip+zstd encoding
 // produces the encode directive.
 func TestGenerateCaddyfileCompression(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{Compression: true},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -252,7 +252,7 @@ func TestGenerateCaddyfileCompression(t *testing.T) {
 // TestGenerateCaddyfileSecurityHeaders verifies that security header
 // directives are written for the SecurityHeaders toggle.
 func TestGenerateCaddyfileSecurityHeaders(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{Headers: HeadersConfig{
@@ -260,7 +260,7 @@ func TestGenerateCaddyfileSecurityHeaders(t *testing.T) {
 		}},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -279,7 +279,7 @@ func TestGenerateCaddyfileSecurityHeaders(t *testing.T) {
 // TestGenerateCaddyfileCORSWildcard verifies that CORS with no origins
 // produces a wildcard Access-Control-Allow-Origin header block.
 func TestGenerateCaddyfileCORSWildcard(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -287,7 +287,7 @@ func TestGenerateCaddyfileCORSWildcard(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -303,7 +303,7 @@ func TestGenerateCaddyfileCORSWildcard(t *testing.T) {
 // TestGenerateCaddyfileCORSSingleOrigin verifies that a single allowed origin
 // is written into the header block.
 func TestGenerateCaddyfileCORSSingleOrigin(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -313,7 +313,7 @@ func TestGenerateCaddyfileCORSSingleOrigin(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -328,7 +328,7 @@ func TestGenerateCaddyfileCORSSingleOrigin(t *testing.T) {
 // TestGenerateCaddyfileBasicAuth verifies that basic_auth block is written
 // with username and password hash.
 func TestGenerateCaddyfileBasicAuth(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -340,7 +340,7 @@ func TestGenerateCaddyfileBasicAuth(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -356,13 +356,13 @@ func TestGenerateCaddyfileBasicAuth(t *testing.T) {
 // TestGenerateCaddyfileTLSSkipVerify verifies that TLSSkipVerify produces
 // the transport http block with tls_insecure_skip_verify.
 func TestGenerateCaddyfileTLSSkipVerify(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8443",
 		Toggles:  RouteToggles{TLSSkipVerify: true},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -379,13 +379,13 @@ func TestGenerateCaddyfileTLSSkipVerify(t *testing.T) {
 // TestGenerateCaddyfileWebSocket verifies that WebSocketPassthru produces
 // flush_interval -1 in the reverse_proxy block.
 func TestGenerateCaddyfileWebSocket(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{WebSocketPassthru: true},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -401,7 +401,7 @@ func TestGenerateCaddyfileWebSocket(t *testing.T) {
 // TestGenerateCaddyfileLoadBalancing verifies that load balancing produces
 // the correct lb_policy directive and includes all upstreams.
 func TestGenerateCaddyfileLoadBalancing(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -413,7 +413,7 @@ func TestGenerateCaddyfileLoadBalancing(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -431,7 +431,7 @@ func TestGenerateCaddyfileLoadBalancing(t *testing.T) {
 // TestGenerateCaddyfileLoadBalancingFirst verifies that strategy "first"
 // also emits fail_duration and max_fails.
 func TestGenerateCaddyfileLoadBalancingFirst(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -443,7 +443,7 @@ func TestGenerateCaddyfileLoadBalancingFirst(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -460,13 +460,13 @@ func TestGenerateCaddyfileLoadBalancingFirst(t *testing.T) {
 // TestGenerateCaddyfileForceHTTPS verifies that ForceHTTPS produces a
 // separate http:// redirect block before the main site block.
 func TestGenerateCaddyfileForceHTTPS(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles:  RouteToggles{ForceHTTPS: true},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -510,8 +510,8 @@ func TestExtractCaddyfileSettingsMinimal(t *testing.T) {
 	if settings.Toggles.PrometheusMetrics {
 		t.Error("PrometheusMetrics should be false")
 	}
-	if settings.RouteCount != 1 {
-		t.Errorf("RouteCount = %d, want 1", settings.RouteCount)
+	if settings.DomainCount != 1 {
+		t.Errorf("DomainCount = %d, want 1", settings.DomainCount)
 	}
 }
 
@@ -560,15 +560,15 @@ func TestExtractCaddyfileSettingsMetrics(t *testing.T) {
 	}
 }
 
-// TestExtractCaddyfileSettingsRouteCount verifies that multiple routes are
+// TestExtractCaddyfileSettingsDomainCount verifies that multiple routes are
 // counted correctly.
-func TestExtractCaddyfileSettingsRouteCount(t *testing.T) {
-	route2, err := BuildRoute(RouteParams{
+func TestExtractCaddyfileSettingsDomainCount(t *testing.T) {
+	route2, err := BuildDomain(DomainParams{
 		Domain:   "other.example.com",
 		Upstream: "localhost:9090",
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t), route2}, "", "off", false, false)
@@ -577,15 +577,15 @@ func TestExtractCaddyfileSettingsRouteCount(t *testing.T) {
 		t.Fatalf("ExtractCaddyfileSettings failed: %v", err)
 	}
 
-	if settings.RouteCount != 2 {
-		t.Errorf("RouteCount = %d, want 2", settings.RouteCount)
+	if settings.DomainCount != 2 {
+		t.Errorf("DomainCount = %d, want 2", settings.DomainCount)
 	}
 }
 
 // TestExtractCaddyfileSettingsTogglesParsed verifies that route-level toggles
 // do not influence the global settings struct (which only tracks global state).
 func TestExtractCaddyfileSettingsTogglesParsed(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -596,7 +596,7 @@ func TestExtractCaddyfileSettingsTogglesParsed(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "me@example.com", "disable_redirects", false, false)
@@ -611,8 +611,8 @@ func TestExtractCaddyfileSettingsTogglesParsed(t *testing.T) {
 	if settings.Toggles.AutoHTTPS != "disable_redirects" {
 		t.Errorf("AutoHTTPS = %q, want disable_redirects", settings.Toggles.AutoHTTPS)
 	}
-	if settings.RouteCount != 1 {
-		t.Errorf("RouteCount = %d, want 1", settings.RouteCount)
+	if settings.DomainCount != 1 {
+		t.Errorf("DomainCount = %d, want 1", settings.DomainCount)
 	}
 }
 
@@ -790,7 +790,7 @@ func TestGenerateCaddyfileLogFileNoRollSettings(t *testing.T) {
 // TestGenerateCaddyfileCORSMultiOrigin verifies that multiple allowed origins
 // produce per-origin matchers with Vary headers.
 func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
-	raw, err := BuildRoute(RouteParams{
+	raw, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -800,7 +800,7 @@ func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
@@ -825,19 +825,19 @@ func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
 // TestGenerateCaddyfileMultipleServers verifies that routes from multiple
 // servers all appear in the output in deterministic (alphabetical) order.
 func TestGenerateCaddyfileMultipleServers(t *testing.T) {
-	route1, err := BuildRoute(RouteParams{
+	route1, err := BuildDomain(DomainParams{
 		Domain:   "alpha.example.com",
 		Upstream: "localhost:8001",
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
-	route2, err := BuildRoute(RouteParams{
+	route2, err := BuildDomain(DomainParams{
 		Domain:   "beta.example.com",
 		Upstream: "localhost:8002",
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	// Name servers in reverse alphabetical order to verify sorting
@@ -868,12 +868,12 @@ func TestGenerateCaddyfileMultipleServers(t *testing.T) {
 // TestGenerateCaddyfileAccessLog verifies that a route with AccessLog set
 // and a kaji_access logger produces a per-site log block with the writer.
 func TestGenerateCaddyfileAccessLog(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	srvWithLogs := map[string]any{
@@ -926,7 +926,7 @@ func TestGenerateCaddyfileAccessLog(t *testing.T) {
 }
 
 func TestGenerateCaddyfileCacheControl(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -936,7 +936,7 @@ func TestGenerateCaddyfileCacheControl(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
@@ -949,7 +949,7 @@ func TestGenerateCaddyfileCacheControl(t *testing.T) {
 }
 
 func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -959,7 +959,7 @@ func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
@@ -972,7 +972,7 @@ func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
 }
 
 func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -984,7 +984,7 @@ func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
@@ -998,7 +998,7 @@ func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 }
 
 func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -1010,7 +1010,7 @@ func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
@@ -1024,7 +1024,7 @@ func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 }
 
 func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
@@ -1038,7 +1038,7 @@ func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
@@ -1054,12 +1054,12 @@ func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
 }
 
 func TestGenerateCaddyfileNoHeadersNoDirectives(t *testing.T) {
-	route, err := BuildRoute(RouteParams{
+	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 	})
 	if err != nil {
-		t.Fatalf("BuildRoute failed: %v", err)
+		t.Fatalf("BuildDomain failed: %v", err)
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)

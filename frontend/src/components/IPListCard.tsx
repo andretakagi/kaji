@@ -238,14 +238,14 @@ export default function IPListCard({ list, allLists, onUpdated, onDeleted }: Pro
 					{usageLoading && <span className="ip-list-count">Loading...</span>}
 					{!usageLoading && usage && (
 						<>
-							{usage.routes.length === 0 && usage.composite_lists.length === 0 && (
+							{usage.domains.length === 0 && usage.composite_lists.length === 0 && (
 								<span className="ip-list-count">Not used anywhere</span>
 							)}
-							{usage.routes.length > 0 && (
+							{usage.domains.length > 0 && (
 								<div className="ip-list-usage-group">
-									<span className="ip-list-usage-label">Routes:</span>
-									{usage.routes.map((r) => (
-										<span key={r.id} className="ip-chip ip-chip-route">
+									<span className="ip-list-usage-label">Domains:</span>
+									{usage.domains.map((r) => (
+										<span key={r.id} className="ip-chip ip-chip-domain">
 											{r.domain}
 										</span>
 									))}

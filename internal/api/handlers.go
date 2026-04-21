@@ -1,4 +1,4 @@
-// Route registration and shared API utilities.
+// Endpoint registration and shared API utilities.
 package api
 
 import (
@@ -99,7 +99,7 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 
 	mux.HandleFunc("GET /api/ip-lists", handleListIPLists(store))
 	mux.HandleFunc("POST /api/ip-lists", handleCreateIPList(store))
-	mux.HandleFunc("GET /api/ip-lists/bindings", handleRouteIPListBindings(store))
+	mux.HandleFunc("GET /api/ip-lists/bindings", handleDomainIPListBindings(store))
 	mux.HandleFunc("PUT /api/ip-lists/{id}", handleUpdateIPList(store, cc, ss, version))
 	mux.HandleFunc("DELETE /api/ip-lists/{id}", handleDeleteIPList(store, cc, ss, version))
 	mux.HandleFunc("GET /api/ip-lists/{id}/usage", handleIPListUsage(store, cc))

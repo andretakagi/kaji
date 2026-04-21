@@ -46,9 +46,9 @@ type caddyConfigPartial struct {
 	} `json:"apps"`
 }
 
-// CountRoutes returns the total number of routes across all servers in a raw
+// CountDomains returns the total number of domains across all servers in a raw
 // Caddy JSON config. Returns 0 if the config can't be parsed.
-func CountRoutes(raw json.RawMessage) int {
+func CountDomains(raw json.RawMessage) int {
 	var cfg caddyConfigPartial
 	if json.Unmarshal(raw, &cfg) != nil {
 		return 0
@@ -60,25 +60,25 @@ func CountRoutes(raw json.RawMessage) int {
 	return n
 }
 
-type ReviewRoute struct {
+type ReviewDomain struct {
 	Domain   string `json:"domain"`
 	Upstream string `json:"upstream"`
 	Enabled  bool   `json:"enabled"`
 }
 
-func ExtractReviewRoutes(raw json.RawMessage) []ReviewRoute {
-	routes := []ReviewRoute{}
+func ExtractReviewDomains(raw json.RawMessage) []ReviewDomain {
+	routes := []ReviewDomain{}
 	var cfg caddyConfigPartial
 	if json.Unmarshal(raw, &cfg) != nil {
 		return routes
 	}
 	for _, srv := range cfg.Apps.HTTP.Servers {
 		for _, routeRaw := range srv.Routes {
-			params, err := ParseRouteParams(routeRaw)
+			params, err := ParseDomainParams(routeRaw)
 			if err != nil || params.Domain == "" {
 				continue
 			}
-			routes = append(routes, ReviewRoute{
+			routes = append(routes, ReviewDomain{
 				Domain:   params.Domain,
 				Upstream: params.Upstream,
 				Enabled:  true,
@@ -239,25 +239,25 @@ func (c *Client) ValidateConfig(configJSON []byte) error {
 	return nil
 }
 
-func (c *Client) GetRouteByID(id string) (json.RawMessage, error) {
+func (c *Client) GetDomainByID(id string) (json.RawMessage, error) {
 	body, err := c.doGet(c.url() + "/id/" + url.PathEscape(id))
 	if err != nil {
-		return nil, fmt.Errorf("route %q: %w", id, err)
+		return nil, fmt.Errorf("domain %q: %w", id, err)
 	}
 	return json.RawMessage(body), nil
 }
 
 func (c *Client) DeleteByID(id string) error {
 	if err := c.doRequest(http.MethodDelete, c.url()+"/id/"+url.PathEscape(id), "", nil); err != nil {
-		return fmt.Errorf("deleting route %q: %w", id, err)
+		return fmt.Errorf("deleting domain %q: %w", id, err)
 	}
 	return nil
 }
 
-// AddRoute appends a route to the given server's route list.
+// AddDomain appends a domain to the given server's route list.
 // If the server doesn't exist yet, it bootstraps the minimal structure first.
-func (c *Client) AddRoute(server string, route json.RawMessage) error {
-	routesPath := serverRoutesPath(server)
+func (c *Client) AddDomain(server string, route json.RawMessage) error {
+	routesPath := serverCaddyRoutesPath(server)
 	if _, err := c.GetConfigPath(routesPath); err != nil {
 		srv := map[string]any{
 			"listen": []string{":443"},
@@ -269,17 +269,17 @@ func (c *Client) AddRoute(server string, route json.RawMessage) error {
 	}
 
 	if err := c.doRequest(http.MethodPost, c.url()+"/config/"+routesPath, "application/json", route); err != nil {
-		return fmt.Errorf("adding route to %q: %w", server, err)
+		return fmt.Errorf("adding domain to %q: %w", server, err)
 	}
 	return nil
 }
 
-// FindRouteServer searches the full config to find which server a route with
+// FindDomainServer searches the full config to find which server a domain with
 // the given @id belongs to. Returns the server name.
-func (c *Client) FindRouteServer(id string) (string, error) {
+func (c *Client) FindDomainServer(id string) (string, error) {
 	raw, err := c.GetConfig()
 	if err != nil {
-		return "", fmt.Errorf("fetching config to find route server: %w", err)
+		return "", fmt.Errorf("fetching config to find domain server: %w", err)
 	}
 
 	var cfg caddyConfigPartial
@@ -297,7 +297,7 @@ func (c *Client) FindRouteServer(id string) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("no server found containing route %q", id)
+	return "", fmt.Errorf("no server found containing domain %q", id)
 }
 
 func (c *Client) GetLoggingConfig() (json.RawMessage, error) {
@@ -315,14 +315,14 @@ func (c *Client) SetLoggingConfig(loggingJSON []byte) error {
 	return nil
 }
 
-// ReplaceRouteByID finds a route by @id in the config, determines its exact
+// ReplaceDomainByID finds a domain by @id in the config, determines its exact
 // server and array index, then replaces it in place via PATCH to the direct
 // config path. PATCH is required here because Caddy's PUT to an array index
 // inserts before that index rather than replacing.
-func (c *Client) ReplaceRouteByID(id string, newRoute json.RawMessage) (string, error) {
+func (c *Client) ReplaceDomainByID(id string, newRoute json.RawMessage) (string, error) {
 	raw, err := c.GetConfig()
 	if err != nil {
-		return "", fmt.Errorf("fetching config to replace route: %w", err)
+		return "", fmt.Errorf("fetching config to replace domain: %w", err)
 	}
 
 	var cfg caddyConfigPartial
@@ -338,17 +338,17 @@ func (c *Client) ReplaceRouteByID(id string, newRoute json.RawMessage) (string, 
 			if json.Unmarshal(route, &r) != nil || r.ID != id {
 				continue
 			}
-			path := serverRoutePath(serverName, i)
+			path := serverCaddyRoutePath(serverName, i)
 			if err := c.PatchConfigPath(path, newRoute); err != nil {
-				return "", fmt.Errorf("patching route %q: %w", id, err)
+				return "", fmt.Errorf("patching domain %q: %w", id, err)
 			}
 			return serverName, nil
 		}
 	}
-	return "", fmt.Errorf("route %q not found", id)
+	return "", fmt.Errorf("domain %q not found", id)
 }
 
-func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
+func (c *Client) SetDomainAccessLog(server, domain, sinkName string) error {
 	if sinkName != "" {
 		raw, getErr := c.GetConfigPath(LogSinkPath(sinkName))
 		if getErr != nil {
@@ -406,7 +406,7 @@ func (c *Client) SetRouteAccessLog(server, domain, sinkName string) error {
 	if err := c.DeleteConfigPath(
 		serverLoggerNamePath(server, domain),
 	); err != nil {
-		log.Printf("SetRouteAccessLog: removing %s logger_names entry: %v", domain, err)
+		log.Printf("SetDomainAccessLog: removing %s logger_names entry: %v", domain, err)
 	}
 	return nil
 }

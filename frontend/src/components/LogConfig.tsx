@@ -306,10 +306,10 @@ const LogConfigCard = memo(function LogConfigCard({
 	const isDiscard = sink.writer?.output === "discard";
 
 	const [confirmDisable, setConfirmDisable] = useState(false);
-	const hasRoutes = isAccessLog && accessDomains && accessDomains.length > 0;
+	const hasDomains = isAccessLog && accessDomains && accessDomains.length > 0;
 
 	const handleAccessToggle = (checked: boolean) => {
-		if (!checked && hasRoutes) {
+		if (!checked && hasDomains) {
 			setConfirmDisable(true);
 			return;
 		}
@@ -411,7 +411,7 @@ const LogConfigCard = memo(function LogConfigCard({
 							))}
 						</div>
 					) : (
-						<p className="access-log-domains-empty">No routes using this sink.</p>
+						<p className="access-log-domains-empty">No domains using this sink.</p>
 					)}
 				</div>
 			)}
@@ -591,7 +591,7 @@ export function LogConfigList() {
 
 			{sinkEntries.length === 0 ? (
 				<div className="empty-state">
-					No log outputs configured. Enable access logging on a route to create one.
+					No log outputs configured. Enable access logging on a domain to create one.
 				</div>
 			) : (
 				<div className="log-config-list">

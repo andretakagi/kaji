@@ -5,15 +5,14 @@ import type {
 	ReverseProxyConfig,
 	StaticResponseConfig,
 } from "../types/domain";
-import type { WizardData, WizardRule } from "./DomainWizard";
+import type { WizardData, WizardRule, WizardSubdomain } from "./DomainWizard";
 
 interface Props {
 	data: WizardData;
 	onEditStep: (step: number) => void;
-	subdomainMode?: { prefix: string; parentDomain: string } | null;
 }
 
-function toggleSummary(toggles: DomainToggles): string[] {
+function activeToggles(toggles: DomainToggles): string[] {
 	const active: string[] = [];
 	if (toggles.force_https) active.push("Force HTTPS");
 	if (toggles.compression) active.push("Compression");
@@ -24,20 +23,29 @@ function toggleSummary(toggles: DomainToggles): string[] {
 	return active;
 }
 
-function ruleMatchLabel(rule: WizardRule, domainName: string): string {
-	return `${domainName}${rule.matchValue}`;
+function TogglesList({ toggles }: { toggles: DomainToggles }) {
+	const tags = activeToggles(toggles);
+	if (tags.length === 0) return <DetailRow label="Toggles" value="None" />;
+	return <DetailRow label="Toggles" value={tags.join(", ")} />;
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="wizard-review-detail-row">
+			<span className="wizard-review-detail-label">{label}</span>
+			<span className="wizard-review-detail-value">{value}</span>
+		</div>
+	);
 }
 
 function ReverseProxySummary({ config }: { config: ReverseProxyConfig }) {
-	const details: { label: string; value: string }[] = [
-		{ label: "Upstream", value: config.upstream },
-	];
-	if (config.tls_skip_verify) details.push({ label: "TLS", value: "Skip verify" });
-	if (config.websocket_passthrough) details.push({ label: "WebSocket", value: "Enabled" });
+	const rows: { label: string; value: string }[] = [{ label: "Upstream", value: config.upstream }];
+	if (config.tls_skip_verify) rows.push({ label: "TLS", value: "Skip verify" });
+	if (config.websocket_passthrough) rows.push({ label: "WebSocket", value: "Enabled" });
 	if (config.load_balancing.enabled) {
 		const extra = config.load_balancing.upstreams.length;
 		const strategyLabel = config.load_balancing.strategy.replace(/_/g, " ");
-		details.push({
+		rows.push({
 			label: "Load balancing",
 			value: `${strategyLabel}${extra > 0 ? ` (+${extra} upstreams)` : ""}`,
 		});
@@ -51,226 +59,189 @@ function ReverseProxySummary({ config }: { config: ReverseProxyConfig }) {
 			(h) => h.key,
 		);
 		if (custom.length > 0) parts.push(`${custom.length} custom`);
-		if (parts.length > 0) details.push({ label: "Req headers", value: parts.join(", ") });
+		if (parts.length > 0) rows.push({ label: "Req headers", value: parts.join(", ") });
 	}
 
 	return (
-		<div className="wizard-review-static-details">
-			{details.map((d) => (
-				<div key={d.label} className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">{d.label}</span>
-					<span className="wizard-review-detail-value">{d.value}</span>
-				</div>
+		<>
+			{rows.map((d) => (
+				<DetailRow key={d.label} label={d.label} value={d.value} />
 			))}
-		</div>
+		</>
 	);
 }
 
 function StaticResponseSummary({ config }: { config: StaticResponseConfig }) {
-	if (config.close) return <span className="wizard-review-upstream">Close connection</span>;
+	if (config.close) return <DetailRow label="Action" value="Close connection" />;
 
 	const headerKeys = Object.keys(config.headers || {});
 
 	return (
-		<div className="wizard-review-static-details">
-			{config.status_code && (
-				<div className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">Status</span>
-					<span className="wizard-review-detail-value">{config.status_code}</span>
-				</div>
-			)}
+		<>
+			{config.status_code && <DetailRow label="Status" value={config.status_code} />}
 			{config.body && (
-				<div className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">Body</span>
-					<span className="wizard-review-detail-value">
-						{config.body.length > 60 ? `${config.body.slice(0, 60)}...` : config.body}
-					</span>
-				</div>
+				<DetailRow
+					label="Body"
+					value={config.body.length > 60 ? `${config.body.slice(0, 60)}...` : config.body}
+				/>
 			)}
 			{headerKeys.length > 0 && (
-				<div className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">Headers</span>
-					<span className="wizard-review-detail-value">
-						{headerKeys.map((k) => `${k}: ${(config.headers[k] || []).join(", ")}`).join("; ")}
-					</span>
-				</div>
+				<DetailRow
+					label="Headers"
+					value={headerKeys.map((k) => `${k}: ${(config.headers[k] || []).join(", ")}`).join("; ")}
+				/>
 			)}
-		</div>
+		</>
 	);
 }
 
 function RedirectSummary({ config }: { config: RedirectConfig }) {
 	return (
-		<div className="wizard-review-static-details">
-			{config.target_url && (
-				<div className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">Target</span>
-					<span className="wizard-review-detail-value">{config.target_url}</span>
-				</div>
-			)}
-			{config.status_code && (
-				<div className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">Status</span>
-					<span className="wizard-review-detail-value">{config.status_code}</span>
-				</div>
-			)}
-			<div className="wizard-review-detail-row">
-				<span className="wizard-review-detail-label">Preserve path</span>
-				<span className="wizard-review-detail-value">{config.preserve_path ? "Yes" : "No"}</span>
-			</div>
-		</div>
+		<>
+			{config.target_url && <DetailRow label="Target" value={config.target_url} />}
+			{config.status_code && <DetailRow label="Status" value={config.status_code} />}
+			<DetailRow label="Preserve path" value={config.preserve_path ? "Yes" : "No"} />
+		</>
 	);
 }
 
 function FileServerSummary({ config }: { config: FileServerConfig }) {
 	return (
-		<div className="wizard-review-static-details">
-			<div className="wizard-review-detail-row">
-				<span className="wizard-review-detail-label">Root</span>
-				<span className="wizard-review-detail-value">{config.root}</span>
-			</div>
-			<div className="wizard-review-detail-row">
-				<span className="wizard-review-detail-label">Browse</span>
-				<span className="wizard-review-detail-value">{config.browse ? "Yes" : "No"}</span>
-			</div>
+		<>
+			<DetailRow label="Root" value={config.root} />
+			<DetailRow label="Browse" value={config.browse ? "Yes" : "No"} />
 			{config.index_names?.length > 0 && (
-				<div className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">Index files</span>
-					<span className="wizard-review-detail-value">{config.index_names.join(", ")}</span>
-				</div>
+				<DetailRow label="Index files" value={config.index_names.join(", ")} />
 			)}
-			{config.hide?.length > 0 && (
-				<div className="wizard-review-detail-row">
-					<span className="wizard-review-detail-label">Hidden</span>
-					<span className="wizard-review-detail-value">{config.hide.join(", ")}</span>
-				</div>
-			)}
+			{config.hide?.length > 0 && <DetailRow label="Hidden" value={config.hide.join(", ")} />}
+		</>
+	);
+}
+
+function HandlerDetails({ type, config }: { type: string; config: unknown }) {
+	if (type === "reverse_proxy")
+		return <ReverseProxySummary config={config as ReverseProxyConfig} />;
+	if (type === "static_response")
+		return <StaticResponseSummary config={config as StaticResponseConfig} />;
+	if (type === "redirect") return <RedirectSummary config={config as RedirectConfig} />;
+	if (type === "file_server") return <FileServerSummary config={config as FileServerConfig} />;
+	return null;
+}
+
+function SubdomainReviewItem({ sub, domainName }: { sub: WizardSubdomain; domainName: string }) {
+	const handlerLabel = sub.handlerType !== "none" ? sub.handlerType.replace(/_/g, " ") : "none";
+
+	return (
+		<div className="wizard-review-item">
+			<div className="wizard-review-item-title">
+				{sub.prefix}.{domainName}
+			</div>
+			<div className="wizard-review-details">
+				<DetailRow label="Handler" value={handlerLabel} />
+				{sub.handlerType !== "none" && (
+					<HandlerDetails type={sub.handlerType} config={sub.handlerConfig} />
+				)}
+				<TogglesList toggles={sub.toggles} />
+				{sub.rules.length > 0 && (
+					<DetailRow
+						label="Rules"
+						value={`${sub.rules.length} path rule${sub.rules.length !== 1 ? "s" : ""}`}
+					/>
+				)}
+			</div>
 		</div>
 	);
 }
 
-export default function WizardReview({ data, onEditStep, subdomainMode }: Props) {
-	const activeTags = toggleSummary(data.toggles);
-
+export default function WizardReview({ data, onEditStep }: Props) {
 	const rootHandlerLabel =
-		data.rootRule.handlerType !== "none" ? data.rootRule.handlerType.replace("_", " ") : null;
+		data.rootRule.handlerType !== "none" ? data.rootRule.handlerType.replace(/_/g, " ") : null;
 
-	const rootIsProxy = data.rootRule.handlerType === "reverse_proxy";
-	const rootIsStatic = data.rootRule.handlerType === "static_response";
-	const rootIsRedirect = data.rootRule.handlerType === "redirect";
-	const rootIsFileServer = data.rootRule.handlerType === "file_server";
+	const allRules: { targetLabel: string; rule: WizardRule }[] = [];
+	for (const rule of data.rules) {
+		allRules.push({ targetLabel: data.name, rule });
+	}
+	for (const sub of data.subdomains) {
+		for (const rule of sub.rules) {
+			allRules.push({ targetLabel: `${sub.prefix}.${data.name}`, rule });
+		}
+	}
 
 	return (
 		<div className="wizard-review">
+			{/* Domain */}
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
-					<h4>{subdomainMode ? "Subdomain" : "Domain"}</h4>
+					<h4>Domain</h4>
 					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(0)}>
 						Edit
 					</button>
 				</div>
-				<div className="wizard-review-value">
-					{subdomainMode ? `${subdomainMode.prefix}.${subdomainMode.parentDomain}` : data.name}
-				</div>
+				<div className="wizard-review-value">{data.name}</div>
 			</div>
 
+			{/* Root Domain */}
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
-					<h4>Toggles</h4>
+					<h4>Root Domain</h4>
 					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(1)}>
 						Edit
 					</button>
 				</div>
-				<div className="wizard-review-value">
-					{activeTags.length > 0 ? (
-						<div className="wizard-review-tags">
-							{activeTags.map((tag) => (
-								<span key={tag} className="wizard-review-tag">
-									{tag}
-								</span>
-							))}
-						</div>
-					) : (
-						<span className="text-muted">None enabled</span>
+				<div className="wizard-review-details">
+					<DetailRow label="Handler" value={rootHandlerLabel ?? "none"} />
+					{rootHandlerLabel && (
+						<HandlerDetails type={data.rootRule.handlerType} config={data.rootRule.handlerConfig} />
 					)}
+					<TogglesList toggles={data.toggles} />
 				</div>
 			</div>
 
-			<div className="wizard-review-section">
-				<div className="wizard-review-header">
-					<h4>{subdomainMode ? "Handler" : "Root Rule"}</h4>
-					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(2)}>
-						Edit
-					</button>
-				</div>
-				<div className="wizard-review-value">
-					{rootHandlerLabel ? (
-						<div className="wizard-review-rule-detail">
-							<span className={`rule-card-handler-badge handler-${data.rootRule.handlerType}`}>
-								{rootHandlerLabel}
-							</span>
-							{rootIsProxy && (
-								<ReverseProxySummary config={data.rootRule.handlerConfig as ReverseProxyConfig} />
-							)}
-							{rootIsStatic && (
-								<StaticResponseSummary
-									config={data.rootRule.handlerConfig as StaticResponseConfig}
-								/>
-							)}
-							{rootIsRedirect && (
-								<RedirectSummary config={data.rootRule.handlerConfig as RedirectConfig} />
-							)}
-							{rootIsFileServer && (
-								<FileServerSummary config={data.rootRule.handlerConfig as FileServerConfig} />
-							)}
-						</div>
-					) : (
-						<span className="text-muted">None</span>
-					)}
-				</div>
-			</div>
-
-			{!subdomainMode && (
+			{/* Subdomains */}
+			{data.subdomains.length > 0 && (
 				<div className="wizard-review-section">
 					<div className="wizard-review-header">
-						<h4>Rules</h4>
-						<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(3)}>
+						<h4>Subdomains</h4>
+						<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(2)}>
 							Edit
 						</button>
 					</div>
-					<div className="wizard-review-value">
-						{data.rules.length > 0 ? (
-							<div className="wizard-review-rule-list">
-								{data.rules.map((rule) => (
-									<div key={rule.key} className="wizard-review-rule-item">
-										<span className="wizard-review-rule-match">
-											{ruleMatchLabel(rule, data.name)}
-										</span>
-										<span className={`rule-card-handler-badge handler-${rule.handlerType}`}>
-											{rule.handlerType.replace("_", " ")}
-										</span>
-										{rule.handlerType === "reverse_proxy" && (
-											<ReverseProxySummary config={rule.handlerConfig as ReverseProxyConfig} />
-										)}
-										{rule.handlerType === "static_response" && (
-											<StaticResponseSummary config={rule.handlerConfig as StaticResponseConfig} />
-										)}
-										{rule.handlerType === "redirect" && (
-											<RedirectSummary config={rule.handlerConfig as RedirectConfig} />
-										)}
-										{rule.handlerType === "file_server" && (
-											<FileServerSummary config={rule.handlerConfig as FileServerConfig} />
-										)}
-										{rule.toggleOverrides && <span className="wizard-review-tag">overrides</span>}
-									</div>
-								))}
-							</div>
-						) : (
-							<span className="text-muted">No additional rules</span>
-						)}
+					<div className="wizard-review-item-list">
+						{data.subdomains.map((sub) => (
+							<SubdomainReviewItem key={sub.key} sub={sub} domainName={data.name} />
+						))}
 					</div>
 				</div>
 			)}
+
+			{/* Path Rules */}
+			<div className="wizard-review-section">
+				<div className="wizard-review-header">
+					<h4>Path Rules</h4>
+					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(3)}>
+						Edit
+					</button>
+				</div>
+				{allRules.length > 0 ? (
+					<div className="wizard-review-item-list">
+						{allRules.map((entry) => (
+							<div key={entry.rule.key} className="wizard-review-item">
+								<div className="wizard-review-item-title">
+									{entry.targetLabel}
+									{entry.rule.matchValue}
+								</div>
+								<div className="wizard-review-details">
+									<DetailRow label="Handler" value={entry.rule.handlerType.replace(/_/g, " ")} />
+									<HandlerDetails type={entry.rule.handlerType} config={entry.rule.handlerConfig} />
+									{entry.rule.toggleOverrides && <DetailRow label="Overrides" value="Yes" />}
+								</div>
+							</div>
+						))}
+					</div>
+				) : (
+					<span className="text-muted">No path rules</span>
+				)}
+			</div>
 		</div>
 	);
 }
