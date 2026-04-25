@@ -1,13 +1,6 @@
 import { useCallback } from "react";
-import {
-	createDomainFull,
-	createSubdomain,
-	deleteDomain,
-	disableDomain,
-	enableDomain,
-	fetchDomains,
-} from "../api";
-import type { CreateDomainFullRequest, CreateSubdomainRequest, Domain } from "../types/domain";
+import { createDomainFull, deleteDomain, disableDomain, enableDomain, fetchDomains } from "../api";
+import type { CreateDomainFullRequest, Domain } from "../types/domain";
 import { useAsyncAction } from "./useAsyncAction";
 import { usePolledData } from "./usePolledData";
 
@@ -33,16 +26,6 @@ export function useDomainList() {
 				await createDomainFull(req);
 				await reload();
 				return "Domain created";
-			}),
-		[run, reload],
-	);
-
-	const handleCreateSubdomain = useCallback(
-		(parentId: string, req: CreateSubdomainRequest) =>
-			run(async () => {
-				await createSubdomain(parentId, req);
-				await reload();
-				return "Subdomain created";
 			}),
 		[run, reload],
 	);
@@ -76,7 +59,6 @@ export function useDomainList() {
 		setFeedback,
 		reload,
 		handleCreate,
-		handleCreateSubdomain,
 		handleDelete,
 		handleToggleEnabled,
 	} as const;

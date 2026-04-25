@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { cn } from "../cn";
 import { useDomain } from "../hooks/useDomain";
 import { useFormToggle } from "../hooks/useFormToggle";
 import type { DomainToggles, UpdateRuleRequest } from "../types/domain";
@@ -7,10 +8,19 @@ import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import { ErrorAlert } from "./ErrorAlert";
 import Feedback from "./Feedback";
+import { handlerSummary } from "./HandlerConfig";
 import RuleCard from "./RuleCard";
 import RuleForm from "./RuleForm";
 import { SectionHeader } from "./SectionHeader";
 import { Toggle } from "./Toggle";
+
+const subdomainHandlerLabels: Record<string, string> = {
+	reverse_proxy: "Reverse Proxy",
+	redirect: "Redirect",
+	file_server: "File Server",
+	static_response: "Static Response",
+	none: "No Handler",
+};
 
 interface Props {
 	domain: { id: string; name: string; enabled: boolean };
@@ -36,6 +46,8 @@ export default function DomainCard({
 		handleUpdateRule,
 		handleDeleteRule,
 		handleToggleRule,
+		handleToggleSubdomain,
+		handleDeleteSubdomain,
 	} = useDomain(domainSummary.id);
 
 	const [localToggles, setLocalToggles] = useState<DomainToggles | null>(null);
@@ -136,6 +148,62 @@ export default function DomainCard({
 						idPrefix={`domain-${domainSummary.id}`}
 						domain={domainSummary.name}
 					/>
+				</section>
+			)}
+
+			{domain.subdomains.length > 0 && (
+				<section className="domain-detail-section">
+					<SectionHeader title="Subdomains" />
+					<div className="subdomain-list">
+						{domain.subdomains.map((sub) => {
+							const fullName = `${sub.name}.${domain.name}`;
+							return (
+								<div key={sub.id} className={cn("card", !sub.enabled && "card-disabled")}>
+									<div className="card-header">
+										<div className="card-title">
+											<span className="subdomain-card-name">{fullName}</span>
+											<span
+												className={cn(
+													"rule-card-handler-badge",
+													`handler-${sub.handler_type === "none" ? "none" : sub.handler_type}`,
+												)}
+											>
+												{subdomainHandlerLabels[sub.handler_type] ?? sub.handler_type}
+											</span>
+											{sub.rules.length > 0 && (
+												<span className="subdomain-card-rule-count">
+													{sub.rules.length} {sub.rules.length === 1 ? "rule" : "rules"}
+												</span>
+											)}
+										</div>
+										<div className="card-actions">
+											<Toggle
+												value={sub.enabled}
+												onChange={(enabled) => handleToggleSubdomain(sub.id, enabled)}
+												disabled={isSaving}
+												title={sub.enabled ? "Disable" : "Enable"}
+												aria-label={sub.enabled ? "Disable subdomain" : "Enable subdomain"}
+												stopPropagation
+											/>
+											<ConfirmDeleteButton
+												onConfirm={() => handleDeleteSubdomain(sub.id)}
+												label={`Delete ${fullName}`}
+												disabled={isSaving}
+											/>
+										</div>
+									</div>
+									{sub.handler_type !== "none" && (
+										<div className="subdomain-card-summary">
+											{handlerSummary(
+												sub.handler_type as Parameters<typeof handlerSummary>[0],
+												sub.handler_config,
+											)}
+										</div>
+									)}
+								</div>
+							);
+						})}
+					</div>
 				</section>
 			)}
 

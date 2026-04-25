@@ -1,30 +1,21 @@
 import { useCallback } from "react";
 import {
 	createRule,
-	createSubdomain,
-	createSubdomainRule,
 	deleteRule,
 	deleteSubdomain,
-	deleteSubdomainRule,
 	disableRule,
 	disableSubdomain,
-	disableSubdomainRule,
 	enableRule,
 	enableSubdomain,
-	enableSubdomainRule,
 	fetchDomain,
 	updateDomain,
 	updateRule,
-	updateSubdomain,
-	updateSubdomainRule,
 } from "../api";
 import type {
 	CreateRuleRequest,
-	CreateSubdomainRequest,
 	Domain,
 	UpdateDomainRequest,
 	UpdateRuleRequest,
-	UpdateSubdomainRequest,
 } from "../types/domain";
 import { useAsyncAction } from "./useAsyncAction";
 import { usePolledData } from "./usePolledData";
@@ -107,26 +98,6 @@ export function useDomain(id: string) {
 		[id, run, reload],
 	);
 
-	const handleCreateSubdomain = useCallback(
-		(req: CreateSubdomainRequest) =>
-			run(async () => {
-				await createSubdomain(id, req);
-				await reload();
-				return "Subdomain created";
-			}),
-		[id, run, reload],
-	);
-
-	const handleUpdateSubdomain = useCallback(
-		(subId: string, req: UpdateSubdomainRequest) =>
-			run(async () => {
-				await updateSubdomain(id, subId, req);
-				await reload();
-				return "Subdomain updated";
-			}),
-		[id, run, reload],
-	);
-
 	const handleDeleteSubdomain = useCallback(
 		(subId: string) =>
 			run(async () => {
@@ -150,49 +121,6 @@ export function useDomain(id: string) {
 		[id, run, reload],
 	);
 
-	const handleCreateSubdomainRule = useCallback(
-		(subId: string, req: CreateRuleRequest) =>
-			run(async () => {
-				await createSubdomainRule(id, subId, req);
-				await reload();
-				return "Rule created";
-			}),
-		[id, run, reload],
-	);
-
-	const handleUpdateSubdomainRule = useCallback(
-		(subId: string, ruleId: string, req: UpdateRuleRequest) =>
-			run(async () => {
-				await updateSubdomainRule(id, subId, ruleId, req);
-				await reload();
-				return "Rule updated";
-			}),
-		[id, run, reload],
-	);
-
-	const handleDeleteSubdomainRule = useCallback(
-		(subId: string, ruleId: string) =>
-			run(async () => {
-				await deleteSubdomainRule(id, subId, ruleId);
-				await reload();
-				return "Rule deleted";
-			}),
-		[id, run, reload],
-	);
-
-	const handleToggleSubdomainRule = useCallback(
-		(subId: string, ruleId: string, enabled: boolean) =>
-			run(async () => {
-				if (enabled) {
-					await enableSubdomainRule(id, subId, ruleId);
-				} else {
-					await disableSubdomainRule(id, subId, ruleId);
-				}
-				await reload();
-			}),
-		[id, run, reload],
-	);
-
 	return {
 		domain,
 		loading,
@@ -207,13 +135,7 @@ export function useDomain(id: string) {
 		handleUpdateRule,
 		handleDeleteRule,
 		handleToggleRule,
-		handleCreateSubdomain,
-		handleUpdateSubdomain,
 		handleDeleteSubdomain,
 		handleToggleSubdomain,
-		handleCreateSubdomainRule,
-		handleUpdateSubdomainRule,
-		handleDeleteSubdomainRule,
-		handleToggleSubdomainRule,
 	} as const;
 }
