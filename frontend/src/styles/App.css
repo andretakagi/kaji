@@ -3083,6 +3083,13 @@ input:disabled + .toggle-slider {
 	color: var(--color-warning, #e8a735);
 }
 
+.field-warning {
+	display: block;
+	font-size: 0.75rem;
+	color: var(--color-warning, #e8a735);
+	margin-top: 0.3rem;
+}
+
 /* Domain Wizard */
 .domain-wizard {
 	padding: 1.25rem;
@@ -3432,6 +3439,10 @@ input:disabled + .toggle-slider {
 }
 
 .wizard-review-item-title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
 	font-size: 0.875rem;
 	font-weight: 500;
 	color: var(--text-primary);

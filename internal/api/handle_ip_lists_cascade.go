@@ -58,6 +58,16 @@ func domainReferencesLists(d config.Domain, listIDs map[string]bool) bool {
 			return true
 		}
 	}
+	for _, s := range d.Subdomains {
+		if s.Toggles.IPFiltering.Enabled && listIDs[s.Toggles.IPFiltering.ListID] {
+			return true
+		}
+		for _, r := range s.Rules {
+			if r.ToggleOverrides != nil && r.ToggleOverrides.IPFiltering.Enabled && listIDs[r.ToggleOverrides.IPFiltering.ListID] {
+				return true
+			}
+		}
+	}
 	return false
 }
 

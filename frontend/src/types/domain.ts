@@ -184,7 +184,7 @@ export const defaultReverseProxyConfig: ReverseProxyConfig = {
 };
 
 export const defaultStaticResponseConfig: StaticResponseConfig = {
-	status_code: "200",
+	status_code: "",
 	body: "",
 	headers: {},
 	close: false,

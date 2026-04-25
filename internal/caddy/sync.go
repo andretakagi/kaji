@@ -263,11 +263,11 @@ func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]stri
 	return hostnameToSink, logSkipRuleIDs
 }
 
-const kajiRulePrefix = "kaji_rule_"
+const kajiRoutePrefix = "kaji_"
 
-// ReadCurrentKajiDomains reads all domains with the kaji_rule_ prefix from
-// Caddy's live config. Returns a map of domain ID -> domain JSON and the
-// server name where they were found.
+// ReadCurrentKajiDomains reads all Kaji-managed routes from Caddy's live
+// config. Returns a map of domain ID -> domain JSON and the server name
+// where they were found.
 func ReadCurrentKajiDomains(cc *Client) (map[string]json.RawMessage, string, error) {
 	raw, err := cc.GetConfig()
 	if err != nil {
@@ -292,7 +292,7 @@ func ReadCurrentKajiDomains(cc *Client) (map[string]json.RawMessage, string, err
 			if json.Unmarshal(route, &r) != nil {
 				continue
 			}
-			if strings.HasPrefix(r.ID, kajiRulePrefix) {
+			if strings.HasPrefix(r.ID, kajiRoutePrefix) {
 				routes[r.ID] = route
 				serverName = name
 			}

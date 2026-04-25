@@ -24,7 +24,7 @@ import {
 	defaultStaticResponseConfig,
 } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import { validateDomain, validateUpstream } from "../utils/validate";
+import { pathMatchWarning, validateDomain, validateUpstream } from "../utils/validate";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
 import { Toggle } from "./Toggle";
@@ -62,7 +62,7 @@ export interface WizardData {
 	rules: WizardRule[];
 }
 
-const STEP_LABELS = ["URL", "Root Domain", "Subdomains", "Path Rules", "Review"];
+const STEP_LABELS = ["URL", "Root Domain Rule", "Subdomain Rules", "Path Rules", "Review"];
 
 const handlerOptions: readonly { value: HandlerSelection; label: string }[] = [
 	{ value: "none", label: "None" },
@@ -1265,6 +1265,11 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 																maxLength={253}
 																required
 															/>
+															{pathMatchWarning(rulePathMatch, ruleMatchValue) && (
+																<span className="field-warning">
+																	{pathMatchWarning(rulePathMatch, ruleMatchValue)}
+																</span>
+															)}
 														</div>
 													</div>
 
@@ -1427,6 +1432,11 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 											maxLength={253}
 											required
 										/>
+										{pathMatchWarning(rulePathMatch, ruleMatchValue) && (
+											<span className="field-warning">
+												{pathMatchWarning(rulePathMatch, ruleMatchValue)}
+											</span>
+										)}
 									</div>
 								</div>
 

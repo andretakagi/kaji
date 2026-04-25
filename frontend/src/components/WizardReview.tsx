@@ -118,6 +118,22 @@ function FileServerSummary({ config }: { config: FileServerConfig }) {
 	);
 }
 
+const handlerLabels: Record<string, string> = {
+	reverse_proxy: "Reverse Proxy",
+	redirect: "Redirect",
+	file_server: "File Server",
+	static_response: "Static Response",
+	none: "None",
+};
+
+function HandlerBadge({ type }: { type: string }) {
+	return (
+		<span className={`rule-card-handler-badge handler-${type}`}>
+			{handlerLabels[type] ?? type.replace(/_/g, " ")}
+		</span>
+	);
+}
+
 function HandlerDetails({ type, config }: { type: string; config: unknown }) {
 	if (type === "reverse_proxy")
 		return <ReverseProxySummary config={config as ReverseProxyConfig} />;
@@ -129,15 +145,15 @@ function HandlerDetails({ type, config }: { type: string; config: unknown }) {
 }
 
 function SubdomainReviewItem({ sub, domainName }: { sub: WizardSubdomain; domainName: string }) {
-	const handlerLabel = sub.handlerType !== "none" ? sub.handlerType.replace(/_/g, " ") : "none";
-
 	return (
 		<div className="wizard-review-item">
 			<div className="wizard-review-item-title">
-				{sub.prefix}.{domainName}
+				<span>
+					{sub.prefix}.{domainName}
+				</span>
+				<HandlerBadge type={sub.handlerType} />
 			</div>
 			<div className="wizard-review-details">
-				<DetailRow label="Handler" value={handlerLabel} />
 				{sub.handlerType !== "none" && (
 					<HandlerDetails type={sub.handlerType} config={sub.handlerConfig} />
 				)}
@@ -154,9 +170,6 @@ function SubdomainReviewItem({ sub, domainName }: { sub: WizardSubdomain; domain
 }
 
 export default function WizardReview({ data, onEditStep }: Props) {
-	const rootHandlerLabel =
-		data.rootRule.handlerType !== "none" ? data.rootRule.handlerType.replace(/_/g, " ") : null;
-
 	const allRules: { targetLabel: string; rule: WizardRule }[] = [];
 	for (const rule of data.rules) {
 		allRules.push({ targetLabel: data.name, rule });
@@ -188,12 +201,20 @@ export default function WizardReview({ data, onEditStep }: Props) {
 						Edit
 					</button>
 				</div>
-				<div className="wizard-review-details">
-					<DetailRow label="Handler" value={rootHandlerLabel ?? "none"} />
-					{rootHandlerLabel && (
-						<HandlerDetails type={data.rootRule.handlerType} config={data.rootRule.handlerConfig} />
-					)}
-					<TogglesList toggles={data.toggles} />
+				<div className="wizard-review-item">
+					<div className="wizard-review-item-title">
+						<span>{data.name}</span>
+						<HandlerBadge type={data.rootRule.handlerType} />
+					</div>
+					<div className="wizard-review-details">
+						{data.rootRule.handlerType !== "none" && (
+							<HandlerDetails
+								type={data.rootRule.handlerType}
+								config={data.rootRule.handlerConfig}
+							/>
+						)}
+						<TogglesList toggles={data.toggles} />
+					</div>
 				</div>
 			</div>
 
@@ -227,11 +248,13 @@ export default function WizardReview({ data, onEditStep }: Props) {
 						{allRules.map((entry) => (
 							<div key={entry.rule.key} className="wizard-review-item">
 								<div className="wizard-review-item-title">
-									{entry.targetLabel}
-									{entry.rule.matchValue}
+									<span>
+										{entry.targetLabel}
+										{entry.rule.matchValue}
+									</span>
+									<HandlerBadge type={entry.rule.handlerType} />
 								</div>
 								<div className="wizard-review-details">
-									<DetailRow label="Handler" value={entry.rule.handlerType.replace(/_/g, " ")} />
 									<HandlerDetails type={entry.rule.handlerType} config={entry.rule.handlerConfig} />
 									{entry.rule.toggleOverrides && <DetailRow label="Overrides" value="Yes" />}
 								</div>

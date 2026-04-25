@@ -21,6 +21,7 @@ import {
 	defaultStaticResponseConfig,
 } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import { pathMatchWarning } from "../utils/validate";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
 import { Toggle } from "./Toggle";
@@ -222,6 +223,9 @@ export default function RuleForm({
 									required
 									disabled={submitting}
 								/>
+								{pathMatchWarning(pathMatch, matchValue) && (
+									<span className="field-warning">{pathMatchWarning(pathMatch, matchValue)}</span>
+								)}
 							</div>
 						</div>
 					)}

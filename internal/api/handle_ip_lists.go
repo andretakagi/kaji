@@ -341,6 +341,16 @@ func handleDomainIPListBindings(store *config.ConfigStore) http.HandlerFunc {
 					bindings[d.ID+"_"+r.ID] = r.ToggleOverrides.IPFiltering.ListID
 				}
 			}
+			for _, s := range d.Subdomains {
+				if s.Toggles.IPFiltering.Enabled && s.Toggles.IPFiltering.ListID != "" {
+					bindings[d.ID+"_"+s.ID] = s.Toggles.IPFiltering.ListID
+				}
+				for _, r := range s.Rules {
+					if r.ToggleOverrides != nil && r.ToggleOverrides.IPFiltering.Enabled && r.ToggleOverrides.IPFiltering.ListID != "" {
+						bindings[d.ID+"_"+s.ID+"_"+r.ID] = r.ToggleOverrides.IPFiltering.ListID
+					}
+				}
+			}
 		}
 		writeJSON(w, bindings)
 	}

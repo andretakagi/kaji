@@ -87,6 +87,22 @@ export function validateIPOrCIDR(value: string): string | null {
 	return "Invalid IP address";
 }
 
+const regexMetaRe = /\^|\$|\.\*|\.\+|\\d|\\w|\\s|\(\?|(?<!\/)[[\]()+{}|]/;
+
+export function pathMatchWarning(pathMatch: string, value: string): string | null {
+	if (!value) return null;
+	if (pathMatch === "regex") {
+		if (!regexMetaRe.test(value)) {
+			return "This looks like a plain path. Did you mean Prefix or Exact?";
+		}
+	} else {
+		if (regexMetaRe.test(value)) {
+			return "This looks like a regex pattern. Did you mean to select Regex?";
+		}
+	}
+	return null;
+}
+
 export function validateCaddyAdminUrl(url: string): string | null {
 	if (!url.trim()) {
 		return "Caddy admin URL is required";
