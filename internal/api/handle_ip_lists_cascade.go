@@ -1,8 +1,7 @@
-// Cascade logic for IP list changes: finds affected domains and re-syncs them.
+// Cascade logic for IP list changes: finds domains affected by a list change.
 package api
 
 import (
-	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
 )
 
@@ -69,10 +68,4 @@ func domainReferencesLists(d config.Domain, listIDs map[string]bool) bool {
 		}
 	}
 	return false
-}
-
-// cascadeIPListChange re-syncs all domains after an IP list change.
-// The sync engine rebuilds domain configs with the updated resolved IPs.
-func cascadeIPListChange(cc *caddy.Client, store *config.ConfigStore) error {
-	return syncAfterMutation(cc, store)
 }

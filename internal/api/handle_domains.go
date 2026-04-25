@@ -2,16 +2,24 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
 	"github.com/andretakagi/kaji/internal/export"
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
+
+// mutationMu serializes mutateAndSync calls so the snapshot taken before a
+// mutation can't be invalidated by a concurrent successful mutation in another
+// handler. Kaji is single-user; serializing all mutations is acceptable and
+// makes rollback safe without restructuring ConfigStore.
+var mutationMu sync.Mutex
 
 func ipResolver(store *config.ConfigStore) func(string) ([]string, string, error) {
 	return func(listID string) ([]string, string, error) {
@@ -35,6 +43,92 @@ func syncAfterMutation(cc *caddy.Client, store *config.ConfigStore) error {
 	syncDomains := export.ToSyncDomains(cfg.Domains)
 	_, err := caddy.SyncDomains(cc, syncDomains, ipResolver(store))
 	return err
+}
+
+// errSyncFailed wraps a Caddy sync error returned from mutateAndSync, so
+// callers can tell it apart from a local-store error and route it through
+// caddyError for a user-friendly message.
+type errSyncFailed struct{ err error }
+
+func (e *errSyncFailed) Error() string { return e.err.Error() }
+func (e *errSyncFailed) Unwrap() error { return e.err }
+
+// errMutationNotFound is returned from the mutate function passed to
+// mutateAndSync when the target object (domain, subdomain, rule, etc.)
+// doesn't exist. Callers use writeMutateError to translate this into a 404.
+var errMutationNotFound = errors.New("not found")
+
+// mutationConflict is returned from a mutate function when the request would
+// violate a uniqueness invariant (e.g. duplicate subdomain name). Translated
+// to a 409 by writeMutateError using msg as the user-facing message.
+type mutationConflict struct{ msg string }
+
+func (e *mutationConflict) Error() string { return e.msg }
+
+func conflictErr(msg string) error { return &mutationConflict{msg: msg} }
+
+// writeMutateError translates a mutateAndSync error into an HTTP response.
+// Returns true if an error was written (so callers can return early). The
+// default message is used for unexpected local-store errors. Sync errors are
+// routed through caddyError; sentinel errors map to 404 / 409 with the
+// supplied user-facing messages.
+func writeMutateError(w http.ResponseWriter, handler string, err error, notFoundMsg, defaultMsg string) bool {
+	if err == nil {
+		return false
+	}
+	var syncErr *errSyncFailed
+	if errors.As(err, &syncErr) {
+		caddyError(w, handler, syncErr.err)
+		return true
+	}
+	if errors.Is(err, errMutationNotFound) {
+		writeError(w, notFoundMsg, http.StatusNotFound)
+		return true
+	}
+	var conflict *mutationConflict
+	if errors.As(err, &conflict) {
+		writeError(w, conflict.msg, http.StatusConflict)
+		return true
+	}
+	log.Printf("%s: %v", handler, err)
+	writeError(w, defaultMsg, http.StatusInternalServerError)
+	return true
+}
+
+// mutateAndSync applies mutate to the local config, then syncs the result to
+// Caddy. If the Caddy sync fails for any reason, the local config is rolled
+// back to the pre-mutation snapshot so Kaji's UI doesn't show state that
+// disagrees with what's actually live in Caddy.
+//
+// On sync failure the returned error is wrapped in *errSyncFailed - callers
+// should check for it with errors.As and pass the unwrapped error to
+// caddyError. Errors from mutate or the local store update are returned
+// unwrapped.
+//
+// The mutationMu lock prevents another mutation from interleaving between
+// our store.Update and our rollback. If mutate itself returns an error, the
+// store was never touched, so no rollback is needed.
+func mutateAndSync(store *config.ConfigStore, cc *caddy.Client, mutate func(c config.AppConfig) (*config.AppConfig, error)) error {
+	mutationMu.Lock()
+	defer mutationMu.Unlock()
+
+	prev := store.Get()
+
+	if err := store.Update(mutate); err != nil {
+		return err
+	}
+
+	if err := syncAfterMutation(cc, store); err != nil {
+		if rbErr := store.Update(func(_ config.AppConfig) (*config.AppConfig, error) {
+			restored := *prev
+			return &restored, nil
+		}); rbErr != nil {
+			log.Printf("mutateAndSync: rollback failed after sync error %v: %v", err, rbErr)
+		}
+		return &errSyncFailed{err: err}
+	}
+
+	return nil
 }
 
 func findDomain(cfg *config.AppConfig, id string) *config.Domain {
@@ -198,17 +292,11 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain created: "+req.Name)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			c.Domains = append(c.Domains, domain)
 			return &c, nil
-		}); err != nil {
-			log.Printf("handleCreateDomainFull: save config: %v", err)
-			writeError(w, "failed to save domain", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleCreateDomainFull", err)
+		})
+		if writeMutateError(w, "handleCreateDomainFull", err, "", "failed to save domain") {
 			return
 		}
 
@@ -251,40 +339,23 @@ func handleUpdateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain updated: "+req.Name)
 
-		var updated *config.Domain
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, id)
 			if dom == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			dom.Name = req.Name
 			dom.Toggles = req.Toggles
-			updated = dom
 			return &c, nil
-		}); err != nil {
-			if err.Error() == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleUpdateDomain: save config: %v", err)
-			writeError(w, "failed to update domain", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleUpdateDomain", err)
+		})
+		if writeMutateError(w, "handleUpdateDomain", err, "domain not found", "failed to update domain") {
 			return
 		}
 
 		persistCaddyConfig(cc, store)
 
 		cfg := store.Get()
-		dom := findDomain(cfg, id)
-		if dom != nil {
-			writeJSON(w, dom)
-		} else {
-			writeJSON(w, updated)
-		}
+		writeJSON(w, findDomain(cfg, id))
 	}
 }
 
@@ -301,7 +372,7 @@ func handleDeleteDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain deleted: "+dom.Name)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			fresh := make([]config.Domain, 0, len(c.Domains))
 			for _, d := range c.Domains {
 				if d.ID != id {
@@ -310,14 +381,8 @@ func handleDeleteDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			}
 			c.Domains = fresh
 			return &c, nil
-		}); err != nil {
-			log.Printf("handleDeleteDomain: save config: %v", err)
-			writeError(w, "failed to delete domain", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleDeleteDomain", err)
+		})
+		if writeMutateError(w, "handleDeleteDomain", err, "domain not found", "failed to delete domain") {
 			return
 		}
 
@@ -343,35 +408,29 @@ func domainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapsh
 			action = "disabled"
 		}
 
-		var domName string
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, id)
-			if dom == nil {
-				return nil, fmt.Errorf("domain not found")
-			}
-			dom.Enabled = enabled
-			domName = dom.Name
-			return &c, nil
-		}); err != nil {
-			if err.Error() == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleToggleDomain: save config: %v", err)
-			writeError(w, "failed to update domain", http.StatusInternalServerError)
+		cfg := store.Get()
+		existing := findDomain(cfg, id)
+		if existing == nil {
+			writeError(w, "domain not found", http.StatusNotFound)
 			return
 		}
+		maybeAutoSnapshot(cc, ss, store, version, "Domain "+action+": "+existing.Name)
 
-		maybeAutoSnapshot(cc, ss, store, version, "Domain "+action+": "+domName)
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleToggleDomain", err)
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
+			dom := findDomain(&c, id)
+			if dom == nil {
+				return nil, errMutationNotFound
+			}
+			dom.Enabled = enabled
+			return &c, nil
+		})
+		if writeMutateError(w, "handleToggleDomain", err, "domain not found", "failed to update domain") {
 			return
 		}
 
 		persistCaddyConfig(cc, store)
 
-		cfg := store.Get()
+		cfg = store.Get()
 		if dom := findDomain(cfg, id); dom != nil {
 			writeJSON(w, dom)
 			return
@@ -474,25 +533,15 @@ func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 
 		maybeAutoSnapshot(cc, ss, store, version, "Rule created: "+ruleID)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, domainID)
 			if dom == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			dom.Rules = append(dom.Rules, rule)
 			return &c, nil
-		}); err != nil {
-			if err.Error() == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleCreateRule: save config: %v", err)
-			writeError(w, "failed to save rule", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleCreateRule", err)
+		})
+		if writeMutateError(w, "handleCreateRule", err, "domain not found", "failed to save rule") {
 			return
 		}
 
@@ -583,11 +632,10 @@ func handleUpdateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 
 		maybeAutoSnapshot(cc, ss, store, version, "Rule updated: "+ruleID)
 
-		var updated *config.Rule
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, domainID)
 			if dom == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			for i := range dom.Rules {
 				if dom.Rules[i].ID == ruleID {
@@ -599,28 +647,12 @@ func handleUpdateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 					dom.Rules[i].HandlerConfig = req.HandlerConfig
 					dom.Rules[i].ToggleOverrides = req.ToggleOverrides
 					dom.Rules[i].AdvancedHeaders = req.AdvancedHeaders
-					updated = &dom.Rules[i]
 					return &c, nil
 				}
 			}
-			return nil, fmt.Errorf("rule not found")
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: rule not found" {
-				writeError(w, "rule not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleUpdateRule: save config: %v", err)
-			writeError(w, "failed to update rule", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleUpdateRule", err)
+			return nil, errMutationNotFound
+		})
+		if writeMutateError(w, "handleUpdateRule", err, "rule not found", "failed to update rule") {
 			return
 		}
 
@@ -635,7 +667,7 @@ func handleUpdateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 				}
 			}
 		}
-		writeJSON(w, updated)
+		writeJSON(w, map[string]string{"status": "ok"})
 	}
 }
 
@@ -646,10 +678,10 @@ func handleDeleteRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 
 		maybeAutoSnapshot(cc, ss, store, version, "Rule deleted: "+ruleID)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, domainID)
 			if dom == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			fresh := make([]config.Rule, 0, len(dom.Rules))
 			found := false
@@ -661,27 +693,12 @@ func handleDeleteRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.
 				fresh = append(fresh, rule)
 			}
 			if !found {
-				return nil, fmt.Errorf("rule not found")
+				return nil, errMutationNotFound
 			}
 			dom.Rules = fresh
 			return &c, nil
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: rule not found" {
-				writeError(w, "rule not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleDeleteRule: save config: %v", err)
-			writeError(w, "failed to delete rule", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleDeleteRule", err)
+		})
+		if writeMutateError(w, "handleDeleteRule", err, "rule not found", "failed to delete rule") {
 			return
 		}
 
@@ -714,10 +731,12 @@ func ruleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 			action = "disabled"
 		}
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		maybeAutoSnapshot(cc, ss, store, version, "Rule "+action+": "+ruleID)
+
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, domainID)
 			if dom == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			for i := range dom.Rules {
 				if dom.Rules[i].ID == ruleID {
@@ -725,26 +744,9 @@ func ruleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 					return &c, nil
 				}
 			}
-			return nil, fmt.Errorf("rule not found")
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: rule not found" {
-				writeError(w, "rule not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleToggleRule: save config: %v", err)
-			writeError(w, "failed to update rule", http.StatusInternalServerError)
-			return
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Rule "+action+": "+ruleID)
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleToggleRule", err)
+			return nil, errMutationNotFound
+		})
+		if writeMutateError(w, "handleToggleRule", err, "rule not found", "failed to update rule") {
 			return
 		}
 

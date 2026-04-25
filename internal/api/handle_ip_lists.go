@@ -172,8 +172,10 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
+		maybeAutoSnapshot(cc, ss, store, version, "IP list updated: "+existing.Name)
+
 		var updated config.IPList
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			for i := range c.IPLists {
 				if c.IPLists[i].ID == listID {
 					c.IPLists[i].Name = req.Name
@@ -188,28 +190,21 @@ func handleUpdateIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 					}
 					c.IPLists[i].UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 					updated = c.IPLists[i]
-					break
+					return &c, nil
 				}
 			}
-			return &c, nil
-		}); err != nil {
-			log.Printf("handleUpdateIPList: %v", err)
-			writeError(w, "failed to update IP list", http.StatusInternalServerError)
+			return nil, errMutationNotFound
+		})
+		if writeMutateError(w, "handleUpdateIPList", err, "IP list not found", "failed to update IP list") {
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, store, version, "IP list updated: "+updated.Name)
-		if err := cascadeIPListChange(cc, store); err != nil {
-			log.Printf("handleUpdateIPList: %v", err)
-			writeError(w, "IP list saved but some domains failed to update: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
 		persistCaddyConfig(cc, store)
 
 		cfg = store.Get()
-		resolved, err := caddy.ResolveIPList(updated.ID, config.IPListsToEntries(cfg.IPLists))
+		resolved, ipErr := caddy.ResolveIPList(updated.ID, config.IPListsToEntries(cfg.IPLists))
 		count := 0
-		if err == nil {
+		if ipErr == nil {
 			count = len(resolved)
 		}
 		writeJSON(w, listWithCount{IPList: updated, ResolvedCount: count})
@@ -241,8 +236,9 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 
 		maybeAutoSnapshot(cc, ss, store, version, "IP list deleted: "+listName)
 
-		// Remove list from config and clean up parent composites
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		// Re-sync domains so they drop the now-missing IP filtering. mutateAndSync
+		// rolls back the local removal if the cascade sync fails.
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			fresh := make([]config.IPList, 0, len(c.IPLists))
 			for _, l := range c.IPLists {
 				if l.ID != listID {
@@ -262,18 +258,11 @@ func handleDeleteIPList(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			}
 
 			return &c, nil
-		}); err != nil {
-			log.Printf("handleDeleteIPList: %v", err)
-			writeError(w, "failed to delete IP list", http.StatusInternalServerError)
+		})
+		if writeMutateError(w, "handleDeleteIPList", err, "IP list not found", "failed to delete IP list") {
 			return
 		}
 
-		// Re-sync domains so they drop the now-missing IP filtering
-		if err := cascadeIPListChange(cc, store); err != nil {
-			log.Printf("handleDeleteIPList: cascade sync: %v", err)
-			writeError(w, "IP list deleted but some domains failed to update: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
 		persistCaddyConfig(cc, store)
 
 		writeJSON(w, map[string]string{"status": "ok"})

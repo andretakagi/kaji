@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -113,25 +112,15 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 
 		maybeAutoSnapshot(cc, ss, store, version, "Subdomain created: "+name+"."+dom.Name)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			d.Subdomains = append(d.Subdomains, sub)
 			return &c, nil
-		}); err != nil {
-			if err.Error() == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleCreateSubdomain: save config: %v", err)
-			writeError(w, "failed to save subdomain", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleCreateSubdomain", err)
+		})
+		if writeMutateError(w, "handleCreateSubdomain", err, "domain not found", "failed to save subdomain") {
 			return
 		}
 
@@ -216,18 +205,18 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 
 		maybeAutoSnapshot(cc, ss, store, version, "Subdomain updated: "+subID)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			s := findSubdomain(d, subID)
 			if s == nil {
-				return nil, fmt.Errorf("subdomain not found")
+				return nil, errMutationNotFound
 			}
 			for _, other := range d.Subdomains {
 				if other.ID != subID && strings.EqualFold(other.Name, name) {
-					return nil, fmt.Errorf("duplicate name")
+					return nil, conflictErr("a subdomain with this name already exists")
 				}
 			}
 			s.Name = name
@@ -236,27 +225,8 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			s.Toggles = req.Toggles
 			s.AdvancedHeaders = req.AdvancedHeaders
 			return &c, nil
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: subdomain not found" {
-				writeError(w, "subdomain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: duplicate name" {
-				writeError(w, "a subdomain with this name already exists", http.StatusConflict)
-				return
-			}
-			log.Printf("handleUpdateSubdomain: save config: %v", err)
-			writeError(w, "failed to update subdomain", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleUpdateSubdomain", err)
+		})
+		if writeMutateError(w, "handleUpdateSubdomain", err, "subdomain not found", "failed to update subdomain") {
 			return
 		}
 
@@ -278,10 +248,10 @@ func handleDeleteSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 
 		maybeAutoSnapshot(cc, ss, store, version, "Subdomain deleted: "+subID)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			fresh := make([]config.Subdomain, 0, len(d.Subdomains))
 			found := false
@@ -293,27 +263,12 @@ func handleDeleteSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 				fresh = append(fresh, s)
 			}
 			if !found {
-				return nil, fmt.Errorf("subdomain not found")
+				return nil, errMutationNotFound
 			}
 			d.Subdomains = fresh
 			return &c, nil
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: subdomain not found" {
-				writeError(w, "subdomain not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleDeleteSubdomain: save config: %v", err)
-			writeError(w, "failed to delete subdomain", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleDeleteSubdomain", err)
+		})
+		if writeMutateError(w, "handleDeleteSubdomain", err, "subdomain not found", "failed to delete subdomain") {
 			return
 		}
 
@@ -346,36 +301,21 @@ func subdomainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			action = "disabled"
 		}
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain "+action+": "+subID)
+
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			s := findSubdomain(d, subID)
 			if s == nil {
-				return nil, fmt.Errorf("subdomain not found")
+				return nil, errMutationNotFound
 			}
 			s.Enabled = enabled
 			return &c, nil
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: subdomain not found" {
-				writeError(w, "subdomain not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleToggleSubdomain: save config: %v", err)
-			writeError(w, "failed to update subdomain", http.StatusInternalServerError)
-			return
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain "+action+": "+subID)
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleToggleSubdomain", err)
+		})
+		if writeMutateError(w, "handleToggleSubdomain", err, "subdomain not found", "failed to update subdomain") {
 			return
 		}
 
@@ -482,34 +422,19 @@ func handleCreateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 
 		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule created: "+rule.ID)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			s := findSubdomain(d, subID)
 			if s == nil {
-				return nil, fmt.Errorf("subdomain not found")
+				return nil, errMutationNotFound
 			}
 			s.Rules = append(s.Rules, rule)
 			return &c, nil
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: subdomain not found" {
-				writeError(w, "subdomain not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleCreateSubdomainRule: save config: %v", err)
-			writeError(w, "failed to save rule", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleCreateSubdomainRule", err)
+		})
+		if writeMutateError(w, "handleCreateSubdomainRule", err, "subdomain not found", "failed to save rule") {
 			return
 		}
 
@@ -605,14 +530,14 @@ func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 
 		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule updated: "+ruleID)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			s := findSubdomain(d, subID)
 			if s == nil {
-				return nil, fmt.Errorf("subdomain not found")
+				return nil, errMutationNotFound
 			}
 			for i := range s.Rules {
 				if s.Rules[i].ID == ruleID {
@@ -627,28 +552,9 @@ func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 					return &c, nil
 				}
 			}
-			return nil, fmt.Errorf("rule not found")
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: subdomain not found" {
-				writeError(w, "subdomain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: rule not found" {
-				writeError(w, "rule not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleUpdateSubdomainRule: save config: %v", err)
-			writeError(w, "failed to update rule", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleUpdateSubdomainRule", err)
+			return nil, errMutationNotFound
+		})
+		if writeMutateError(w, "handleUpdateSubdomainRule", err, "rule not found", "failed to update rule") {
 			return
 		}
 
@@ -671,14 +577,14 @@ func handleDeleteSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 
 		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule deleted: "+ruleID)
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			s := findSubdomain(d, subID)
 			if s == nil {
-				return nil, fmt.Errorf("subdomain not found")
+				return nil, errMutationNotFound
 			}
 			fresh := make([]config.Rule, 0, len(s.Rules))
 			found := false
@@ -690,31 +596,12 @@ func handleDeleteSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 				fresh = append(fresh, rule)
 			}
 			if !found {
-				return nil, fmt.Errorf("rule not found")
+				return nil, errMutationNotFound
 			}
 			s.Rules = fresh
 			return &c, nil
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: subdomain not found" {
-				writeError(w, "subdomain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: rule not found" {
-				writeError(w, "rule not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleDeleteSubdomainRule: save config: %v", err)
-			writeError(w, "failed to delete rule", http.StatusInternalServerError)
-			return
-		}
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleDeleteSubdomainRule", err)
+		})
+		if writeMutateError(w, "handleDeleteSubdomainRule", err, "rule not found", "failed to delete rule") {
 			return
 		}
 
@@ -748,14 +635,16 @@ func subdomainRuleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss 
 			action = "disabled"
 		}
 
-		if err := store.Update(func(c config.AppConfig) (*config.AppConfig, error) {
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule "+action+": "+ruleID)
+
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
 			if d == nil {
-				return nil, fmt.Errorf("domain not found")
+				return nil, errMutationNotFound
 			}
 			s := findSubdomain(d, subID)
 			if s == nil {
-				return nil, fmt.Errorf("subdomain not found")
+				return nil, errMutationNotFound
 			}
 			for i := range s.Rules {
 				if s.Rules[i].ID == ruleID {
@@ -763,30 +652,9 @@ func subdomainRuleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss 
 					return &c, nil
 				}
 			}
-			return nil, fmt.Errorf("rule not found")
-		}); err != nil {
-			errMsg := err.Error()
-			if errMsg == "applying config update: domain not found" {
-				writeError(w, "domain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: subdomain not found" {
-				writeError(w, "subdomain not found", http.StatusNotFound)
-				return
-			}
-			if errMsg == "applying config update: rule not found" {
-				writeError(w, "rule not found", http.StatusNotFound)
-				return
-			}
-			log.Printf("handleToggleSubdomainRule: save config: %v", err)
-			writeError(w, "failed to update rule", http.StatusInternalServerError)
-			return
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule "+action+": "+ruleID)
-
-		if err := syncAfterMutation(cc, store); err != nil {
-			caddyError(w, "handleToggleSubdomainRule", err)
+			return nil, errMutationNotFound
+		})
+		if writeMutateError(w, "handleToggleSubdomainRule", err, "rule not found", "failed to update rule") {
 			return
 		}
 
