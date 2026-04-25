@@ -221,7 +221,7 @@ func acmeEmailFromPolicies(policies []tlsPolicy) string {
 func (c *Client) GetACMEEmail() (string, error) {
 	raw, err := c.GetConfigPath(tlsPoliciesPath)
 	if err != nil {
-		if strings.Contains(err.Error(), "unreachable") {
+		if IsTransportError(err) {
 			return "", err
 		}
 		return "", nil
@@ -295,7 +295,7 @@ func (c *Client) SetACMEEmail(email string) error {
 func (c *Client) GetDNSProvider() (*DNSProviderResult, error) {
 	raw, err := c.GetConfigPath(tlsPoliciesPath)
 	if err != nil {
-		if strings.Contains(err.Error(), "unreachable") {
+		if IsTransportError(err) {
 			return nil, err
 		}
 		return &DNSProviderResult{Enabled: false}, nil

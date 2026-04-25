@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -18,6 +20,50 @@ const (
 	clientTimeout     = 10 * time.Second
 	readyPollInterval = 500 * time.Millisecond
 )
+
+// Transport-level failure sentinels for Caddy admin API requests. Use
+// errors.Is to test against these in callers; use IsTransportError to test
+// against any of them at once.
+var (
+	ErrConnectionRefused = errors.New("caddy admin API connection refused")
+	ErrTimeout           = errors.New("caddy admin API request timed out")
+	ErrConnectionReset   = errors.New("caddy admin API connection reset")
+	ErrTransport         = errors.New("caddy admin API transport error")
+)
+
+// classifyTransportError wraps a raw HTTP client error with the most specific
+// sentinel that fits, so callers can react to the failure mode without parsing
+// strings. The original cause is preserved via %w on the underlying error.
+func classifyTransportError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return fmt.Errorf("%w: %v", ErrConnectionRefused, err)
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return fmt.Errorf("%w: %v", ErrTimeout, err)
+	}
+
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return fmt.Errorf("%w: %v", ErrConnectionReset, err)
+	}
+
+	return fmt.Errorf("%w: %v", ErrTransport, err)
+}
+
+// IsTransportError reports whether err is any of the transport-level Caddy
+// admin API failures. Useful for branches that want to distinguish "Caddy
+// didn't answer" from "Caddy answered with an error".
+func IsTransportError(err error) bool {
+	return errors.Is(err, ErrConnectionRefused) ||
+		errors.Is(err, ErrTimeout) ||
+		errors.Is(err, ErrConnectionReset) ||
+		errors.Is(err, ErrTransport)
+}
 
 // caddyServer holds the subset of a Caddy server's config that Kaji reads.
 // JSON unmarshaling silently ignores fields not listed here, so callers only
@@ -133,7 +179,7 @@ func (c *Client) WaitReady(timeout time.Duration) error {
 func (c *Client) doGet(rawURL string) ([]byte, error) {
 	resp, err := c.httpClient.Get(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("caddy admin API unreachable: %w", err)
+		return nil, classifyTransportError(err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -160,7 +206,7 @@ func (c *Client) doRequest(method, rawURL, contentType string, body []byte) erro
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("caddy admin API unreachable: %w", err)
+		return classifyTransportError(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -491,7 +537,7 @@ func (c *Client) AdaptCaddyfile(caddyfileText string) (json.RawMessage, error) {
 		strings.NewReader(caddyfileText),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("caddy admin API unreachable: %w", err)
+		return nil, classifyTransportError(err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)

@@ -461,15 +461,18 @@ func TestClientAdaptCaddyfileNon200(t *testing.T) {
 }
 
 func TestClientUnreachableServer(t *testing.T) {
-	// Point client at a port where nothing is listening
+	// Port 1 refuses connections, so we expect ErrConnectionRefused.
 	c := NewClient(func() string { return "http://127.0.0.1:1" })
 
 	_, err := c.GetConfig()
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
 	}
-	if !strings.Contains(err.Error(), "unreachable") {
-		t.Errorf("error = %q, want 'unreachable'", err)
+	if !errors.Is(err, ErrConnectionRefused) {
+		t.Errorf("error = %v, want wrap of ErrConnectionRefused", err)
+	}
+	if !IsTransportError(err) {
+		t.Errorf("IsTransportError(%v) = false, want true", err)
 	}
 }
 
@@ -480,8 +483,8 @@ func TestClientLoadConfigUnreachable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
 	}
-	if !strings.Contains(err.Error(), "unreachable") {
-		t.Errorf("error = %q, want 'unreachable'", err)
+	if !errors.Is(err, ErrConnectionRefused) {
+		t.Errorf("error = %v, want wrap of ErrConnectionRefused", err)
 	}
 }
 
@@ -492,8 +495,8 @@ func TestClientDeleteByIDUnreachable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
 	}
-	if !strings.Contains(err.Error(), "unreachable") {
-		t.Errorf("error = %q, want 'unreachable'", err)
+	if !errors.Is(err, ErrConnectionRefused) {
+		t.Errorf("error = %v, want wrap of ErrConnectionRefused", err)
 	}
 }
 

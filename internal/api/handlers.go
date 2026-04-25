@@ -277,13 +277,18 @@ func parseIntParam(w http.ResponseWriter, q url.Values, name string, min, max in
 
 func caddyError(w http.ResponseWriter, handler string, err error) {
 	log.Printf("%s: %v", handler, err)
-	errStr := err.Error()
 	var msg string
 	switch {
-	case strings.Contains(errStr, "unreachable"):
-		msg = "caddy admin API is unreachable - is Caddy running?"
+	case errors.Is(err, caddy.ErrConnectionRefused):
+		msg = "Caddy admin API refused the connection - is Caddy running?"
+	case errors.Is(err, caddy.ErrTimeout):
+		msg = "Caddy admin API didn't respond in time. The change may not have applied - refresh to verify."
+	case errors.Is(err, caddy.ErrConnectionReset):
+		msg = "Connection to Caddy was reset. The change may not have applied - refresh to verify."
+	case errors.Is(err, caddy.ErrTransport):
+		msg = "Couldn't reach Caddy admin API. Check the server logs for details."
 	default:
-		msg = extractCaddyMessage(errStr)
+		msg = extractCaddyMessage(err.Error())
 	}
 	writeError(w, msg, http.StatusBadGateway)
 }

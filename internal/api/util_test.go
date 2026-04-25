@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -298,9 +299,9 @@ func TestDecodeBody(t *testing.T) {
 }
 
 func TestCaddyError(t *testing.T) {
-	t.Run("unreachable", func(t *testing.T) {
+	t.Run("connection_refused", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		caddyError(rec, "test", errors.New("dial tcp: connection unreachable"))
+		caddyError(rec, "test", fmt.Errorf("%w: dial tcp: connect: connection refused", caddy.ErrConnectionRefused))
 
 		if rec.Code != http.StatusBadGateway {
 			t.Errorf("status = %d, want 502", rec.Code)
@@ -309,8 +310,40 @@ func TestCaddyError(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 			t.Fatalf("failed to parse response: %v", err)
 		}
-		if !strings.Contains(got["error"], "unreachable") {
-			t.Errorf("error = %q, want message about unreachable", got["error"])
+		if !strings.Contains(got["error"], "refused") {
+			t.Errorf("error = %q, want message about connection refused", got["error"])
+		}
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		caddyError(rec, "test", fmt.Errorf("%w: deadline exceeded", caddy.ErrTimeout))
+
+		if rec.Code != http.StatusBadGateway {
+			t.Errorf("status = %d, want 502", rec.Code)
+		}
+		var got map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if !strings.Contains(got["error"], "didn't respond in time") {
+			t.Errorf("error = %q, want message about timeout", got["error"])
+		}
+	})
+
+	t.Run("connection_reset", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		caddyError(rec, "test", fmt.Errorf("%w: read: connection reset", caddy.ErrConnectionReset))
+
+		if rec.Code != http.StatusBadGateway {
+			t.Errorf("status = %d, want 502", rec.Code)
+		}
+		var got map[string]string
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("failed to parse response: %v", err)
+		}
+		if !strings.Contains(got["error"], "reset") {
+			t.Errorf("error = %q, want message about connection reset", got["error"])
 		}
 	})
 

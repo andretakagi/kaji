@@ -65,12 +65,11 @@ func handleImportCaddyfile(cc *caddy.Client, store *config.ConfigStore, ss *snap
 
 		adaptedJSON, err := cc.AdaptCaddyfile(req.Caddyfile)
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "unreachable") {
+			if caddy.IsTransportError(err) {
 				writeError(w, "Caddy must be running to parse a Caddyfile", http.StatusBadGateway)
 				return
 			}
-			writeError(w, msg, http.StatusBadRequest)
+			writeError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -203,12 +202,11 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 
 		adaptedJSON, err := cc.AdaptCaddyfile(req.Caddyfile)
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "unreachable") {
+			if caddy.IsTransportError(err) {
 				writeError(w, "Caddy must be running to parse a Caddyfile", http.StatusBadGateway)
 				return
 			}
-			writeError(w, msg, http.StatusBadRequest)
+			writeError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
