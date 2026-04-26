@@ -1,26 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { cn } from "../cn";
 import { useDomain } from "../hooks/useDomain";
-import { useFormToggle } from "../hooks/useFormToggle";
-import type { DomainToggles, UpdateRuleRequest } from "../types/domain";
+import type {
+	CreatePathRequest,
+	DomainToggles,
+	Path,
+	Rule,
+	UpdatePathRequest,
+} from "../types/domain";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import { ErrorAlert } from "./ErrorAlert";
 import Feedback from "./Feedback";
-import { handlerSummary } from "./HandlerConfig";
-import RuleCard from "./RuleCard";
-import RuleForm from "./RuleForm";
+import PathCard from "./PathCard";
+import PathForm from "./PathForm";
+import RuleEditor from "./RuleEditor";
+import RuleSummaryCard from "./RuleSummaryCard";
 import { SectionHeader } from "./SectionHeader";
+import SubdomainCard from "./SubdomainCard";
+import SubdomainForm from "./SubdomainForm";
 import { Toggle } from "./Toggle";
-
-const subdomainHandlerLabels: Record<string, string> = {
-	reverse_proxy: "Reverse Proxy",
-	redirect: "Redirect",
-	file_server: "File Server",
-	static_response: "Static Response",
-	none: "No Handler",
-};
 
 interface Props {
 	domain: { id: string; name: string; enabled: boolean };
@@ -42,17 +41,29 @@ export default function DomainCard({
 		saving: detailSaving,
 		feedback,
 		handleUpdateDomain,
-		handleCreateRule,
-		handleUpdateRule,
-		handleDeleteRule,
-		handleToggleRule,
-		handleToggleSubdomain,
+		handleUpdateDomainRule,
+		handleCreateDomainPath,
+		handleUpdateDomainPath,
+		handleDeleteDomainPath,
+		handleToggleDomainPath,
+		handleCreateSubdomain,
+		handleUpdateSubdomain,
 		handleDeleteSubdomain,
+		handleToggleSubdomain,
+		handleUpdateSubdomainRule,
+		handleCreateSubdomainPath,
+		handleUpdateSubdomainPath,
+		handleDeleteSubdomainPath,
+		handleToggleSubdomainPath,
 	} = useDomain(domainSummary.id);
 
 	const [localToggles, setLocalToggles] = useState<DomainToggles | null>(null);
 	const lastSyncedToggles = useRef<string>("");
-	const ruleForm = useFormToggle();
+
+	const [editingRule, setEditingRule] = useState(false);
+	const [editedRule, setEditedRule] = useState<Rule>(domain.rule);
+	const [savingRule, setSavingRule] = useState(false);
+	const [addingSubdomain, setAddingSubdomain] = useState(false);
 
 	useEffect(() => {
 		if (!domain.id) return;
@@ -62,6 +73,12 @@ export default function DomainCard({
 			setLocalToggles(domain.toggles);
 		}
 	}, [domain.id, domain.toggles]);
+
+	useEffect(() => {
+		if (!editingRule) {
+			setEditedRule(domain.rule);
+		}
+	}, [domain.rule, editingRule]);
 
 	const togglesDirty =
 		localToggles !== null && JSON.stringify(localToggles) !== lastSyncedToggles.current;
@@ -76,20 +93,26 @@ export default function DomainCard({
 		lastSyncedToggles.current = JSON.stringify(domain.toggles);
 	}
 
-	const hasRootRule = domain.rules.some((r) => r.match_type === "");
+	async function handleSaveRule() {
+		setSavingRule(true);
+		try {
+			await handleUpdateDomainRule({
+				handler_type: editedRule.handler_type,
+				handler_config: editedRule.handler_config,
+				advanced_headers: editedRule.advanced_headers,
+			});
+			setEditingRule(false);
+		} finally {
+			setSavingRule(false);
+		}
+	}
 
-	const title = (
-		<>
-			<span className="domain-card-name">{domainSummary.name}</span>
-			<span className="domain-card-meta">
-				{domain.rules.length > 0 && (
-					<span className="domain-card-rule-count">
-						{domain.rules.length} {domain.rules.length === 1 ? "rule" : "rules"}
-					</span>
-				)}
-			</span>
-		</>
-	);
+	function handleCancelRule() {
+		setEditedRule(domain.rule);
+		setEditingRule(false);
+	}
+
+	const title = <span className="domain-card-name">{domainSummary.name}</span>;
 
 	const actions = (
 		<>
@@ -151,109 +174,196 @@ export default function DomainCard({
 				</section>
 			)}
 
-			{domain.subdomains.length > 0 && (
-				<section className="domain-detail-section">
-					<SectionHeader title="Subdomains" />
-					<div className="subdomain-list">
-						{domain.subdomains.map((sub) => {
-							const fullName = `${sub.name}.${domain.name}`;
-							return (
-								<div key={sub.id} className={cn("card", !sub.enabled && "card-disabled")}>
-									<div className="card-header">
-										<div className="card-title">
-											<span className="subdomain-card-name">{fullName}</span>
-											<span
-												className={cn(
-													"rule-card-handler-badge",
-													`handler-${sub.handler_type === "none" ? "none" : sub.handler_type}`,
-												)}
-											>
-												{subdomainHandlerLabels[sub.handler_type] ?? sub.handler_type}
-											</span>
-											{sub.rules.length > 0 && (
-												<span className="subdomain-card-rule-count">
-													{sub.rules.length} {sub.rules.length === 1 ? "rule" : "rules"}
-												</span>
-											)}
-										</div>
-										<div className="card-actions">
-											<Toggle
-												value={sub.enabled}
-												onChange={(enabled) => handleToggleSubdomain(sub.id, enabled)}
-												disabled={isSaving}
-												title={sub.enabled ? "Disable" : "Enable"}
-												aria-label={sub.enabled ? "Disable subdomain" : "Enable subdomain"}
-												stopPropagation
-											/>
-											<ConfirmDeleteButton
-												onConfirm={() => handleDeleteSubdomain(sub.id)}
-												label={`Delete ${fullName}`}
-												disabled={isSaving}
-											/>
-										</div>
-									</div>
-									{sub.handler_type !== "none" && (
-										<div className="subdomain-card-summary">
-											{handlerSummary(
-												sub.handler_type as Parameters<typeof handlerSummary>[0],
-												sub.handler_config,
-											)}
-										</div>
-									)}
-								</div>
-							);
-						})}
-					</div>
-				</section>
-			)}
-
 			<section className="domain-detail-section">
-				<SectionHeader title="Rules" />
-
-				{domain.rules.length === 0 && !ruleForm.visible ? (
-					<div className="empty-state">
-						No rules yet. Rules define how requests to this domain are handled.
+				<SectionHeader title="Domain Rule" />
+				{editingRule ? (
+					<div className="rule-editor-inline">
+						<RuleEditor
+							allowNone
+							value={editedRule}
+							onChange={setEditedRule}
+							idPrefix={`domain-${domainSummary.id}-rule`}
+						/>
+						<div className="form-row" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
+							<button
+								type="button"
+								className="btn btn-ghost"
+								onClick={handleCancelRule}
+								disabled={savingRule}
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								className="btn btn-primary"
+								onClick={handleSaveRule}
+								disabled={savingRule}
+							>
+								{savingRule ? "Saving..." : "Save Rule"}
+							</button>
+						</div>
 					</div>
 				) : (
+					<RuleSummaryCard
+						title="Root"
+						rule={domain.rule}
+						onEdit={() => {
+							setEditedRule(domain.rule);
+							setEditingRule(true);
+						}}
+						disabled={isSaving}
+					/>
+				)}
+			</section>
+
+			<section className="domain-detail-section">
+				<SectionHeader title="Subdomains" />
+				{domain.subdomains.length === 0 ? (
+					<div className="empty-state">No subdomains yet.</div>
+				) : (
 					<div className="rule-list">
-						{domain.rules.map((rule) => (
-							<RuleCard
-								key={rule.id}
-								rule={rule}
+						{domain.subdomains.map((sub) => (
+							<SubdomainCard
+								key={sub.id}
 								domainName={domain.name}
-								domainToggles={domain.toggles}
-								hasRootRule={hasRootRule}
-								onToggle={handleToggleRule}
-								onDelete={handleDeleteRule}
-								onUpdate={(ruleId, req) => handleUpdateRule(ruleId, req as UpdateRuleRequest)}
+								subdomain={sub}
 								saving={isSaving}
+								onUpdateRule={(req) => handleUpdateSubdomainRule(sub.id, req)}
+								onUpdate={(req) => handleUpdateSubdomain(sub.id, req)}
+								onDelete={() => handleDeleteSubdomain(sub.id)}
+								onToggle={(enabled) => handleToggleSubdomain(sub.id, enabled)}
+								onCreatePath={(req) => handleCreateSubdomainPath(sub.id, req)}
+								onUpdatePath={(pathId, req) => handleUpdateSubdomainPath(sub.id, pathId, req)}
+								onDeletePath={(pathId) => handleDeleteSubdomainPath(sub.id, pathId)}
+								onTogglePath={(pathId, enabled) =>
+									handleToggleSubdomainPath(sub.id, pathId, enabled)
+								}
 							/>
 						))}
 					</div>
 				)}
-
-				{ruleForm.visible ? (
-					<RuleForm
-						domainName={domain.name}
-						domainToggles={domain.toggles}
-						hasRootRule={hasRootRule}
+				{addingSubdomain ? (
+					<SubdomainForm
 						onSubmit={async (req) => {
-							await handleCreateRule(req);
-							ruleForm.close();
+							await handleCreateSubdomain(req);
+							setAddingSubdomain(false);
 						}}
-						onCancel={ruleForm.close}
+						onCancel={() => setAddingSubdomain(false)}
 					/>
 				) : (
 					<button
 						type="button"
 						className="btn btn-primary"
-						onClick={ruleForm.open}
+						onClick={() => setAddingSubdomain(true)}
 						disabled={isSaving}
 					>
-						Add Rule
+						Add Subdomain
 					</button>
 				)}
 			</section>
+
+			<section className="domain-detail-section">
+				<SectionHeader title="Paths" />
+				<PathGroup
+					header={domain.name}
+					domainName={domain.name}
+					paths={domain.paths}
+					parentToggles={domain.toggles}
+					onCreate={handleCreateDomainPath}
+					onUpdate={handleUpdateDomainPath}
+					onDelete={handleDeleteDomainPath}
+					onToggle={handleToggleDomainPath}
+					saving={isSaving}
+				/>
+				{domain.subdomains.map((sub) => {
+					const fullHost = `${sub.name}.${domain.name}`;
+					return (
+						<PathGroup
+							key={sub.id}
+							header={fullHost}
+							domainName={fullHost}
+							paths={sub.paths}
+							parentToggles={sub.toggles}
+							onCreate={(req) => handleCreateSubdomainPath(sub.id, req)}
+							onUpdate={(pid, req) => handleUpdateSubdomainPath(sub.id, pid, req)}
+							onDelete={(pid) => handleDeleteSubdomainPath(sub.id, pid)}
+							onToggle={(pid, enabled) => handleToggleSubdomainPath(sub.id, pid, enabled)}
+							saving={isSaving}
+						/>
+					);
+				})}
+			</section>
 		</CollapsibleCard>
+	);
+}
+
+interface PathGroupProps {
+	header: string;
+	domainName: string;
+	paths: Path[];
+	parentToggles: DomainToggles;
+	onCreate: (req: CreatePathRequest) => Promise<void>;
+	onUpdate: (pathId: string, req: UpdatePathRequest) => Promise<void>;
+	onDelete: (pathId: string) => void;
+	onToggle: (pathId: string, enabled: boolean) => void;
+	saving: boolean;
+}
+
+function PathGroup({
+	header,
+	domainName,
+	paths,
+	parentToggles,
+	onCreate,
+	onUpdate,
+	onDelete,
+	onToggle,
+	saving,
+}: PathGroupProps) {
+	const [adding, setAdding] = useState(false);
+
+	return (
+		<div className="path-group">
+			<h4 className="path-group-header">{header}</h4>
+			{paths.length === 0 && !adding ? (
+				<div className="empty-state">No paths.</div>
+			) : (
+				<div className="rule-list">
+					{paths.map((p) => (
+						<PathCard
+							key={p.id}
+							path={p}
+							domainName={domainName}
+							parentToggles={parentToggles}
+							onUpdate={(req) => onUpdate(p.id, req)}
+							onDelete={() => onDelete(p.id)}
+							onToggle={(enabled) => onToggle(p.id, enabled)}
+							saving={saving}
+						/>
+					))}
+				</div>
+			)}
+			{adding ? (
+				<PathForm
+					domainName={domainName}
+					parentToggles={parentToggles}
+					inline
+					onSubmit={async (req) => {
+						await onCreate(req as CreatePathRequest);
+						setAdding(false);
+					}}
+					onCancel={() => setAdding(false)}
+				/>
+			) : (
+				<button
+					type="button"
+					className="btn btn-primary"
+					onClick={() => setAdding(true)}
+					disabled={saving}
+				>
+					Add Path
+				</button>
+			)}
+		</div>
 	);
 }

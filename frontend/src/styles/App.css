@@ -2957,6 +2957,25 @@ input:disabled + .toggle-slider {
 	gap: 0.5rem;
 }
 
+.path-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.path-group > .btn {
+	align-self: flex-end;
+}
+
+.path-group-header {
+	margin: 0;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
 /* Rule list */
 
 .rule-list {
