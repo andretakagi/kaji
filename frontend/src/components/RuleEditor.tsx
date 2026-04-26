@@ -1,4 +1,4 @@
-import type { HandlerConfigValue, Rule, RuleHandlerType } from "../types/domain";
+import type { HandlerConfigValue, HandlerType, Rule, RuleHandlerType } from "../types/domain";
 import {
 	defaultFileServerConfig,
 	defaultRedirectConfig,
@@ -14,15 +14,15 @@ interface Props {
 	idPrefix: string;
 }
 
-const handlerOptions: { value: Exclude<RuleHandlerType, "none">; label: string }[] = [
+const handlerOptions: { value: HandlerType; label: string }[] = [
 	{ value: "reverse_proxy", label: "Reverse Proxy" },
 	{ value: "redirect", label: "Redirect" },
 	{ value: "file_server", label: "File Server" },
 	{ value: "static_response", label: "Static Response" },
 ];
 
-function defaultConfigFor(t: RuleHandlerType): HandlerConfigValue {
-	switch (t) {
+function defaultConfigFor(type: RuleHandlerType): HandlerConfigValue {
+	switch (type) {
 		case "reverse_proxy":
 			return { ...defaultReverseProxyConfig };
 		case "static_response":
@@ -37,27 +37,29 @@ function defaultConfigFor(t: RuleHandlerType): HandlerConfigValue {
 }
 
 export default function RuleEditor({ value, allowNone, onChange, idPrefix }: Props) {
-	function setHandler(handler_type: RuleHandlerType) {
+	const setHandler = (handler_type: RuleHandlerType) => {
 		onChange({ ...value, handler_type, handler_config: defaultConfigFor(handler_type) });
-	}
-	function setConfig(handler_config: HandlerConfigValue) {
+	};
+	const setConfig = (handler_config: HandlerConfigValue) => {
 		onChange({ ...value, handler_config });
-	}
+	};
 	return (
 		<div className="rule-editor">
-			<label htmlFor={`${idPrefix}-handler`}>Handler</label>
-			<select
-				id={`${idPrefix}-handler`}
-				value={value.handler_type}
-				onChange={(e) => setHandler(e.target.value as RuleHandlerType)}
-			>
-				{allowNone && <option value="none">None</option>}
-				{handlerOptions.map((o) => (
-					<option key={o.value} value={o.value}>
-						{o.label}
-					</option>
-				))}
-			</select>
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-handler`}>Handler</label>
+				<select
+					id={`${idPrefix}-handler`}
+					value={value.handler_type}
+					onChange={(e) => setHandler(e.target.value as RuleHandlerType)}
+				>
+					{allowNone && <option value="none">None</option>}
+					{handlerOptions.map((o) => (
+						<option key={o.value} value={o.value}>
+							{o.label}
+						</option>
+					))}
+				</select>
+			</div>
 			{value.handler_type !== "none" && (
 				<HandlerConfig
 					type={value.handler_type}
