@@ -1,21 +1,33 @@
 import { useCallback } from "react";
 import {
-	createRule,
-	deleteRule,
+	createDomainPath,
+	createSubdomain,
+	createSubdomainPath,
+	deleteDomainPath,
 	deleteSubdomain,
-	disableRule,
+	deleteSubdomainPath,
+	disableDomainPath,
 	disableSubdomain,
-	enableRule,
+	disableSubdomainPath,
+	enableDomainPath,
 	enableSubdomain,
+	enableSubdomainPath,
 	fetchDomain,
 	updateDomain,
-	updateRule,
+	updateDomainPath,
+	updateDomainRule,
+	updateSubdomain,
+	updateSubdomainPath,
+	updateSubdomainRule,
 } from "../api";
 import type {
-	CreateRuleRequest,
+	CreatePathRequest,
+	CreateSubdomainRequest,
 	Domain,
 	UpdateDomainRequest,
+	UpdatePathRequest,
 	UpdateRuleRequest,
+	UpdateSubdomainRequest,
 } from "../types/domain";
 import { useAsyncAction } from "./useAsyncAction";
 import { usePolledData } from "./usePolledData";
@@ -25,8 +37,9 @@ const emptyDomain: Domain = {
 	name: "",
 	enabled: true,
 	toggles: {} as Domain["toggles"],
-	rules: [],
+	rule: { handler_type: "none", handler_config: {}, advanced_headers: false },
 	subdomains: [],
+	paths: [],
 };
 
 export function useDomain(id: string) {
@@ -55,45 +68,75 @@ export function useDomain(id: string) {
 		[id, run, reload],
 	);
 
-	const handleCreateRule = useCallback(
-		(req: CreateRuleRequest) =>
+	const handleUpdateDomainRule = useCallback(
+		(req: UpdateRuleRequest) =>
 			run(async () => {
-				await createRule(id, req);
+				await updateDomainRule(id, req);
 				await reload();
-				return "Rule created";
+				return "Domain rule updated";
 			}),
 		[id, run, reload],
 	);
 
-	const handleUpdateRule = useCallback(
-		(ruleId: string, req: UpdateRuleRequest) =>
+	const handleCreateDomainPath = useCallback(
+		(req: CreatePathRequest) =>
 			run(async () => {
-				await updateRule(id, ruleId, req);
+				await createDomainPath(id, req);
 				await reload();
-				return "Rule updated";
+				return "Path created";
 			}),
 		[id, run, reload],
 	);
 
-	const handleDeleteRule = useCallback(
-		(ruleId: string) =>
+	const handleUpdateDomainPath = useCallback(
+		(pathId: string, req: UpdatePathRequest) =>
 			run(async () => {
-				await deleteRule(id, ruleId);
+				await updateDomainPath(id, pathId, req);
 				await reload();
-				return "Rule deleted";
+				return "Path updated";
 			}),
 		[id, run, reload],
 	);
 
-	const handleToggleRule = useCallback(
-		(ruleId: string, enabled: boolean) =>
+	const handleDeleteDomainPath = useCallback(
+		(pathId: string) =>
+			run(async () => {
+				await deleteDomainPath(id, pathId);
+				await reload();
+				return "Path deleted";
+			}),
+		[id, run, reload],
+	);
+
+	const handleToggleDomainPath = useCallback(
+		(pathId: string, enabled: boolean) =>
 			run(async () => {
 				if (enabled) {
-					await enableRule(id, ruleId);
+					await enableDomainPath(id, pathId);
 				} else {
-					await disableRule(id, ruleId);
+					await disableDomainPath(id, pathId);
 				}
 				await reload();
+			}),
+		[id, run, reload],
+	);
+
+	const handleCreateSubdomain = useCallback(
+		(req: CreateSubdomainRequest) =>
+			run(async () => {
+				await createSubdomain(id, req);
+				await reload();
+				return "Subdomain created";
+			}),
+		[id, run, reload],
+	);
+
+	const handleUpdateSubdomain = useCallback(
+		(subId: string, req: UpdateSubdomainRequest) =>
+			run(async () => {
+				await updateSubdomain(id, subId, req);
+				await reload();
+				return "Subdomain updated";
 			}),
 		[id, run, reload],
 	);
@@ -121,6 +164,59 @@ export function useDomain(id: string) {
 		[id, run, reload],
 	);
 
+	const handleUpdateSubdomainRule = useCallback(
+		(subId: string, req: UpdateRuleRequest) =>
+			run(async () => {
+				await updateSubdomainRule(id, subId, req);
+				await reload();
+				return "Subdomain rule updated";
+			}),
+		[id, run, reload],
+	);
+
+	const handleCreateSubdomainPath = useCallback(
+		(subId: string, req: CreatePathRequest) =>
+			run(async () => {
+				await createSubdomainPath(id, subId, req);
+				await reload();
+				return "Path created";
+			}),
+		[id, run, reload],
+	);
+
+	const handleUpdateSubdomainPath = useCallback(
+		(subId: string, pathId: string, req: UpdatePathRequest) =>
+			run(async () => {
+				await updateSubdomainPath(id, subId, pathId, req);
+				await reload();
+				return "Path updated";
+			}),
+		[id, run, reload],
+	);
+
+	const handleDeleteSubdomainPath = useCallback(
+		(subId: string, pathId: string) =>
+			run(async () => {
+				await deleteSubdomainPath(id, subId, pathId);
+				await reload();
+				return "Path deleted";
+			}),
+		[id, run, reload],
+	);
+
+	const handleToggleSubdomainPath = useCallback(
+		(subId: string, pathId: string, enabled: boolean) =>
+			run(async () => {
+				if (enabled) {
+					await enableSubdomainPath(id, subId, pathId);
+				} else {
+					await disableSubdomainPath(id, subId, pathId);
+				}
+				await reload();
+			}),
+		[id, run, reload],
+	);
+
 	return {
 		domain,
 		loading,
@@ -131,11 +227,19 @@ export function useDomain(id: string) {
 		setFeedback,
 		reload,
 		handleUpdateDomain,
-		handleCreateRule,
-		handleUpdateRule,
-		handleDeleteRule,
-		handleToggleRule,
+		handleUpdateDomainRule,
+		handleCreateDomainPath,
+		handleUpdateDomainPath,
+		handleDeleteDomainPath,
+		handleToggleDomainPath,
+		handleCreateSubdomain,
+		handleUpdateSubdomain,
 		handleDeleteSubdomain,
 		handleToggleSubdomain,
+		handleUpdateSubdomainRule,
+		handleCreateSubdomainPath,
+		handleUpdateSubdomainPath,
+		handleDeleteSubdomainPath,
+		handleToggleSubdomainPath,
 	} as const;
 }
