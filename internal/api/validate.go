@@ -327,7 +327,7 @@ func validateRule(w http.ResponseWriter, rule updateRuleRequest, allowNone bool)
 		if allowNone {
 			return true
 		}
-		writeError(w, "handler_type cannot be none for this resource", http.StatusBadRequest)
+		writeError(w, "handler_type cannot be none for a path", http.StatusBadRequest)
 		return false
 	}
 	switch rule.HandlerType {

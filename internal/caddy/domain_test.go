@@ -41,16 +41,17 @@ func TestGenerateRuleID(t *testing.T) {
 
 func TestCaddyDomainID(t *testing.T) {
 	cases := []struct {
-		ruleID string
-		want   string
+		id   string
+		want string
 	}{
 		{"rule_abc123", "kaji_rule_abc123"},
-		{"rule_0000000000000000", "kaji_rule_0000000000000000"},
+		{"path_0000000000000000", "kaji_path_0000000000000000"},
+		{"sub_deadbeef", "kaji_sub_deadbeef"},
 	}
 	for _, c := range cases {
-		got := CaddyDomainID(c.ruleID)
+		got := CaddyDomainID(c.id)
 		if got != c.want {
-			t.Errorf("CaddyDomainID(%q) = %q, want %q", c.ruleID, got, c.want)
+			t.Errorf("CaddyDomainID(%q) = %q, want %q", c.id, got, c.want)
 		}
 	}
 }
