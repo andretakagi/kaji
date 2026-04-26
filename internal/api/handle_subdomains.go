@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -75,7 +76,7 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 
 		paths := make([]config.Path, len(req.Paths))
 		for i, p := range req.Paths {
-			if !validatePathRequest(w, &p, "path: ") {
+			if !validatePathRequest(w, &p, "", fmt.Sprintf("path %d: ", i+1)) {
 				return
 			}
 			paths[i] = pathFromRequest(p)

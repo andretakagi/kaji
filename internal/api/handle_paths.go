@@ -11,7 +11,7 @@ import (
 )
 
 // pathRequest is the body shape for creating or updating a Path. The nested
-// rule cannot be type "none" — paths exist to dispatch traffic somewhere.
+// rule cannot be type "none" - paths exist to dispatch traffic somewhere.
 type pathRequest struct {
 	Label           string               `json:"label,omitempty"`
 	PathMatch       string               `json:"path_match"`
@@ -22,10 +22,12 @@ type pathRequest struct {
 
 // validatePathRequest checks that path_match is exact|prefix|regex,
 // match_value is non-empty, the nested rule has a non-"none" handler type,
-// and any rule handler config is valid. Hashes any toggle override password.
+// and any rule handler config is valid. Hashes any toggle override password,
+// falling back to fallbackHash so update callers can preserve the existing
+// hash when the client sends the request without retyping the password.
 // errPrefix is prepended to messages so callers can disambiguate which path
 // in a list is invalid.
-func validatePathRequest(w http.ResponseWriter, p *pathRequest, errPrefix string) bool {
+func validatePathRequest(w http.ResponseWriter, p *pathRequest, fallbackHash, errPrefix string) bool {
 	if msg := validatePathMatch(p.PathMatch); msg != "" {
 		writeError(w, errPrefix+msg, http.StatusBadRequest)
 		return false
@@ -46,13 +48,26 @@ func validatePathRequest(w http.ResponseWriter, p *pathRequest, errPrefix string
 			writeError(w, errPrefix+"username is required for basic auth", http.StatusBadRequest)
 			return false
 		}
-		if err := hashBasicAuthPassword(&p.ToggleOverrides.BasicAuth, ""); err != nil {
+		if err := hashBasicAuthPassword(&p.ToggleOverrides.BasicAuth, fallbackHash); err != nil {
 			log.Printf("validatePathRequest: hash password: %v", err)
 			writeError(w, "failed to hash password", http.StatusInternalServerError)
 			return false
 		}
 	}
 	return true
+}
+
+// existingPathHash returns the stored basic-auth password hash for the path
+// with the given ID, or "" if the path or its toggle override is absent.
+func existingPathHash(paths []config.Path, pathID string) string {
+	idx := findPath(paths, pathID)
+	if idx < 0 {
+		return ""
+	}
+	if paths[idx].ToggleOverrides == nil {
+		return ""
+	}
+	return paths[idx].ToggleOverrides.BasicAuth.PasswordHash
 }
 
 func pathFromRequest(p pathRequest) config.Path {
@@ -104,7 +119,7 @@ func handleCreateDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *sna
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if !validatePathRequest(w, &req, "") {
+		if !validatePathRequest(w, &req, "", "") {
 			return
 		}
 
@@ -149,7 +164,12 @@ func handleUpdateDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *sna
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if !validatePathRequest(w, &req, "") {
+
+		var fallbackHash string
+		if dom := findDomain(store.Get(), domainID); dom != nil {
+			fallbackHash = existingPathHash(dom.Paths, pathID)
+		}
+		if !validatePathRequest(w, &req, fallbackHash, "") {
 			return
 		}
 
@@ -281,7 +301,7 @@ func handleCreateSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if !validatePathRequest(w, &req, "") {
+		if !validatePathRequest(w, &req, "", "") {
 			return
 		}
 
@@ -336,7 +356,14 @@ func handleUpdateSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if !validatePathRequest(w, &req, "") {
+
+		var fallbackHash string
+		if dom := findDomain(store.Get(), domainID); dom != nil {
+			if sub := findSubdomain(dom, subID); sub != nil {
+				fallbackHash = existingPathHash(sub.Paths, pathID)
+			}
+		}
+		if !validatePathRequest(w, &req, fallbackHash, "") {
 			return
 		}
 

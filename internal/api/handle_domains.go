@@ -236,7 +236,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 
 		paths := make([]config.Path, len(req.Paths))
 		for i, p := range req.Paths {
-			if !validatePathRequest(w, &p, fmt.Sprintf("path %d: ", i+1)) {
+			if !validatePathRequest(w, &p, "", fmt.Sprintf("path %d: ", i+1)) {
 				return
 			}
 			paths[i] = pathFromRequest(p)
