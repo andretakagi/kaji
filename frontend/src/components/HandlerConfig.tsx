@@ -7,6 +7,7 @@ import type {
 	HandlerType,
 	RedirectConfig,
 	ReverseProxyConfig,
+	RuleHandlerType,
 	StaticResponseConfig,
 } from "../types/domain";
 import { ToggleItem } from "./ToggleGrid";
@@ -758,8 +759,10 @@ function RequestHeadersSection({
 	);
 }
 
-export function handlerSummary(type: HandlerType, config: HandlerConfigValue): string {
+export function handlerSummary(type: RuleHandlerType, config: HandlerConfigValue): string {
 	switch (type) {
+		case "none":
+			return "";
 		case "reverse_proxy": {
 			const rp = config as ReverseProxyConfig;
 			const parts: string[] = [rp.upstream];
@@ -788,8 +791,6 @@ export function handlerSummary(type: HandlerType, config: HandlerConfigValue): s
 			if (fs.browse) parts.push("browse");
 			return parts.join(" / ");
 		}
-		case "" as HandlerType:
-			return "No handler";
 		default:
 			return "Not yet supported";
 	}
