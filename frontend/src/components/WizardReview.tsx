@@ -5,7 +5,7 @@ import type {
 	ReverseProxyConfig,
 	StaticResponseConfig,
 } from "../types/domain";
-import type { WizardData, WizardRule, WizardSubdomain } from "./DomainWizard";
+import type { WizardData, WizardPath, WizardSubdomain } from "./DomainWizard";
 
 interface Props {
 	data: WizardData;
@@ -151,17 +151,17 @@ function SubdomainReviewItem({ sub, domainName }: { sub: WizardSubdomain; domain
 				<span>
 					{sub.prefix}.{domainName}
 				</span>
-				<HandlerBadge type={sub.handlerType} />
+				<HandlerBadge type={sub.rule.handlerType} />
 			</div>
 			<div className="wizard-review-details">
-				{sub.handlerType !== "none" && (
-					<HandlerDetails type={sub.handlerType} config={sub.handlerConfig} />
+				{sub.rule.handlerType !== "none" && (
+					<HandlerDetails type={sub.rule.handlerType} config={sub.rule.handlerConfig} />
 				)}
 				<TogglesList toggles={sub.toggles} />
-				{sub.rules.length > 0 && (
+				{sub.paths.length > 0 && (
 					<DetailRow
-						label="Rules"
-						value={`${sub.rules.length} path rule${sub.rules.length !== 1 ? "s" : ""}`}
+						label="Paths"
+						value={`${sub.paths.length} path${sub.paths.length !== 1 ? "s" : ""}`}
 					/>
 				)}
 			</div>
@@ -169,20 +169,25 @@ function SubdomainReviewItem({ sub, domainName }: { sub: WizardSubdomain; domain
 	);
 }
 
+function formatPathLabel(target: string, path: WizardPath): string {
+	if (path.pathMatch === "prefix") return `${target}${path.matchValue}*`;
+	if (path.pathMatch === "regex") return `${target}~${path.matchValue}`;
+	return `${target}${path.matchValue}`;
+}
+
 export default function WizardReview({ data, onEditStep }: Props) {
-	const allRules: { targetLabel: string; rule: WizardRule }[] = [];
-	for (const rule of data.rules) {
-		allRules.push({ targetLabel: data.name, rule });
+	const allPaths: { targetLabel: string; path: WizardPath }[] = [];
+	for (const path of data.rootPaths) {
+		allPaths.push({ targetLabel: data.name, path });
 	}
 	for (const sub of data.subdomains) {
-		for (const rule of sub.rules) {
-			allRules.push({ targetLabel: `${sub.prefix}.${data.name}`, rule });
+		for (const path of sub.paths) {
+			allPaths.push({ targetLabel: `${sub.prefix}.${data.name}`, path });
 		}
 	}
 
 	return (
 		<div className="wizard-review">
-			{/* Domain */}
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
 					<h4>Domain</h4>
@@ -193,10 +198,9 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				<div className="wizard-review-value">{data.name}</div>
 			</div>
 
-			{/* Root Domain */}
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
-					<h4>Root Domain</h4>
+					<h4>Domain Rule</h4>
 					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(1)}>
 						Edit
 					</button>
@@ -218,7 +222,6 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				</div>
 			</div>
 
-			{/* Subdomains */}
 			{data.subdomains.length > 0 && (
 				<div className="wizard-review-section">
 					<div className="wizard-review-header">
@@ -235,34 +238,30 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				</div>
 			)}
 
-			{/* Path Rules */}
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
-					<h4>Path Rules</h4>
+					<h4>Paths</h4>
 					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(3)}>
 						Edit
 					</button>
 				</div>
-				{allRules.length > 0 ? (
+				{allPaths.length > 0 ? (
 					<div className="wizard-review-item-list">
-						{allRules.map((entry) => (
-							<div key={entry.rule.key} className="wizard-review-item">
+						{allPaths.map((entry) => (
+							<div key={`${entry.targetLabel}-${entry.path.key}`} className="wizard-review-item">
 								<div className="wizard-review-item-title">
-									<span>
-										{entry.targetLabel}
-										{entry.rule.matchValue}
-									</span>
-									<HandlerBadge type={entry.rule.handlerType} />
+									<span>{formatPathLabel(entry.targetLabel, entry.path)}</span>
+									<HandlerBadge type={entry.path.handlerType} />
 								</div>
 								<div className="wizard-review-details">
-									<HandlerDetails type={entry.rule.handlerType} config={entry.rule.handlerConfig} />
-									{entry.rule.toggleOverrides && <DetailRow label="Overrides" value="Yes" />}
+									<HandlerDetails type={entry.path.handlerType} config={entry.path.handlerConfig} />
+									{entry.path.toggleOverrides && <DetailRow label="Overrides" value="Yes" />}
 								</div>
 							</div>
 						))}
 					</div>
 				) : (
-					<span className="text-muted">No path rules</span>
+					<span className="text-muted">No paths</span>
 				)}
 			</div>
 		</div>

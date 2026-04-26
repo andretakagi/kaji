@@ -1,20 +1,18 @@
 import { useCallback, useRef, useState } from "react";
-import { createDomainFull, createSubdomain, createSubdomainRule } from "../api";
 import type {
 	CreateDomainFullRequest,
-	CreateRuleRequest,
+	CreatePathRequest,
 	CreateSubdomainRequest,
 	Domain,
 	DomainToggles,
 	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
-	MatchType,
 	PathMatch,
 	RedirectConfig,
 	ReverseProxyConfig,
 	StaticResponseConfig,
-	SubdomainHandlerType,
+	UpdateRuleRequest,
 } from "../types/domain";
 import {
 	defaultDomainToggles,
@@ -32,9 +30,8 @@ import WizardReview from "./WizardReview";
 
 type HandlerSelection = "none" | HandlerType;
 
-export interface WizardRule {
+export interface WizardPath {
 	key: number;
-	matchType: Exclude<MatchType, "">;
 	pathMatch: PathMatch;
 	matchValue: string;
 	handlerType: HandlerType;
@@ -45,10 +42,12 @@ export interface WizardRule {
 export interface WizardSubdomain {
 	key: number;
 	prefix: string;
-	handlerType: HandlerSelection;
-	handlerConfig: HandlerConfigValue;
+	rule: {
+		handlerType: HandlerSelection;
+		handlerConfig: HandlerConfigValue;
+	};
 	toggles: DomainToggles;
-	rules: WizardRule[];
+	paths: WizardPath[];
 }
 
 export interface WizardData {
@@ -59,10 +58,10 @@ export interface WizardData {
 		handlerConfig: HandlerConfigValue;
 	};
 	subdomains: WizardSubdomain[];
-	rules: WizardRule[];
+	rootPaths: WizardPath[];
 }
 
-const STEP_LABELS = ["URL", "Root Domain Rule", "Subdomain Rules", "Path Rules", "Review"];
+const STEP_LABELS = ["URL", "Root Domain Rule", "Subdomain Rules", "Paths", "Review"];
 
 const handlerOptions: readonly { value: HandlerSelection; label: string }[] = [
 	{ value: "none", label: "None" },
@@ -112,8 +111,8 @@ interface Props {
 	existingDomains: Domain[];
 }
 
-export default function DomainWizard({ onCreate, onCancel, onReload, existingDomains }: Props) {
-	const ruleKeyRef = useRef(0);
+export default function DomainWizard({ onCreate, onCancel, existingDomains }: Props) {
+	const pathKeyRef = useRef(0);
 	const subKeyRef = useRef(0);
 	const [step, setStep] = useState(0);
 	const [highestStep, setHighestStep] = useState(0);
@@ -129,26 +128,23 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 			handlerConfig: { ...defaultReverseProxyConfig },
 		},
 		subdomains: [],
-		rules: [],
+		rootPaths: [],
 	});
 
-	// Path rule form state
-	const [ruleFormActive, setRuleFormActive] = useState(false);
-	const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-	const [ruleTarget, setRuleTarget] = useState("");
-	const [ruleMatchType, setRuleMatchType] = useState<Exclude<MatchType, "">>("path");
-	const [rulePathMatch, setRulePathMatch] = useState<PathMatch>("prefix");
-	const [ruleMatchValue, setRuleMatchValue] = useState("");
-	const [ruleHandlerType, setRuleHandlerType] = useState<HandlerType>("reverse_proxy");
-	const [ruleHandlerConfig, setRuleHandlerConfig] = useState<HandlerConfigValue>({
+	const [pathFormActive, setPathFormActive] = useState(false);
+	const [editingPathId, setEditingPathId] = useState<string | null>(null);
+	const [pathTarget, setPathTarget] = useState("");
+	const [pathMatch, setPathMatch] = useState<PathMatch>("prefix");
+	const [pathMatchValue, setPathMatchValue] = useState("");
+	const [pathHandlerType, setPathHandlerType] = useState<HandlerType>("reverse_proxy");
+	const [pathHandlerConfig, setPathHandlerConfig] = useState<HandlerConfigValue>({
 		...defaultReverseProxyConfig,
 	});
-	const [ruleOverridesOpen, setRuleOverridesOpen] = useState(false);
-	const [ruleToggleOverrides, setRuleToggleOverrides] = useState<DomainToggles>({
+	const [pathOverridesOpen, setPathOverridesOpen] = useState(false);
+	const [pathToggleOverrides, setPathToggleOverrides] = useState<DomainToggles>({
 		...defaultDomainToggles,
 	});
 
-	// Subdomain form state
 	const [subFormActive, setSubFormActive] = useState(false);
 	const [editingSubIndex, setEditingSubIndex] = useState<number | null>(null);
 	const [subPrefix, setSubPrefix] = useState("");
@@ -167,15 +163,14 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 		setSubToggles({ ...data.toggles });
 	}, [data.toggles]);
 
-	const resetRuleForm = useCallback(() => {
-		setRuleTarget("");
-		setRuleMatchType("path");
-		setRulePathMatch("prefix");
-		setRuleMatchValue("");
-		setRuleHandlerType("reverse_proxy");
-		setRuleHandlerConfig({ ...defaultReverseProxyConfig });
-		setRuleOverridesOpen(false);
-		setRuleToggleOverrides({ ...data.toggles });
+	const resetPathForm = useCallback(() => {
+		setPathTarget("");
+		setPathMatch("prefix");
+		setPathMatchValue("");
+		setPathHandlerType("reverse_proxy");
+		setPathHandlerConfig({ ...defaultReverseProxyConfig });
+		setPathOverridesOpen(false);
+		setPathToggleOverrides({ ...data.toggles });
 	}, [data.toggles]);
 
 	const validateToggles = (toggles: DomainToggles): string | null => {
@@ -303,7 +298,6 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 			setData((prev) => ({ ...prev, name: parsed.domain }));
 
 			if (parsed.subPrefix && parsed.path) {
-				// subdomain + path: auto-create subdomain, jump to path rules
 				const prefix = parsed.subPrefix;
 				const pathValue = parsed.path;
 				subKeyRef.current += 1;
@@ -317,38 +311,37 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 								{
 									key: subKeyRef.current,
 									prefix,
-									handlerType: "none" as HandlerSelection,
-									handlerConfig: {},
+									rule: {
+										handlerType: "none",
+										handlerConfig: {},
+									},
 									toggles: { ...defaultDomainToggles },
-									rules: [],
+									paths: [],
 								},
 							],
 				}));
-				setRuleTarget(prefix);
-				setRuleMatchValue(pathValue);
-				setRuleFormActive(true);
+				setPathTarget(prefix);
+				setPathMatchValue(pathValue);
+				setPathFormActive(true);
 				goToStep(3);
 			} else if (parsed.subPrefix) {
-				// subdomain only: open sub form pre-filled, jump to subdomains
 				setSubPrefix(parsed.subPrefix);
 				setSubFormActive(true);
 				goToStep(2);
 			} else if (parsed.path) {
-				// path only: jump to path rules
-				setRuleTarget("");
-				setRuleMatchValue(parsed.path);
-				setRuleFormActive(true);
+				setPathTarget("");
+				setPathMatchValue(parsed.path);
+				setPathFormActive(true);
 				goToStep(3);
 			} else {
-				// root domain only: go to root domain config
 				goToStep(1);
 			}
 			return;
 		}
 
 		if (step === 2) {
-			resetRuleForm();
-			setRuleFormActive(false);
+			resetPathForm();
+			setPathFormActive(false);
 		}
 		goToStep(step + 1);
 	};
@@ -365,76 +358,69 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 		}
 	};
 
-	// --- Rule helpers (path rules, step 3) ---
-
-	const addRule = () => {
+	const addPath = () => {
 		setError("");
-		if (ruleMatchType === "path" && !ruleMatchValue.trim()) {
+		if (!pathMatchValue.trim()) {
 			setError("Path value is required");
 			return;
 		}
-		if (!isSupportedHandler(ruleHandlerType)) {
+		if (!isSupportedHandler(pathHandlerType)) {
 			setError("This handler type is not yet supported");
 			return;
 		}
-		const handlerErr = validateHandlerConfig(ruleHandlerType, ruleHandlerConfig);
+		const handlerErr = validateHandlerConfig(pathHandlerType, pathHandlerConfig);
 		if (handlerErr) {
 			setError(handlerErr);
 			return;
 		}
-		if (ruleOverridesOpen) {
-			const toggleErr = validateToggles(ruleToggleOverrides);
+		if (pathOverridesOpen) {
+			const toggleErr = validateToggles(pathToggleOverrides);
 			if (toggleErr) {
 				setError(toggleErr);
 				return;
 			}
 		}
 
-		ruleKeyRef.current += 1;
-		const newRule: WizardRule = {
-			key: ruleKeyRef.current,
-			matchType: ruleMatchType,
-			pathMatch: rulePathMatch,
-			matchValue: ruleMatchValue.trim(),
-			handlerType: ruleHandlerType,
-			handlerConfig: ruleHandlerConfig,
-			toggleOverrides: ruleOverridesOpen ? ruleToggleOverrides : null,
+		pathKeyRef.current += 1;
+		const newPath: WizardPath = {
+			key: pathKeyRef.current,
+			pathMatch,
+			matchValue: pathMatchValue.trim(),
+			handlerType: pathHandlerType,
+			handlerConfig: pathHandlerConfig,
+			toggleOverrides: pathOverridesOpen ? pathToggleOverrides : null,
 		};
 
-		if (ruleTarget === "") {
-			setData((prev) => ({ ...prev, rules: [...prev.rules, newRule] }));
+		if (pathTarget === "") {
+			setData((prev) => ({ ...prev, rootPaths: [...prev.rootPaths, newPath] }));
 		} else {
 			setData((prev) => ({
 				...prev,
 				subdomains: prev.subdomains.map((s) =>
-					s.prefix.toLowerCase() === ruleTarget.toLowerCase()
-						? { ...s, rules: [...s.rules, newRule] }
+					s.prefix.toLowerCase() === pathTarget.toLowerCase()
+						? { ...s, paths: [...s.paths, newPath] }
 						: s,
 				),
 			}));
 		}
-		setRuleFormActive(false);
-		resetRuleForm();
+		setPathFormActive(false);
+		resetPathForm();
 	};
 
-	const removeRule = (target: string, index: number) => {
+	const removePath = (target: string, index: number) => {
 		if (target === "") {
-			setData((prev) => ({ ...prev, rules: prev.rules.filter((_, i) => i !== index) }));
+			setData((prev) => ({ ...prev, rootPaths: prev.rootPaths.filter((_, i) => i !== index) }));
 		} else {
 			setData((prev) => ({
 				...prev,
 				subdomains: prev.subdomains.map((s) =>
 					s.prefix.toLowerCase() === target.toLowerCase()
-						? { ...s, rules: s.rules.filter((_, i) => i !== index) }
+						? { ...s, paths: s.paths.filter((_, i) => i !== index) }
 						: s,
 				),
 			}));
 		}
 	};
-
-	// --- Subdomain rule helpers (nested in subdomain form, step 2) ---
-
-	// --- Subdomain helpers (step 2) ---
 
 	const addSubdomain = () => {
 		setError("");
@@ -469,10 +455,12 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 		const newSub: WizardSubdomain = {
 			key: subKeyRef.current,
 			prefix: trimmed,
-			handlerType: subHandlerType,
-			handlerConfig: subHandlerType === "none" ? {} : subHandlerConfig,
+			rule: {
+				handlerType: subHandlerType,
+				handlerConfig: subHandlerType === "none" ? {} : subHandlerConfig,
+			},
 			toggles: subTogglesOpen ? subToggles : { ...data.toggles },
-			rules: [],
+			paths: [],
 		};
 		setData((prev) => ({ ...prev, subdomains: [...prev.subdomains, newSub] }));
 		setSubFormActive(false);
@@ -489,8 +477,8 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 	const startEditSub = (index: number) => {
 		const sub = data.subdomains[index];
 		setSubPrefix(sub.prefix);
-		setSubHandlerType(sub.handlerType);
-		setSubHandlerConfig(sub.handlerConfig);
+		setSubHandlerType(sub.rule.handlerType);
+		setSubHandlerConfig(sub.rule.handlerConfig);
 		setSubToggles(sub.toggles);
 		setSubTogglesOpen(false);
 		setEditingSubIndex(index);
@@ -537,8 +525,10 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 					? {
 							...s,
 							prefix: trimmed,
-							handlerType: subHandlerType,
-							handlerConfig: subHandlerType === "none" ? {} : subHandlerConfig,
+							rule: {
+								handlerType: subHandlerType,
+								handlerConfig: subHandlerType === "none" ? {} : subHandlerConfig,
+							},
 							toggles: subTogglesOpen ? subToggles : s.toggles,
 						}
 					: s,
@@ -555,60 +545,58 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 		resetSubForm();
 	};
 
-	const startEditRule = (target: string, index: number) => {
-		const rules =
+	const startEditPath = (target: string, index: number) => {
+		const paths =
 			target === ""
-				? data.rules
-				: data.subdomains.find((s) => s.prefix.toLowerCase() === target.toLowerCase())?.rules;
-		if (!rules) return;
-		const rule = rules[index];
-		setRuleTarget(target);
-		setRuleMatchType(rule.matchType);
-		setRulePathMatch(rule.pathMatch);
-		setRuleMatchValue(rule.matchValue);
-		setRuleHandlerType(rule.handlerType);
-		setRuleHandlerConfig(rule.handlerConfig);
-		setRuleOverridesOpen(rule.toggleOverrides !== null);
-		setRuleToggleOverrides(rule.toggleOverrides ?? { ...data.toggles });
-		setEditingRuleId(`${target}-${index}`);
-		setRuleFormActive(true);
+				? data.rootPaths
+				: data.subdomains.find((s) => s.prefix.toLowerCase() === target.toLowerCase())?.paths;
+		if (!paths) return;
+		const path = paths[index];
+		setPathTarget(target);
+		setPathMatch(path.pathMatch);
+		setPathMatchValue(path.matchValue);
+		setPathHandlerType(path.handlerType);
+		setPathHandlerConfig(path.handlerConfig);
+		setPathOverridesOpen(path.toggleOverrides !== null);
+		setPathToggleOverrides(path.toggleOverrides ?? { ...data.toggles });
+		setEditingPathId(`${target}-${index}`);
+		setPathFormActive(true);
 	};
 
-	const saveEditRule = () => {
-		if (editingRuleId === null) return;
+	const saveEditPath = () => {
+		if (editingPathId === null) return;
 		setError("");
-		if (ruleMatchType === "path" && !ruleMatchValue.trim()) {
+		if (!pathMatchValue.trim()) {
 			setError("Path value is required");
 			return;
 		}
-		const handlerErr = validateHandlerConfig(ruleHandlerType, ruleHandlerConfig);
+		const handlerErr = validateHandlerConfig(pathHandlerType, pathHandlerConfig);
 		if (handlerErr) {
 			setError(handlerErr);
 			return;
 		}
-		if (ruleOverridesOpen) {
-			const toggleErr = validateToggles(ruleToggleOverrides);
+		if (pathOverridesOpen) {
+			const toggleErr = validateToggles(pathToggleOverrides);
 			if (toggleErr) {
 				setError(toggleErr);
 				return;
 			}
 		}
-		const parts = editingRuleId.split("-");
+		const parts = editingPathId.split("-");
 		const editIndex = Number.parseInt(parts[parts.length - 1], 10);
 		const editTarget = parts.slice(0, -1).join("-");
-		const updated: WizardRule = {
+		const updated: WizardPath = {
 			key: 0,
-			matchType: ruleMatchType,
-			pathMatch: rulePathMatch,
-			matchValue: ruleMatchValue.trim(),
-			handlerType: ruleHandlerType,
-			handlerConfig: ruleHandlerConfig,
-			toggleOverrides: ruleOverridesOpen ? ruleToggleOverrides : null,
+			pathMatch,
+			matchValue: pathMatchValue.trim(),
+			handlerType: pathHandlerType,
+			handlerConfig: pathHandlerConfig,
+			toggleOverrides: pathOverridesOpen ? pathToggleOverrides : null,
 		};
 		if (editTarget === "") {
 			setData((prev) => ({
 				...prev,
-				rules: prev.rules.map((r, i) => (i === editIndex ? { ...updated, key: r.key } : r)),
+				rootPaths: prev.rootPaths.map((p, i) => (i === editIndex ? { ...updated, key: p.key } : p)),
 			}));
 		} else {
 			setData((prev) => ({
@@ -617,105 +605,29 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 					s.prefix.toLowerCase() === editTarget.toLowerCase()
 						? {
 								...s,
-								rules: s.rules.map((r, i) => (i === editIndex ? { ...updated, key: r.key } : r)),
+								paths: s.paths.map((p, i) => (i === editIndex ? { ...updated, key: p.key } : p)),
 							}
 						: s,
 				),
 			}));
 		}
-		setEditingRuleId(null);
-		setRuleFormActive(false);
-		resetRuleForm();
+		setEditingPathId(null);
+		setPathFormActive(false);
+		resetPathForm();
 	};
 
-	const cancelEditRule = () => {
-		setEditingRuleId(null);
-		setRuleFormActive(false);
-		resetRuleForm();
+	const cancelEditPath = () => {
+		setEditingPathId(null);
+		setPathFormActive(false);
+		resetPathForm();
 	};
-
-	// --- Submit ---
 
 	const handleSubmit = async () => {
 		setSubmitting(true);
 		setError("");
-
 		try {
-			const rules: CreateDomainFullRequest["rules"] = [];
-
-			if (data.rootRule.handlerType !== "none") {
-				rules.push({
-					match_type: "",
-					handler_type: data.rootRule.handlerType as HandlerType,
-					handler_config: data.rootRule.handlerConfig,
-				});
-			}
-
-			for (const rule of data.rules) {
-				rules.push({
-					match_type: rule.matchType,
-					...(rule.matchType === "path" ? { path_match: rule.pathMatch } : {}),
-					match_value: rule.matchValue,
-					handler_type: rule.handlerType,
-					handler_config: rule.handlerConfig,
-					toggle_overrides: rule.toggleOverrides,
-				});
-			}
-
-			const req: CreateDomainFullRequest = {
-				name: data.name.trim(),
-				toggles: data.toggles,
-				rules,
-			};
-
-			const existingDomain = existingDomains.find(
-				(d) => d.name.toLowerCase() === data.name.trim().toLowerCase(),
-			);
-
-			if (data.subdomains.length > 0) {
-				let domainId: string;
-				if (existingDomain) {
-					domainId = existingDomain.id;
-				} else {
-					const created = await createDomainFull(req);
-					domainId = created.id;
-				}
-
-				for (const sub of data.subdomains) {
-					const existingSub = existingDomain?.subdomains?.find(
-						(s) => s.name.toLowerCase() === sub.prefix.toLowerCase(),
-					);
-					if (existingSub) {
-						for (const rule of sub.rules) {
-							await createSubdomainRule(domainId, existingSub.id, buildRuleReq(rule));
-						}
-					} else {
-						const ht = sub.handlerType as SubdomainHandlerType;
-						const subReq: CreateSubdomainRequest = {
-							name: sub.prefix,
-							handler_type: ht,
-							handler_config: ht === "none" ? null : sub.handlerConfig,
-							toggles: sub.toggles,
-						};
-						const updated = await createSubdomain(domainId, subReq);
-						const createdSub = updated.subdomains.find(
-							(s) => s.name.toLowerCase() === sub.prefix.toLowerCase(),
-						);
-						if (createdSub && sub.rules.length > 0) {
-							for (const rule of sub.rules) {
-								await createSubdomainRule(domainId, createdSub.id, buildRuleReq(rule));
-							}
-						}
-					}
-				}
-				await onReload();
-				onCancel();
-			} else if (existingDomain) {
-				await onReload();
-				onCancel();
-			} else {
-				await onCreate(req);
-			}
+			const req = buildCreateRequest(data);
+			await onCreate(req);
 		} catch (err) {
 			setError(getErrorMessage(err, "Failed to create domain"));
 		} finally {
@@ -723,26 +635,22 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 		}
 	};
 
-	// --- Collect all path rules for display in step 3 ---
-
-	const allRules: { target: string; targetLabel: string; rule: WizardRule; index: number }[] = [];
-	for (let i = 0; i < data.rules.length; i++) {
-		allRules.push({ target: "", targetLabel: data.name, rule: data.rules[i], index: i });
+	const allPaths: { target: string; targetLabel: string; path: WizardPath; index: number }[] = [];
+	for (let i = 0; i < data.rootPaths.length; i++) {
+		allPaths.push({ target: "", targetLabel: data.name, path: data.rootPaths[i], index: i });
 	}
 	for (const sub of data.subdomains) {
-		for (let i = 0; i < sub.rules.length; i++) {
-			allRules.push({
+		for (let i = 0; i < sub.paths.length; i++) {
+			allPaths.push({
 				target: sub.prefix,
 				targetLabel: `${sub.prefix}.${data.name}`,
-				rule: sub.rules[i],
+				path: sub.paths[i],
 				index: i,
 			});
 		}
 	}
 
-	// --- Target options for rule form dropdown ---
-
-	const ruleTargetOptions = [
+	const pathTargetOptions = [
 		{ value: "", label: data.name || "Root domain" },
 		...data.subdomains.map((s) => ({
 			value: s.prefix,
@@ -778,7 +686,6 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 			)}
 
 			<div className="wizard-step-content">
-				{/* Step 0: URL */}
 				{step === 0 && (
 					<div className="wizard-section">
 						<div className="form-row">
@@ -803,10 +710,10 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 								parts.push(`subdomain "${parsed.subPrefix}" under ${parsed.domain}`);
 							}
 							if (parsed.path) {
-								const pathTarget = parsed.subPrefix
+								const pathTargetLabel = parsed.subPrefix
 									? `${parsed.subPrefix}.${parsed.domain}`
 									: parsed.domain;
-								parts.push(`path rule "${parsed.path}" on ${pathTarget}`);
+								parts.push(`path rule "${parsed.path}" on ${pathTargetLabel}`);
 							}
 							const parentExists = existingDomains.some(
 								(d) => d.name.toLowerCase() === parsed.domain.toLowerCase(),
@@ -821,7 +728,6 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 					</div>
 				)}
 
-				{/* Step 1: Root Domain (handler + toggles) */}
 				{step === 1 && (
 					<div className="wizard-section">
 						<div className="form-row">
@@ -891,7 +797,6 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 					</div>
 				)}
 
-				{/* Step 2: Subdomains */}
 				{step === 2 && (
 					<div className="wizard-section">
 						{data.subdomains.length > 0 && (
@@ -907,17 +812,19 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 												<span className="wizard-rule-match">
 													{sub.prefix}.{data.name}
 												</span>
-												{sub.handlerType !== "none" ? (
-													<span className={`rule-card-handler-badge handler-${sub.handlerType}`}>
-														{sub.handlerType.replace("_", " ")}
+												{sub.rule.handlerType !== "none" ? (
+													<span
+														className={`rule-card-handler-badge handler-${sub.rule.handlerType}`}
+													>
+														{sub.rule.handlerType.replace("_", " ")}
 													</span>
 												) : (
 													<span className="rule-card-handler-badge handler-none">no handler</span>
 												)}
-												{sub.rules.length > 0 && (
+												{sub.paths.length > 0 && (
 													<span className="wizard-rule-upstream">
-														{sub.rules.length} rule
-														{sub.rules.length !== 1 ? "s" : ""}
+														{sub.paths.length} path
+														{sub.paths.length !== 1 ? "s" : ""}
 													</span>
 												)}
 											</div>
@@ -1161,7 +1068,7 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 								) : (
 									<>
 										<div className="wizard-add-rule-empty">
-											No subdomains. Add subdomains, or skip to path rules.
+											No subdomains. Add subdomains, or skip to paths.
 										</div>
 										<div className="wizard-add-rule-actions">
 											<button
@@ -1183,53 +1090,52 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 					</div>
 				)}
 
-				{/* Step 3: Path Rules */}
 				{step === 3 && (
 					<div className="wizard-section">
-						{allRules.length > 0 && (
+						{allPaths.length > 0 && (
 							<div className="wizard-rule-list">
-								{allRules.map((entry) => {
+								{allPaths.map((entry) => {
 									const entryId = `${entry.target}-${entry.index}`;
-									const isEditing = editingRuleId === entryId;
+									const isEditing = editingPathId === entryId;
 									return (
-										<div key={`${entry.target}-${entry.rule.key}`} className="wizard-editable-card">
+										<div key={`${entry.target}-${entry.path.key}`} className="wizard-editable-card">
 											<button
 												type="button"
 												className="wizard-editable-card-header"
 												onClick={() =>
-													isEditing ? cancelEditRule() : startEditRule(entry.target, entry.index)
+													isEditing ? cancelEditPath() : startEditPath(entry.target, entry.index)
 												}
 											>
 												<div className="wizard-rule-summary-info">
 													<span className="wizard-rule-match">
 														{entry.targetLabel}
-														{entry.rule.matchValue}
+														{entry.path.matchValue}
 													</span>
 													<span
-														className={`rule-card-handler-badge handler-${entry.rule.handlerType}`}
+														className={`rule-card-handler-badge handler-${entry.path.handlerType}`}
 													>
-														{entry.rule.handlerType.replace("_", " ")}
+														{entry.path.handlerType.replace("_", " ")}
 													</span>
-													{entry.rule.handlerType === "reverse_proxy" && (
+													{entry.path.handlerType === "reverse_proxy" && (
 														<span className="wizard-rule-upstream">
-															{(entry.rule.handlerConfig as ReverseProxyConfig).upstream}
+															{(entry.path.handlerConfig as ReverseProxyConfig).upstream}
 														</span>
 													)}
 												</div>
 												<span className={isEditing ? "chevron open" : "chevron"} />
 											</button>
-											{isEditing && ruleFormActive && (
+											{isEditing && pathFormActive && (
 												<div className="wizard-editable-card-body">
-													{ruleTargetOptions.length > 1 && (
+													{pathTargetOptions.length > 1 && (
 														<div className="form-row">
 															<div className="form-field">
 																<label htmlFor="wizard-rule-target">Target</label>
 																<select
 																	id="wizard-rule-target"
-																	value={ruleTarget}
-																	onChange={(e) => setRuleTarget(e.target.value)}
+																	value={pathTarget}
+																	onChange={(e) => setPathTarget(e.target.value)}
 																>
-																	{ruleTargetOptions.map((opt) => (
+																	{pathTargetOptions.map((opt) => (
 																		<option key={opt.value} value={opt.value}>
 																			{opt.label}
 																		</option>
@@ -1244,8 +1150,8 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 															<label htmlFor="wizard-rule-path-match">Path Match</label>
 															<Toggle
 																options={pathMatchOptions}
-																value={rulePathMatch}
-																onChange={setRulePathMatch}
+																value={pathMatch}
+																onChange={setPathMatch}
 															/>
 														</div>
 														<div className="form-field">
@@ -1254,20 +1160,20 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 																id="wizard-rule-path-value"
 																type="text"
 																placeholder={
-																	rulePathMatch === "prefix"
+																	pathMatch === "prefix"
 																		? "/api/"
-																		: rulePathMatch === "exact"
+																		: pathMatch === "exact"
 																			? "/api/v1/health"
 																			: "^/api/.*"
 																}
-																value={ruleMatchValue}
-																onChange={(e) => setRuleMatchValue(e.target.value)}
+																value={pathMatchValue}
+																onChange={(e) => setPathMatchValue(e.target.value)}
 																maxLength={253}
 																required
 															/>
-															{pathMatchWarning(rulePathMatch, ruleMatchValue) && (
+															{pathMatchWarning(pathMatch, pathMatchValue) && (
 																<span className="field-warning">
-																	{pathMatchWarning(rulePathMatch, ruleMatchValue)}
+																	{pathMatchWarning(pathMatch, pathMatchValue)}
 																</span>
 															)}
 														</div>
@@ -1278,46 +1184,46 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 															<span className="form-label">Handler Type</span>
 															<Toggle
 																options={handlerTypeOptions}
-																value={ruleHandlerType}
+																value={pathHandlerType}
 																onChange={(next: HandlerType) => {
-																	setRuleHandlerType(next);
+																	setPathHandlerType(next);
 																	if (next === "reverse_proxy") {
-																		setRuleHandlerConfig({
+																		setPathHandlerConfig({
 																			...defaultReverseProxyConfig,
 																		});
 																	} else if (next === "static_response") {
-																		setRuleHandlerConfig({
+																		setPathHandlerConfig({
 																			...defaultStaticResponseConfig,
 																		});
 																	} else if (next === "redirect") {
-																		setRuleHandlerConfig({
+																		setPathHandlerConfig({
 																			...defaultRedirectConfig,
 																		});
 																	} else if (next === "file_server") {
-																		setRuleHandlerConfig({
+																		setPathHandlerConfig({
 																			...defaultFileServerConfig,
 																		});
 																	} else {
-																		setRuleHandlerConfig({});
+																		setPathHandlerConfig({});
 																	}
 																}}
 															/>
 														</div>
 													</div>
 
-													{!isSupportedHandler(ruleHandlerType) && (
+													{!isSupportedHandler(pathHandlerType) && (
 														<div className="alert-warning" role="status">
 															This handler type is not yet supported.
 														</div>
 													)}
 
-													{isSupportedHandler(ruleHandlerType) && (
+													{isSupportedHandler(pathHandlerType) && (
 														<HandlerConfig
-															type={ruleHandlerType}
-															config={ruleHandlerConfig}
-															onChange={setRuleHandlerConfig}
+															type={pathHandlerType}
+															config={pathHandlerConfig}
+															onChange={setPathHandlerConfig}
 															disabled={false}
-															domain={ruleTarget ? `${ruleTarget}.${data.name}` : data.name}
+															domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
 														/>
 													)}
 
@@ -1325,24 +1231,24 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 														<button
 															type="button"
 															className="btn btn-ghost rule-form-overrides-toggle"
-															onClick={() => setRuleOverridesOpen(!ruleOverridesOpen)}
+															onClick={() => setPathOverridesOpen(!pathOverridesOpen)}
 														>
-															<span className={ruleOverridesOpen ? "chevron open" : "chevron"} />
+															<span className={pathOverridesOpen ? "chevron open" : "chevron"} />
 															Override domain toggles
 														</button>
-														{ruleOverridesOpen && (
+														{pathOverridesOpen && (
 															<div className="rule-form-overrides-body">
 																<DomainToggleGrid
-																	toggles={ruleToggleOverrides}
+																	toggles={pathToggleOverrides}
 																	onUpdate={(key, value) =>
-																		setRuleToggleOverrides((prev) => ({
+																		setPathToggleOverrides((prev) => ({
 																			...prev,
 																			[key]: value,
 																		}))
 																	}
 																	idPrefix="wizard-rule-override"
-																	domain={ruleTarget ? `${ruleTarget}.${data.name}` : data.name}
-																	hideResponseHeaders={ruleHandlerType === "static_response"}
+																	domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
+																	hideResponseHeaders={pathHandlerType === "static_response"}
 																/>
 															</div>
 														)}
@@ -1353,8 +1259,8 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 															type="button"
 															className="btn btn-ghost btn-sm"
 															onClick={() => {
-																removeRule(entry.target, entry.index);
-																cancelEditRule();
+																removePath(entry.target, entry.index);
+																cancelEditPath();
 															}}
 														>
 															Remove
@@ -1363,15 +1269,15 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 															<button
 																type="button"
 																className="btn btn-ghost"
-																onClick={cancelEditRule}
+																onClick={cancelEditPath}
 															>
 																Cancel
 															</button>
 															<button
 																type="button"
 																className="btn btn-primary"
-																onClick={saveEditRule}
-																disabled={!isSupportedHandler(ruleHandlerType)}
+																onClick={saveEditPath}
+																disabled={!isSupportedHandler(pathHandlerType)}
 															>
 																Save
 															</button>
@@ -1385,18 +1291,18 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 							</div>
 						)}
 
-						{ruleFormActive && editingRuleId === null ? (
+						{pathFormActive && editingPathId === null ? (
 							<div className="wizard-rule-form">
-								{ruleTargetOptions.length > 1 && (
+								{pathTargetOptions.length > 1 && (
 									<div className="form-row">
 										<div className="form-field">
-											<label htmlFor="wizard-rule-target">Add rule to</label>
+											<label htmlFor="wizard-rule-target">Add path to</label>
 											<select
 												id="wizard-rule-target"
-												value={ruleTarget}
-												onChange={(e) => setRuleTarget(e.target.value)}
+												value={pathTarget}
+												onChange={(e) => setPathTarget(e.target.value)}
 											>
-												{ruleTargetOptions.map((opt) => (
+												{pathTargetOptions.map((opt) => (
 													<option key={opt.value} value={opt.value}>
 														{opt.label}
 													</option>
@@ -1409,11 +1315,7 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 								<div className="form-row">
 									<div className="form-field">
 										<label htmlFor="wizard-rule-path-match">Path Match</label>
-										<Toggle
-											options={pathMatchOptions}
-											value={rulePathMatch}
-											onChange={setRulePathMatch}
-										/>
+										<Toggle options={pathMatchOptions} value={pathMatch} onChange={setPathMatch} />
 									</div>
 									<div className="form-field">
 										<label htmlFor="wizard-rule-path-value">Path</label>
@@ -1421,20 +1323,20 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 											id="wizard-rule-path-value"
 											type="text"
 											placeholder={
-												rulePathMatch === "prefix"
+												pathMatch === "prefix"
 													? "/api/"
-													: rulePathMatch === "exact"
+													: pathMatch === "exact"
 														? "/api/v1/health"
 														: "^/api/.*"
 											}
-											value={ruleMatchValue}
-											onChange={(e) => setRuleMatchValue(e.target.value)}
+											value={pathMatchValue}
+											onChange={(e) => setPathMatchValue(e.target.value)}
 											maxLength={253}
 											required
 										/>
-										{pathMatchWarning(rulePathMatch, ruleMatchValue) && (
+										{pathMatchWarning(pathMatch, pathMatchValue) && (
 											<span className="field-warning">
-												{pathMatchWarning(rulePathMatch, ruleMatchValue)}
+												{pathMatchWarning(pathMatch, pathMatchValue)}
 											</span>
 										)}
 									</div>
@@ -1445,46 +1347,46 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 										<span className="form-label">Handler Type</span>
 										<Toggle
 											options={handlerTypeOptions}
-											value={ruleHandlerType}
+											value={pathHandlerType}
 											onChange={(next: HandlerType) => {
-												setRuleHandlerType(next);
+												setPathHandlerType(next);
 												if (next === "reverse_proxy") {
-													setRuleHandlerConfig({
+													setPathHandlerConfig({
 														...defaultReverseProxyConfig,
 													});
 												} else if (next === "static_response") {
-													setRuleHandlerConfig({
+													setPathHandlerConfig({
 														...defaultStaticResponseConfig,
 													});
 												} else if (next === "redirect") {
-													setRuleHandlerConfig({
+													setPathHandlerConfig({
 														...defaultRedirectConfig,
 													});
 												} else if (next === "file_server") {
-													setRuleHandlerConfig({
+													setPathHandlerConfig({
 														...defaultFileServerConfig,
 													});
 												} else {
-													setRuleHandlerConfig({});
+													setPathHandlerConfig({});
 												}
 											}}
 										/>
 									</div>
 								</div>
 
-								{!isSupportedHandler(ruleHandlerType) && (
+								{!isSupportedHandler(pathHandlerType) && (
 									<div className="alert-warning" role="status">
 										This handler type is not yet supported.
 									</div>
 								)}
 
-								{isSupportedHandler(ruleHandlerType) && (
+								{isSupportedHandler(pathHandlerType) && (
 									<HandlerConfig
-										type={ruleHandlerType}
-										config={ruleHandlerConfig}
-										onChange={setRuleHandlerConfig}
+										type={pathHandlerType}
+										config={pathHandlerConfig}
+										onChange={setPathHandlerConfig}
 										disabled={false}
-										domain={ruleTarget ? `${ruleTarget}.${data.name}` : data.name}
+										domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
 									/>
 								)}
 
@@ -1492,24 +1394,24 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 									<button
 										type="button"
 										className="btn btn-ghost rule-form-overrides-toggle"
-										onClick={() => setRuleOverridesOpen(!ruleOverridesOpen)}
+										onClick={() => setPathOverridesOpen(!pathOverridesOpen)}
 									>
-										<span className={ruleOverridesOpen ? "chevron open" : "chevron"} />
+										<span className={pathOverridesOpen ? "chevron open" : "chevron"} />
 										Override domain toggles
 									</button>
-									{ruleOverridesOpen && (
+									{pathOverridesOpen && (
 										<div className="rule-form-overrides-body">
 											<DomainToggleGrid
-												toggles={ruleToggleOverrides}
+												toggles={pathToggleOverrides}
 												onUpdate={(key, value) =>
-													setRuleToggleOverrides((prev) => ({
+													setPathToggleOverrides((prev) => ({
 														...prev,
 														[key]: value,
 													}))
 												}
 												idPrefix="wizard-rule-override"
-												domain={ruleTarget ? `${ruleTarget}.${data.name}` : data.name}
-												hideResponseHeaders={ruleHandlerType === "static_response"}
+												domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
+												hideResponseHeaders={pathHandlerType === "static_response"}
 											/>
 										</div>
 									)}
@@ -1520,8 +1422,8 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 										type="button"
 										className="btn btn-ghost"
 										onClick={() => {
-											setRuleFormActive(false);
-											resetRuleForm();
+											setPathFormActive(false);
+											resetPathForm();
 										}}
 									>
 										Cancel
@@ -1529,43 +1431,43 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 									<button
 										type="button"
 										className="btn btn-primary"
-										onClick={addRule}
-										disabled={!isSupportedHandler(ruleHandlerType)}
+										onClick={addPath}
+										disabled={!isSupportedHandler(pathHandlerType)}
 									>
-										Add Rule
+										Add Path
 									</button>
 								</div>
 							</div>
-						) : !ruleFormActive ? (
+						) : !pathFormActive ? (
 							<div className="wizard-add-rule-prompt">
-								{allRules.length > 0 ? (
+								{allPaths.length > 0 ? (
 									<button
 										type="button"
 										className="btn btn-ghost"
 										onClick={() => {
-											resetRuleForm();
-											setEditingRuleId(null);
-											setRuleFormActive(true);
+											resetPathForm();
+											setEditingPathId(null);
+											setPathFormActive(true);
 										}}
 									>
-										+ Add Another Rule
+										+ Add Another Path
 									</button>
 								) : (
 									<>
 										<div className="wizard-add-rule-empty">
-											No path rules added yet. Add path rules, or skip to review.
+											No paths added yet. Add paths, or skip to review.
 										</div>
 										<div className="wizard-add-rule-actions">
 											<button
 												type="button"
 												className="btn btn-primary"
 												onClick={() => {
-													resetRuleForm();
-													setEditingRuleId(null);
-													setRuleFormActive(true);
+													resetPathForm();
+													setEditingPathId(null);
+													setPathFormActive(true);
 												}}
 											>
-												Add Rule
+												Add Path
 											</button>
 										</div>
 									</>
@@ -1575,7 +1477,6 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 					</div>
 				)}
 
-				{/* Step 4: Review */}
 				{step === 4 && <WizardReview data={data} onEditStep={setStep} />}
 			</div>
 
@@ -1621,20 +1522,20 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 							type="button"
 							className={data.subdomains.length > 0 ? "btn btn-primary" : "btn btn-ghost"}
 							onClick={() => {
-								resetRuleForm();
-								setRuleFormActive(false);
+								resetPathForm();
+								setPathFormActive(false);
 								goToStep(3);
 							}}
 						>
-							{data.subdomains.length > 0 ? "Continue to Path Rules" : "Skip to Path Rules"}
+							{data.subdomains.length > 0 ? "Continue to Paths" : "Skip to Paths"}
 						</button>
 					)}
-					{step === 3 && !ruleFormActive && allRules.length === 0 && (
+					{step === 3 && !pathFormActive && allPaths.length === 0 && (
 						<button type="button" className="btn btn-ghost" onClick={() => goToStep(4)}>
 							Skip to Review
 						</button>
 					)}
-					{step === 3 && !ruleFormActive && allRules.length > 0 && (
+					{step === 3 && !pathFormActive && allPaths.length > 0 && (
 						<button type="button" className="btn btn-primary" onClick={() => goToStep(4)}>
 							Continue to Review
 						</button>
@@ -1655,13 +1556,34 @@ export default function DomainWizard({ onCreate, onCancel, onReload, existingDom
 	);
 }
 
-function buildRuleReq(rule: WizardRule): CreateRuleRequest {
+function buildRule(
+	handlerType: HandlerSelection,
+	handlerConfig: HandlerConfigValue,
+): UpdateRuleRequest {
+	return handlerType === "none"
+		? { handler_type: "none", handler_config: {}, advanced_headers: false }
+		: { handler_type: handlerType, handler_config: handlerConfig, advanced_headers: false };
+}
+
+function buildPath(p: WizardPath): CreatePathRequest {
 	return {
-		match_type: rule.matchType,
-		...(rule.matchType === "path" ? { path_match: rule.pathMatch } : {}),
-		match_value: rule.matchValue,
-		handler_type: rule.handlerType,
-		handler_config: rule.handlerConfig,
-		toggle_overrides: rule.toggleOverrides,
+		path_match: p.pathMatch,
+		match_value: p.matchValue,
+		rule: { handler_type: p.handlerType, handler_config: p.handlerConfig, advanced_headers: false },
+		toggle_overrides: p.toggleOverrides,
+	};
+}
+
+function buildCreateRequest(data: WizardData): CreateDomainFullRequest {
+	return {
+		name: data.name.trim(),
+		toggles: data.toggles,
+		rule: buildRule(data.rootRule.handlerType, data.rootRule.handlerConfig),
+		subdomains: data.subdomains.map<CreateSubdomainRequest>((s) => ({
+			name: s.prefix,
+			rule: buildRule(s.rule.handlerType, s.rule.handlerConfig),
+			toggles: s.toggles,
+		})),
+		paths: data.rootPaths.map(buildPath),
 	};
 }
