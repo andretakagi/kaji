@@ -347,19 +347,13 @@ func migrateActiveCaddyDomains(cc *caddy.Client) []config.Domain {
 				}
 			}
 
-			ruleID := caddy.GenerateRuleID()
 			domain := config.Domain{
 				ID:      caddy.GenerateDomainID(),
 				Name:    params.Domain,
 				Enabled: true,
-				Rules: []config.Rule{
-					{
-						ID:            ruleID,
-						Enabled:       true,
-						MatchType:     "",
-						HandlerType:   handlerType,
-						HandlerConfig: hcData,
-					},
+				Rule: config.Rule{
+					HandlerType:   handlerType,
+					HandlerConfig: hcData,
 				},
 			}
 			domains = append(domains, domain)

@@ -52,8 +52,8 @@ func domainReferencesLists(d config.Domain, listIDs map[string]bool) bool {
 	if d.Toggles.IPFiltering.Enabled && listIDs[d.Toggles.IPFiltering.ListID] {
 		return true
 	}
-	for _, r := range d.Rules {
-		if r.ToggleOverrides != nil && r.ToggleOverrides.IPFiltering.Enabled && listIDs[r.ToggleOverrides.IPFiltering.ListID] {
+	for _, p := range d.Paths {
+		if p.ToggleOverrides != nil && p.ToggleOverrides.IPFiltering.Enabled && listIDs[p.ToggleOverrides.IPFiltering.ListID] {
 			return true
 		}
 	}
@@ -61,8 +61,8 @@ func domainReferencesLists(d config.Domain, listIDs map[string]bool) bool {
 		if s.Toggles.IPFiltering.Enabled && listIDs[s.Toggles.IPFiltering.ListID] {
 			return true
 		}
-		for _, r := range s.Rules {
-			if r.ToggleOverrides != nil && r.ToggleOverrides.IPFiltering.Enabled && listIDs[r.ToggleOverrides.IPFiltering.ListID] {
+		for _, p := range s.Paths {
+			if p.ToggleOverrides != nil && p.ToggleOverrides.IPFiltering.Enabled && listIDs[p.ToggleOverrides.IPFiltering.ListID] {
 				return true
 			}
 		}

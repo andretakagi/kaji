@@ -325,18 +325,18 @@ func handleDomainIPListBindings(store *config.ConfigStore) http.HandlerFunc {
 			if d.Toggles.IPFiltering.Enabled && d.Toggles.IPFiltering.ListID != "" {
 				bindings[d.ID] = d.Toggles.IPFiltering.ListID
 			}
-			for _, r := range d.Rules {
-				if r.ToggleOverrides != nil && r.ToggleOverrides.IPFiltering.Enabled && r.ToggleOverrides.IPFiltering.ListID != "" {
-					bindings[d.ID+"_"+r.ID] = r.ToggleOverrides.IPFiltering.ListID
+			for _, p := range d.Paths {
+				if p.ToggleOverrides != nil && p.ToggleOverrides.IPFiltering.Enabled && p.ToggleOverrides.IPFiltering.ListID != "" {
+					bindings[d.ID+"_"+p.ID] = p.ToggleOverrides.IPFiltering.ListID
 				}
 			}
 			for _, s := range d.Subdomains {
 				if s.Toggles.IPFiltering.Enabled && s.Toggles.IPFiltering.ListID != "" {
 					bindings[d.ID+"_"+s.ID] = s.Toggles.IPFiltering.ListID
 				}
-				for _, r := range s.Rules {
-					if r.ToggleOverrides != nil && r.ToggleOverrides.IPFiltering.Enabled && r.ToggleOverrides.IPFiltering.ListID != "" {
-						bindings[d.ID+"_"+s.ID+"_"+r.ID] = r.ToggleOverrides.IPFiltering.ListID
+				for _, p := range s.Paths {
+					if p.ToggleOverrides != nil && p.ToggleOverrides.IPFiltering.Enabled && p.ToggleOverrides.IPFiltering.ListID != "" {
+						bindings[d.ID+"_"+s.ID+"_"+p.ID] = p.ToggleOverrides.IPFiltering.ListID
 					}
 				}
 			}

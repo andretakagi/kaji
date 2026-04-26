@@ -16,6 +16,20 @@ import (
 	"github.com/andretakagi/kaji/internal/snapshot"
 )
 
+// extractUpstream pulls the configured upstream out of a reverse_proxy rule
+// for review/summary displays. Returns "" for non-reverse_proxy handlers or
+// when the config is missing.
+func extractUpstream(r config.Rule) string {
+	if r.HandlerType != "reverse_proxy" {
+		return ""
+	}
+	var rpc caddy.ReverseProxyConfig
+	if json.Unmarshal(r.HandlerConfig, &rpc) != nil {
+		return ""
+	}
+	return rpc.Upstream
+}
+
 func handleExportCaddyfile(cc *caddy.Client, store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		raw, err := cc.GetConfig()
@@ -251,9 +265,12 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 			snapshotCount = len(backup.Snapshots.Index.Snapshots)
 		}
 
-		ruleCount := 0
+		pathCount := 0
 		for _, d := range backup.AppConfig.Domains {
-			ruleCount += len(d.Rules)
+			pathCount += len(d.Paths)
+			for _, s := range d.Subdomains {
+				pathCount += len(s.Paths)
+			}
 		}
 
 		resp := map[string]any{
@@ -266,7 +283,7 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 				"loki_enabled":    backup.AppConfig.Loki.Enabled,
 				"ip_lists":        len(backup.AppConfig.IPLists),
 				"domains":         len(backup.AppConfig.Domains),
-				"rules":           ruleCount,
+				"paths":           pathCount,
 				"snapshot_count":  snapshotCount,
 			},
 		}
@@ -284,19 +301,36 @@ func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {
 		// Build review routes from domain model
 		routes := caddy.ExtractReviewDomains(backup.CaddyConfig)
 		for _, d := range backup.AppConfig.Domains {
-			for _, r := range d.Rules {
-				upstream := ""
-				if r.HandlerType == "reverse_proxy" {
-					var rpc caddy.ReverseProxyConfig
-					if json.Unmarshal(r.HandlerConfig, &rpc) == nil {
-						upstream = rpc.Upstream
-					}
-				}
+			if d.Rule.HandlerType != "" && d.Rule.HandlerType != "none" {
 				routes = append(routes, caddy.ReviewDomain{
 					Domain:   d.Name,
-					Upstream: upstream,
-					Enabled:  d.Enabled && r.Enabled,
+					Upstream: extractUpstream(d.Rule),
+					Enabled:  d.Enabled,
 				})
+			}
+			for _, p := range d.Paths {
+				routes = append(routes, caddy.ReviewDomain{
+					Domain:   d.Name,
+					Upstream: extractUpstream(p.Rule),
+					Enabled:  d.Enabled && p.Enabled,
+				})
+			}
+			for _, s := range d.Subdomains {
+				host := s.Name + "." + d.Name
+				if s.Rule.HandlerType != "" && s.Rule.HandlerType != "none" {
+					routes = append(routes, caddy.ReviewDomain{
+						Domain:   host,
+						Upstream: extractUpstream(s.Rule),
+						Enabled:  d.Enabled && s.Enabled,
+					})
+				}
+				for _, p := range s.Paths {
+					routes = append(routes, caddy.ReviewDomain{
+						Domain:   host,
+						Upstream: extractUpstream(p.Rule),
+						Enabled:  d.Enabled && s.Enabled && p.Enabled,
+					})
+				}
 			}
 		}
 

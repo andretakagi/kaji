@@ -63,6 +63,10 @@ func GenerateSubdomainID() string {
 	return generateOpaqueID("sub_")
 }
 
+func GeneratePathID() string {
+	return generateOpaqueID("path_")
+}
+
 func CaddyDomainID(ruleID string) string {
 	return "kaji_" + ruleID
 }

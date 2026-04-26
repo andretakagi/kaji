@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -24,11 +23,10 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 	return func(w http.ResponseWriter, r *http.Request) {
 		domainID := r.PathValue("id")
 		var req struct {
-			Name            string               `json:"name"`
-			HandlerType     string               `json:"handler_type"`
-			HandlerConfig   json.RawMessage      `json:"handler_config"`
-			Toggles         *caddy.DomainToggles `json:"toggles"`
-			AdvancedHeaders bool                 `json:"advanced_headers"`
+			Name    string               `json:"name"`
+			Toggles *caddy.DomainToggles `json:"toggles"`
+			Rule    updateRuleRequest    `json:"rule"`
+			Paths   []pathRequest        `json:"paths"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -40,32 +38,8 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			return
 		}
 
-		if msg := validateSubdomainHandlerType(req.HandlerType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
+		if !validateRuleHandler(w, req.Rule.HandlerType, req.Rule.HandlerConfig) {
 			return
-		}
-
-		if req.HandlerType != "none" {
-			if req.HandlerType == "reverse_proxy" {
-				if !validateReverseProxyConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
-			if req.HandlerType == "static_response" {
-				if !validateStaticResponseConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
-			if req.HandlerType == "redirect" {
-				if !validateRedirectConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
-			if req.HandlerType == "file_server" {
-				if !validateFileServerConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
 		}
 
 		cfg := store.Get()
@@ -99,15 +73,25 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			}
 		}
 
+		paths := make([]config.Path, len(req.Paths))
+		for i, p := range req.Paths {
+			if !validatePathRequest(w, &p, "path: ") {
+				return
+			}
+			paths[i] = pathFromRequest(p)
+		}
+
 		sub := config.Subdomain{
-			ID:              caddy.GenerateSubdomainID(),
-			Name:            name,
-			Enabled:         true,
-			HandlerType:     req.HandlerType,
-			HandlerConfig:   req.HandlerConfig,
-			Toggles:         toggles,
-			AdvancedHeaders: req.AdvancedHeaders,
-			Rules:           []config.Rule{},
+			ID:      caddy.GenerateSubdomainID(),
+			Name:    name,
+			Enabled: true,
+			Toggles: toggles,
+			Rule: config.Rule{
+				HandlerType:     req.Rule.HandlerType,
+				HandlerConfig:   req.Rule.HandlerConfig,
+				AdvancedHeaders: req.Rule.AdvancedHeaders,
+			},
+			Paths: paths,
 		}
 
 		maybeAutoSnapshot(cc, ss, store, version, "Subdomain created: "+name+"."+dom.Name)
@@ -140,11 +124,9 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 		domainID := r.PathValue("id")
 		subID := r.PathValue("subId")
 		var req struct {
-			Name            string              `json:"name"`
-			HandlerType     string              `json:"handler_type"`
-			HandlerConfig   json.RawMessage     `json:"handler_config"`
-			Toggles         caddy.DomainToggles `json:"toggles"`
-			AdvancedHeaders bool                `json:"advanced_headers"`
+			Name    string              `json:"name"`
+			Enabled *bool               `json:"enabled"`
+			Toggles caddy.DomainToggles `json:"toggles"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -154,34 +136,6 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 		if msg := validateSubdomainName(name); msg != "" {
 			writeError(w, msg, http.StatusBadRequest)
 			return
-		}
-
-		if msg := validateSubdomainHandlerType(req.HandlerType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-
-		if req.HandlerType != "none" {
-			if req.HandlerType == "reverse_proxy" {
-				if !validateReverseProxyConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
-			if req.HandlerType == "static_response" {
-				if !validateStaticResponseConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
-			if req.HandlerType == "redirect" {
-				if !validateRedirectConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
-			if req.HandlerType == "file_server" {
-				if !validateFileServerConfig(w, req.HandlerConfig) {
-					return
-				}
-			}
 		}
 
 		if req.Toggles.BasicAuth.Enabled {
@@ -220,10 +174,10 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 				}
 			}
 			s.Name = name
-			s.HandlerType = req.HandlerType
-			s.HandlerConfig = req.HandlerConfig
 			s.Toggles = req.Toggles
-			s.AdvancedHeaders = req.AdvancedHeaders
+			if req.Enabled != nil {
+				s.Enabled = *req.Enabled
+			}
 			return &c, nil
 		})
 		if writeMutateError(w, "handleUpdateSubdomain", err, "subdomain not found", "failed to update subdomain") {
@@ -330,205 +284,19 @@ func subdomainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *sna
 	}
 }
 
-func handleCreateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		subID := r.PathValue("subId")
-		var req struct {
-			Label           string               `json:"label"`
-			MatchType       string               `json:"match_type"`
-			PathMatch       string               `json:"path_match"`
-			MatchValue      string               `json:"match_value"`
-			HandlerType     string               `json:"handler_type"`
-			HandlerConfig   json.RawMessage      `json:"handler_config"`
-			ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides"`
-			AdvancedHeaders bool                 `json:"advanced_headers"`
-		}
-		if !decodeBody(w, r, &req) {
-			return
-		}
-		if msg := validateMatchType(req.MatchType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if req.MatchType != "path" {
-			writeError(w, "subdomain rules must have match_type path", http.StatusBadRequest)
-			return
-		}
-		if msg := validatePathMatch(req.PathMatch); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if msg := validateHandlerType(req.HandlerType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if req.HandlerType == "reverse_proxy" {
-			if !validateReverseProxyConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "static_response" {
-			if !validateStaticResponseConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "redirect" {
-			if !validateRedirectConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "file_server" {
-			if !validateFileServerConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-
-		if req.ToggleOverrides != nil && req.ToggleOverrides.BasicAuth.Enabled {
-			if req.ToggleOverrides.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			if err := hashBasicAuthPassword(&req.ToggleOverrides.BasicAuth, ""); err != nil {
-				log.Printf("handleCreateSubdomainRule: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		cfg := store.Get()
-		dom := findDomain(cfg, domainID)
-		if dom == nil {
-			writeError(w, "domain not found", http.StatusNotFound)
-			return
-		}
-		if findSubdomain(dom, subID) == nil {
-			writeError(w, "subdomain not found", http.StatusNotFound)
-			return
-		}
-
-		rule := config.Rule{
-			ID:              caddy.GenerateRuleID(),
-			Label:           req.Label,
-			Enabled:         true,
-			MatchType:       req.MatchType,
-			PathMatch:       req.PathMatch,
-			MatchValue:      req.MatchValue,
-			HandlerType:     req.HandlerType,
-			HandlerConfig:   req.HandlerConfig,
-			ToggleOverrides: req.ToggleOverrides,
-			AdvancedHeaders: req.AdvancedHeaders,
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule created: "+rule.ID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			d := findDomain(&c, domainID)
-			if d == nil {
-				return nil, errMutationNotFound
-			}
-			s := findSubdomain(d, subID)
-			if s == nil {
-				return nil, errMutationNotFound
-			}
-			s.Rules = append(s.Rules, rule)
-			return &c, nil
-		})
-		if writeMutateError(w, "handleCreateSubdomainRule", err, "subdomain not found", "failed to save rule") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg = store.Get()
-		if d := findDomain(cfg, domainID); d != nil {
-			writeJSON(w, d)
-			return
-		}
-		writeJSON(w, rule)
-	}
-}
-
 func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		domainID := r.PathValue("id")
 		subID := r.PathValue("subId")
-		ruleID := r.PathValue("ruleId")
-		var req struct {
-			Label           string               `json:"label"`
-			MatchType       string               `json:"match_type"`
-			PathMatch       string               `json:"path_match"`
-			MatchValue      string               `json:"match_value"`
-			HandlerType     string               `json:"handler_type"`
-			HandlerConfig   json.RawMessage      `json:"handler_config"`
-			ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides"`
-			AdvancedHeaders bool                 `json:"advanced_headers"`
-		}
+		var req updateRuleRequest
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if msg := validateMatchType(req.MatchType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
+		if !validateRuleHandler(w, req.HandlerType, req.HandlerConfig) {
 			return
-		}
-		if req.MatchType != "path" {
-			writeError(w, "subdomain rules must have match_type path", http.StatusBadRequest)
-			return
-		}
-		if msg := validatePathMatch(req.PathMatch); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if msg := validateHandlerType(req.HandlerType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if req.HandlerType == "reverse_proxy" {
-			if !validateReverseProxyConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "static_response" {
-			if !validateStaticResponseConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "redirect" {
-			if !validateRedirectConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "file_server" {
-			if !validateFileServerConfig(w, req.HandlerConfig) {
-				return
-			}
 		}
 
-		if req.ToggleOverrides != nil && req.ToggleOverrides.BasicAuth.Enabled {
-			if req.ToggleOverrides.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			var fallbackHash string
-			cfg := store.Get()
-			if d := findDomain(cfg, domainID); d != nil {
-				if s := findSubdomain(d, subID); s != nil {
-					for _, rule := range s.Rules {
-						if rule.ID == ruleID && rule.ToggleOverrides != nil {
-							fallbackHash = rule.ToggleOverrides.BasicAuth.PasswordHash
-							break
-						}
-					}
-				}
-			}
-			if err := hashBasicAuthPassword(&req.ToggleOverrides.BasicAuth, fallbackHash); err != nil {
-				log.Printf("handleUpdateSubdomainRule: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule updated: "+ruleID)
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule updated: "+subID)
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
@@ -539,122 +307,14 @@ func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 			if s == nil {
 				return nil, errMutationNotFound
 			}
-			for i := range s.Rules {
-				if s.Rules[i].ID == ruleID {
-					s.Rules[i].Label = req.Label
-					s.Rules[i].MatchType = req.MatchType
-					s.Rules[i].PathMatch = req.PathMatch
-					s.Rules[i].MatchValue = req.MatchValue
-					s.Rules[i].HandlerType = req.HandlerType
-					s.Rules[i].HandlerConfig = req.HandlerConfig
-					s.Rules[i].ToggleOverrides = req.ToggleOverrides
-					s.Rules[i].AdvancedHeaders = req.AdvancedHeaders
-					return &c, nil
-				}
+			s.Rule = config.Rule{
+				HandlerType:     req.HandlerType,
+				HandlerConfig:   req.HandlerConfig,
+				AdvancedHeaders: req.AdvancedHeaders,
 			}
-			return nil, errMutationNotFound
-		})
-		if writeMutateError(w, "handleUpdateSubdomainRule", err, "rule not found", "failed to update rule") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if d := findDomain(cfg, domainID); d != nil {
-			writeJSON(w, d)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
-}
-
-func handleDeleteSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		subID := r.PathValue("subId")
-		ruleID := r.PathValue("ruleId")
-
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule deleted: "+ruleID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			d := findDomain(&c, domainID)
-			if d == nil {
-				return nil, errMutationNotFound
-			}
-			s := findSubdomain(d, subID)
-			if s == nil {
-				return nil, errMutationNotFound
-			}
-			fresh := make([]config.Rule, 0, len(s.Rules))
-			found := false
-			for _, rule := range s.Rules {
-				if rule.ID == ruleID {
-					found = true
-					continue
-				}
-				fresh = append(fresh, rule)
-			}
-			if !found {
-				return nil, errMutationNotFound
-			}
-			s.Rules = fresh
 			return &c, nil
 		})
-		if writeMutateError(w, "handleDeleteSubdomainRule", err, "rule not found", "failed to delete rule") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if d := findDomain(cfg, domainID); d != nil {
-			writeJSON(w, d)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
-}
-
-func handleEnableSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return subdomainRuleToggleHandler(store, cc, ss, version, true)
-}
-
-func handleDisableSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return subdomainRuleToggleHandler(store, cc, ss, version, false)
-}
-
-func subdomainRuleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, enabled bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		subID := r.PathValue("subId")
-		ruleID := r.PathValue("ruleId")
-
-		action := "enabled"
-		if !enabled {
-			action = "disabled"
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule "+action+": "+ruleID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			d := findDomain(&c, domainID)
-			if d == nil {
-				return nil, errMutationNotFound
-			}
-			s := findSubdomain(d, subID)
-			if s == nil {
-				return nil, errMutationNotFound
-			}
-			for i := range s.Rules {
-				if s.Rules[i].ID == ruleID {
-					s.Rules[i].Enabled = enabled
-					return &c, nil
-				}
-			}
-			return nil, errMutationNotFound
-		})
-		if writeMutateError(w, "handleToggleSubdomainRule", err, "rule not found", "failed to update rule") {
+		if writeMutateError(w, "handleUpdateSubdomainRule", err, "subdomain not found", "failed to update rule") {
 			return
 		}
 

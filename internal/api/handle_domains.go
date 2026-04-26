@@ -140,6 +140,36 @@ func findDomain(cfg *config.AppConfig, id string) *config.Domain {
 	return nil
 }
 
+// updateRuleRequest is the shared body shape for setting a Rule on a domain
+// or subdomain. Used by handleUpdateDomainRule, handleUpdateSubdomainRule, and
+// nested inside path requests.
+type updateRuleRequest struct {
+	HandlerType     string          `json:"handler_type"`
+	HandlerConfig   json.RawMessage `json:"handler_config"`
+	AdvancedHeaders bool            `json:"advanced_headers"`
+}
+
+// validateRuleHandler enforces handler_type ∈ {none, reverse_proxy, redirect,
+// file_server, static_response} and validates handler_config when the type
+// requires one. Writes a 400 and returns false on failure.
+func validateRuleHandler(w http.ResponseWriter, handlerType string, handlerConfig json.RawMessage) bool {
+	switch handlerType {
+	case "none":
+		return true
+	case "reverse_proxy":
+		return validateReverseProxyConfig(w, handlerConfig)
+	case "static_response":
+		return validateStaticResponseConfig(w, handlerConfig)
+	case "redirect":
+		return validateRedirectConfig(w, handlerConfig)
+	case "file_server":
+		return validateFileServerConfig(w, handlerConfig)
+	default:
+		writeError(w, fmt.Sprintf("unknown handler type: %s", handlerType), http.StatusBadRequest)
+		return false
+	}
+}
+
 func handleListDomains(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
@@ -169,16 +199,8 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 		var req struct {
 			Name    string              `json:"name"`
 			Toggles caddy.DomainToggles `json:"toggles"`
-			Rules   []struct {
-				Label           string               `json:"label"`
-				MatchType       string               `json:"match_type"`
-				PathMatch       string               `json:"path_match"`
-				MatchValue      string               `json:"match_value"`
-				HandlerType     string               `json:"handler_type"`
-				HandlerConfig   json.RawMessage      `json:"handler_config"`
-				ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides"`
-				AdvancedHeaders bool                 `json:"advanced_headers"`
-			} `json:"rules"`
+			Rule    updateRuleRequest   `json:"rule"`
+			Paths   []pathRequest       `json:"paths"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -208,86 +230,30 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			}
 		}
 
-		hasRoot := false
-		for i, rule := range req.Rules {
-			if msg := validateMatchType(rule.MatchType); msg != "" {
-				writeError(w, fmt.Sprintf("rule %d: %s", i+1, msg), http.StatusBadRequest)
-				return
-			}
-			if msg := validateHandlerType(rule.HandlerType); msg != "" {
-				writeError(w, fmt.Sprintf("rule %d: %s", i+1, msg), http.StatusBadRequest)
-				return
-			}
-			if rule.MatchType == "path" {
-				if msg := validatePathMatch(rule.PathMatch); msg != "" {
-					writeError(w, fmt.Sprintf("rule %d: %s", i+1, msg), http.StatusBadRequest)
-					return
-				}
-			}
-			if rule.HandlerType == "reverse_proxy" {
-				if !validateReverseProxyConfig(w, rule.HandlerConfig) {
-					return
-				}
-			}
-			if rule.HandlerType == "static_response" {
-				if !validateStaticResponseConfig(w, rule.HandlerConfig) {
-					return
-				}
-			}
-			if rule.HandlerType == "redirect" {
-				if !validateRedirectConfig(w, rule.HandlerConfig) {
-					return
-				}
-			}
-			if rule.HandlerType == "file_server" {
-				if !validateFileServerConfig(w, rule.HandlerConfig) {
-					return
-				}
-			}
-			if rule.MatchType == "" {
-				if hasRoot {
-					writeError(w, "only one root rule is allowed", http.StatusBadRequest)
-					return
-				}
-				hasRoot = true
-			}
-			if rule.ToggleOverrides != nil && rule.ToggleOverrides.BasicAuth.Enabled {
-				if rule.ToggleOverrides.BasicAuth.Username == "" {
-					writeError(w, fmt.Sprintf("rule %d: username is required for basic auth", i+1), http.StatusBadRequest)
-					return
-				}
-				if err := hashBasicAuthPassword(&rule.ToggleOverrides.BasicAuth, ""); err != nil {
-					log.Printf("handleCreateDomainFull: hash rule password: %v", err)
-					writeError(w, "failed to hash password", http.StatusInternalServerError)
-					return
-				}
-			}
+		if !validateRuleHandler(w, req.Rule.HandlerType, req.Rule.HandlerConfig) {
+			return
 		}
 
-		domainID := caddy.GenerateDomainID()
-		rules := make([]config.Rule, len(req.Rules))
-		for i, rule := range req.Rules {
-			rules[i] = config.Rule{
-				ID:              caddy.GenerateRuleID(),
-				Label:           rule.Label,
-				Enabled:         true,
-				MatchType:       rule.MatchType,
-				PathMatch:       rule.PathMatch,
-				MatchValue:      rule.MatchValue,
-				HandlerType:     rule.HandlerType,
-				HandlerConfig:   rule.HandlerConfig,
-				ToggleOverrides: rule.ToggleOverrides,
-				AdvancedHeaders: rule.AdvancedHeaders,
+		paths := make([]config.Path, len(req.Paths))
+		for i, p := range req.Paths {
+			if !validatePathRequest(w, &p, fmt.Sprintf("path %d: ", i+1)) {
+				return
 			}
+			paths[i] = pathFromRequest(p)
 		}
 
 		domain := config.Domain{
-			ID:         domainID,
-			Name:       req.Name,
-			Enabled:    true,
-			Toggles:    req.Toggles,
-			Rules:      rules,
+			ID:      caddy.GenerateDomainID(),
+			Name:    req.Name,
+			Enabled: true,
+			Toggles: req.Toggles,
+			Rule: config.Rule{
+				HandlerType:     req.Rule.HandlerType,
+				HandlerConfig:   req.Rule.HandlerConfig,
+				AdvancedHeaders: req.Rule.AdvancedHeaders,
+			},
 			Subdomains: []config.Subdomain{},
+			Paths:      paths,
 		}
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain created: "+req.Name)
@@ -439,314 +405,32 @@ func domainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapsh
 	}
 }
 
-func handleCreateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+func handleUpdateDomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		domainID := r.PathValue("id")
-		var req struct {
-			Label           string               `json:"label"`
-			MatchType       string               `json:"match_type"`
-			PathMatch       string               `json:"path_match"`
-			MatchValue      string               `json:"match_value"`
-			HandlerType     string               `json:"handler_type"`
-			HandlerConfig   json.RawMessage      `json:"handler_config"`
-			ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides"`
-			AdvancedHeaders bool                 `json:"advanced_headers"`
-		}
+		var req updateRuleRequest
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if msg := validateMatchType(req.MatchType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
+		if !validateRuleHandler(w, req.HandlerType, req.HandlerConfig) {
 			return
 		}
-		if msg := validateHandlerType(req.HandlerType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if req.MatchType == "path" {
-			if msg := validatePathMatch(req.PathMatch); msg != "" {
-				writeError(w, msg, http.StatusBadRequest)
-				return
-			}
-		}
-		if req.HandlerType == "reverse_proxy" {
-			if !validateReverseProxyConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "static_response" {
-			if !validateStaticResponseConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "redirect" {
-			if !validateRedirectConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "file_server" {
-			if !validateFileServerConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
 
-		if req.ToggleOverrides != nil && req.ToggleOverrides.BasicAuth.Enabled {
-			if req.ToggleOverrides.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			if err := hashBasicAuthPassword(&req.ToggleOverrides.BasicAuth, ""); err != nil {
-				log.Printf("handleCreateRule: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		cfg := store.Get()
-		dom := findDomain(cfg, domainID)
-		if dom == nil {
-			writeError(w, "domain not found", http.StatusNotFound)
-			return
-		}
-		if req.MatchType == "" {
-			for _, r := range dom.Rules {
-				if r.MatchType == "" {
-					writeError(w, "a root rule already exists for this domain", http.StatusConflict)
-					return
-				}
-			}
-		}
-
-		ruleID := caddy.GenerateRuleID()
-		rule := config.Rule{
-			ID:              ruleID,
-			Label:           req.Label,
-			Enabled:         true,
-			MatchType:       req.MatchType,
-			PathMatch:       req.PathMatch,
-			MatchValue:      req.MatchValue,
-			HandlerType:     req.HandlerType,
-			HandlerConfig:   req.HandlerConfig,
-			ToggleOverrides: req.ToggleOverrides,
-			AdvancedHeaders: req.AdvancedHeaders,
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Rule created: "+ruleID)
+		maybeAutoSnapshot(cc, ss, store, version, "Domain rule updated: "+domainID)
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, domainID)
 			if dom == nil {
 				return nil, errMutationNotFound
 			}
-			dom.Rules = append(dom.Rules, rule)
+			dom.Rule = config.Rule{
+				HandlerType:     req.HandlerType,
+				HandlerConfig:   req.HandlerConfig,
+				AdvancedHeaders: req.AdvancedHeaders,
+			}
 			return &c, nil
 		})
-		if writeMutateError(w, "handleCreateRule", err, "domain not found", "failed to save rule") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg = store.Get()
-		if dom := findDomain(cfg, domainID); dom != nil {
-			writeJSON(w, dom)
-			return
-		}
-		writeJSON(w, rule)
-	}
-}
-
-func handleUpdateRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		ruleID := r.PathValue("ruleId")
-		var req struct {
-			Label           string               `json:"label"`
-			MatchType       string               `json:"match_type"`
-			PathMatch       string               `json:"path_match"`
-			MatchValue      string               `json:"match_value"`
-			HandlerType     string               `json:"handler_type"`
-			HandlerConfig   json.RawMessage      `json:"handler_config"`
-			ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides"`
-			AdvancedHeaders bool                 `json:"advanced_headers"`
-		}
-		if !decodeBody(w, r, &req) {
-			return
-		}
-		if msg := validateMatchType(req.MatchType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if msg := validateHandlerType(req.HandlerType); msg != "" {
-			writeError(w, msg, http.StatusBadRequest)
-			return
-		}
-		if req.MatchType == "path" {
-			if msg := validatePathMatch(req.PathMatch); msg != "" {
-				writeError(w, msg, http.StatusBadRequest)
-				return
-			}
-		}
-		if req.HandlerType == "reverse_proxy" {
-			if !validateReverseProxyConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "static_response" {
-			if !validateStaticResponseConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "redirect" {
-			if !validateRedirectConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-		if req.HandlerType == "file_server" {
-			if !validateFileServerConfig(w, req.HandlerConfig) {
-				return
-			}
-		}
-
-		if req.ToggleOverrides != nil && req.ToggleOverrides.BasicAuth.Enabled {
-			if req.ToggleOverrides.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			var fallbackHash string
-			cfg := store.Get()
-			if dom := findDomain(cfg, domainID); dom != nil {
-				for _, r := range dom.Rules {
-					if r.ID == ruleID && r.ToggleOverrides != nil {
-						fallbackHash = r.ToggleOverrides.BasicAuth.PasswordHash
-						break
-					}
-				}
-			}
-			if err := hashBasicAuthPassword(&req.ToggleOverrides.BasicAuth, fallbackHash); err != nil {
-				log.Printf("handleUpdateRule: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Rule updated: "+ruleID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, domainID)
-			if dom == nil {
-				return nil, errMutationNotFound
-			}
-			for i := range dom.Rules {
-				if dom.Rules[i].ID == ruleID {
-					dom.Rules[i].Label = req.Label
-					dom.Rules[i].MatchType = req.MatchType
-					dom.Rules[i].PathMatch = req.PathMatch
-					dom.Rules[i].MatchValue = req.MatchValue
-					dom.Rules[i].HandlerType = req.HandlerType
-					dom.Rules[i].HandlerConfig = req.HandlerConfig
-					dom.Rules[i].ToggleOverrides = req.ToggleOverrides
-					dom.Rules[i].AdvancedHeaders = req.AdvancedHeaders
-					return &c, nil
-				}
-			}
-			return nil, errMutationNotFound
-		})
-		if writeMutateError(w, "handleUpdateRule", err, "rule not found", "failed to update rule") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if dom := findDomain(cfg, domainID); dom != nil {
-			for _, r := range dom.Rules {
-				if r.ID == ruleID {
-					writeJSON(w, r)
-					return
-				}
-			}
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
-}
-
-func handleDeleteRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		ruleID := r.PathValue("ruleId")
-
-		maybeAutoSnapshot(cc, ss, store, version, "Rule deleted: "+ruleID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, domainID)
-			if dom == nil {
-				return nil, errMutationNotFound
-			}
-			fresh := make([]config.Rule, 0, len(dom.Rules))
-			found := false
-			for _, rule := range dom.Rules {
-				if rule.ID == ruleID {
-					found = true
-					continue
-				}
-				fresh = append(fresh, rule)
-			}
-			if !found {
-				return nil, errMutationNotFound
-			}
-			dom.Rules = fresh
-			return &c, nil
-		})
-		if writeMutateError(w, "handleDeleteRule", err, "rule not found", "failed to delete rule") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if dom := findDomain(cfg, domainID); dom != nil {
-			writeJSON(w, dom)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
-}
-
-func handleEnableRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return ruleToggleHandler(store, cc, ss, version, true)
-}
-
-func handleDisableRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return ruleToggleHandler(store, cc, ss, version, false)
-}
-
-func ruleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, enabled bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		ruleID := r.PathValue("ruleId")
-
-		action := "enabled"
-		if !enabled {
-			action = "disabled"
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Rule "+action+": "+ruleID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, domainID)
-			if dom == nil {
-				return nil, errMutationNotFound
-			}
-			for i := range dom.Rules {
-				if dom.Rules[i].ID == ruleID {
-					dom.Rules[i].Enabled = enabled
-					return &c, nil
-				}
-			}
-			return nil, errMutationNotFound
-		})
-		if writeMutateError(w, "handleToggleRule", err, "rule not found", "failed to update rule") {
+		if writeMutateError(w, "handleUpdateDomainRule", err, "domain not found", "failed to update rule") {
 			return
 		}
 
