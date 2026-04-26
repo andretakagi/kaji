@@ -265,7 +265,6 @@ export default function DomainCard({
 			<section className="domain-detail-section">
 				<SectionHeader title="Paths" />
 				<PathGroup
-					header={domain.name}
 					domainName={domain.name}
 					paths={domain.paths}
 					parentToggles={domain.toggles}
@@ -275,30 +274,12 @@ export default function DomainCard({
 					onToggle={handleToggleDomainPath}
 					saving={isSaving}
 				/>
-				{domain.subdomains.map((sub) => {
-					const fullHost = `${sub.name}.${domain.name}`;
-					return (
-						<PathGroup
-							key={sub.id}
-							header={fullHost}
-							domainName={fullHost}
-							paths={sub.paths}
-							parentToggles={sub.toggles}
-							onCreate={(req) => handleCreateSubdomainPath(sub.id, req)}
-							onUpdate={(pid, req) => handleUpdateSubdomainPath(sub.id, pid, req)}
-							onDelete={(pid) => handleDeleteSubdomainPath(sub.id, pid)}
-							onToggle={(pid, enabled) => handleToggleSubdomainPath(sub.id, pid, enabled)}
-							saving={isSaving}
-						/>
-					);
-				})}
 			</section>
 		</CollapsibleCard>
 	);
 }
 
 interface PathGroupProps {
-	header: string;
 	domainName: string;
 	paths: Path[];
 	parentToggles: DomainToggles;
@@ -310,7 +291,6 @@ interface PathGroupProps {
 }
 
 function PathGroup({
-	header,
 	domainName,
 	paths,
 	parentToggles,
@@ -324,7 +304,6 @@ function PathGroup({
 
 	return (
 		<div className="path-group">
-			<h4 className="path-group-header">{header}</h4>
 			{paths.length === 0 && !adding ? (
 				<div className="empty-state">No paths.</div>
 			) : (
