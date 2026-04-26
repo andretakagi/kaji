@@ -5,6 +5,7 @@ import type {
 	FileServerConfig,
 	Path,
 	ReverseProxyConfig,
+	RuleHandlerType,
 	StaticResponseConfig,
 	UpdatePathRequest,
 } from "../types/domain";
@@ -25,7 +26,7 @@ interface PathCardProps {
 	saving: boolean;
 }
 
-const handlerLabels: Record<string, string> = {
+const handlerLabels: Record<RuleHandlerType, string> = {
 	reverse_proxy: "Reverse Proxy",
 	redirect: "Redirect",
 	file_server: "File Server",
@@ -76,7 +77,7 @@ export default function PathCard({
 		<>
 			<Toggle
 				value={path.enabled}
-				onChange={(enabled) => onToggle(enabled)}
+				onChange={onToggle}
 				disabled={saving}
 				title={path.enabled ? "Disable" : "Enable"}
 				aria-label={path.enabled ? "Disable path" : "Enable path"}
