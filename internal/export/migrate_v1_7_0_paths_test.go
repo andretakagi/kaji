@@ -30,8 +30,8 @@ func TestSplitDomainRulesOnlyPathRules(t *testing.T) {
 		},
 	}
 
-	change := splitDomainRules(dom)
-	if change != "split 2 legacy rules into rule + 2 paths" {
+	change := splitDomainRules(dom, "example.com")
+	if change != "split 2 legacy rules into domain rule and 2 paths for example.com" {
 		t.Errorf("change message = %q", change)
 	}
 	if _, exists := dom["rules"]; exists {
@@ -122,8 +122,8 @@ func TestSplitDomainRulesRootPlusPaths(t *testing.T) {
 		},
 	}
 
-	change := splitDomainRules(dom)
-	if change != "split 2 legacy rules into rule + 1 paths" {
+	change := splitDomainRules(dom, "example.com")
+	if change != "split 2 legacy rules into domain rule and 1 path for example.com" {
 		t.Errorf("change message = %q", change)
 	}
 	if _, exists := dom["rules"]; exists {
@@ -163,8 +163,8 @@ func TestSplitDomainRulesNoRules(t *testing.T) {
 		"name": "example.com",
 	}
 
-	change := splitDomainRules(dom)
-	if change != "split 0 legacy rules into rule + 0 paths" {
+	change := splitDomainRules(dom, "example.com")
+	if change != "split 0 legacy rules into domain rule and 0 paths for example.com" {
 		t.Errorf("change message = %q", change)
 	}
 
@@ -195,8 +195,8 @@ func TestLiftSubdomainRuleNoneNoRules(t *testing.T) {
 		"rules":            []any{},
 	}
 
-	change := liftSubdomainRule(sub)
-	if change != "lifted handler into rule, converted 0 rules to paths" {
+	change := liftSubdomainRule(sub, "example.com/api")
+	if change != "lifted handler into subdomain rule and converted 0 rules to paths for example.com/api" {
 		t.Errorf("change message = %q", change)
 	}
 
@@ -255,8 +255,8 @@ func TestLiftSubdomainRuleHandlerPlusPaths(t *testing.T) {
 		},
 	}
 
-	change := liftSubdomainRule(sub)
-	if change != "lifted handler into rule, converted 2 rules to paths" {
+	change := liftSubdomainRule(sub, "example.com/api")
+	if change != "lifted handler into subdomain rule and converted 2 rules to paths for example.com/api" {
 		t.Errorf("change message = %q", change)
 	}
 
@@ -310,6 +310,32 @@ func TestLiftSubdomainRuleHandlerPlusPaths(t *testing.T) {
 	}
 }
 
+func TestLiftSubdomainRuleMissingHandlerFallsBackToNone(t *testing.T) {
+	sub := map[string]any{
+		"name":  "api",
+		"rules": []any{},
+	}
+
+	change := liftSubdomainRule(sub, "example.com/api")
+	if change != "lifted handler into subdomain rule and converted 0 rules to paths for example.com/api" {
+		t.Errorf("change message = %q", change)
+	}
+
+	rule, ok := sub["rule"].(map[string]any)
+	if !ok {
+		t.Fatalf("rule = %T, want map[string]any", sub["rule"])
+	}
+	if rule["handler_type"] != "none" {
+		t.Errorf("rule.handler_type = %v, want none", rule["handler_type"])
+	}
+	if !reflect.DeepEqual(rule["handler_config"], map[string]any{}) {
+		t.Errorf("rule.handler_config = %v, want empty map", rule["handler_config"])
+	}
+	if _, exists := rule["advanced_headers"]; exists {
+		t.Errorf("rule.advanced_headers should not be set, got %v", rule["advanced_headers"])
+	}
+}
+
 func TestMigrateV170PathsTopLevel(t *testing.T) {
 	m := map[string]any{
 		"domains": []any{
@@ -359,10 +385,10 @@ func TestMigrateV170PathsTopLevel(t *testing.T) {
 	if len(changes) != 2 {
 		t.Fatalf("expected 2 changes, got %d: %v", len(changes), changes)
 	}
-	if changes[0] != "example.com: split 2 legacy rules into rule + 1 paths" {
+	if changes[0] != "split 2 legacy rules into domain rule and 1 path for example.com" {
 		t.Errorf("changes[0] = %q", changes[0])
 	}
-	if changes[1] != "example.com/api: lifted handler into rule, converted 1 rules to paths" {
+	if changes[1] != "lifted handler into subdomain rule and converted 1 rule to path for example.com/api" {
 		t.Errorf("changes[1] = %q", changes[1])
 	}
 

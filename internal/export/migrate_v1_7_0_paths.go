@@ -21,9 +21,12 @@ func migrateV170Paths(m map[string]any) []string {
 		if !ok {
 			continue
 		}
-		name, _ := dom["name"].(string)
-		if c := splitDomainRules(dom); c != "" {
-			changes = append(changes, fmt.Sprintf("%s: %s", name, c))
+		domName, _ := dom["name"].(string)
+		if domName == "" {
+			domName, _ = dom["id"].(string)
+		}
+		if c := splitDomainRules(dom, domName); c != "" {
+			changes = append(changes, c)
 		}
 		if subsRaw, ok := dom["subdomains"].([]any); ok {
 			for _, sRaw := range subsRaw {
@@ -31,8 +34,16 @@ func migrateV170Paths(m map[string]any) []string {
 				if !ok {
 					continue
 				}
-				if c := liftSubdomainRule(sub); c != "" {
-					changes = append(changes, fmt.Sprintf("%s/%v: %s", name, sub["name"], c))
+				subName, _ := sub["name"].(string)
+				if subName == "" {
+					subName, _ = sub["id"].(string)
+				}
+				target := subName
+				if domName != "" {
+					target = domName + "/" + subName
+				}
+				if c := liftSubdomainRule(sub, target); c != "" {
+					changes = append(changes, c)
 				}
 			}
 		}
@@ -40,7 +51,7 @@ func migrateV170Paths(m map[string]any) []string {
 	return changes
 }
 
-func splitDomainRules(dom map[string]any) string {
+func splitDomainRules(dom map[string]any, domName string) string {
 	rules, _ := dom["rules"].([]any)
 	var rootRule map[string]any
 	paths := make([]any, 0, len(rules))
@@ -64,14 +75,22 @@ func splitDomainRules(dom map[string]any) string {
 	dom["rule"] = rootRule
 	dom["paths"] = paths
 	delete(dom, "rules")
-	return fmt.Sprintf("split %d legacy rules into rule + %d paths", len(rules), len(paths))
+	return fmt.Sprintf("split %d legacy %s into domain rule and %d %s for %s",
+		len(rules), pluralize(len(rules), "rule", "rules"),
+		len(paths), pluralize(len(paths), "path", "paths"),
+		domName)
 }
 
-func liftSubdomainRule(sub map[string]any) string {
-	sub["rule"] = map[string]any{
-		"handler_type":     sub["handler_type"],
-		"handler_config":   sub["handler_config"],
-		"advanced_headers": sub["advanced_headers"],
+func liftSubdomainRule(sub map[string]any, target string) string {
+	handlerType, _ := sub["handler_type"].(string)
+	if handlerType == "" {
+		sub["rule"] = noneRule()
+	} else {
+		sub["rule"] = map[string]any{
+			"handler_type":     sub["handler_type"],
+			"handler_config":   sub["handler_config"],
+			"advanced_headers": sub["advanced_headers"],
+		}
 	}
 	rules, _ := sub["rules"].([]any)
 	paths := make([]any, 0, len(rules))
@@ -87,7 +106,17 @@ func liftSubdomainRule(sub map[string]any) string {
 	delete(sub, "handler_config")
 	delete(sub, "advanced_headers")
 	delete(sub, "rules")
-	return fmt.Sprintf("lifted handler into rule, converted %d rules to paths", len(rules))
+	return fmt.Sprintf("lifted handler into subdomain rule and converted %d %s to %s for %s",
+		len(rules), pluralize(len(rules), "rule", "rules"),
+		pluralize(len(rules), "path", "paths"),
+		target)
+}
+
+func pluralize(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
 }
 
 func ruleToOwnRule(rule map[string]any) map[string]any {
