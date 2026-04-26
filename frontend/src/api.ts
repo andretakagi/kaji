@@ -20,10 +20,11 @@ import type { CaddyConfig } from "./types/caddy";
 import type { CertInfo } from "./types/certs";
 import type {
 	CreateDomainFullRequest,
-	CreateRuleRequest,
+	CreatePathRequest,
 	CreateSubdomainRequest,
 	Domain,
 	UpdateDomainRequest,
+	UpdatePathRequest,
 	UpdateRuleRequest,
 	UpdateSubdomainRequest,
 } from "./types/domain";
@@ -609,45 +610,53 @@ export function disableDomain(id: string): Promise<Domain> {
 	);
 }
 
-export function createRule(domainId: string, req: CreateRuleRequest): Promise<Domain> {
+export function updateDomainRule(domainId: string, req: UpdateRuleRequest): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/rules`,
-		{ method: "POST", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
-	);
-}
-
-export function updateRule(
-	domainId: string,
-	ruleId: string,
-	req: UpdateRuleRequest,
-): Promise<Domain> {
-	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
+		`/api/domains/${encodeURIComponent(domainId)}/rule`,
 		{ method: "PUT", ...jsonBody(req) },
 		(d) => normalizeDomain(d as Domain),
 	);
 }
 
-export function deleteRule(domainId: string, ruleId: string): Promise<Domain> {
+export function createDomainPath(domainId: string, req: CreatePathRequest): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}`,
+		`/api/domains/${encodeURIComponent(domainId)}/paths`,
+		{ method: "POST", ...jsonBody(req) },
+		(d) => normalizeDomain(d as Domain),
+	);
+}
+
+export function updateDomainPath(
+	domainId: string,
+	pathId: string,
+	req: UpdatePathRequest,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => normalizeDomain(d as Domain),
+	);
+}
+
+export function deleteDomainPath(domainId: string, pathId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}`,
 		{ method: "DELETE" },
 		(d) => normalizeDomain(d as Domain),
 	);
 }
 
-export function enableRule(domainId: string, ruleId: string): Promise<Domain> {
+export function enableDomainPath(domainId: string, pathId: string): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/enable`,
+		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}/enable`,
 		{ method: "POST" },
 		(d) => normalizeDomain(d as Domain),
 	);
 }
 
-export function disableRule(domainId: string, ruleId: string): Promise<Domain> {
+export function disableDomainPath(domainId: string, pathId: string): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/rules/${encodeURIComponent(ruleId)}/disable`,
+		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}/disable`,
 		{ method: "POST" },
 		(d) => normalizeDomain(d as Domain),
 	);
@@ -697,62 +706,74 @@ export function disableSubdomain(domainId: string, subId: string): Promise<Domai
 	);
 }
 
-export function createSubdomainRule(
-	domainId: string,
-	subId: string,
-	req: CreateRuleRequest,
-): Promise<Domain> {
-	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules`,
-		{ method: "POST", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
-	);
-}
-
 export function updateSubdomainRule(
 	domainId: string,
 	subId: string,
-	ruleId: string,
 	req: UpdateRuleRequest,
 ): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}`,
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rule`,
 		{ method: "PUT", ...jsonBody(req) },
 		(d) => normalizeDomain(d as Domain),
 	);
 }
 
-export function deleteSubdomainRule(
+export function createSubdomainPath(
 	domainId: string,
 	subId: string,
-	ruleId: string,
+	req: CreatePathRequest,
 ): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}`,
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths`,
+		{ method: "POST", ...jsonBody(req) },
+		(d) => normalizeDomain(d as Domain),
+	);
+}
+
+export function updateSubdomainPath(
+	domainId: string,
+	subId: string,
+	pathId: string,
+	req: UpdatePathRequest,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}`,
+		{ method: "PUT", ...jsonBody(req) },
+		(d) => normalizeDomain(d as Domain),
+	);
+}
+
+export function deleteSubdomainPath(
+	domainId: string,
+	subId: string,
+	pathId: string,
+): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}`,
 		{ method: "DELETE" },
 		(d) => normalizeDomain(d as Domain),
 	);
 }
 
-export function enableSubdomainRule(
+export function enableSubdomainPath(
 	domainId: string,
 	subId: string,
-	ruleId: string,
+	pathId: string,
 ): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}/enable`,
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}/enable`,
 		{ method: "POST" },
 		(d) => normalizeDomain(d as Domain),
 	);
 }
 
-export function disableSubdomainRule(
+export function disableSubdomainPath(
 	domainId: string,
 	subId: string,
-	ruleId: string,
+	pathId: string,
 ): Promise<Domain> {
 	return request(
-		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rules/${encodeURIComponent(ruleId)}/disable`,
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}/disable`,
 		{ method: "POST" },
 		(d) => normalizeDomain(d as Domain),
 	);
