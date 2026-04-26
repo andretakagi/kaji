@@ -340,30 +340,6 @@ func TestValidateIPListChildren(t *testing.T) {
 	})
 }
 
-func TestValidateMatchType(t *testing.T) {
-	cases := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{"empty", "", ""},
-		{"path", "path", ""},
-		{"subdomain rejected", "subdomain", "invalid match type: subdomain (must be empty or path)"},
-		{"invalid", "host", "invalid match type: host (must be empty or path)"},
-		{"uppercase", "SUBDOMAIN", "invalid match type: SUBDOMAIN (must be empty or path)"},
-		{"partial match", "sub", "invalid match type: sub (must be empty or path)"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := validateMatchType(tc.input)
-			if got != tc.want {
-				t.Errorf("validateMatchType(%q) = %q, want %q", tc.input, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestValidatePathMatch(t *testing.T) {
 	cases := []struct {
 		name  string

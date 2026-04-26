@@ -67,8 +67,8 @@ func GeneratePathID() string {
 	return generateOpaqueID("path_")
 }
 
-func CaddyDomainID(ruleID string) string {
-	return "kaji_" + ruleID
+func CaddyDomainID(id string) string {
+	return "kaji_" + id
 }
 
 // MergeToggles returns the override toggles if non-nil, otherwise the domain defaults.

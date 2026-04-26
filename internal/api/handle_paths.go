@@ -21,12 +21,12 @@ type pathRequest struct {
 }
 
 // validatePathRequest checks that path_match is exact|prefix|regex,
-// match_value is non-empty, the nested rule has a non-"none" handler type,
-// and any rule handler config is valid. Hashes any toggle override password,
-// falling back to fallbackHash so update callers can preserve the existing
-// hash when the client sends the request without retyping the password.
-// errPrefix is prepended to messages so callers can disambiguate which path
-// in a list is invalid.
+// match_value is non-empty, and delegates rule validation to validateRule
+// with allowNone=false (paths must dispatch traffic somewhere). Hashes any
+// toggle override password, falling back to fallbackHash so update callers
+// can preserve the existing hash when the client sends the request without
+// retyping the password. errPrefix is prepended to messages so callers can
+// disambiguate which path in a list is invalid.
 func validatePathRequest(w http.ResponseWriter, p *pathRequest, fallbackHash, errPrefix string) bool {
 	if msg := validatePathMatch(p.PathMatch); msg != "" {
 		writeError(w, errPrefix+msg, http.StatusBadRequest)
@@ -36,11 +36,7 @@ func validatePathRequest(w http.ResponseWriter, p *pathRequest, fallbackHash, er
 		writeError(w, errPrefix+"match_value is required", http.StatusBadRequest)
 		return false
 	}
-	if p.Rule.HandlerType == "none" {
-		writeError(w, errPrefix+"rule handler_type cannot be none", http.StatusBadRequest)
-		return false
-	}
-	if !validateRuleHandler(w, p.Rule.HandlerType, p.Rule.HandlerConfig) {
+	if !validateRule(w, p.Rule, false) {
 		return false
 	}
 	if p.ToggleOverrides != nil && p.ToggleOverrides.BasicAuth.Enabled {

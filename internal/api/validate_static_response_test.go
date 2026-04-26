@@ -5,30 +5,6 @@ import (
 	"testing"
 )
 
-func TestValidateHandlerType(t *testing.T) {
-	cases := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{"reverse_proxy", "reverse_proxy", ""},
-		{"static_response", "static_response", ""},
-		{"redirect", "redirect", ""},
-		{"file_server", "file_server", ""},
-		{"unknown type", "websocket", "unknown handler type: websocket"},
-		{"empty", "", "unknown handler type: "},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := validateHandlerType(tc.input)
-			if got != tc.want {
-				t.Errorf("validateHandlerType(%q) = %q, want %q", tc.input, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestValidateStaticResponseConfig(t *testing.T) {
 	cases := []struct {
 		name    string

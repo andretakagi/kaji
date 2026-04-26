@@ -39,7 +39,7 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			return
 		}
 
-		if !validateRuleHandler(w, req.Rule.HandlerType, req.Rule.HandlerConfig) {
+		if !validateRule(w, req.Rule, true) {
 			return
 		}
 
@@ -293,7 +293,7 @@ func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if !validateRuleHandler(w, req.HandlerType, req.HandlerConfig) {
+		if !validateRule(w, req, true) {
 			return
 		}
 

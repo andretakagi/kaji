@@ -221,15 +221,6 @@ func validateIPListChildren(children []string, parentType string, parentID strin
 	return ""
 }
 
-func validateMatchType(matchType string) string {
-	switch matchType {
-	case "", "path":
-		return ""
-	default:
-		return fmt.Sprintf("invalid match type: %s (must be empty or path)", matchType)
-	}
-}
-
 func validatePathMatch(pathMatch string) string {
 	switch pathMatch {
 	case "exact", "prefix", "regex":
@@ -325,21 +316,32 @@ func validateFileServerConfig(w http.ResponseWriter, raw json.RawMessage) bool {
 	return true
 }
 
-func validateHandlerType(handlerType string) string {
-	switch handlerType {
-	case "reverse_proxy", "static_response", "redirect", "file_server":
-		return ""
-	default:
-		return fmt.Sprintf("unknown handler type: %s", handlerType)
+// validateRule enforces handler_type and validates handler_config. When
+// allowNone is true, handler_type "none" is accepted and handler-config
+// validation is skipped (used by domain and subdomain rules, where "none"
+// means inherit/no-op). When allowNone is false (used by paths, which exist
+// to dispatch traffic), "none" is rejected. Writes a 400 and returns false on
+// failure.
+func validateRule(w http.ResponseWriter, rule updateRuleRequest, allowNone bool) bool {
+	if rule.HandlerType == "none" {
+		if allowNone {
+			return true
+		}
+		writeError(w, "handler_type cannot be none for this resource", http.StatusBadRequest)
+		return false
 	}
-}
-
-func validateSubdomainHandlerType(handlerType string) string {
-	switch handlerType {
-	case "none", "reverse_proxy", "static_response", "redirect", "file_server":
-		return ""
+	switch rule.HandlerType {
+	case "reverse_proxy":
+		return validateReverseProxyConfig(w, rule.HandlerConfig)
+	case "static_response":
+		return validateStaticResponseConfig(w, rule.HandlerConfig)
+	case "redirect":
+		return validateRedirectConfig(w, rule.HandlerConfig)
+	case "file_server":
+		return validateFileServerConfig(w, rule.HandlerConfig)
 	default:
-		return fmt.Sprintf("unknown handler type: %s", handlerType)
+		writeError(w, fmt.Sprintf("unknown handler type: %s", rule.HandlerType), http.StatusBadRequest)
+		return false
 	}
 }
 

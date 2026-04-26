@@ -149,27 +149,6 @@ type updateRuleRequest struct {
 	AdvancedHeaders bool            `json:"advanced_headers"`
 }
 
-// validateRuleHandler enforces handler_type ∈ {none, reverse_proxy, redirect,
-// file_server, static_response} and validates handler_config when the type
-// requires one. Writes a 400 and returns false on failure.
-func validateRuleHandler(w http.ResponseWriter, handlerType string, handlerConfig json.RawMessage) bool {
-	switch handlerType {
-	case "none":
-		return true
-	case "reverse_proxy":
-		return validateReverseProxyConfig(w, handlerConfig)
-	case "static_response":
-		return validateStaticResponseConfig(w, handlerConfig)
-	case "redirect":
-		return validateRedirectConfig(w, handlerConfig)
-	case "file_server":
-		return validateFileServerConfig(w, handlerConfig)
-	default:
-		writeError(w, fmt.Sprintf("unknown handler type: %s", handlerType), http.StatusBadRequest)
-		return false
-	}
-}
-
 func handleListDomains(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()
@@ -230,7 +209,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			}
 		}
 
-		if !validateRuleHandler(w, req.Rule.HandlerType, req.Rule.HandlerConfig) {
+		if !validateRule(w, req.Rule, true) {
 			return
 		}
 
@@ -412,7 +391,7 @@ func handleUpdateDomainRule(store *config.ConfigStore, cc *caddy.Client, ss *sna
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if !validateRuleHandler(w, req.HandlerType, req.HandlerConfig) {
+		if !validateRule(w, req, true) {
 			return
 		}
 
