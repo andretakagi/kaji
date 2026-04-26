@@ -83,7 +83,7 @@ export function useDomain(id: string) {
 			run(async () => {
 				await createDomainPath(id, req);
 				await reload();
-				return "Path created";
+				return "Domain path created";
 			}),
 		[id, run, reload],
 	);
@@ -93,7 +93,7 @@ export function useDomain(id: string) {
 			run(async () => {
 				await updateDomainPath(id, pathId, req);
 				await reload();
-				return "Path updated";
+				return "Domain path updated";
 			}),
 		[id, run, reload],
 	);
@@ -103,7 +103,7 @@ export function useDomain(id: string) {
 			run(async () => {
 				await deleteDomainPath(id, pathId);
 				await reload();
-				return "Path deleted";
+				return "Domain path deleted";
 			}),
 		[id, run, reload],
 	);
@@ -179,7 +179,7 @@ export function useDomain(id: string) {
 			run(async () => {
 				await createSubdomainPath(id, subId, req);
 				await reload();
-				return "Path created";
+				return "Subdomain path created";
 			}),
 		[id, run, reload],
 	);
@@ -189,7 +189,7 @@ export function useDomain(id: string) {
 			run(async () => {
 				await updateSubdomainPath(id, subId, pathId, req);
 				await reload();
-				return "Path updated";
+				return "Subdomain path updated";
 			}),
 		[id, run, reload],
 	);
@@ -199,7 +199,7 @@ export function useDomain(id: string) {
 			run(async () => {
 				await deleteSubdomainPath(id, subId, pathId);
 				await reload();
-				return "Path deleted";
+				return "Subdomain path deleted";
 			}),
 		[id, run, reload],
 	);
