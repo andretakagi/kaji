@@ -2,6 +2,11 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [1.7.0] - 2026-04-25
+
+### Changed
+- Domain routing now follows a clearer model. Each domain and subdomain has a single primary handler, and additional path matchers live alongside it as their own list. Existing configs migrate automatically on upgrade.
+
 ## [1.6.0] - 2026-04-15
 
 ### Added
