@@ -19,36 +19,30 @@ func rpConfig(t *testing.T, upstream string) json.RawMessage {
 func TestBuildDesiredState_EnabledDomains(t *testing.T) {
 	domains := []SyncDomain{
 		{
+			ID:      "rule_aaa",
 			Name:    "example.com",
 			Enabled: true,
 			Toggles: DomainToggles{},
-			Rules: []SyncRule{
-				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_aaa",
-						MatchType:     "",
-						HandlerType:   "reverse_proxy",
-						HandlerConfig: rpConfig(t, "localhost:3000"),
-					},
-					Enabled: true,
-				},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:3000"),
 			},
 		},
 		{
+			ID:      "dom_other",
 			Name:    "other.com",
 			Enabled: true,
 			Toggles: DomainToggles{},
-			Rules: []SyncRule{
+			Paths: []SyncPath{
 				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_bbb",
-						MatchType:     "path",
-						PathMatch:     "prefix",
-						MatchValue:    "/api",
+					ID:         "rule_bbb",
+					Enabled:    true,
+					PathMatch:  "prefix",
+					MatchValue: "/api",
+					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:4000"),
 					},
-					Enabled: true,
 				},
 			},
 		},
@@ -74,33 +68,23 @@ func TestBuildDesiredState_EnabledDomains(t *testing.T) {
 func TestBuildDesiredState_DisabledDomain(t *testing.T) {
 	domains := []SyncDomain{
 		{
+			ID:      "rule_ccc",
 			Name:    "disabled.com",
 			Enabled: false,
 			Toggles: DomainToggles{},
-			Rules: []SyncRule{
-				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_ccc",
-						HandlerType:   "reverse_proxy",
-						HandlerConfig: rpConfig(t, "localhost:5000"),
-					},
-					Enabled: true,
-				},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:5000"),
 			},
 		},
 		{
+			ID:      "rule_ddd",
 			Name:    "enabled.com",
 			Enabled: true,
 			Toggles: DomainToggles{},
-			Rules: []SyncRule{
-				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_ddd",
-						HandlerType:   "reverse_proxy",
-						HandlerConfig: rpConfig(t, "localhost:6000"),
-					},
-					Enabled: true,
-				},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:6000"),
 			},
 		},
 	}
@@ -125,25 +109,24 @@ func TestBuildDesiredState_DisabledDomain(t *testing.T) {
 func TestBuildDesiredState_DisabledRule(t *testing.T) {
 	domains := []SyncDomain{
 		{
+			ID:      "rule_e1",
 			Name:    "example.com",
 			Enabled: true,
 			Toggles: DomainToggles{},
-			Rules: []SyncRule{
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:7000"),
+			},
+			Paths: []SyncPath{
 				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_e1",
-						HandlerType:   "reverse_proxy",
-						HandlerConfig: rpConfig(t, "localhost:7000"),
-					},
-					Enabled: true,
-				},
-				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_e2",
+					ID:         "rule_e2",
+					Enabled:    false,
+					PathMatch:  "prefix",
+					MatchValue: "/disabled",
+					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:7001"),
 					},
-					Enabled: false,
 				},
 			},
 		},
@@ -162,27 +145,30 @@ func TestBuildDesiredState_DisabledRule(t *testing.T) {
 		t.Error("missing enabled rule kaji_rule_e1")
 	}
 	if _, ok := desired["kaji_rule_e2"]; ok {
-		t.Error("disabled rule kaji_rule_e2 should not be in desired state")
+		t.Error("disabled path kaji_rule_e2 should not be in desired state")
 	}
 }
 
 func TestBuildDesiredState_ToggleOverride(t *testing.T) {
 	domains := []SyncDomain{
 		{
+			ID:      "dom_override",
 			Name:    "example.com",
 			Enabled: true,
 			Toggles: DomainToggles{
 				ForceHTTPS:  true,
 				Compression: true,
 			},
-			Rules: []SyncRule{
+			Paths: []SyncPath{
 				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_override",
+					ID:         "rule_override",
+					Enabled:    true,
+					PathMatch:  "prefix",
+					MatchValue: "/app",
+					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:8000"),
 					},
-					Enabled: true,
 					ToggleOverrides: &DomainToggles{
 						ForceHTTPS:  false,
 						Compression: false,
@@ -201,14 +187,11 @@ func TestBuildDesiredState_ToggleOverride(t *testing.T) {
 	route := unmarshalRoute(t, routeJSON)
 	handlers := route["handle"].([]any)
 
-	// With overrides disabling force_https and compression, we should only
-	// see the reverse_proxy handler (plus any default response header handlers)
 	last := handlers[len(handlers)-1].(map[string]any)
 	if last["handler"] != "reverse_proxy" {
 		t.Errorf("last handler = %v, want reverse_proxy", last["handler"])
 	}
 
-	// No subroute (force HTTPS) or encode (compression) handler should be present
 	for _, h := range handlers {
 		hm := h.(map[string]any)
 		if hm["handler"] == "subroute" {
@@ -223,6 +206,7 @@ func TestBuildDesiredState_ToggleOverride(t *testing.T) {
 func TestBuildDesiredState_WithIPList(t *testing.T) {
 	domains := []SyncDomain{
 		{
+			ID:      "rule_ip",
 			Name:    "secure.com",
 			Enabled: true,
 			Toggles: DomainToggles{
@@ -232,15 +216,9 @@ func TestBuildDesiredState_WithIPList(t *testing.T) {
 					Type:    "whitelist",
 				},
 			},
-			Rules: []SyncRule{
-				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_ip",
-						HandlerType:   "reverse_proxy",
-						HandlerConfig: rpConfig(t, "localhost:9000"),
-					},
-					Enabled: true,
-				},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:9000"),
 			},
 		},
 	}
@@ -292,6 +270,72 @@ func TestBuildDesiredState_EmptyDomains(t *testing.T) {
 	}
 	if len(desired) != 0 {
 		t.Errorf("desired count = %d, want 0", len(desired))
+	}
+}
+
+func TestBuildDesiredState_HandlerNoneSkipsRoute(t *testing.T) {
+	domains := []SyncDomain{
+		{
+			ID:      "dom_none",
+			Name:    "noroot.com",
+			Enabled: true,
+			Toggles: DomainToggles{},
+			Rule: SyncRule{
+				HandlerType: "none",
+			},
+			Paths: []SyncPath{
+				{
+					ID:         "rule_kept",
+					Enabled:    true,
+					PathMatch:  "prefix",
+					MatchValue: "/api",
+					Rule: SyncRule{
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: rpConfig(t, "localhost:1234"),
+					},
+				},
+			},
+			Subdomains: []SyncSubdomain{
+				{
+					ID:      "sub_none",
+					Name:    "api",
+					Enabled: true,
+					Toggles: DomainToggles{},
+					Rule: SyncRule{
+						HandlerType: "none",
+					},
+					Paths: []SyncPath{
+						{
+							ID:         "rule_sub_kept",
+							Enabled:    true,
+							PathMatch:  "prefix",
+							MatchValue: "/v1",
+							Rule: SyncRule{
+								HandlerType:   "reverse_proxy",
+								HandlerConfig: rpConfig(t, "localhost:5678"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	desired, err := BuildDesiredState(domains, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := desired["kaji_dom_none"]; ok {
+		t.Error("domain root with HandlerType none must not produce a route")
+	}
+	if _, ok := desired["kaji_sub_none"]; ok {
+		t.Error("subdomain root with HandlerType none must not produce a route")
+	}
+	if _, ok := desired["kaji_rule_kept"]; !ok {
+		t.Error("path under HandlerType-none domain should still produce a route")
+	}
+	if _, ok := desired["kaji_rule_sub_kept"]; !ok {
+		t.Error("path under HandlerType-none subdomain should still produce a route")
 	}
 }
 
@@ -429,16 +473,20 @@ func TestDiffDomains_Mixed(t *testing.T) {
 func TestCollectDisabledIDs_DisabledRules(t *testing.T) {
 	domains := []SyncDomain{
 		{
+			ID:      "rule_on",
 			Name:    "example.com",
 			Enabled: true,
-			Rules: []SyncRule{
+			Rule: SyncRule{
+				HandlerType: "reverse_proxy",
+			},
+			Paths: []SyncPath{
 				{
-					RuleBuildParams: RuleBuildParams{RuleID: "rule_on"},
-					Enabled:         true,
-				},
-				{
-					RuleBuildParams: RuleBuildParams{RuleID: "rule_off"},
-					Enabled:         false,
+					ID:        "rule_off",
+					Enabled:   false,
+					PathMatch: "prefix",
+					Rule: SyncRule{
+						HandlerType: "reverse_proxy",
+					},
 				},
 			},
 		},
@@ -450,34 +498,36 @@ func TestCollectDisabledIDs_DisabledRules(t *testing.T) {
 		t.Error("enabled rule should not be in disabled IDs")
 	}
 	if !ids["kaji_rule_off"] {
-		t.Error("disabled rule should be in disabled IDs")
+		t.Error("disabled path should be in disabled IDs")
 	}
 }
 
 func TestCollectDisabledIDs_DisabledDomain(t *testing.T) {
 	domains := []SyncDomain{
 		{
+			ID:      "rule_under_disabled",
 			Name:    "disabled.com",
 			Enabled: false,
-			Rules: []SyncRule{
+			Rule: SyncRule{
+				HandlerType: "reverse_proxy",
+			},
+			Paths: []SyncPath{
 				{
-					RuleBuildParams: RuleBuildParams{RuleID: "rule_under_disabled"},
-					Enabled:         true,
-				},
-				{
-					RuleBuildParams: RuleBuildParams{RuleID: "rule_also_disabled"},
-					Enabled:         false,
+					ID:        "rule_also_disabled",
+					Enabled:   false,
+					PathMatch: "prefix",
+					Rule: SyncRule{
+						HandlerType: "reverse_proxy",
+					},
 				},
 			},
 		},
 		{
+			ID:      "rule_active",
 			Name:    "enabled.com",
 			Enabled: true,
-			Rules: []SyncRule{
-				{
-					RuleBuildParams: RuleBuildParams{RuleID: "rule_active"},
-					Enabled:         true,
-				},
+			Rule: SyncRule{
+				HandlerType: "reverse_proxy",
 			},
 		},
 	}
@@ -488,42 +538,41 @@ func TestCollectDisabledIDs_DisabledDomain(t *testing.T) {
 		t.Error("rule under disabled domain should be in disabled IDs")
 	}
 	if !ids["kaji_rule_also_disabled"] {
-		t.Error("disabled rule under disabled domain should be in disabled IDs")
+		t.Error("disabled path under disabled domain should be in disabled IDs")
 	}
 	if ids["kaji_rule_active"] {
 		t.Error("enabled rule under enabled domain should not be in disabled IDs")
 	}
 }
 
-func TestSortRules_Priority(t *testing.T) {
-	rules := []SyncRule{
-		{RuleBuildParams: RuleBuildParams{RuleID: "root", MatchType: ""}},
-		{RuleBuildParams: RuleBuildParams{RuleID: "regex", MatchType: "path", PathMatch: "regex"}},
-		{RuleBuildParams: RuleBuildParams{RuleID: "prefix", MatchType: "path", PathMatch: "prefix"}},
-		{RuleBuildParams: RuleBuildParams{RuleID: "exact", MatchType: "path", PathMatch: "exact"}},
+func TestSortPaths_Priority(t *testing.T) {
+	paths := []SyncPath{
+		{ID: "regex", PathMatch: "regex"},
+		{ID: "prefix", PathMatch: "prefix"},
+		{ID: "exact", PathMatch: "exact"},
 	}
 
-	sorted := sortRules(rules)
+	sorted := sortPaths(paths)
 
-	expected := []string{"exact", "prefix", "regex", "root"}
+	expected := []string{"exact", "prefix", "regex"}
 	for i, want := range expected {
-		if sorted[i].RuleID != want {
-			t.Errorf("sorted[%d].RuleID = %q, want %q", i, sorted[i].RuleID, want)
+		if sorted[i].ID != want {
+			t.Errorf("sorted[%d].ID = %q, want %q", i, sorted[i].ID, want)
 		}
 	}
 }
 
-func TestSortRules_StableOrder(t *testing.T) {
-	rules := []SyncRule{
-		{RuleBuildParams: RuleBuildParams{RuleID: "prefix_a", MatchType: "path", PathMatch: "prefix"}},
-		{RuleBuildParams: RuleBuildParams{RuleID: "prefix_b", MatchType: "path", PathMatch: "prefix"}},
-		{RuleBuildParams: RuleBuildParams{RuleID: "prefix_c", MatchType: "path", PathMatch: "prefix"}},
+func TestSortPaths_StableOrder(t *testing.T) {
+	paths := []SyncPath{
+		{ID: "prefix_a", PathMatch: "prefix"},
+		{ID: "prefix_b", PathMatch: "prefix"},
+		{ID: "prefix_c", PathMatch: "prefix"},
 	}
 
-	sorted := sortRules(rules)
+	sorted := sortPaths(paths)
 
-	if sorted[0].RuleID != "prefix_a" || sorted[1].RuleID != "prefix_b" || sorted[2].RuleID != "prefix_c" {
-		t.Errorf("stable sort violated: got %s, %s, %s", sorted[0].RuleID, sorted[1].RuleID, sorted[2].RuleID)
+	if sorted[0].ID != "prefix_a" || sorted[1].ID != "prefix_b" || sorted[2].ID != "prefix_c" {
+		t.Errorf("stable sort violated: got %s, %s, %s", sorted[0].ID, sorted[1].ID, sorted[2].ID)
 	}
 }
 
@@ -679,19 +728,15 @@ func (m *mockCaddyServer) appendRoute(route json.RawMessage) {
 func (m *mockCaddyServer) handler() http.Handler {
 	mux := http.NewServeMux()
 
-	// GET /config/ - return full config
-	// Also handles sub-paths under /config/
 	mux.HandleFunc("/config/", func(w http.ResponseWriter, r *http.Request) {
 		routesPath := "/config/apps/http/servers/srv0/routes"
 
-		// GET /config/ - full config
 		if r.Method == http.MethodGet && r.URL.Path == "/config/" {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(m.buildConfig())
 			return
 		}
 
-		// GET /config/apps/http/servers/srv0/routes - for AddDomain existence check
 		if r.Method == http.MethodGet && r.URL.Path == routesPath {
 			m.mu.Lock()
 			b, _ := json.Marshal(m.routes)
@@ -701,7 +746,6 @@ func (m *mockCaddyServer) handler() http.Handler {
 			return
 		}
 
-		// PATCH /config/apps/http/servers/srv0/routes/{idx} - replace route in place
 		if r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, routesPath+"/") {
 			idxStr := strings.TrimPrefix(r.URL.Path, routesPath+"/")
 			var idx int
@@ -722,7 +766,6 @@ func (m *mockCaddyServer) handler() http.Handler {
 			return
 		}
 
-		// POST /config/apps/http/servers/srv0/routes - append route
 		if r.Method == http.MethodPost && r.URL.Path == routesPath {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -734,7 +777,6 @@ func (m *mockCaddyServer) handler() http.Handler {
 			return
 		}
 
-		// Access log and logging config paths - return 200
 		if strings.Contains(r.URL.Path, "/logs/") || strings.Contains(r.URL.Path, "/logging/") {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -743,7 +785,6 @@ func (m *mockCaddyServer) handler() http.Handler {
 		http.NotFound(w, r)
 	})
 
-	// DELETE /id/{id} - delete route by ID
 	mux.HandleFunc("/id/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -793,21 +834,16 @@ func kajiRoute(t *testing.T, id, upstream string) json.RawMessage {
 	return json.RawMessage(b)
 }
 
-// syncDomain builds a minimal SyncDomain with a single enabled rule.
+// syncDomain builds a minimal SyncDomain whose root rule is a reverse proxy.
 func syncDomain(ruleID, upstream string) SyncDomain {
 	return SyncDomain{
+		ID:      ruleID,
 		Name:    ruleID + ".example.com",
 		Enabled: true,
 		Toggles: DomainToggles{},
-		Rules: []SyncRule{
-			{
-				RuleBuildParams: RuleBuildParams{
-					RuleID:        ruleID,
-					HandlerType:   "reverse_proxy",
-					HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: upstream}),
-				},
-				Enabled: true,
-			},
+		Rule: SyncRule{
+			HandlerType:   "reverse_proxy",
+			HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: upstream}),
 		},
 	}
 }
@@ -1005,30 +1041,28 @@ func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
 
 	domains := []SyncDomain{
 		{
+			ID:      "rule_dis_dom",
 			Name:    "dis_dom.example.com",
 			Enabled: false,
-			Rules: []SyncRule{
-				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_dis_dom",
-						HandlerType:   "reverse_proxy",
-						HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:7001"}),
-					},
-					Enabled: true,
-				},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:7001"}),
 			},
 		},
 		{
+			ID:      "dom_dis_rule",
 			Name:    "dis_rule.example.com",
 			Enabled: true,
-			Rules: []SyncRule{
+			Paths: []SyncPath{
 				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_dis_rule",
+					ID:         "rule_dis_rule",
+					Enabled:    false,
+					PathMatch:  "prefix",
+					MatchValue: "/api",
+					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:7002"}),
 					},
-					Enabled: false,
 				},
 			},
 		},
@@ -1050,7 +1084,7 @@ func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
 		t.Error("kaji_rule_dis_dom should not be deleted (disabled domain)")
 	}
 	if _, ok := got["kaji_rule_dis_rule"]; !ok {
-		t.Error("kaji_rule_dis_rule should not be deleted (disabled rule)")
+		t.Error("kaji_rule_dis_rule should not be deleted (disabled path)")
 	}
 }
 
@@ -1060,6 +1094,7 @@ func TestSyncDomains_ErrorOnIPListResolutionFailure(t *testing.T) {
 
 	domains := []SyncDomain{
 		{
+			ID:      "rule_secure",
 			Name:    "secure.example.com",
 			Enabled: true,
 			Toggles: DomainToggles{
@@ -1069,15 +1104,9 @@ func TestSyncDomains_ErrorOnIPListResolutionFailure(t *testing.T) {
 					Type:    "whitelist",
 				},
 			},
-			Rules: []SyncRule{
-				{
-					RuleBuildParams: RuleBuildParams{
-						RuleID:        "rule_secure",
-						HandlerType:   "reverse_proxy",
-						HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:5000"}),
-					},
-					Enabled: true,
-				},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:5000"}),
 			},
 		},
 	}

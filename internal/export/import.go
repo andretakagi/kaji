@@ -343,62 +343,61 @@ func restoreSnapshots(ss *snapshot.Store, data *SnapshotData) error {
 func ToSyncDomains(domains []config.Domain) []caddy.SyncDomain {
 	result := make([]caddy.SyncDomain, len(domains))
 	for i, d := range domains {
-		rules := make([]caddy.SyncRule, len(d.Rules))
-		for j, r := range d.Rules {
-			rules[j] = caddy.SyncRule{
-				RuleBuildParams: caddy.RuleBuildParams{
-					RuleID:          r.ID,
-					MatchType:       r.MatchType,
-					PathMatch:       r.PathMatch,
-					MatchValue:      r.MatchValue,
-					HandlerType:     r.HandlerType,
-					HandlerConfig:   r.HandlerConfig,
-					AdvancedHeaders: r.AdvancedHeaders,
-				},
-				Enabled:         r.Enabled,
-				ToggleOverrides: r.ToggleOverrides,
-			}
-		}
-
-		var subs []caddy.SyncSubdomain
-		for _, s := range d.Subdomains {
-			subRules := make([]caddy.SyncRule, len(s.Rules))
-			for j, r := range s.Rules {
-				subRules[j] = caddy.SyncRule{
-					RuleBuildParams: caddy.RuleBuildParams{
-						RuleID:          r.ID,
-						MatchType:       r.MatchType,
-						PathMatch:       r.PathMatch,
-						MatchValue:      r.MatchValue,
-						HandlerType:     r.HandlerType,
-						HandlerConfig:   r.HandlerConfig,
-						AdvancedHeaders: r.AdvancedHeaders,
-					},
-					Enabled:         r.Enabled,
-					ToggleOverrides: r.ToggleOverrides,
-				}
-			}
-			subs = append(subs, caddy.SyncSubdomain{
-				ID:              s.ID,
-				Name:            s.Name,
-				Enabled:         s.Enabled,
-				HandlerType:     s.HandlerType,
-				HandlerConfig:   s.HandlerConfig,
-				Toggles:         s.Toggles,
-				AdvancedHeaders: s.AdvancedHeaders,
-				Rules:           subRules,
-			})
-		}
-
 		result[i] = caddy.SyncDomain{
+			ID:         d.ID,
 			Name:       d.Name,
 			Enabled:    d.Enabled,
 			Toggles:    d.Toggles,
-			Rules:      rules,
-			Subdomains: subs,
+			Rule:       toSyncRule(d.Rule),
+			Subdomains: toSyncSubdomains(d.Subdomains),
+			Paths:      toSyncPaths(d.Paths),
 		}
 	}
 	return result
+}
+
+func toSyncRule(r config.Rule) caddy.SyncRule {
+	return caddy.SyncRule{
+		HandlerType:     r.HandlerType,
+		HandlerConfig:   r.HandlerConfig,
+		AdvancedHeaders: r.AdvancedHeaders,
+	}
+}
+
+func toSyncPaths(paths []config.Path) []caddy.SyncPath {
+	if len(paths) == 0 {
+		return nil
+	}
+	out := make([]caddy.SyncPath, len(paths))
+	for i, p := range paths {
+		out[i] = caddy.SyncPath{
+			ID:              p.ID,
+			Enabled:         p.Enabled,
+			PathMatch:       p.PathMatch,
+			MatchValue:      p.MatchValue,
+			Rule:            toSyncRule(p.Rule),
+			ToggleOverrides: p.ToggleOverrides,
+		}
+	}
+	return out
+}
+
+func toSyncSubdomains(subs []config.Subdomain) []caddy.SyncSubdomain {
+	if len(subs) == 0 {
+		return nil
+	}
+	out := make([]caddy.SyncSubdomain, len(subs))
+	for i, s := range subs {
+		out[i] = caddy.SyncSubdomain{
+			ID:      s.ID,
+			Name:    s.Name,
+			Enabled: s.Enabled,
+			Toggles: s.Toggles,
+			Rule:    toSyncRule(s.Rule),
+			Paths:   toSyncPaths(s.Paths),
+		}
+	}
+	return out
 }
 
 func ResolveIPsFromConfig(cfg *config.AppConfig) func(string) ([]string, string, error) {

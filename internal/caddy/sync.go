@@ -7,29 +7,38 @@ import (
 	"strings"
 )
 
-type SyncDomain struct {
-	Name       string
-	Enabled    bool
-	Toggles    DomainToggles
-	Rules      []SyncRule
-	Subdomains []SyncSubdomain
+type SyncRule struct {
+	HandlerType     string
+	HandlerConfig   json.RawMessage
+	AdvancedHeaders bool
+}
+
+type SyncPath struct {
+	ID              string
+	Enabled         bool
+	PathMatch       string
+	MatchValue      string
+	Rule            SyncRule
+	ToggleOverrides *DomainToggles
 }
 
 type SyncSubdomain struct {
-	ID              string
-	Name            string
-	Enabled         bool
-	HandlerType     string
-	HandlerConfig   json.RawMessage
-	Toggles         DomainToggles
-	AdvancedHeaders bool
-	Rules           []SyncRule
+	ID      string
+	Name    string
+	Enabled bool
+	Toggles DomainToggles
+	Rule    SyncRule
+	Paths   []SyncPath
 }
 
-type SyncRule struct {
-	RuleBuildParams
-	Enabled         bool
-	ToggleOverrides *DomainToggles
+type SyncDomain struct {
+	ID         string
+	Name       string
+	Enabled    bool
+	Toggles    DomainToggles
+	Rule       SyncRule
+	Subdomains []SyncSubdomain
+	Paths      []SyncPath
 }
 
 type SyncResult struct {
@@ -38,48 +47,70 @@ type SyncResult struct {
 	Deleted int
 }
 
-// BuildDesiredState generates a map of CaddyDomainID -> domain JSON for all
-// enabled domains and enabled rules. Disabled domains and rules are skipped.
-// Toggle inheritance is resolved via MergeToggles. IP lists are resolved
-// through the provided callback.
+// BuildDesiredState generates a map of CaddyDomainID -> route JSON for all
+// enabled domains, subdomains, and paths. Disabled entries and entries with
+// HandlerType "none" are skipped. Toggle inheritance is resolved via
+// MergeToggles. IP lists are resolved through the provided callback.
 func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips []string, listType string, err error)) (map[string]json.RawMessage, error) {
 	desired := make(map[string]json.RawMessage)
 
-	_, logSkipRuleIDs := CollectAccessLogState(domains)
+	_, logSkipIDs := CollectAccessLogState(domains)
 
 	for _, dom := range domains {
 		if !dom.Enabled {
 			continue
 		}
 
-		sorted := sortRules(dom.Rules)
+		if dom.Rule.HandlerType != "" && dom.Rule.HandlerType != "none" {
+			params := RuleBuildParams{
+				RuleID:          dom.ID,
+				HandlerType:     dom.Rule.HandlerType,
+				HandlerConfig:   dom.Rule.HandlerConfig,
+				AdvancedHeaders: dom.Rule.AdvancedHeaders,
+			}
 
-		for _, rule := range sorted {
-			if !rule.Enabled {
+			ips, ipType, err := resolveToggleIPs(dom.Toggles, resolveIPs, "domain "+dom.ID)
+			if err != nil {
+				return nil, err
+			}
+
+			caddyID := CaddyDomainID(dom.ID)
+			routeJSON, err := BuildRuleDomain(dom.Name, params, dom.Toggles, ips, ipType, logSkipIDs[caddyID])
+			if err != nil {
+				return nil, fmt.Errorf("building route for domain %s: %w", dom.ID, err)
+			}
+			desired[caddyID] = routeJSON
+		}
+
+		for _, p := range sortPaths(dom.Paths) {
+			if !p.Enabled {
+				continue
+			}
+			if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
 				continue
 			}
 
-			toggles := MergeToggles(dom.Toggles, rule.ToggleOverrides)
-
-			var ipListIPs []string
-			var ipListType string
-			if toggles.IPFiltering.Enabled && toggles.IPFiltering.ListID != "" && resolveIPs != nil {
-				ips, typ, err := resolveIPs(toggles.IPFiltering.ListID)
-				if err != nil {
-					return nil, fmt.Errorf("resolving IP list for rule %s: %w", rule.RuleID, err)
-				}
-				ipListIPs = ips
-				ipListType = typ
+			toggles := MergeToggles(dom.Toggles, p.ToggleOverrides)
+			params := RuleBuildParams{
+				RuleID:          p.ID,
+				MatchType:       "path",
+				PathMatch:       p.PathMatch,
+				MatchValue:      p.MatchValue,
+				HandlerType:     p.Rule.HandlerType,
+				HandlerConfig:   p.Rule.HandlerConfig,
+				AdvancedHeaders: p.Rule.AdvancedHeaders,
 			}
 
-			caddyID := CaddyDomainID(rule.RuleID)
-			logSkip := logSkipRuleIDs[caddyID]
-
-			routeJSON, err := BuildRuleDomain(dom.Name, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
+			ips, ipType, err := resolveToggleIPs(toggles, resolveIPs, "path "+p.ID)
 			if err != nil {
-				return nil, fmt.Errorf("building route for rule %s: %w", rule.RuleID, err)
+				return nil, err
 			}
 
+			caddyID := CaddyDomainID(p.ID)
+			routeJSON, err := BuildRuleDomain(dom.Name, params, toggles, ips, ipType, logSkipIDs[caddyID])
+			if err != nil {
+				return nil, fmt.Errorf("building route for path %s: %w", p.ID, err)
+			}
 			desired[caddyID] = routeJSON
 		}
 
@@ -87,76 +118,77 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 			if !sub.Enabled {
 				continue
 			}
-
 			subHost := sub.Name + "." + dom.Name
-			subToggles := sub.Toggles
 
-			// Build subdomain handler route (skip "none")
-			if sub.HandlerType != "none" {
+			if sub.Rule.HandlerType != "" && sub.Rule.HandlerType != "none" {
 				params := RuleBuildParams{
 					RuleID:          sub.ID,
-					MatchType:       "",
-					HandlerType:     sub.HandlerType,
-					HandlerConfig:   sub.HandlerConfig,
-					AdvancedHeaders: sub.AdvancedHeaders,
+					HandlerType:     sub.Rule.HandlerType,
+					HandlerConfig:   sub.Rule.HandlerConfig,
+					AdvancedHeaders: sub.Rule.AdvancedHeaders,
 				}
 
-				var ipListIPs []string
-				var ipListType string
-				if subToggles.IPFiltering.Enabled && subToggles.IPFiltering.ListID != "" && resolveIPs != nil {
-					ips, typ, err := resolveIPs(subToggles.IPFiltering.ListID)
-					if err != nil {
-						return nil, fmt.Errorf("resolving IP list for subdomain %s: %w", sub.ID, err)
-					}
-					ipListIPs = ips
-					ipListType = typ
+				ips, ipType, err := resolveToggleIPs(sub.Toggles, resolveIPs, "subdomain "+sub.ID)
+				if err != nil {
+					return nil, err
 				}
 
 				caddyID := CaddyDomainID(sub.ID)
-				logSkip := logSkipRuleIDs[caddyID]
-
-				routeJSON, err := BuildRuleDomain(subHost, params, subToggles, ipListIPs, ipListType, logSkip)
+				routeJSON, err := BuildRuleDomain(subHost, params, sub.Toggles, ips, ipType, logSkipIDs[caddyID])
 				if err != nil {
 					return nil, fmt.Errorf("building route for subdomain %s: %w", sub.ID, err)
 				}
-
 				desired[caddyID] = routeJSON
 			}
 
-			// Build subdomain path rules
-			sortedSubRules := sortRules(sub.Rules)
-			for _, rule := range sortedSubRules {
-				if !rule.Enabled {
+			for _, p := range sortPaths(sub.Paths) {
+				if !p.Enabled {
+					continue
+				}
+				if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
 					continue
 				}
 
-				toggles := MergeToggles(subToggles, rule.ToggleOverrides)
-
-				var ipListIPs []string
-				var ipListType string
-				if toggles.IPFiltering.Enabled && toggles.IPFiltering.ListID != "" && resolveIPs != nil {
-					ips, typ, err := resolveIPs(toggles.IPFiltering.ListID)
-					if err != nil {
-						return nil, fmt.Errorf("resolving IP list for rule %s: %w", rule.RuleID, err)
-					}
-					ipListIPs = ips
-					ipListType = typ
+				toggles := MergeToggles(sub.Toggles, p.ToggleOverrides)
+				params := RuleBuildParams{
+					RuleID:          p.ID,
+					MatchType:       "path",
+					PathMatch:       p.PathMatch,
+					MatchValue:      p.MatchValue,
+					HandlerType:     p.Rule.HandlerType,
+					HandlerConfig:   p.Rule.HandlerConfig,
+					AdvancedHeaders: p.Rule.AdvancedHeaders,
 				}
 
-				caddyID := CaddyDomainID(rule.RuleID)
-				logSkip := logSkipRuleIDs[caddyID]
-
-				routeJSON, err := BuildRuleDomain(subHost, rule.RuleBuildParams, toggles, ipListIPs, ipListType, logSkip)
+				ips, ipType, err := resolveToggleIPs(toggles, resolveIPs, "path "+p.ID)
 				if err != nil {
-					return nil, fmt.Errorf("building route for rule %s: %w", rule.RuleID, err)
+					return nil, err
 				}
 
+				caddyID := CaddyDomainID(p.ID)
+				routeJSON, err := BuildRuleDomain(subHost, params, toggles, ips, ipType, logSkipIDs[caddyID])
+				if err != nil {
+					return nil, fmt.Errorf("building route for path %s: %w", p.ID, err)
+				}
 				desired[caddyID] = routeJSON
 			}
 		}
 	}
 
 	return desired, nil
+}
+
+// resolveToggleIPs runs the resolveIPs callback when the toggles call for IP
+// filtering. Returns empty slices when filtering is off or no callback is set.
+func resolveToggleIPs(toggles DomainToggles, resolveIPs func(string) ([]string, string, error), context string) ([]string, string, error) {
+	if !toggles.IPFiltering.Enabled || toggles.IPFiltering.ListID == "" || resolveIPs == nil {
+		return nil, "", nil
+	}
+	ips, typ, err := resolveIPs(toggles.IPFiltering.ListID)
+	if err != nil {
+		return nil, "", fmt.Errorf("resolving IP list for %s: %w", context, err)
+	}
+	return ips, typ, nil
 }
 
 // DiffDomains compares desired state against current Caddy state. Domains in
@@ -191,26 +223,36 @@ func DiffDomains(desired, current map[string]json.RawMessage, disabledIDs map[st
 	return adds, updates, deletes
 }
 
-// CollectDisabledIDs returns the set of CaddyDomainIDs for rules that are
-// disabled or belong to disabled domains. These IDs are protected from
-// deletion during sync.
+// CollectDisabledIDs returns the set of CaddyDomainIDs for entries that are
+// disabled or belong to disabled parents. These IDs are protected from
+// deletion during sync. Entries with HandlerType "none" are skipped because
+// they are intentionally absent from Caddy.
 func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 	ids := make(map[string]bool)
 	for _, dom := range domains {
-		for _, rule := range dom.Rules {
-			if !dom.Enabled || !rule.Enabled {
-				ids[CaddyDomainID(rule.RuleID)] = true
+		if !dom.Enabled && dom.Rule.HandlerType != "" && dom.Rule.HandlerType != "none" {
+			ids[CaddyDomainID(dom.ID)] = true
+		}
+		for _, p := range dom.Paths {
+			if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
+				continue
+			}
+			if !dom.Enabled || !p.Enabled {
+				ids[CaddyDomainID(p.ID)] = true
 			}
 		}
 		for _, sub := range dom.Subdomains {
-			if !dom.Enabled || !sub.Enabled {
-				if sub.HandlerType != "none" {
+			if sub.Rule.HandlerType != "" && sub.Rule.HandlerType != "none" {
+				if !dom.Enabled || !sub.Enabled {
 					ids[CaddyDomainID(sub.ID)] = true
 				}
 			}
-			for _, rule := range sub.Rules {
-				if !dom.Enabled || !sub.Enabled || !rule.Enabled {
-					ids[CaddyDomainID(rule.RuleID)] = true
+			for _, p := range sub.Paths {
+				if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
+					continue
+				}
+				if !dom.Enabled || !sub.Enabled || !p.Enabled {
+					ids[CaddyDomainID(p.ID)] = true
 				}
 			}
 		}
@@ -219,10 +261,11 @@ func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 }
 
 // CollectAccessLogState returns hostname-to-sink mappings for all enabled
-// domains/subdomains, and the set of rule IDs that should skip access logging.
-func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]string, logSkipRuleIDs map[string]bool) {
+// domains/subdomains, and the set of route IDs that should skip access logging
+// because a path override clears the sink.
+func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]string, logSkipIDs map[string]bool) {
 	hostnameToSink = make(map[string]string)
-	logSkipRuleIDs = make(map[string]bool)
+	logSkipIDs = make(map[string]bool)
 
 	for _, dom := range domains {
 		if !dom.Enabled {
@@ -231,13 +274,13 @@ func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]stri
 
 		hostnameToSink[dom.Name] = dom.Toggles.AccessLog
 
-		for _, rule := range dom.Rules {
-			if !rule.Enabled || rule.ToggleOverrides == nil {
+		for _, p := range dom.Paths {
+			if !p.Enabled || p.ToggleOverrides == nil {
 				continue
 			}
-			merged := MergeToggles(dom.Toggles, rule.ToggleOverrides)
+			merged := MergeToggles(dom.Toggles, p.ToggleOverrides)
 			if merged.AccessLog == "" && dom.Toggles.AccessLog != "" {
-				logSkipRuleIDs[CaddyDomainID(rule.RuleID)] = true
+				logSkipIDs[CaddyDomainID(p.ID)] = true
 			}
 		}
 
@@ -248,19 +291,19 @@ func CollectAccessLogState(domains []SyncDomain) (hostnameToSink map[string]stri
 			subHost := sub.Name + "." + dom.Name
 			hostnameToSink[subHost] = sub.Toggles.AccessLog
 
-			for _, rule := range sub.Rules {
-				if !rule.Enabled || rule.ToggleOverrides == nil {
+			for _, p := range sub.Paths {
+				if !p.Enabled || p.ToggleOverrides == nil {
 					continue
 				}
-				merged := MergeToggles(sub.Toggles, rule.ToggleOverrides)
+				merged := MergeToggles(sub.Toggles, p.ToggleOverrides)
 				if merged.AccessLog == "" && sub.Toggles.AccessLog != "" {
-					logSkipRuleIDs[CaddyDomainID(rule.RuleID)] = true
+					logSkipIDs[CaddyDomainID(p.ID)] = true
 				}
 			}
 		}
 	}
 
-	return hostnameToSink, logSkipRuleIDs
+	return hostnameToSink, logSkipIDs
 }
 
 const kajiRoutePrefix = "kaji_"
@@ -345,7 +388,6 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 		result.Added++
 	}
 
-	// Set or clear access log entries for each enabled domain and subdomain
 	for _, dom := range domains {
 		if !dom.Enabled {
 			continue
@@ -367,25 +409,24 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 	return result, nil
 }
 
-// sortRules returns a copy of rules sorted by match specificity. Exact paths
-// come first, then prefix, then regex, then root (no match type).
-func sortRules(rules []SyncRule) []SyncRule {
-	sorted := make([]SyncRule, len(rules))
-	copy(sorted, rules)
+// sortPaths returns a copy of paths sorted by match specificity. Exact paths
+// come first, then prefix, then regex.
+func sortPaths(paths []SyncPath) []SyncPath {
+	sorted := make([]SyncPath, len(paths))
+	copy(sorted, paths)
 	sort.SliceStable(sorted, func(i, j int) bool {
-		return rulePriority(sorted[i]) > rulePriority(sorted[j])
+		return pathPriority(sorted[i]) > pathPriority(sorted[j])
 	})
 	return sorted
 }
 
-func rulePriority(r SyncRule) int {
-	if r.MatchType == "path" && r.PathMatch == "exact" {
+func pathPriority(p SyncPath) int {
+	switch p.PathMatch {
+	case "exact":
 		return 3
-	}
-	if r.MatchType == "path" && r.PathMatch == "prefix" {
+	case "prefix":
 		return 2
-	}
-	if r.MatchType == "path" && r.PathMatch == "regex" {
+	case "regex":
 		return 1
 	}
 	return 0
@@ -399,7 +440,6 @@ func jsonEqual(a, b json.RawMessage) bool {
 	if json.Unmarshal(b, &bv) != nil {
 		return false
 	}
-	// Re-marshal to normalized form for comparison
 	aN, err := json.Marshal(av)
 	if err != nil {
 		return false

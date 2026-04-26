@@ -959,32 +959,60 @@ func TestToSyncDomains(t *testing.T) {
 				ForceHTTPS:  true,
 				Compression: true,
 			},
-			Rules: []config.Rule{
+			Rule: config.Rule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: json.RawMessage(`{"upstream":"localhost:9000"}`),
+			},
+			Paths: []config.Path{
 				{
-					ID:            "rule_1",
-					Label:         "api",
-					Enabled:       true,
-					MatchType:     "path",
-					PathMatch:     "/api",
-					MatchValue:    "",
-					HandlerType:   "reverse_proxy",
-					HandlerConfig: json.RawMessage(`{"upstream":"localhost:8080","tls_skip_verify":false}`),
+					ID:         "rule_1",
+					Label:      "api",
+					Enabled:    true,
+					PathMatch:  "prefix",
+					MatchValue: "/api",
+					Rule: config.Rule{
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: json.RawMessage(`{"upstream":"localhost:8080","tls_skip_verify":false}`),
+					},
 					ToggleOverrides: &caddy.DomainToggles{
 						ForceHTTPS: false,
 					},
-					AdvancedHeaders: false,
 				},
 				{
-					ID:              "rule_2",
-					Label:           "static",
-					Enabled:         false,
-					MatchType:       "path",
-					PathMatch:       "/static",
-					MatchValue:      "",
-					HandlerType:     "file_server",
-					HandlerConfig:   json.RawMessage(`{"root":"/var/www","browse":true}`),
-					ToggleOverrides: nil,
-					AdvancedHeaders: true,
+					ID:         "rule_2",
+					Label:      "static",
+					Enabled:    false,
+					PathMatch:  "prefix",
+					MatchValue: "/static",
+					Rule: config.Rule{
+						HandlerType:     "file_server",
+						HandlerConfig:   json.RawMessage(`{"root":"/var/www","browse":true}`),
+						AdvancedHeaders: true,
+					},
+				},
+			},
+			Subdomains: []config.Subdomain{
+				{
+					ID:      "sub_1",
+					Name:    "api",
+					Enabled: true,
+					Toggles: caddy.DomainToggles{Compression: true},
+					Rule: config.Rule{
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: json.RawMessage(`{"upstream":"localhost:7000"}`),
+					},
+					Paths: []config.Path{
+						{
+							ID:         "rule_sub_p",
+							Enabled:    true,
+							PathMatch:  "exact",
+							MatchValue: "/health",
+							Rule: config.Rule{
+								HandlerType:   "static_response",
+								HandlerConfig: json.RawMessage(`{"status_code":"200","body":"ok"}`),
+							},
+						},
+					},
 				},
 			},
 		},
@@ -995,7 +1023,9 @@ func TestToSyncDomains(t *testing.T) {
 			Toggles: caddy.DomainToggles{
 				ForceHTTPS: false,
 			},
-			Rules: []config.Rule{},
+			Rule: config.Rule{
+				HandlerType: "none",
+			},
 		},
 	}
 
@@ -1005,8 +1035,10 @@ func TestToSyncDomains(t *testing.T) {
 		t.Fatalf("result length = %d, want 2", len(result))
 	}
 
-	// Check first domain
 	dom0 := result[0]
+	if dom0.ID != "dom_1" {
+		t.Errorf("domain[0].ID = %q, want dom_1", dom0.ID)
+	}
 	if dom0.Name != "example.com" {
 		t.Errorf("domain[0].Name = %q, want example.com", dom0.Name)
 	}
@@ -1019,56 +1051,88 @@ func TestToSyncDomains(t *testing.T) {
 	if !dom0.Toggles.Compression {
 		t.Error("domain[0].Toggles.Compression = false, want true")
 	}
-
-	if len(dom0.Rules) != 2 {
-		t.Fatalf("domain[0].Rules length = %d, want 2", len(dom0.Rules))
+	if dom0.Rule.HandlerType != "reverse_proxy" {
+		t.Errorf("domain[0].Rule.HandlerType = %q, want reverse_proxy", dom0.Rule.HandlerType)
 	}
 
-	// Check first rule
-	rule0 := dom0.Rules[0]
-	if rule0.RuleID != "rule_1" {
-		t.Errorf("rule[0].RuleID = %q, want rule_1", rule0.RuleID)
-	}
-	if rule0.MatchType != "path" {
-		t.Errorf("rule[0].MatchType = %q, want path", rule0.MatchType)
-	}
-	if rule0.PathMatch != "/api" {
-		t.Errorf("rule[0].PathMatch = %q, want /api", rule0.PathMatch)
-	}
-	if rule0.HandlerType != "reverse_proxy" {
-		t.Errorf("rule[0].HandlerType = %q, want reverse_proxy", rule0.HandlerType)
-	}
-	if !rule0.Enabled {
-		t.Error("rule[0].Enabled = false, want true")
-	}
-	if rule0.ToggleOverrides == nil {
-		t.Fatal("rule[0].ToggleOverrides should not be nil")
-	}
-	if rule0.ToggleOverrides.ForceHTTPS {
-		t.Error("rule[0].ToggleOverrides.ForceHTTPS = true, want false")
+	if len(dom0.Paths) != 2 {
+		t.Fatalf("domain[0].Paths length = %d, want 2", len(dom0.Paths))
 	}
 
-	// Check second rule
-	rule1 := dom0.Rules[1]
-	if rule1.RuleID != "rule_2" {
-		t.Errorf("rule[1].RuleID = %q, want rule_2", rule1.RuleID)
+	path0 := dom0.Paths[0]
+	if path0.ID != "rule_1" {
+		t.Errorf("path[0].ID = %q, want rule_1", path0.ID)
 	}
-	if rule1.Enabled {
-		t.Error("rule[1].Enabled = true, want false")
+	if path0.PathMatch != "prefix" {
+		t.Errorf("path[0].PathMatch = %q, want prefix", path0.PathMatch)
 	}
-	if !rule1.AdvancedHeaders {
-		t.Error("rule[1].AdvancedHeaders = false, want true")
+	if path0.MatchValue != "/api" {
+		t.Errorf("path[0].MatchValue = %q, want /api", path0.MatchValue)
+	}
+	if path0.Rule.HandlerType != "reverse_proxy" {
+		t.Errorf("path[0].Rule.HandlerType = %q, want reverse_proxy", path0.Rule.HandlerType)
+	}
+	if !path0.Enabled {
+		t.Error("path[0].Enabled = false, want true")
+	}
+	if path0.ToggleOverrides == nil {
+		t.Fatal("path[0].ToggleOverrides should not be nil")
+	}
+	if path0.ToggleOverrides.ForceHTTPS {
+		t.Error("path[0].ToggleOverrides.ForceHTTPS = true, want false")
 	}
 
-	// Check second domain (disabled)
+	path1 := dom0.Paths[1]
+	if path1.ID != "rule_2" {
+		t.Errorf("path[1].ID = %q, want rule_2", path1.ID)
+	}
+	if path1.Enabled {
+		t.Error("path[1].Enabled = true, want false")
+	}
+	if !path1.Rule.AdvancedHeaders {
+		t.Error("path[1].Rule.AdvancedHeaders = false, want true")
+	}
+
+	if len(dom0.Subdomains) != 1 {
+		t.Fatalf("domain[0].Subdomains length = %d, want 1", len(dom0.Subdomains))
+	}
+	sub0 := dom0.Subdomains[0]
+	if sub0.ID != "sub_1" {
+		t.Errorf("sub[0].ID = %q, want sub_1", sub0.ID)
+	}
+	if sub0.Name != "api" {
+		t.Errorf("sub[0].Name = %q, want api", sub0.Name)
+	}
+	if sub0.Rule.HandlerType != "reverse_proxy" {
+		t.Errorf("sub[0].Rule.HandlerType = %q, want reverse_proxy", sub0.Rule.HandlerType)
+	}
+	if !sub0.Toggles.Compression {
+		t.Error("sub[0].Toggles.Compression = false, want true")
+	}
+	if len(sub0.Paths) != 1 {
+		t.Fatalf("sub[0].Paths length = %d, want 1", len(sub0.Paths))
+	}
+	if sub0.Paths[0].ID != "rule_sub_p" {
+		t.Errorf("sub[0].Paths[0].ID = %q, want rule_sub_p", sub0.Paths[0].ID)
+	}
+	if sub0.Paths[0].Rule.HandlerType != "static_response" {
+		t.Errorf("sub[0].Paths[0].Rule.HandlerType = %q, want static_response", sub0.Paths[0].Rule.HandlerType)
+	}
+
 	dom1 := result[1]
+	if dom1.ID != "dom_2" {
+		t.Errorf("domain[1].ID = %q, want dom_2", dom1.ID)
+	}
 	if dom1.Name != "test.local" {
 		t.Errorf("domain[1].Name = %q, want test.local", dom1.Name)
 	}
 	if dom1.Enabled {
 		t.Error("domain[1].Enabled = true, want false")
 	}
-	if len(dom1.Rules) != 0 {
-		t.Errorf("domain[1].Rules length = %d, want 0", len(dom1.Rules))
+	if dom1.Rule.HandlerType != "none" {
+		t.Errorf("domain[1].Rule.HandlerType = %q, want none", dom1.Rule.HandlerType)
+	}
+	if len(dom1.Paths) != 0 {
+		t.Errorf("domain[1].Paths length = %d, want 0", len(dom1.Paths))
 	}
 }
