@@ -58,30 +58,32 @@ export type HandlerConfigValue =
 	| Record<string, unknown>;
 
 export type HandlerType = "reverse_proxy" | "redirect" | "file_server" | "static_response";
-export type SubdomainHandlerType = "none" | HandlerType;
+export type RuleHandlerType = "none" | HandlerType;
+export type PathMatch = "exact" | "prefix" | "regex";
 
 export interface Rule {
-	id: string;
-	label: string;
-	enabled: boolean;
-	match_type: "" | "path";
-	path_match: "" | "exact" | "prefix" | "regex";
-	match_value: string;
-	handler_type: "reverse_proxy" | "redirect" | "file_server" | "static_response";
+	handler_type: RuleHandlerType;
 	handler_config: HandlerConfigValue;
-	toggle_overrides: DomainToggles | null;
 	advanced_headers: boolean;
+}
+
+export interface Path {
+	id: string;
+	label?: string;
+	enabled: boolean;
+	path_match: PathMatch;
+	match_value: string;
+	rule: Rule;
+	toggle_overrides?: DomainToggles | null;
 }
 
 export interface Subdomain {
 	id: string;
 	name: string;
 	enabled: boolean;
-	handler_type: SubdomainHandlerType;
-	handler_config: HandlerConfigValue;
 	toggles: DomainToggles;
-	advanced_headers: boolean;
-	rules: Rule[];
+	rule: Rule;
+	paths: Path[];
 }
 
 export interface Domain {
@@ -89,28 +91,36 @@ export interface Domain {
 	name: string;
 	enabled: boolean;
 	toggles: DomainToggles;
-	rules: Rule[];
+	rule: Rule;
 	subdomains: Subdomain[];
+	paths: Path[];
 }
 
-export type MatchType = "" | "path";
-export type PathMatch = "exact" | "prefix" | "regex";
-
-export interface CreateDomainFullRule {
-	label?: string;
-	match_type: MatchType;
-	path_match?: PathMatch;
-	match_value?: string;
-	handler_type: HandlerType;
+export interface UpdateRuleRequest {
+	handler_type: RuleHandlerType;
 	handler_config: HandlerConfigValue;
-	toggle_overrides?: DomainToggles | null;
-	advanced_headers?: boolean;
+	advanced_headers: boolean;
 }
 
-export interface CreateDomainFullRequest {
+export interface CreatePathRequest {
+	label?: string;
+	path_match: PathMatch;
+	match_value: string;
+	rule: UpdateRuleRequest;
+	toggle_overrides?: DomainToggles | null;
+}
+
+export type UpdatePathRequest = CreatePathRequest;
+
+export interface CreateSubdomainRequest {
+	name: string;
+	rule: UpdateRuleRequest;
+	toggles?: DomainToggles;
+}
+
+export interface UpdateSubdomainRequest {
 	name: string;
 	toggles: DomainToggles;
-	rules: CreateDomainFullRule[];
 }
 
 export interface UpdateDomainRequest {
@@ -118,33 +128,12 @@ export interface UpdateDomainRequest {
 	toggles: DomainToggles;
 }
 
-export interface CreateRuleRequest {
-	label?: string;
-	match_type: MatchType;
-	path_match?: PathMatch;
-	match_value?: string;
-	handler_type: HandlerType;
-	handler_config: HandlerConfigValue;
-	toggle_overrides?: DomainToggles | null;
-	advanced_headers?: boolean;
-}
-
-export interface UpdateRuleRequest extends CreateRuleRequest {}
-
-export interface CreateSubdomainRequest {
+export interface CreateDomainFullRequest {
 	name: string;
-	handler_type: SubdomainHandlerType;
-	handler_config: HandlerConfigValue | null;
-	toggles?: DomainToggles;
-	advanced_headers?: boolean;
-}
-
-export interface UpdateSubdomainRequest {
-	name: string;
-	handler_type: SubdomainHandlerType;
-	handler_config: HandlerConfigValue | null;
 	toggles: DomainToggles;
-	advanced_headers?: boolean;
+	rule: UpdateRuleRequest;
+	subdomains?: CreateSubdomainRequest[];
+	paths?: CreatePathRequest[];
 }
 
 export const defaultDomainToggles: DomainToggles = {
