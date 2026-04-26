@@ -18,7 +18,7 @@ var ErrSetupDone = errors.New("setup already completed")
 
 const fallbackConfigPath = "/etc/caddy-gui/config.json"
 
-func Path() string {
+func ConfigPath() string {
 	if p := os.Getenv("KAJI_CONFIG_PATH"); p != "" {
 		return p
 	}
@@ -54,37 +54,39 @@ type IPList struct {
 	UpdatedAt   string   `json:"updated_at"`
 }
 
+type Rule struct {
+	HandlerType     string          `json:"handler_type"`
+	HandlerConfig   json.RawMessage `json:"handler_config"`
+	AdvancedHeaders bool            `json:"advanced_headers,omitempty"`
+}
+
+type Path struct {
+	ID              string               `json:"id"`
+	Label           string               `json:"label,omitempty"`
+	Enabled         bool                 `json:"enabled"`
+	PathMatch       string               `json:"path_match"`
+	MatchValue      string               `json:"match_value"`
+	Rule            Rule                 `json:"rule"`
+	ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides,omitempty"`
+}
+
+type Subdomain struct {
+	ID      string              `json:"id"`
+	Name    string              `json:"name"`
+	Enabled bool                `json:"enabled"`
+	Toggles caddy.DomainToggles `json:"toggles"`
+	Rule    Rule                `json:"rule"`
+	Paths   []Path              `json:"paths"`
+}
+
 type Domain struct {
 	ID         string              `json:"id"`
 	Name       string              `json:"name"`
 	Enabled    bool                `json:"enabled"`
 	Toggles    caddy.DomainToggles `json:"toggles"`
-	Rules      []Rule              `json:"rules"`
+	Rule       Rule                `json:"rule"`
 	Subdomains []Subdomain         `json:"subdomains"`
-}
-
-type Rule struct {
-	ID              string               `json:"id"`
-	Label           string               `json:"label,omitempty"`
-	Enabled         bool                 `json:"enabled"`
-	MatchType       string               `json:"match_type"`
-	PathMatch       string               `json:"path_match,omitempty"`
-	MatchValue      string               `json:"match_value,omitempty"`
-	HandlerType     string               `json:"handler_type"`
-	HandlerConfig   json.RawMessage      `json:"handler_config"`
-	ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides,omitempty"`
-	AdvancedHeaders bool                 `json:"advanced_headers"`
-}
-
-type Subdomain struct {
-	ID              string              `json:"id"`
-	Name            string              `json:"name"`
-	Enabled         bool                `json:"enabled"`
-	HandlerType     string              `json:"handler_type"`
-	HandlerConfig   json.RawMessage     `json:"handler_config"`
-	Toggles         caddy.DomainToggles `json:"toggles"`
-	AdvancedHeaders bool                `json:"advanced_headers"`
-	Rules           []Rule              `json:"rules"`
+	Paths      []Path              `json:"paths"`
 }
 
 func IPListsToEntries(lists []IPList) []caddy.IPListEntry {
@@ -163,12 +165,12 @@ func DefaultConfig() *AppConfig {
 }
 
 func Exists() bool {
-	_, err := os.Stat(Path())
+	_, err := os.Stat(ConfigPath())
 	return err == nil
 }
 
 func Load() (*AppConfig, error) {
-	return LoadFrom(Path())
+	return LoadFrom(ConfigPath())
 }
 
 func LoadFrom(path string) (*AppConfig, error) {
@@ -195,15 +197,15 @@ func LoadFrom(path string) (*AppConfig, error) {
 
 func (c *AppConfig) NormalizeSlices() {
 	for i := range c.Domains {
-		if c.Domains[i].Rules == nil {
-			c.Domains[i].Rules = []Rule{}
-		}
 		if c.Domains[i].Subdomains == nil {
 			c.Domains[i].Subdomains = []Subdomain{}
 		}
+		if c.Domains[i].Paths == nil {
+			c.Domains[i].Paths = []Path{}
+		}
 		for j := range c.Domains[i].Subdomains {
-			if c.Domains[i].Subdomains[j].Rules == nil {
-				c.Domains[i].Subdomains[j].Rules = []Rule{}
+			if c.Domains[i].Subdomains[j].Paths == nil {
+				c.Domains[i].Subdomains[j].Paths = []Path{}
 			}
 		}
 	}
@@ -235,7 +237,7 @@ func (c *AppConfig) validate() error {
 }
 
 func Save(cfg *AppConfig) error {
-	return SaveTo(cfg, Path())
+	return SaveTo(cfg, ConfigPath())
 }
 
 func SaveTo(cfg *AppConfig, path string) error {

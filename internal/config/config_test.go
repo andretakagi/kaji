@@ -391,15 +391,15 @@ func TestConfigStoreGetReturnsCurrentValue(t *testing.T) {
 
 func TestPathEnvVar(t *testing.T) {
 	t.Setenv("KAJI_CONFIG_PATH", "/tmp/test-config.json")
-	if got := Path(); got != "/tmp/test-config.json" {
-		t.Errorf("Path() = %q, want /tmp/test-config.json", got)
+	if got := ConfigPath(); got != "/tmp/test-config.json" {
+		t.Errorf("ConfigPath() = %q, want /tmp/test-config.json", got)
 	}
 }
 
 func TestPathFallback(t *testing.T) {
 	t.Setenv("KAJI_CONFIG_PATH", "")
-	if got := Path(); got != fallbackConfigPath {
-		t.Errorf("Path() = %q, want %q", got, fallbackConfigPath)
+	if got := ConfigPath(); got != fallbackConfigPath {
+		t.Errorf("ConfigPath() = %q, want %q", got, fallbackConfigPath)
 	}
 }
 

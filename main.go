@@ -67,7 +67,7 @@ func main() {
 		raw = config.DefaultConfig()
 	}
 
-	store := config.NewStoreWithPath(raw, config.Path())
+	store := config.NewStoreWithPath(raw, config.ConfigPath())
 	mgr := system.NewCaddyManager(raw.CaddyAdminURL)
 
 	running, _ := mgr.Status()
@@ -86,7 +86,7 @@ func main() {
 		return store.Get().CaddyAdminURL
 	})
 
-	snapshotDir := filepath.Join(filepath.Dir(config.Path()), "snapshots")
+	snapshotDir := filepath.Join(filepath.Dir(config.ConfigPath()), "snapshots")
 	snapStore := snapshot.NewStore(snapshotDir)
 	if err := snapStore.Load(); err != nil {
 		log.Printf("Failed to load snapshot index: %v", err)
@@ -118,7 +118,7 @@ func main() {
 		return result
 	}
 
-	positionsPath := filepath.Join(filepath.Dir(config.Path()), "positions.json")
+	positionsPath := filepath.Join(filepath.Dir(config.ConfigPath()), "positions.json")
 	lokiPipeline := logging.NewLokiPipeline(store, positionsPath, resolveSinks)
 
 	if configExists {
