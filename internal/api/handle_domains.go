@@ -176,10 +176,11 @@ func handleGetDomain(store *config.ConfigStore) http.HandlerFunc {
 func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Name    string              `json:"name"`
-			Toggles caddy.DomainToggles `json:"toggles"`
-			Rule    updateRuleRequest   `json:"rule"`
-			Paths   []pathRequest       `json:"paths"`
+			Name       string              `json:"name"`
+			Toggles    caddy.DomainToggles `json:"toggles"`
+			Rule       updateRuleRequest   `json:"rule"`
+			Subdomains []subdomainRequest  `json:"subdomains"`
+			Paths      []pathRequest       `json:"paths"`
 		}
 		if !decodeBody(w, r, &req) {
 			return
@@ -221,6 +222,63 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			paths[i] = pathFromRequest(p)
 		}
 
+		subdomains := make([]config.Subdomain, len(req.Subdomains))
+		seenSub := make(map[string]struct{}, len(req.Subdomains))
+		for i, s := range req.Subdomains {
+			subName := strings.TrimSpace(s.Name)
+			if msg := validateSubdomainName(subName); msg != "" {
+				writeError(w, fmt.Sprintf("subdomain %d: %s", i+1, msg), http.StatusBadRequest)
+				return
+			}
+			lower := strings.ToLower(subName)
+			if _, dup := seenSub[lower]; dup {
+				writeError(w, fmt.Sprintf("subdomain %d: a subdomain with this name already exists", i+1), http.StatusConflict)
+				return
+			}
+			seenSub[lower] = struct{}{}
+
+			if !validateRule(w, s.Rule, true) {
+				return
+			}
+
+			subToggles := req.Toggles
+			if s.Toggles != nil {
+				subToggles = *s.Toggles
+			}
+			if subToggles.BasicAuth.Enabled {
+				if subToggles.BasicAuth.Username == "" {
+					writeError(w, fmt.Sprintf("subdomain %d: username is required for basic auth", i+1), http.StatusBadRequest)
+					return
+				}
+				if err := hashBasicAuthPassword(&subToggles.BasicAuth, ""); err != nil {
+					log.Printf("handleCreateDomainFull: hash subdomain password: %v", err)
+					writeError(w, "failed to hash password", http.StatusInternalServerError)
+					return
+				}
+			}
+
+			subPaths := make([]config.Path, len(s.Paths))
+			for j, p := range s.Paths {
+				if !validatePathRequest(w, &p, "", fmt.Sprintf("subdomain %d path %d: ", i+1, j+1)) {
+					return
+				}
+				subPaths[j] = pathFromRequest(p)
+			}
+
+			subdomains[i] = config.Subdomain{
+				ID:      caddy.GenerateSubdomainID(),
+				Name:    subName,
+				Enabled: true,
+				Toggles: subToggles,
+				Rule: config.Rule{
+					HandlerType:     s.Rule.HandlerType,
+					HandlerConfig:   s.Rule.HandlerConfig,
+					AdvancedHeaders: s.Rule.AdvancedHeaders,
+				},
+				Paths: subPaths,
+			}
+		}
+
 		domain := config.Domain{
 			ID:      caddy.GenerateDomainID(),
 			Name:    req.Name,
@@ -231,7 +289,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 				HandlerConfig:   req.Rule.HandlerConfig,
 				AdvancedHeaders: req.Rule.AdvancedHeaders,
 			},
-			Subdomains: []config.Subdomain{},
+			Subdomains: subdomains,
 			Paths:      paths,
 		}
 

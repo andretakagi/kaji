@@ -116,6 +116,7 @@ export interface CreateSubdomainRequest {
 	name: string;
 	rule: UpdateRuleRequest;
 	toggles?: DomainToggles;
+	paths?: CreatePathRequest[];
 }
 
 export interface UpdateSubdomainRequest {

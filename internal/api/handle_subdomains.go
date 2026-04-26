@@ -20,15 +20,17 @@ func findSubdomain(dom *config.Domain, subID string) *config.Subdomain {
 	return nil
 }
 
+type subdomainRequest struct {
+	Name    string               `json:"name"`
+	Toggles *caddy.DomainToggles `json:"toggles"`
+	Rule    updateRuleRequest    `json:"rule"`
+	Paths   []pathRequest        `json:"paths"`
+}
+
 func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		domainID := r.PathValue("id")
-		var req struct {
-			Name    string               `json:"name"`
-			Toggles *caddy.DomainToggles `json:"toggles"`
-			Rule    updateRuleRequest    `json:"rule"`
-			Paths   []pathRequest        `json:"paths"`
-		}
+		var req subdomainRequest
 		if !decodeBody(w, r, &req) {
 			return
 		}

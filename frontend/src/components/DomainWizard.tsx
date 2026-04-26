@@ -1583,6 +1583,7 @@ function buildCreateRequest(data: WizardData): CreateDomainFullRequest {
 			name: s.prefix,
 			rule: buildRule(s.rule.handlerType, s.rule.handlerConfig),
 			toggles: s.toggles,
+			paths: s.paths.map(buildPath),
 		})),
 		paths: data.rootPaths.map(buildPath),
 	};
