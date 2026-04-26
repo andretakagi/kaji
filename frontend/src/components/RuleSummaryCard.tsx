@@ -30,7 +30,7 @@ export default function RuleSummaryCard({ title, rule, onEdit, disabled, actions
 		</>
 	);
 	return (
-		<CollapsibleCard title={titleNode} actions={actions}>
+		<CollapsibleCard title={titleNode} actions={actions} disabled={disabled}>
 			<div className="rule-card-body">
 				{rule.handler_type === "none" ? (
 					<div className="rule-card-detail-empty">No handler set. Edit to configure.</div>
