@@ -82,36 +82,8 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 			desired[caddyID] = routeJSON
 		}
 
-		for _, p := range sortPaths(dom.Paths) {
-			if !p.Enabled {
-				continue
-			}
-			if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
-				continue
-			}
-
-			toggles := MergeToggles(dom.Toggles, p.ToggleOverrides)
-			params := RuleBuildParams{
-				RuleID:          p.ID,
-				MatchType:       "path",
-				PathMatch:       p.PathMatch,
-				MatchValue:      p.MatchValue,
-				HandlerType:     p.Rule.HandlerType,
-				HandlerConfig:   p.Rule.HandlerConfig,
-				AdvancedHeaders: p.Rule.AdvancedHeaders,
-			}
-
-			ips, ipType, err := resolveToggleIPs(toggles, resolveIPs, "path "+p.ID)
-			if err != nil {
-				return nil, err
-			}
-
-			caddyID := CaddyDomainID(p.ID)
-			routeJSON, err := BuildRuleDomain(dom.Name, params, toggles, ips, ipType, logSkipIDs[caddyID])
-			if err != nil {
-				return nil, fmt.Errorf("building route for path %s: %w", p.ID, err)
-			}
-			desired[caddyID] = routeJSON
+		if err := emitPathRoutes(dom.Name, dom.Paths, dom.Toggles, resolveIPs, logSkipIDs, desired); err != nil {
+			return nil, err
 		}
 
 		for _, sub := range dom.Subdomains {
@@ -141,41 +113,58 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 				desired[caddyID] = routeJSON
 			}
 
-			for _, p := range sortPaths(sub.Paths) {
-				if !p.Enabled {
-					continue
-				}
-				if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
-					continue
-				}
-
-				toggles := MergeToggles(sub.Toggles, p.ToggleOverrides)
-				params := RuleBuildParams{
-					RuleID:          p.ID,
-					MatchType:       "path",
-					PathMatch:       p.PathMatch,
-					MatchValue:      p.MatchValue,
-					HandlerType:     p.Rule.HandlerType,
-					HandlerConfig:   p.Rule.HandlerConfig,
-					AdvancedHeaders: p.Rule.AdvancedHeaders,
-				}
-
-				ips, ipType, err := resolveToggleIPs(toggles, resolveIPs, "path "+p.ID)
-				if err != nil {
-					return nil, err
-				}
-
-				caddyID := CaddyDomainID(p.ID)
-				routeJSON, err := BuildRuleDomain(subHost, params, toggles, ips, ipType, logSkipIDs[caddyID])
-				if err != nil {
-					return nil, fmt.Errorf("building route for path %s: %w", p.ID, err)
-				}
-				desired[caddyID] = routeJSON
+			if err := emitPathRoutes(subHost, sub.Paths, sub.Toggles, resolveIPs, logSkipIDs, desired); err != nil {
+				return nil, err
 			}
 		}
 	}
 
 	return desired, nil
+}
+
+// emitPathRoutes builds and writes routes for every enabled path under the
+// given host. Toggle overrides are merged against parentToggles, and disabled
+// paths or paths with HandlerType "" or "none" are skipped.
+func emitPathRoutes(
+	host string,
+	paths []SyncPath,
+	parentToggles DomainToggles,
+	resolveIPs func(string) ([]string, string, error),
+	logSkipIDs map[string]bool,
+	desired map[string]json.RawMessage,
+) error {
+	for _, p := range sortPaths(paths) {
+		if !p.Enabled {
+			continue
+		}
+		if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
+			continue
+		}
+
+		toggles := MergeToggles(parentToggles, p.ToggleOverrides)
+		params := RuleBuildParams{
+			RuleID:          p.ID,
+			MatchType:       "path",
+			PathMatch:       p.PathMatch,
+			MatchValue:      p.MatchValue,
+			HandlerType:     p.Rule.HandlerType,
+			HandlerConfig:   p.Rule.HandlerConfig,
+			AdvancedHeaders: p.Rule.AdvancedHeaders,
+		}
+
+		ips, ipType, err := resolveToggleIPs(toggles, resolveIPs, "path "+p.ID)
+		if err != nil {
+			return err
+		}
+
+		caddyID := CaddyDomainID(p.ID)
+		routeJSON, err := BuildRuleDomain(host, params, toggles, ips, ipType, logSkipIDs[caddyID])
+		if err != nil {
+			return fmt.Errorf("building route for path %s: %w", p.ID, err)
+		}
+		desired[caddyID] = routeJSON
+	}
+	return nil
 }
 
 // resolveToggleIPs runs the resolveIPs callback when the toggles call for IP
