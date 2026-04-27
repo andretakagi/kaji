@@ -95,6 +95,7 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 				HandlerType:     req.Rule.HandlerType,
 				HandlerConfig:   req.Rule.HandlerConfig,
 				AdvancedHeaders: req.Rule.AdvancedHeaders,
+				Enabled:         true,
 			},
 			Paths: paths,
 		}
@@ -303,11 +304,9 @@ func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 			if s == nil {
 				return nil, errMutationNotFound
 			}
-			s.Rule = config.Rule{
-				HandlerType:     req.HandlerType,
-				HandlerConfig:   req.HandlerConfig,
-				AdvancedHeaders: req.AdvancedHeaders,
-			}
+			s.Rule.HandlerType = req.HandlerType
+			s.Rule.HandlerConfig = req.HandlerConfig
+			s.Rule.AdvancedHeaders = req.AdvancedHeaders
 			return &c, nil
 		})
 		if writeMutateError(w, "handleUpdateSubdomainRule", err, "subdomain not found", "failed to update rule") {

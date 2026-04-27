@@ -258,6 +258,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 					HandlerType:     s.Rule.HandlerType,
 					HandlerConfig:   s.Rule.HandlerConfig,
 					AdvancedHeaders: s.Rule.AdvancedHeaders,
+					Enabled:         true,
 				},
 				Paths: subPaths,
 			}
@@ -272,6 +273,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 				HandlerType:     req.Rule.HandlerType,
 				HandlerConfig:   req.Rule.HandlerConfig,
 				AdvancedHeaders: req.Rule.AdvancedHeaders,
+				Enabled:         true,
 			},
 			Subdomains: subdomains,
 			Paths:      paths,
@@ -439,11 +441,9 @@ func handleUpdateDomainRule(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			if dom == nil {
 				return nil, errMutationNotFound
 			}
-			dom.Rule = config.Rule{
-				HandlerType:     req.HandlerType,
-				HandlerConfig:   req.HandlerConfig,
-				AdvancedHeaders: req.AdvancedHeaders,
-			}
+			dom.Rule.HandlerType = req.HandlerType
+			dom.Rule.HandlerConfig = req.HandlerConfig
+			dom.Rule.AdvancedHeaders = req.AdvancedHeaders
 			return &c, nil
 		})
 		if writeMutateError(w, "handleUpdateDomainRule", err, "domain not found", "failed to update rule") {

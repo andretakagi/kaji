@@ -70,6 +70,7 @@ func pathFromRequest(p pathRequest) config.Path {
 			HandlerType:     p.Rule.HandlerType,
 			HandlerConfig:   p.Rule.HandlerConfig,
 			AdvancedHeaders: p.Rule.AdvancedHeaders,
+			Enabled:         true,
 		},
 		ToggleOverrides: p.ToggleOverrides,
 	}
@@ -91,11 +92,9 @@ func applyPathUpdate(existing *config.Path, req pathRequest) {
 	existing.Label = req.Label
 	existing.PathMatch = req.PathMatch
 	existing.MatchValue = req.MatchValue
-	existing.Rule = config.Rule{
-		HandlerType:     req.Rule.HandlerType,
-		HandlerConfig:   req.Rule.HandlerConfig,
-		AdvancedHeaders: req.Rule.AdvancedHeaders,
-	}
+	existing.Rule.HandlerType = req.Rule.HandlerType
+	existing.Rule.HandlerConfig = req.Rule.HandlerConfig
+	existing.Rule.AdvancedHeaders = req.Rule.AdvancedHeaders
 	existing.ToggleOverrides = req.ToggleOverrides
 }
 
