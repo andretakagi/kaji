@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type {
 	CreatePathRequest,
 	DomainToggles,
@@ -54,6 +54,12 @@ export default function PathForm({
 	);
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!overridesOpen) {
+			setToggleOverrides(parentToggles ?? { ...defaultDomainToggles });
+		}
+	}, [parentToggles, overridesOpen]);
 
 	async function handleSubmit(e: React.SubmitEvent) {
 		e.preventDefault();
