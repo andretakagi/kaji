@@ -7,11 +7,15 @@ import {
 	deleteSubdomain,
 	deleteSubdomainPath,
 	disableDomainPath,
+	disableDomainRule,
 	disableSubdomain,
 	disableSubdomainPath,
+	disableSubdomainRule,
 	enableDomainPath,
+	enableDomainRule,
 	enableSubdomain,
 	enableSubdomainPath,
+	enableSubdomainRule,
 	fetchDomain,
 	updateDomain,
 	updateDomainPath,
@@ -132,6 +136,11 @@ export function useDomain(id: string) {
 		(pathId) => disableDomainPath(id, pathId),
 	);
 
+	const handleToggleDomainRule = makeToggle<[]>(
+		() => enableDomainRule(id),
+		() => disableDomainRule(id),
+	);
+
 	const handleCreateSubdomain = useCallback(
 		(req: CreateSubdomainRequest) =>
 			run(async () => {
@@ -165,6 +174,11 @@ export function useDomain(id: string) {
 	const handleToggleSubdomain = makeToggle<[string]>(
 		(subId) => enableSubdomain(id, subId),
 		(subId) => disableSubdomain(id, subId),
+	);
+
+	const handleToggleSubdomainRule = makeToggle<[string]>(
+		(subId) => enableSubdomainRule(id, subId),
+		(subId) => disableSubdomainRule(id, subId),
 	);
 
 	const handleUpdateSubdomainRule = useCallback(
@@ -223,6 +237,7 @@ export function useDomain(id: string) {
 		reload,
 		handleUpdateDomain,
 		handleUpdateDomainRule,
+		handleToggleDomainRule,
 		handleCreateDomainPath,
 		handleUpdateDomainPath,
 		handleDeleteDomainPath,
@@ -232,6 +247,7 @@ export function useDomain(id: string) {
 		handleDeleteSubdomain,
 		handleToggleSubdomain,
 		handleUpdateSubdomainRule,
+		handleToggleSubdomainRule,
 		handleCreateSubdomainPath,
 		handleUpdateSubdomainPath,
 		handleDeleteSubdomainPath,
