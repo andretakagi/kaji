@@ -10,7 +10,7 @@ RUN CADDY_VERSION=$(cat /tmp/.caddy-version) \
     && rm -rf /go/pkg/mod /root/.cache/go-build
 
 # Stage 2: Build frontend
-FROM --platform=$BUILDPLATFORM oven/bun:1.3.12 AS frontend
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.13 AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
