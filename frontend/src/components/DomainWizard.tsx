@@ -593,23 +593,66 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			handlerConfig: pathHandlerConfig,
 			toggleOverrides: pathOverridesOpen ? pathToggleOverrides : null,
 		};
-		if (editTarget === "") {
-			setData((prev) => ({
-				...prev,
-				rootPaths: prev.rootPaths.map((p, i) => (i === editIndex ? { ...updated, key: p.key } : p)),
-			}));
+		const targetChanged = pathTarget.toLowerCase() !== editTarget.toLowerCase();
+		if (!targetChanged) {
+			if (editTarget === "") {
+				setData((prev) => ({
+					...prev,
+					rootPaths: prev.rootPaths.map((p, i) =>
+						i === editIndex ? { ...updated, key: p.key } : p,
+					),
+				}));
+			} else {
+				setData((prev) => ({
+					...prev,
+					subdomains: prev.subdomains.map((s) =>
+						s.prefix.toLowerCase() === editTarget.toLowerCase()
+							? {
+									...s,
+									paths: s.paths.map((p, i) => (i === editIndex ? { ...updated, key: p.key } : p)),
+								}
+							: s,
+					),
+				}));
+			}
 		} else {
-			setData((prev) => ({
-				...prev,
-				subdomains: prev.subdomains.map((s) =>
-					s.prefix.toLowerCase() === editTarget.toLowerCase()
-						? {
-								...s,
-								paths: s.paths.map((p, i) => (i === editIndex ? { ...updated, key: p.key } : p)),
-							}
-						: s,
-				),
-			}));
+			setData((prev) => {
+				const oldPaths =
+					editTarget === ""
+						? prev.rootPaths
+						: (prev.subdomains.find((s) => s.prefix.toLowerCase() === editTarget.toLowerCase())
+								?.paths ?? []);
+				const original = oldPaths[editIndex];
+				const moved: WizardPath = { ...updated, key: original?.key ?? 0 };
+
+				const rootPathsAfterRemove =
+					editTarget === "" ? prev.rootPaths.filter((_, i) => i !== editIndex) : prev.rootPaths;
+				const subdomainsAfterRemove =
+					editTarget === ""
+						? prev.subdomains
+						: prev.subdomains.map((s) =>
+								s.prefix.toLowerCase() === editTarget.toLowerCase()
+									? { ...s, paths: s.paths.filter((_, i) => i !== editIndex) }
+									: s,
+							);
+
+				if (pathTarget === "") {
+					return {
+						...prev,
+						rootPaths: [...rootPathsAfterRemove, moved],
+						subdomains: subdomainsAfterRemove,
+					};
+				}
+				return {
+					...prev,
+					rootPaths: rootPathsAfterRemove,
+					subdomains: subdomainsAfterRemove.map((s) =>
+						s.prefix.toLowerCase() === pathTarget.toLowerCase()
+							? { ...s, paths: [...s.paths, moved] }
+							: s,
+					),
+				};
+			});
 		}
 		setEditingPathId(null);
 		setPathFormActive(false);
@@ -1129,7 +1172,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													{pathTargetOptions.length > 1 && (
 														<div className="form-row">
 															<div className="form-field">
-																<label htmlFor="wizard-rule-target">Target</label>
+																<label htmlFor="wizard-rule-target">Target Domain</label>
 																<select
 																	id="wizard-rule-target"
 																	value={pathTarget}
