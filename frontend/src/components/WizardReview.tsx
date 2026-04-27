@@ -6,6 +6,7 @@ import type {
 	ReverseProxyConfig,
 	StaticResponseConfig,
 } from "../types/domain";
+import { handlerLabels, pathMatchLabels } from "../types/domain";
 import type { WizardData, WizardPath, WizardSubdomain } from "./DomainWizard";
 
 interface Props {
@@ -119,18 +120,10 @@ function FileServerSummary({ config }: { config: FileServerConfig }) {
 	);
 }
 
-const handlerLabels: Record<string, string> = {
-	reverse_proxy: "Reverse Proxy",
-	redirect: "Redirect",
-	file_server: "File Server",
-	static_response: "Static Response",
-	none: "None",
-};
-
 function HandlerBadge({ type }: { type: string }) {
 	return (
 		<span className={`rule-card-handler-badge handler-${type}`}>
-			{handlerLabels[type] ?? type.replace(/_/g, " ")}
+			{handlerLabels[type as keyof typeof handlerLabels] ?? type.replace(/_/g, " ")}
 		</span>
 	);
 }
@@ -173,12 +166,6 @@ function SubdomainReviewItem({ sub, domainName }: { sub: WizardSubdomain; domain
 function formatPathLabel(target: string, path: WizardPath): string {
 	return `${target}${path.matchValue}`;
 }
-
-const pathMatchLabels: Record<WizardPath["pathMatch"], string> = {
-	prefix: "Prefix",
-	exact: "Exact",
-	regex: "Regex",
-};
 
 function PathMatchBadge({ match }: { match: WizardPath["pathMatch"] }) {
 	return <span className={`path-match-badge path-match-${match}`}>{pathMatchLabels[match]}</span>;

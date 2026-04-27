@@ -1,9 +1,10 @@
-import type { HandlerConfigValue, HandlerType, Rule, RuleHandlerType } from "../types/domain";
+import type { HandlerConfigValue, Rule, RuleHandlerType } from "../types/domain";
 import {
 	defaultFileServerConfig,
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
+	handlerOptions,
 } from "../types/domain";
 import HandlerConfig from "./HandlerConfig";
 
@@ -13,13 +14,6 @@ interface Props {
 	onChange: (next: Rule) => void;
 	idPrefix: string;
 }
-
-const handlerOptions: { value: HandlerType; label: string }[] = [
-	{ value: "reverse_proxy", label: "Reverse Proxy" },
-	{ value: "redirect", label: "Redirect" },
-	{ value: "file_server", label: "File Server" },
-	{ value: "static_response", label: "Static Response" },
-];
 
 function defaultConfigFor(type: RuleHandlerType): HandlerConfigValue {
 	switch (type) {

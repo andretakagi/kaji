@@ -198,16 +198,8 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			}
 		}
 
-		if req.Toggles.BasicAuth.Enabled {
-			if req.Toggles.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			if err := hashBasicAuthPassword(&req.Toggles.BasicAuth, ""); err != nil {
-				log.Printf("handleCreateDomainFull: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
-			}
+		if !validateAndHashBasicAuth(w, &req.Toggles.BasicAuth, "", "", "handleCreateDomainFull") {
+			return
 		}
 
 		if !validateRule(w, req.Rule, true) {
@@ -245,16 +237,8 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			if s.Toggles != nil {
 				subToggles = *s.Toggles
 			}
-			if subToggles.BasicAuth.Enabled {
-				if subToggles.BasicAuth.Username == "" {
-					writeError(w, fmt.Sprintf("subdomain %d: username is required for basic auth", i+1), http.StatusBadRequest)
-					return
-				}
-				if err := hashBasicAuthPassword(&subToggles.BasicAuth, ""); err != nil {
-					log.Printf("handleCreateDomainFull: hash subdomain password: %v", err)
-					writeError(w, "failed to hash password", http.StatusInternalServerError)
-					return
-				}
+			if !validateAndHashBasicAuth(w, &subToggles.BasicAuth, "", fmt.Sprintf("subdomain %d: ", i+1), "handleCreateDomainFull") {
+				return
 			}
 
 			subPaths := make([]config.Path, len(s.Paths))
@@ -323,21 +307,12 @@ func handleUpdateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 			return
 		}
 
-		if req.Toggles.BasicAuth.Enabled {
-			if req.Toggles.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			var fallbackHash string
-			cfg := store.Get()
-			if dom := findDomain(cfg, id); dom != nil {
-				fallbackHash = dom.Toggles.BasicAuth.PasswordHash
-			}
-			if err := hashBasicAuthPassword(&req.Toggles.BasicAuth, fallbackHash); err != nil {
-				log.Printf("handleUpdateDomain: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
-			}
+		var fallbackHash string
+		if dom := findDomain(store.Get(), id); dom != nil {
+			fallbackHash = dom.Toggles.BasicAuth.PasswordHash
+		}
+		if !validateAndHashBasicAuth(w, &req.Toggles.BasicAuth, fallbackHash, "", "handleUpdateDomain") {
+			return
 		}
 
 		maybeAutoSnapshot(cc, ss, store, version, "Domain updated: "+req.Name)
@@ -453,7 +428,11 @@ func handleUpdateDomainRule(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, store, version, "Domain rule updated: "+domainID)
+		domName := domainID
+		if dom := findDomain(store.Get(), domainID); dom != nil {
+			domName = dom.Name
+		}
+		maybeAutoSnapshot(cc, ss, store, version, "Domain rule updated: "+domName)
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			dom := findDomain(&c, domainID)

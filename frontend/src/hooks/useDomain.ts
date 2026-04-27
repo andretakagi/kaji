@@ -58,6 +58,25 @@ export function useDomain(id: string) {
 
 	const { saving, feedback, setFeedback, run } = useAsyncAction();
 
+	const makeToggle = useCallback(
+		<Args extends unknown[]>(
+			enable: (...args: Args) => Promise<unknown>,
+			disable: (...args: Args) => Promise<unknown>,
+		) =>
+			(...args: [...Args, boolean]) =>
+				run(async () => {
+					const enabled = args[args.length - 1] as boolean;
+					const rest = args.slice(0, -1) as unknown as Args;
+					if (enabled) {
+						await enable(...rest);
+					} else {
+						await disable(...rest);
+					}
+					await reload();
+				}),
+		[run, reload],
+	);
+
 	const handleUpdateDomain = useCallback(
 		(req: UpdateDomainRequest) =>
 			run(async () => {
@@ -108,17 +127,9 @@ export function useDomain(id: string) {
 		[id, run, reload],
 	);
 
-	const handleToggleDomainPath = useCallback(
-		(pathId: string, enabled: boolean) =>
-			run(async () => {
-				if (enabled) {
-					await enableDomainPath(id, pathId);
-				} else {
-					await disableDomainPath(id, pathId);
-				}
-				await reload();
-			}),
-		[id, run, reload],
+	const handleToggleDomainPath = makeToggle<[string]>(
+		(pathId) => enableDomainPath(id, pathId),
+		(pathId) => disableDomainPath(id, pathId),
 	);
 
 	const handleCreateSubdomain = useCallback(
@@ -151,17 +162,9 @@ export function useDomain(id: string) {
 		[id, run, reload],
 	);
 
-	const handleToggleSubdomain = useCallback(
-		(subId: string, enabled: boolean) =>
-			run(async () => {
-				if (enabled) {
-					await enableSubdomain(id, subId);
-				} else {
-					await disableSubdomain(id, subId);
-				}
-				await reload();
-			}),
-		[id, run, reload],
+	const handleToggleSubdomain = makeToggle<[string]>(
+		(subId) => enableSubdomain(id, subId),
+		(subId) => disableSubdomain(id, subId),
 	);
 
 	const handleUpdateSubdomainRule = useCallback(
@@ -204,17 +207,9 @@ export function useDomain(id: string) {
 		[id, run, reload],
 	);
 
-	const handleToggleSubdomainPath = useCallback(
-		(subId: string, pathId: string, enabled: boolean) =>
-			run(async () => {
-				if (enabled) {
-					await enableSubdomainPath(id, subId, pathId);
-				} else {
-					await disableSubdomainPath(id, subId, pathId);
-				}
-				await reload();
-			}),
-		[id, run, reload],
+	const handleToggleSubdomainPath = makeToggle<[string, string]>(
+		(subId, pathId) => enableSubdomainPath(id, subId, pathId),
+		(subId, pathId) => disableSubdomainPath(id, subId, pathId),
 	);
 
 	return {

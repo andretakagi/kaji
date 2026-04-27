@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -18,6 +17,17 @@ func findSubdomain(dom *config.Domain, subID string) *config.Subdomain {
 		}
 	}
 	return nil
+}
+
+// subdomainHost renders "<subdomain>.<domain>" for snapshot descriptions, or
+// the subdomain ID alone if the parents have already been removed.
+func subdomainHost(cfg *config.AppConfig, domainID, subID string) string {
+	if dom := findDomain(cfg, domainID); dom != nil {
+		if sub := findSubdomain(dom, subID); sub != nil {
+			return sub.Name + "." + dom.Name
+		}
+	}
+	return subID
 }
 
 type subdomainRequest struct {
@@ -64,16 +74,8 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			toggles = *req.Toggles
 		}
 
-		if toggles.BasicAuth.Enabled {
-			if toggles.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			if err := hashBasicAuthPassword(&toggles.BasicAuth, ""); err != nil {
-				log.Printf("handleCreateSubdomain: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
-			}
+		if !validateAndHashBasicAuth(w, &toggles.BasicAuth, "", "", "handleCreateSubdomain") {
+			return
 		}
 
 		paths := make([]config.Path, len(req.Paths))
@@ -141,26 +143,17 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			return
 		}
 
-		if req.Toggles.BasicAuth.Enabled {
-			if req.Toggles.BasicAuth.Username == "" {
-				writeError(w, "username is required for basic auth", http.StatusBadRequest)
-				return
-			}
-			var fallbackHash string
-			cfg := store.Get()
-			if d := findDomain(cfg, domainID); d != nil {
-				if s := findSubdomain(d, subID); s != nil {
-					fallbackHash = s.Toggles.BasicAuth.PasswordHash
-				}
-			}
-			if err := hashBasicAuthPassword(&req.Toggles.BasicAuth, fallbackHash); err != nil {
-				log.Printf("handleUpdateSubdomain: hash password: %v", err)
-				writeError(w, "failed to hash password", http.StatusInternalServerError)
-				return
+		var fallbackHash string
+		if d := findDomain(store.Get(), domainID); d != nil {
+			if s := findSubdomain(d, subID); s != nil {
+				fallbackHash = s.Toggles.BasicAuth.PasswordHash
 			}
 		}
+		if !validateAndHashBasicAuth(w, &req.Toggles.BasicAuth, fallbackHash, "", "handleUpdateSubdomain") {
+			return
+		}
 
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain updated: "+subID)
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain updated: "+subdomainHost(store.Get(), domainID, subID))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
@@ -203,7 +196,7 @@ func handleDeleteSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 		domainID := r.PathValue("id")
 		subID := r.PathValue("subId")
 
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain deleted: "+subID)
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain deleted: "+subdomainHost(store.Get(), domainID, subID))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
@@ -258,7 +251,7 @@ func subdomainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			action = "disabled"
 		}
 
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain "+action+": "+subID)
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain "+action+": "+subdomainHost(store.Get(), domainID, subID))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)
@@ -299,7 +292,7 @@ func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule updated: "+subID)
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule updated: "+subdomainHost(store.Get(), domainID, subID))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			d := findDomain(&c, domainID)

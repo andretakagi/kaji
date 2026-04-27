@@ -49,6 +49,7 @@ import type {
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
 import type { CertInfo } from "./types/certs";
+import type { Domain, Path, Subdomain } from "./types/domain";
 import type {
 	CaddyLogEntry,
 	CaddyLoggingConfig,
@@ -300,4 +301,57 @@ export function validateLokiTestResult(data: unknown): LokiTestResult {
 	return assertValid("LokiTestResult", data, (d) =>
 		hasFields(d, { success: is.boolean, message: is.string }),
 	);
+}
+
+function isRule(d: unknown): boolean {
+	return hasFields(d, { handler_type: is.string, handler_config: is.object });
+}
+
+function isPath(d: unknown): boolean {
+	return hasFields(d, {
+		id: is.string,
+		enabled: is.boolean,
+		path_match: is.string,
+		match_value: is.string,
+		rule: isRule,
+	});
+}
+
+function isSubdomain(d: unknown): boolean {
+	return hasFields(d, {
+		id: is.string,
+		name: is.string,
+		enabled: is.boolean,
+		toggles: is.object,
+		rule: isRule,
+		paths: (v) => is.array(v) && v.every(isPath),
+	});
+}
+
+function isDomain(d: unknown): boolean {
+	return hasFields(d, {
+		id: is.string,
+		name: is.string,
+		enabled: is.boolean,
+		toggles: is.object,
+		rule: isRule,
+		subdomains: (v) => is.array(v) && v.every(isSubdomain),
+		paths: (v) => is.array(v) && v.every(isPath),
+	});
+}
+
+export function validateDomain(data: unknown): Domain {
+	return assertValid("Domain", data, isDomain);
+}
+
+export function validateDomainArray(data: unknown): Domain[] {
+	return assertValid("Domain[]", data, (d) => is.array(d) && d.every(isDomain));
+}
+
+export function validatePath(data: unknown): Path {
+	return assertValid("Path", data, isPath);
+}
+
+export function validateSubdomain(data: unknown): Subdomain {
+	return assertValid("Subdomain", data, isSubdomain);
 }

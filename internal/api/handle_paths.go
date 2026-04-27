@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
@@ -39,14 +38,8 @@ func validatePathRequest(w http.ResponseWriter, p *pathRequest, fallbackHash, er
 	if !validateRule(w, p.Rule, false) {
 		return false
 	}
-	if p.ToggleOverrides != nil && p.ToggleOverrides.BasicAuth.Enabled {
-		if p.ToggleOverrides.BasicAuth.Username == "" {
-			writeError(w, errPrefix+"username is required for basic auth", http.StatusBadRequest)
-			return false
-		}
-		if err := hashBasicAuthPassword(&p.ToggleOverrides.BasicAuth, fallbackHash); err != nil {
-			log.Printf("validatePathRequest: hash password: %v", err)
-			writeError(w, "failed to hash password", http.StatusInternalServerError)
+	if p.ToggleOverrides != nil {
+		if !validateAndHashBasicAuth(w, &p.ToggleOverrides.BasicAuth, fallbackHash, errPrefix, "validatePathRequest") {
 			return false
 		}
 	}
@@ -106,11 +99,88 @@ func applyPathUpdate(existing *config.Path, req pathRequest) {
 	existing.ToggleOverrides = req.ToggleOverrides
 }
 
-// --- Domain paths ---
+// pathScope identifies the path container a request targets. An empty subID
+// means a domain-level path; otherwise the path lives under the named
+// subdomain.
+type pathScope struct {
+	domainID string
+	subID    string
+}
 
-func handleCreateDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+// pathScopeFromRequest extracts a pathScope from the URL path values. If
+// includeSub is true, the route was registered with a {subId} placeholder.
+func pathScopeFromRequest(r *http.Request, includeSub bool) pathScope {
+	scope := pathScope{domainID: r.PathValue("id")}
+	if includeSub {
+		scope.subID = r.PathValue("subId")
+	}
+	return scope
+}
+
+// resolvePathContainer returns a pointer to the slice that owns the paths in
+// the given scope, plus the parent domain (always) and parent subdomain (only
+// for subdomain-scoped paths). Returns nil pointers when the parents are
+// missing - callers should treat that as 404.
+func resolvePathContainer(c *config.AppConfig, scope pathScope) (paths *[]config.Path, dom *config.Domain, sub *config.Subdomain) {
+	dom = findDomain(c, scope.domainID)
+	if dom == nil {
+		return nil, nil, nil
+	}
+	if scope.subID == "" {
+		return &dom.Paths, dom, nil
+	}
+	sub = findSubdomain(dom, scope.subID)
+	if sub == nil {
+		return nil, dom, nil
+	}
+	return &sub.Paths, dom, sub
+}
+
+// pathSnapshotLabel produces a consistent, human-readable description of a
+// path mutation for the snapshot log: e.g. "Path created: example.com prefix
+// /api/*" or "Subdomain path updated: api.example.com regex ^/v1/.*$".
+func pathSnapshotLabel(action string, dom *config.Domain, sub *config.Subdomain, p *config.Path) string {
+	host := ""
+	if dom != nil {
+		host = dom.Name
+		if sub != nil {
+			host = sub.Name + "." + dom.Name
+		}
+	}
+	prefix := "Path"
+	if sub != nil {
+		prefix = "Subdomain path"
+	}
+	parts := []string{prefix, action + ":"}
+	if host != "" {
+		parts = append(parts, host)
+	}
+	if p != nil {
+		if p.PathMatch != "" {
+			parts = append(parts, p.PathMatch)
+		}
+		if p.MatchValue != "" {
+			parts = append(parts, p.MatchValue)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// returnDomainOr writes the refreshed domain JSON (so the frontend can replace
+// its local copy) or, in the unlikely case the domain has vanished between
+// mutation and read, falls back to the supplied alt payload.
+func returnDomainOr(w http.ResponseWriter, store *config.ConfigStore, domainID string, alt any) {
+	if dom := findDomain(store.Get(), domainID); dom != nil {
+		writeJSON(w, dom)
+		return
+	}
+	writeJSON(w, alt)
+}
+
+// createPath is the shared body for handleCreate{Domain,Subdomain}Path.
+func createPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, scopeOf func(*http.Request) pathScope) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
+		scope := scopeOf(r)
 		var req pathRequest
 		if !decodeBody(w, r, &req) {
 			return
@@ -119,234 +189,41 @@ func handleCreateDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			return
 		}
 
-		cfg := store.Get()
-		if findDomain(cfg, domainID) == nil {
-			writeError(w, "domain not found", http.StatusNotFound)
-			return
-		}
-
-		path := pathFromRequest(req)
-
-		maybeAutoSnapshot(cc, ss, store, version, "Path created: "+path.ID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, domainID)
-			if dom == nil {
-				return nil, errMutationNotFound
-			}
-			dom.Paths = append(dom.Paths, path)
-			return &c, nil
-		})
-		if writeMutateError(w, "handleCreateDomainPath", err, "domain not found", "failed to save path") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg = store.Get()
-		if dom := findDomain(cfg, domainID); dom != nil {
-			writeJSON(w, dom)
-			return
-		}
-		writeJSON(w, path)
-	}
-}
-
-func handleUpdateDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		pathID := r.PathValue("pathId")
-		var req pathRequest
-		if !decodeBody(w, r, &req) {
-			return
-		}
-
-		var fallbackHash string
-		if dom := findDomain(store.Get(), domainID); dom != nil {
-			fallbackHash = existingPathHash(dom.Paths, pathID)
-		}
-		if !validatePathRequest(w, &req, fallbackHash, "") {
-			return
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Path updated: "+pathID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, domainID)
-			if dom == nil {
-				return nil, errMutationNotFound
-			}
-			idx := findPath(dom.Paths, pathID)
-			if idx < 0 {
-				return nil, errMutationNotFound
-			}
-			applyPathUpdate(&dom.Paths[idx], req)
-			return &c, nil
-		})
-		if writeMutateError(w, "handleUpdateDomainPath", err, "path not found", "failed to update path") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if dom := findDomain(cfg, domainID); dom != nil {
-			writeJSON(w, dom)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
-}
-
-func handleDeleteDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		pathID := r.PathValue("pathId")
-
-		maybeAutoSnapshot(cc, ss, store, version, "Path deleted: "+pathID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, domainID)
-			if dom == nil {
-				return nil, errMutationNotFound
-			}
-			fresh := make([]config.Path, 0, len(dom.Paths))
-			found := false
-			for _, p := range dom.Paths {
-				if p.ID == pathID {
-					found = true
-					continue
-				}
-				fresh = append(fresh, p)
-			}
-			if !found {
-				return nil, errMutationNotFound
-			}
-			dom.Paths = fresh
-			return &c, nil
-		})
-		if writeMutateError(w, "handleDeleteDomainPath", err, "path not found", "failed to delete path") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if dom := findDomain(cfg, domainID); dom != nil {
-			writeJSON(w, dom)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
-}
-
-func handleEnableDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return domainPathToggleHandler(store, cc, ss, version, true)
-}
-
-func handleDisableDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return domainPathToggleHandler(store, cc, ss, version, false)
-}
-
-func domainPathToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, enabled bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		pathID := r.PathValue("pathId")
-
-		action := "enabled"
-		if !enabled {
-			action = "disabled"
-		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Path "+action+": "+pathID)
-
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			dom := findDomain(&c, domainID)
-			if dom == nil {
-				return nil, errMutationNotFound
-			}
-			idx := findPath(dom.Paths, pathID)
-			if idx < 0 {
-				return nil, errMutationNotFound
-			}
-			dom.Paths[idx].Enabled = enabled
-			return &c, nil
-		})
-		if writeMutateError(w, "handleToggleDomainPath", err, "path not found", "failed to update path") {
-			return
-		}
-
-		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if dom := findDomain(cfg, domainID); dom != nil {
-			writeJSON(w, dom)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
-	}
-}
-
-// --- Subdomain paths ---
-
-func handleCreateSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		subID := r.PathValue("subId")
-		var req pathRequest
-		if !decodeBody(w, r, &req) {
-			return
-		}
-		if !validatePathRequest(w, &req, "", "") {
-			return
-		}
-
-		cfg := store.Get()
-		dom := findDomain(cfg, domainID)
+		_, dom, sub := resolvePathContainer(store.Get(), scope)
 		if dom == nil {
 			writeError(w, "domain not found", http.StatusNotFound)
 			return
 		}
-		if findSubdomain(dom, subID) == nil {
+		if scope.subID != "" && sub == nil {
 			writeError(w, "subdomain not found", http.StatusNotFound)
 			return
 		}
 
 		path := pathFromRequest(req)
 
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain path created: "+path.ID)
+		maybeAutoSnapshot(cc, ss, store, version, pathSnapshotLabel("created", dom, sub, &path))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			d := findDomain(&c, domainID)
-			if d == nil {
+			paths, _, _ := resolvePathContainer(&c, scope)
+			if paths == nil {
 				return nil, errMutationNotFound
 			}
-			s := findSubdomain(d, subID)
-			if s == nil {
-				return nil, errMutationNotFound
-			}
-			s.Paths = append(s.Paths, path)
+			*paths = append(*paths, path)
 			return &c, nil
 		})
-		if writeMutateError(w, "handleCreateSubdomainPath", err, "subdomain not found", "failed to save path") {
+		if writeMutateError(w, "createPath", err, "path container not found", "failed to save path") {
 			return
 		}
 
 		persistCaddyConfig(cc, store)
-
-		cfg = store.Get()
-		if d := findDomain(cfg, domainID); d != nil {
-			writeJSON(w, d)
-			return
-		}
-		writeJSON(w, path)
+		returnDomainOr(w, store, scope.domainID, path)
 	}
 }
 
-func handleUpdateSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+// updatePath is the shared body for handleUpdate{Domain,Subdomain}Path.
+func updatePath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, scopeOf func(*http.Request) pathScope) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		subID := r.PathValue("subId")
+		scope := scopeOf(r)
 		pathID := r.PathValue("pathId")
 		var req pathRequest
 		if !decodeBody(w, r, &req) {
@@ -354,68 +231,70 @@ func handleUpdateSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *
 		}
 
 		var fallbackHash string
-		if dom := findDomain(store.Get(), domainID); dom != nil {
-			if sub := findSubdomain(dom, subID); sub != nil {
-				fallbackHash = existingPathHash(sub.Paths, pathID)
-			}
+		paths, dom, sub := resolvePathContainer(store.Get(), scope)
+		if paths != nil {
+			fallbackHash = existingPathHash(*paths, pathID)
 		}
 		if !validatePathRequest(w, &req, fallbackHash, "") {
 			return
 		}
 
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain path updated: "+pathID)
+		var labelPath *config.Path
+		if paths != nil {
+			if idx := findPath(*paths, pathID); idx >= 0 {
+				labelCopy := (*paths)[idx]
+				labelPath = &labelCopy
+				labelPath.PathMatch = req.PathMatch
+				labelPath.MatchValue = req.MatchValue
+			}
+		}
+		maybeAutoSnapshot(cc, ss, store, version, pathSnapshotLabel("updated", dom, sub, labelPath))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			d := findDomain(&c, domainID)
-			if d == nil {
+			ps, _, _ := resolvePathContainer(&c, scope)
+			if ps == nil {
 				return nil, errMutationNotFound
 			}
-			s := findSubdomain(d, subID)
-			if s == nil {
-				return nil, errMutationNotFound
-			}
-			idx := findPath(s.Paths, pathID)
+			idx := findPath(*ps, pathID)
 			if idx < 0 {
 				return nil, errMutationNotFound
 			}
-			applyPathUpdate(&s.Paths[idx], req)
+			applyPathUpdate(&(*ps)[idx], req)
 			return &c, nil
 		})
-		if writeMutateError(w, "handleUpdateSubdomainPath", err, "path not found", "failed to update path") {
+		if writeMutateError(w, "updatePath", err, "path not found", "failed to update path") {
 			return
 		}
 
 		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if d := findDomain(cfg, domainID); d != nil {
-			writeJSON(w, d)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
+		returnDomainOr(w, store, scope.domainID, map[string]string{"status": "ok"})
 	}
 }
 
-func handleDeleteSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+// deletePath is the shared body for handleDelete{Domain,Subdomain}Path.
+func deletePath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, scopeOf func(*http.Request) pathScope) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		subID := r.PathValue("subId")
+		scope := scopeOf(r)
 		pathID := r.PathValue("pathId")
 
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain path deleted: "+pathID)
+		paths, dom, sub := resolvePathContainer(store.Get(), scope)
+		var labelPath *config.Path
+		if paths != nil {
+			if idx := findPath(*paths, pathID); idx >= 0 {
+				p := (*paths)[idx]
+				labelPath = &p
+			}
+		}
+		maybeAutoSnapshot(cc, ss, store, version, pathSnapshotLabel("deleted", dom, sub, labelPath))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			d := findDomain(&c, domainID)
-			if d == nil {
+			ps, _, _ := resolvePathContainer(&c, scope)
+			if ps == nil {
 				return nil, errMutationNotFound
 			}
-			s := findSubdomain(d, subID)
-			if s == nil {
-				return nil, errMutationNotFound
-			}
-			fresh := make([]config.Path, 0, len(s.Paths))
+			fresh := make([]config.Path, 0, len(*ps))
 			found := false
-			for _, p := range s.Paths {
+			for _, p := range *ps {
 				if p.ID == pathID {
 					found = true
 					continue
@@ -425,72 +304,99 @@ func handleDeleteSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *
 			if !found {
 				return nil, errMutationNotFound
 			}
-			s.Paths = fresh
+			*ps = fresh
 			return &c, nil
 		})
-		if writeMutateError(w, "handleDeleteSubdomainPath", err, "path not found", "failed to delete path") {
+		if writeMutateError(w, "deletePath", err, "path not found", "failed to delete path") {
 			return
 		}
 
 		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if d := findDomain(cfg, domainID); d != nil {
-			writeJSON(w, d)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
+		returnDomainOr(w, store, scope.domainID, map[string]string{"status": "ok"})
 	}
 }
 
-func handleEnableSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return subdomainPathToggleHandler(store, cc, ss, version, true)
-}
-
-func handleDisableSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
-	return subdomainPathToggleHandler(store, cc, ss, version, false)
-}
-
-func subdomainPathToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, enabled bool) http.HandlerFunc {
+// togglePath is the shared body for handle{Enable,Disable}{Domain,Subdomain}Path.
+func togglePath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, scopeOf func(*http.Request) pathScope, enabled bool) http.HandlerFunc {
+	action := "enabled"
+	if !enabled {
+		action = "disabled"
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		domainID := r.PathValue("id")
-		subID := r.PathValue("subId")
+		scope := scopeOf(r)
 		pathID := r.PathValue("pathId")
 
-		action := "enabled"
-		if !enabled {
-			action = "disabled"
+		paths, dom, sub := resolvePathContainer(store.Get(), scope)
+		var labelPath *config.Path
+		if paths != nil {
+			if idx := findPath(*paths, pathID); idx >= 0 {
+				p := (*paths)[idx]
+				labelPath = &p
+			}
 		}
-
-		maybeAutoSnapshot(cc, ss, store, version, "Subdomain path "+action+": "+pathID)
+		maybeAutoSnapshot(cc, ss, store, version, pathSnapshotLabel(action, dom, sub, labelPath))
 
 		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
-			d := findDomain(&c, domainID)
-			if d == nil {
+			ps, _, _ := resolvePathContainer(&c, scope)
+			if ps == nil {
 				return nil, errMutationNotFound
 			}
-			s := findSubdomain(d, subID)
-			if s == nil {
-				return nil, errMutationNotFound
-			}
-			idx := findPath(s.Paths, pathID)
+			idx := findPath(*ps, pathID)
 			if idx < 0 {
 				return nil, errMutationNotFound
 			}
-			s.Paths[idx].Enabled = enabled
+			(*ps)[idx].Enabled = enabled
 			return &c, nil
 		})
-		if writeMutateError(w, "handleToggleSubdomainPath", err, "path not found", "failed to update path") {
+		if writeMutateError(w, "togglePath", err, "path not found", "failed to update path") {
 			return
 		}
 
 		persistCaddyConfig(cc, store)
-
-		cfg := store.Get()
-		if d := findDomain(cfg, domainID); d != nil {
-			writeJSON(w, d)
-			return
-		}
-		writeJSON(w, map[string]string{"status": "ok"})
+		returnDomainOr(w, store, scope.domainID, map[string]string{"status": "ok"})
 	}
+}
+
+// --- Domain paths ---
+
+func handleCreateDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return createPath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, false) })
+}
+
+func handleUpdateDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return updatePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, false) })
+}
+
+func handleDeleteDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return deletePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, false) })
+}
+
+func handleEnableDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return togglePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, false) }, true)
+}
+
+func handleDisableDomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return togglePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, false) }, false)
+}
+
+// --- Subdomain paths ---
+
+func handleCreateSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return createPath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, true) })
+}
+
+func handleUpdateSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return updatePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, true) })
+}
+
+func handleDeleteSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return deletePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, true) })
+}
+
+func handleEnableSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return togglePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, true) }, true)
+}
+
+func handleDisableSubdomainPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return togglePath(store, cc, ss, version, func(r *http.Request) pathScope { return pathScopeFromRequest(r, true) }, false)
 }

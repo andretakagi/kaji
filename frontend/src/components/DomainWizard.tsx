@@ -20,6 +20,10 @@ import {
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
+	handlerOptions,
+	handlerOptionsWithNone,
+	pathMatchLabels,
+	pathMatchOptions,
 } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { pathMatchWarning, validateDomain, validateUpstream } from "../utils/validate";
@@ -62,33 +66,6 @@ export interface WizardData {
 }
 
 const STEP_LABELS = ["URL", "Root Domain Rule", "Subdomain Rules", "Paths", "Review"];
-
-const handlerOptions: readonly { value: HandlerSelection; label: string }[] = [
-	{ value: "none", label: "None" },
-	{ value: "reverse_proxy", label: "Reverse Proxy" },
-	{ value: "redirect", label: "Redirect" },
-	{ value: "file_server", label: "File Server" },
-	{ value: "static_response", label: "Static Response" },
-] as const;
-
-const pathMatchOptions: { value: PathMatch; label: string }[] = [
-	{ value: "prefix", label: "Prefix" },
-	{ value: "exact", label: "Exact" },
-	{ value: "regex", label: "Regex" },
-];
-
-const pathMatchLabels: Record<PathMatch, string> = {
-	prefix: "Prefix",
-	exact: "Exact",
-	regex: "Regex",
-};
-
-const handlerTypeOptions: { value: HandlerType; label: string }[] = [
-	{ value: "reverse_proxy", label: "Reverse Proxy" },
-	{ value: "redirect", label: "Redirect" },
-	{ value: "file_server", label: "File Server" },
-	{ value: "static_response", label: "Static Response" },
-];
 
 function parseUrl(input: string): {
 	domain: string;
@@ -783,7 +760,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 							<div className="form-field">
 								<span className="form-label">Handler</span>
 								<Toggle
-									options={handlerOptions}
+									options={handlerOptionsWithNone}
 									value={data.rootRule.handlerType}
 									onChange={(next: HandlerSelection) => {
 										setData((prev) => ({
@@ -903,7 +880,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													<div className="form-field">
 														<span className="form-label">Handler</span>
 														<Toggle
-															options={handlerOptions}
+															options={handlerOptionsWithNone}
 															value={subHandlerType}
 															onChange={(next: HandlerSelection) => {
 																setSubHandlerType(next);
@@ -1019,7 +996,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 									<div className="form-field">
 										<span className="form-label">Handler</span>
 										<Toggle
-											options={handlerOptions}
+											options={handlerOptionsWithNone}
 											value={subHandlerType}
 											onChange={(next: HandlerSelection) => {
 												setSubHandlerType(next);
@@ -1235,7 +1212,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 														<div className="form-field">
 															<span className="form-label">Handler Type</span>
 															<Toggle
-																options={handlerTypeOptions}
+																options={handlerOptions}
 																value={pathHandlerType}
 																onChange={(next: HandlerType) => {
 																	setPathHandlerType(next);
@@ -1398,7 +1375,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 									<div className="form-field">
 										<span className="form-label">Handler Type</span>
 										<Toggle
-											options={handlerTypeOptions}
+											options={handlerOptions}
 											value={pathHandlerType}
 											onChange={(next: HandlerType) => {
 												setPathHandlerType(next);

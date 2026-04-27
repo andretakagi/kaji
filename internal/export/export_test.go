@@ -52,9 +52,6 @@ func TestBuildZIPRoundTrip(t *testing.T) {
 		IPLists: []config.IPList{
 			{ID: "list1", Name: "blocklist", Type: "deny", IPs: []string{"10.0.0.1"}},
 		},
-		DisabledDomains: []config.DisabledDomain{
-			{ID: "route-abc", Server: "srv0", DisabledAt: "2025-01-01T00:00:00Z"},
-		},
 		DomainIPLists: map[string]string{"route-abc": "list1"},
 	}
 	store := config.NewStore(appCfg)
@@ -156,9 +153,6 @@ func TestBuildZIPRoundTrip(t *testing.T) {
 	}
 	if len(exportedCfg.IPLists) != 1 || exportedCfg.IPLists[0].ID != "list1" {
 		t.Errorf("IPLists not preserved: got %+v", exportedCfg.IPLists)
-	}
-	if len(exportedCfg.DisabledDomains) != 1 || exportedCfg.DisabledDomains[0].ID != "route-abc" {
-		t.Errorf("DisabledDomains not preserved: got %+v", exportedCfg.DisabledDomains)
 	}
 	if exportedCfg.DomainIPLists["route-abc"] != "list1" {
 		t.Errorf("DomainIPLists not preserved: got %+v", exportedCfg.DomainIPLists)

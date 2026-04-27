@@ -192,3 +192,35 @@ export const defaultFileServerConfig: FileServerConfig = {
 	index_names: ["index.html"],
 	hide: [],
 };
+
+export const pathMatchOptions: { value: PathMatch; label: string }[] = [
+	{ value: "prefix", label: "Prefix" },
+	{ value: "exact", label: "Exact" },
+	{ value: "regex", label: "Regex" },
+];
+
+export const pathMatchLabels: Record<PathMatch, string> = {
+	prefix: "Prefix",
+	exact: "Exact",
+	regex: "Regex",
+};
+
+export const handlerLabels: Record<RuleHandlerType, string> = {
+	reverse_proxy: "Reverse Proxy",
+	redirect: "Redirect",
+	file_server: "File Server",
+	static_response: "Static Response",
+	none: "None",
+};
+
+export const handlerOptions: { value: HandlerType; label: string }[] = [
+	{ value: "reverse_proxy", label: "Reverse Proxy" },
+	{ value: "redirect", label: "Redirect" },
+	{ value: "file_server", label: "File Server" },
+	{ value: "static_response", label: "Static Response" },
+];
+
+export const handlerOptionsWithNone: { value: RuleHandlerType; label: string }[] = [
+	{ value: "none", label: "None" },
+	...handlerOptions,
+];

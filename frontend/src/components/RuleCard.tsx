@@ -7,7 +7,6 @@ import type {
 	RedirectConfig,
 	ReverseProxyConfig,
 	Rule,
-	RuleHandlerType,
 	StaticResponseConfig,
 	UpdateRuleRequest,
 } from "../types/domain";
@@ -17,6 +16,9 @@ import {
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
+	handlerLabels,
+	pathMatchLabels,
+	pathMatchOptions,
 } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import { pathMatchWarning, validateRule } from "../utils/validate";
@@ -75,26 +77,6 @@ export function normalizeRule(r: Rule): Rule {
 	}
 }
 
-const handlerLabels: Record<RuleHandlerType, string> = {
-	reverse_proxy: "Reverse Proxy",
-	redirect: "Redirect",
-	file_server: "File Server",
-	static_response: "Static Response",
-	none: "No Handler",
-};
-
-const pathMatchLabels: Record<PathMatch, string> = {
-	prefix: "Prefix",
-	exact: "Exact",
-	regex: "Regex",
-};
-
-const pathMatchOptions: { value: PathMatch; label: string }[] = [
-	{ value: "prefix", label: "Prefix" },
-	{ value: "exact", label: "Exact" },
-	{ value: "regex", label: "Regex" },
-];
-
 export type RuleCardKind = "domain" | "subdomain" | "path";
 
 export interface RuleCardSavePayload {
@@ -122,9 +104,11 @@ interface RuleCardProps {
 	deleteLabel?: string;
 	enableLabel?: string;
 	disableLabel?: string;
+	mode?: "view" | "create";
 	onSave: (payload: RuleCardSavePayload) => Promise<void>;
 	onToggleEnabled?: (enabled: boolean) => void;
 	onDelete?: () => void;
+	onCancel?: () => void;
 }
 
 export default function RuleCard({
@@ -144,16 +128,20 @@ export default function RuleCard({
 	deleteLabel,
 	enableLabel,
 	disableLabel,
+	mode = "view",
 	onSave,
 	onToggleEnabled,
 	onDelete,
+	onCancel,
 }: RuleCardProps) {
 	const formId = useId();
 	const isPath = kind === "path";
-	const showEnableToggle = kind !== "domain" && enabled !== undefined && !!onToggleEnabled;
-	const showDelete = kind !== "domain" && !!onDelete;
+	const isCreate = mode === "create";
+	const showEnableToggle =
+		!isCreate && kind !== "domain" && enabled !== undefined && !!onToggleEnabled;
+	const showDelete = !isCreate && kind !== "domain" && !!onDelete;
 
-	const [editing, setEditing] = useState(false);
+	const [editing, setEditing] = useState(isCreate);
 	const [editedRule, setEditedRule] = useState<Rule>(normalizeRule(rule));
 	const [editedToggles, setEditedToggles] = useState<DomainToggles>(normalizeToggles(toggles));
 	const [editedPathMatch, setEditedPathMatch] = useState<PathMatch>(pathMatch ?? "prefix");
@@ -177,6 +165,10 @@ export default function RuleCard({
 	};
 
 	const handleCancel = () => {
+		if (isCreate) {
+			onCancel?.();
+			return;
+		}
 		setEditing(false);
 	};
 
@@ -209,7 +201,7 @@ export default function RuleCard({
 						}
 					: {}),
 			});
-			setEditing(false);
+			if (!isCreate) setEditing(false);
 		} catch (err) {
 			setFormError(getErrorMessage(err, "Save failed"));
 		} finally {

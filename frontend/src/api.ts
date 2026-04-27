@@ -52,6 +52,8 @@ import {
 	validateCaddyStatus,
 	validateCertificates,
 	validateDNSProvider,
+	validateDomain,
+	validateDomainArray,
 	validateDomainIPListBindings,
 	validateExportCaddyfile,
 	validateGenerateAPIKey,
@@ -124,7 +126,9 @@ async function sendRequest(
 
 async function request<T>(
 	path: string,
-	options?: RequestInit,
+	options?: RequestInit & {
+		parseError?: (status: number, text: string, statusText: string) => Error;
+	},
 	validate?: (data: unknown) => T,
 ): Promise<T> {
 	const res = await sendRequest(path, options);
@@ -235,12 +239,16 @@ export function updateDNSProvider(settings: {
 	);
 }
 
+interface UpdateAuthRequest {
+	auth_enabled: boolean;
+	password?: string;
+}
+
 export function updateAuthEnabled(
 	enabled: boolean,
 	password?: string,
 ): Promise<{ status: string }> {
-	const body: Record<string, unknown> = { auth_enabled: enabled };
-	if (password) body.password = password;
+	const body: UpdateAuthRequest = { auth_enabled: enabled, ...(password ? { password } : {}) };
 	return request(
 		"/api/settings/auth",
 		{ method: "PUT", ...jsonBody(body) },
@@ -491,32 +499,35 @@ export class CertInUseError extends Error {
 	}
 }
 
-export async function deleteCertificate(
+export function deleteCertificate(
 	issuerKey: string,
 	domain: string,
 	force = false,
 ): Promise<{ status: string }> {
 	const query = force ? "?force=true" : "";
 	const path = `/api/certificates/${encodeURIComponent(issuerKey)}/${encodeURIComponent(domain)}${query}`;
-	const res = await sendRequest(path, {
-		method: "DELETE",
-		parseError: (_status, text, statusText) => {
-			let message = text || statusText;
-			let affectedDomains: string[] | undefined;
-			try {
-				const json = JSON.parse(text);
-				if (json.error) message = json.error;
-				if (Array.isArray(json.affected_domains)) affectedDomains = json.affected_domains;
-			} catch {
-				// not JSON
-			}
-			if (affectedDomains && affectedDomains.length > 0) {
-				return new CertInUseError(message, affectedDomains);
-			}
-			return new Error(message);
+	return request(
+		path,
+		{
+			method: "DELETE",
+			parseError: (_status, text, statusText) => {
+				let message = text || statusText;
+				let affectedDomains: string[] | undefined;
+				try {
+					const json = JSON.parse(text);
+					if (json.error) message = json.error;
+					if (Array.isArray(json.affected_domains)) affectedDomains = json.affected_domains;
+				} catch {
+					// not JSON
+				}
+				if (affectedDomains && affectedDomains.length > 0) {
+					return new CertInUseError(message, affectedDomains);
+				}
+				return new Error(message);
+			},
 		},
-	});
-	return res.json();
+		validateStatusResponse,
+	);
 }
 
 export function downloadCertificate(issuerKey: string, domain: string): void {
@@ -567,18 +578,18 @@ function normalizeDomain(d: Domain): Domain {
 }
 
 export function fetchDomains(): Promise<Domain[]> {
-	return request("/api/domains", undefined, (d) => (d as Domain[]).map(normalizeDomain));
+	return request("/api/domains", undefined, (d) => validateDomainArray(d).map(normalizeDomain));
 }
 
 export function fetchDomain(id: string): Promise<Domain> {
 	return request(`/api/domains/${encodeURIComponent(id)}`, undefined, (d) =>
-		normalizeDomain(d as Domain),
+		normalizeDomain(validateDomain(d)),
 	);
 }
 
 export function createDomainFull(req: CreateDomainFullRequest): Promise<Domain> {
 	return request("/api/domains/full", { method: "POST", ...jsonBody(req) }, (d) =>
-		normalizeDomain(d as Domain),
+		normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -586,7 +597,7 @@ export function updateDomain(id: string, req: UpdateDomainRequest): Promise<Doma
 	return request(
 		`/api/domains/${encodeURIComponent(id)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -600,13 +611,13 @@ export function deleteDomain(id: string): Promise<{ status: string }> {
 
 export function enableDomain(id: string): Promise<Domain> {
 	return request(`/api/domains/${encodeURIComponent(id)}/enable`, { method: "POST" }, (d) =>
-		normalizeDomain(d as Domain),
+		normalizeDomain(validateDomain(d)),
 	);
 }
 
 export function disableDomain(id: string): Promise<Domain> {
 	return request(`/api/domains/${encodeURIComponent(id)}/disable`, { method: "POST" }, (d) =>
-		normalizeDomain(d as Domain),
+		normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -614,7 +625,7 @@ export function updateDomainRule(domainId: string, req: UpdateRuleRequest): Prom
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/rule`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -622,7 +633,7 @@ export function createDomainPath(domainId: string, req: CreatePathRequest): Prom
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/paths`,
 		{ method: "POST", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -634,7 +645,7 @@ export function updateDomainPath(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -642,7 +653,7 @@ export function deleteDomainPath(domainId: string, pathId: string): Promise<Doma
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}`,
 		{ method: "DELETE" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -650,7 +661,7 @@ export function enableDomainPath(domainId: string, pathId: string): Promise<Doma
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}/enable`,
 		{ method: "POST" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -658,7 +669,7 @@ export function disableDomainPath(domainId: string, pathId: string): Promise<Dom
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/paths/${encodeURIComponent(pathId)}/disable`,
 		{ method: "POST" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -666,7 +677,7 @@ export function createSubdomain(domainId: string, req: CreateSubdomainRequest): 
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains`,
 		{ method: "POST", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -678,7 +689,7 @@ export function updateSubdomain(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -686,7 +697,7 @@ export function deleteSubdomain(domainId: string, subId: string): Promise<Domain
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}`,
 		{ method: "DELETE" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -694,7 +705,7 @@ export function enableSubdomain(domainId: string, subId: string): Promise<Domain
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/enable`,
 		{ method: "POST" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -702,7 +713,7 @@ export function disableSubdomain(domainId: string, subId: string): Promise<Domai
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/disable`,
 		{ method: "POST" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -714,7 +725,7 @@ export function updateSubdomainRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rule`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -726,7 +737,7 @@ export function createSubdomainPath(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths`,
 		{ method: "POST", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -739,7 +750,7 @@ export function updateSubdomainPath(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}`,
 		{ method: "PUT", ...jsonBody(req) },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -751,7 +762,7 @@ export function deleteSubdomainPath(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}`,
 		{ method: "DELETE" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -763,7 +774,7 @@ export function enableSubdomainPath(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}/enable`,
 		{ method: "POST" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }
 
@@ -775,6 +786,6 @@ export function disableSubdomainPath(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/paths/${encodeURIComponent(pathId)}/disable`,
 		{ method: "POST" },
-		(d) => normalizeDomain(d as Domain),
+		(d) => normalizeDomain(validateDomain(d)),
 	);
 }

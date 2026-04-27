@@ -212,6 +212,29 @@ func hashBasicAuthPassword(ba *caddy.BasicAuth, fallbackHash string) error {
 	return nil
 }
 
+// validateAndHashBasicAuth performs the standard basic-auth gate used by every
+// domain/subdomain/path handler: if BasicAuth is enabled, require a username,
+// then hash the new password (falling back to fallbackHash when the client
+// omits one so existing hashes survive updates). errPrefix is prepended to the
+// missing-username message so list contexts can disambiguate. logPrefix names
+// the calling handler in the 500 log line. Returns false (and writes the HTTP
+// response) on any failure.
+func validateAndHashBasicAuth(w http.ResponseWriter, ba *caddy.BasicAuth, fallbackHash, errPrefix, logPrefix string) bool {
+	if !ba.Enabled {
+		return true
+	}
+	if ba.Username == "" {
+		writeError(w, errPrefix+"username is required for basic auth", http.StatusBadRequest)
+		return false
+	}
+	if err := hashBasicAuthPassword(ba, fallbackHash); err != nil {
+		log.Printf("%s: hash password: %v", logPrefix, err)
+		writeError(w, "failed to hash password", http.StatusInternalServerError)
+		return false
+	}
+	return true
+}
+
 var (
 	persistMu    sync.Mutex
 	persistTimer *time.Timer

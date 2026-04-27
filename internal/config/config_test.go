@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,14 +78,6 @@ func TestLoadFromSaveToRoundTrip(t *testing.T) {
 			BatchSize:            512000,
 			FlushIntervalSeconds: 10,
 		},
-		DisabledDomains: []DisabledDomain{
-			{
-				ID:         "route-1",
-				Server:     "srv0",
-				DisabledAt: "2024-01-01T00:00:00Z",
-				Route:      json.RawMessage(`{"handle":[]}`),
-			},
-		},
 	}
 
 	if err := SaveTo(original, path); err != nil {
@@ -139,12 +130,6 @@ func TestLoadFromSaveToRoundTrip(t *testing.T) {
 	}
 	if loaded.Loki.Labels["app"] != original.Loki.Labels["app"] {
 		t.Errorf("Loki.Labels[app] = %q, want %q", loaded.Loki.Labels["app"], original.Loki.Labels["app"])
-	}
-	if len(loaded.DisabledDomains) != 1 {
-		t.Fatalf("DisabledDomains len = %d, want 1", len(loaded.DisabledDomains))
-	}
-	if loaded.DisabledDomains[0].ID != original.DisabledDomains[0].ID {
-		t.Errorf("DisabledDomains[0].ID = %q, want %q", loaded.DisabledDomains[0].ID, original.DisabledDomains[0].ID)
 	}
 }
 

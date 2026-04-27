@@ -4,17 +4,24 @@ import type {
 	CreatePathRequest,
 	DomainToggles,
 	Path,
+	Rule,
 	Subdomain,
 	UpdatePathRequest,
 } from "../types/domain";
+import { defaultReverseProxyConfig } from "../types/domain";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import Feedback from "./Feedback";
-import PathForm from "./PathForm";
 import RuleCard, { normalizeRule, normalizeToggles } from "./RuleCard";
 import { SectionHeader } from "./SectionHeader";
 import SubdomainForm from "./SubdomainForm";
 import { Toggle } from "./Toggle";
+
+const newPathRule: Rule = {
+	handler_type: "reverse_proxy",
+	handler_config: { ...defaultReverseProxyConfig },
+	advanced_headers: false,
+};
 
 interface Props {
 	domain: { id: string; name: string; enabled: boolean };
@@ -360,12 +367,27 @@ function PathGroup({
 							</div>
 						</div>
 					)}
-					<PathForm
-						domainName={activeTarget.label}
+					<RuleCard
+						kind="path"
+						mode="create"
+						hostLabel={`${activeTarget.label} (new path)`}
+						rule={newPathRule}
+						toggles={activeTarget.toggles}
 						parentToggles={activeTarget.toggles}
-						inline
-						onSubmit={async (req) => {
-							await handleSubmitAdd(req as CreatePathRequest);
+						pathMatch="prefix"
+						matchValue=""
+						hasOverrides={false}
+						saving={saving}
+						ariaLabel={`New path for ${activeTarget.label}`}
+						idPrefix={`path-new-${addTarget || "root"}`}
+						domainName={activeTarget.label}
+						onSave={async ({ rule, toggles, pathMatch, matchValue, hasOverrides }) => {
+							await handleSubmitAdd({
+								path_match: pathMatch ?? "prefix",
+								match_value: matchValue ?? "",
+								rule,
+								toggle_overrides: hasOverrides ? toggles : null,
+							});
 						}}
 						onCancel={handleCancelAdd}
 					/>
