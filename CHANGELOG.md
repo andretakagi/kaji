@@ -2,10 +2,26 @@
 
 All notable changes to Kaji are documented in this file.
 
-## [1.7.0] - 2026-04-25
+## [1.7.0] - 2026-04-27
+
+### Added
+- New handler types alongside reverse proxy:
+  - File server for serving static directories, with optional directory browsing.
+  - Redirect with configurable status code, target URL, and preserve-path option.
+  - Static response for returning fixed responses with custom status, headers, and body.
+- Subdomains as first-class entities. Each subdomain has its own primary handler, paths, toggles, and enable state, and can be configured independently from its parent domain.
+- Custom request and response headers per route, in basic and advanced modes with per-header overrides.
+- Multi-step domain creation wizard with toggles, root rule, optional subdomains, per-target paths, and a review step before applying.
 
 ### Changed
+- "Routes" renamed to "Domains" throughout the UI, terminology, and config schema.
 - Domain routing now follows a clearer model. Each domain and subdomain has a single primary handler, and additional path matchers live alongside it as their own list. Existing configs migrate automatically on upgrade.
+- Failed Caddy mutations now roll back the in-memory app config instead of leaving it out of sync with Caddy.
+
+### Fixed
+- Path form override toggles did not refresh when the target domain changed.
+- Subdomain sync emitted duplicate path groups in the domain card view.
+- Domain creation could fail with a duplicate root rule in some cases.
 
 ## [1.6.0] - 2026-04-15
 
