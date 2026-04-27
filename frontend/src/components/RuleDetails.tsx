@@ -1,64 +1,44 @@
-import type { ReactNode } from "react";
-import { cn } from "../cn";
 import type {
 	FileServerConfig,
 	ReverseProxyConfig,
 	Rule,
-	RuleHandlerType,
 	StaticResponseConfig,
 } from "../types/domain";
-import CollapsibleCard from "./CollapsibleCard";
 import { handlerSummary } from "./HandlerConfig";
 
-interface Props {
-	title: ReactNode;
+export function RuleDetails({
+	rule,
+	onEdit,
+	disabled,
+}: {
 	rule: Rule;
-	onEdit: () => void;
+	onEdit?: () => void;
 	disabled?: boolean;
-	actions?: ReactNode;
-}
-
-const labels: Record<RuleHandlerType, string> = {
-	none: "No Handler",
-	reverse_proxy: "Reverse Proxy",
-	redirect: "Redirect",
-	file_server: "File Server",
-	static_response: "Static Response",
-};
-
-export default function RuleSummaryCard({ title, rule, onEdit, disabled, actions }: Props) {
-	const titleNode = (
-		<>
-			<span className="rule-card-match">{title}</span>
-			<span className={cn("rule-card-handler-badge", `handler-${rule.handler_type}`)}>
-				{labels[rule.handler_type]}
-			</span>
-		</>
-	);
+}) {
 	return (
-		<CollapsibleCard title={titleNode} actions={actions} disabled={disabled}>
-			<div className="rule-card-body">
-				{rule.handler_type === "none" ? (
-					<div className="rule-card-detail-empty">No handler set. Edit to configure.</div>
-				) : (
-					<>
-						<div className="rule-card-detail">
-							<span className="rule-card-detail-label">Handler</span>
-							<span className="rule-card-detail-value">
-								{handlerSummary(rule.handler_type, rule.handler_config)}
-							</span>
-						</div>
-						{rule.handler_type === "reverse_proxy" && (
-							<ReverseProxyDetails config={rule.handler_config as ReverseProxyConfig} />
-						)}
-						{rule.handler_type === "static_response" && (
-							<StaticResponseDetails config={rule.handler_config as StaticResponseConfig} />
-						)}
-						{rule.handler_type === "file_server" && (
-							<FileServerDetails config={rule.handler_config as FileServerConfig} />
-						)}
-					</>
-				)}
+		<div className="rule-card-body">
+			{rule.handler_type === "none" ? (
+				<div className="rule-card-detail-empty">No handler set. Edit to configure.</div>
+			) : (
+				<>
+					<div className="rule-card-detail">
+						<span className="rule-card-detail-label">Handler</span>
+						<span className="rule-card-detail-value">
+							{handlerSummary(rule.handler_type, rule.handler_config)}
+						</span>
+					</div>
+					{rule.handler_type === "reverse_proxy" && (
+						<ReverseProxyDetails config={rule.handler_config as ReverseProxyConfig} />
+					)}
+					{rule.handler_type === "static_response" && (
+						<StaticResponseDetails config={rule.handler_config as StaticResponseConfig} />
+					)}
+					{rule.handler_type === "file_server" && (
+						<FileServerDetails config={rule.handler_config as FileServerConfig} />
+					)}
+				</>
+			)}
+			{onEdit && (
 				<button
 					type="button"
 					className="btn btn-primary"
@@ -68,12 +48,12 @@ export default function RuleSummaryCard({ title, rule, onEdit, disabled, actions
 				>
 					Edit
 				</button>
-			</div>
-		</CollapsibleCard>
+			)}
+		</div>
 	);
 }
 
-export function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) {
+function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) {
 	const details: { label: string; value: string }[] = [];
 	if (config.tls_skip_verify) details.push({ label: "TLS", value: "Skip verify" });
 	if (config.websocket_passthrough) details.push({ label: "WebSocket", value: "Enabled" });
@@ -100,7 +80,7 @@ export function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) 
 	);
 }
 
-export function StaticResponseDetails({ config }: { config: StaticResponseConfig }) {
+function StaticResponseDetails({ config }: { config: StaticResponseConfig }) {
 	if (config.close) return null;
 
 	const details: { label: string; value: string }[] = [];
@@ -131,7 +111,7 @@ export function StaticResponseDetails({ config }: { config: StaticResponseConfig
 	);
 }
 
-export function FileServerDetails({ config }: { config: FileServerConfig }) {
+function FileServerDetails({ config }: { config: FileServerConfig }) {
 	const details: { label: string; value: string }[] = [{ label: "Root", value: config.root }];
 	if (config.browse) details.push({ label: "Browse", value: "Enabled" });
 	if (config.index_names?.length > 0) {

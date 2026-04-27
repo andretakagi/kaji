@@ -13,6 +13,7 @@ interface Props {
 	idPrefix: string;
 	domain?: string;
 	hideResponseHeaders?: boolean;
+	disabled?: boolean;
 }
 
 export function DomainToggleGrid({
@@ -21,6 +22,7 @@ export function DomainToggleGrid({
 	idPrefix,
 	domain,
 	hideResponseHeaders,
+	disabled,
 }: Props) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 	const [autoHttps, setAutoHttps] = useState<GlobalToggles["auto_https"] | null>(null);
@@ -55,6 +57,7 @@ export function DomainToggleGrid({
 					description="Redirect HTTP requests to HTTPS"
 					checked={toggles.force_https}
 					onChange={(v) => onUpdate("force_https", v)}
+					disabled={disabled}
 				/>
 			)}
 			<ToggleItem
@@ -62,13 +65,35 @@ export function DomainToggleGrid({
 				description="gzip + zstd encoding"
 				checked={toggles.compression}
 				onChange={(v) => onUpdate("compression", v)}
+				disabled={disabled}
 			/>
 			{!hideResponseHeaders && (
-				<ResponseHeadersGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
+				<ResponseHeadersGroup
+					toggles={toggles}
+					onUpdate={onUpdate}
+					idPrefix={idPrefix}
+					disabled={disabled}
+				/>
 			)}
-			<BasicAuthGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} />
-			<AccessLogGroup toggles={toggles} onUpdate={onUpdate} idPrefix={idPrefix} domain={domain} />
-			<IPFilteringGroup toggles={toggles} onUpdate={onUpdate} ipLists={ipLists} />
+			<BasicAuthGroup
+				toggles={toggles}
+				onUpdate={onUpdate}
+				idPrefix={idPrefix}
+				disabled={disabled}
+			/>
+			<AccessLogGroup
+				toggles={toggles}
+				onUpdate={onUpdate}
+				idPrefix={idPrefix}
+				domain={domain}
+				disabled={disabled}
+			/>
+			<IPFilteringGroup
+				toggles={toggles}
+				onUpdate={onUpdate}
+				ipLists={ipLists}
+				disabled={disabled}
+			/>
 		</div>
 	);
 }
@@ -77,9 +102,10 @@ interface GroupProps {
 	toggles: DomainToggles;
 	onUpdate: <K extends keyof DomainToggles>(key: K, value: DomainToggles[K]) => void;
 	idPrefix: string;
+	disabled?: boolean;
 }
 
-function BasicAuthGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
+function BasicAuthGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) {
 	return (
 		<div className={cn("toggle-group", toggles.basic_auth.enabled && "toggle-group-open")}>
 			<ToggleItem
@@ -87,6 +113,7 @@ function BasicAuthGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
 				description="HTTP basic authentication"
 				checked={toggles.basic_auth.enabled}
 				onChange={(v) => onUpdate("basic_auth", { ...toggles.basic_auth, enabled: v })}
+				disabled={disabled}
 			/>
 			{toggles.basic_auth.enabled && (
 				<div className="toggle-detail">
@@ -103,6 +130,7 @@ function BasicAuthGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
 								username: e.target.value,
 							})
 						}
+						disabled={disabled}
 					/>
 					<label htmlFor={`auth-pass-${idPrefix}`}>Password</label>
 					<input
@@ -117,6 +145,7 @@ function BasicAuthGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
 								password: e.target.value,
 							})
 						}
+						disabled={disabled}
 					/>
 				</div>
 			)}
@@ -124,7 +153,13 @@ function BasicAuthGroup({ toggles, onUpdate, idPrefix }: GroupProps) {
 	);
 }
 
-function AccessLogGroup({ toggles, onUpdate, idPrefix, domain }: GroupProps & { domain?: string }) {
+function AccessLogGroup({
+	toggles,
+	onUpdate,
+	idPrefix,
+	domain,
+	disabled,
+}: GroupProps & { domain?: string }) {
 	return (
 		<div className={cn("toggle-group", toggles.access_log && "toggle-group-open")}>
 			<ToggleItem
@@ -132,6 +167,7 @@ function AccessLogGroup({ toggles, onUpdate, idPrefix, domain }: GroupProps & { 
 				description="Log requests to this domain and its subdomains"
 				checked={toggles.access_log !== ""}
 				onChange={(v) => onUpdate("access_log", v ? "kaji_access" : "")}
+				disabled={disabled}
 			/>
 			{toggles.access_log !== "" && (
 				<div className="toggle-detail">
@@ -141,6 +177,7 @@ function AccessLogGroup({ toggles, onUpdate, idPrefix, domain }: GroupProps & { 
 							name={`${idPrefix}-access-log-type`}
 							checked={toggles.access_log === "kaji_access"}
 							onChange={() => onUpdate("access_log", "kaji_access")}
+							disabled={disabled}
 						/>
 						<span>Shared (kaji_access)</span>
 					</label>
@@ -153,6 +190,7 @@ function AccessLogGroup({ toggles, onUpdate, idPrefix, domain }: GroupProps & { 
 								const defaultName = (domain ?? "").replace(/[^a-zA-Z0-9_-]/g, "_") || "custom";
 								onUpdate("access_log", defaultName);
 							}}
+							disabled={disabled}
 						/>
 						<span>Dedicated</span>
 					</label>
@@ -167,6 +205,7 @@ function AccessLogGroup({ toggles, onUpdate, idPrefix, domain }: GroupProps & { 
 								const sanitized = e.target.value.replace(/\s+/g, "_");
 								onUpdate("access_log", sanitized);
 							}}
+							disabled={disabled}
 						/>
 					)}
 				</div>
@@ -179,6 +218,7 @@ function IPFilteringGroup({
 	toggles,
 	onUpdate,
 	ipLists,
+	disabled,
 }: Omit<GroupProps, "idPrefix"> & { ipLists: IPList[] }) {
 	return (
 		<div className={cn("toggle-group", toggles.ip_filtering.enabled && "toggle-group-open")}>
@@ -194,6 +234,7 @@ function IPFilteringGroup({
 							: { enabled: false, list_id: "", type: "" },
 					)
 				}
+				disabled={disabled}
 			/>
 			{toggles.ip_filtering.enabled && (
 				<div className="toggle-detail">
@@ -203,6 +244,7 @@ function IPFilteringGroup({
 						onChange={(v: "blacklist" | "whitelist") =>
 							onUpdate("ip_filtering", { enabled: true, list_id: "", type: v })
 						}
+						disabled={disabled}
 					/>
 					{toggles.ip_filtering.type && (
 						<select
@@ -213,6 +255,7 @@ function IPFilteringGroup({
 									list_id: e.target.value,
 								})
 							}
+							disabled={disabled}
 						>
 							<option value="">Select a {toggles.ip_filtering.type}...</option>
 							{ipLists

@@ -1,3 +1,11 @@
+import type {
+	FileServerConfig,
+	RedirectConfig,
+	ReverseProxyConfig,
+	Rule,
+	StaticResponseConfig,
+} from "../types/domain";
+
 export function validatePassword(password: string, confirmPassword: string): string | null {
 	if (password.length < 8) {
 		return "Password must be at least 8 characters";
@@ -99,6 +107,37 @@ export function pathMatchWarning(pathMatch: string, value: string): string | nul
 		if (regexMetaRe.test(value)) {
 			return "This looks like a regex pattern. Did you mean to select Regex?";
 		}
+	}
+	return null;
+}
+
+export function validateRule(rule: Rule): string | null {
+	if (rule.handler_type === "reverse_proxy") {
+		const c = rule.handler_config as ReverseProxyConfig;
+		if (!c.upstream?.trim()) return "Upstream is required";
+	}
+	if (rule.handler_type === "redirect") {
+		const c = rule.handler_config as RedirectConfig;
+		if (!c.target_url?.trim()) return "Target URL is required";
+		if (c.status_code) {
+			const code = Number.parseInt(c.status_code, 10);
+			if (Number.isNaN(code) || code < 100 || code > 599) {
+				return "Status code must be between 100 and 599";
+			}
+		}
+	}
+	if (rule.handler_type === "static_response") {
+		const c = rule.handler_config as StaticResponseConfig;
+		if (!c.close && c.status_code) {
+			const code = Number.parseInt(c.status_code, 10);
+			if (Number.isNaN(code) || code < 100 || code > 599) {
+				return "Status code must be between 100 and 599";
+			}
+		}
+	}
+	if (rule.handler_type === "file_server") {
+		const c = rule.handler_config as FileServerConfig;
+		if (!c.root?.trim()) return "Root directory is required";
 	}
 	return null;
 }

@@ -2,18 +2,14 @@ import { useId, useState } from "react";
 import type {
 	CreatePathRequest,
 	DomainToggles,
-	FileServerConfig,
 	Path,
 	PathMatch,
-	RedirectConfig,
-	ReverseProxyConfig,
 	Rule,
-	StaticResponseConfig,
 	UpdatePathRequest,
 } from "../types/domain";
 import { defaultDomainToggles, defaultReverseProxyConfig } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import { pathMatchWarning } from "../utils/validate";
+import { pathMatchWarning, validateRule } from "../utils/validate";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import RuleEditor from "./RuleEditor";
 
@@ -68,46 +64,10 @@ export default function PathForm({
 			return;
 		}
 
-		if (rule.handler_type === "reverse_proxy") {
-			const rp = rule.handler_config as ReverseProxyConfig;
-			if (!rp.upstream.trim()) {
-				setFormError("Upstream is required");
-				return;
-			}
-		}
-
-		if (rule.handler_type === "static_response") {
-			const sr = rule.handler_config as StaticResponseConfig;
-			if (!sr.close && sr.status_code) {
-				const code = Number.parseInt(sr.status_code, 10);
-				if (Number.isNaN(code) || code < 100 || code > 599) {
-					setFormError("Status code must be between 100 and 599");
-					return;
-				}
-			}
-		}
-
-		if (rule.handler_type === "redirect") {
-			const rd = rule.handler_config as RedirectConfig;
-			if (!rd.target_url.trim()) {
-				setFormError("Target URL is required");
-				return;
-			}
-			if (rd.status_code) {
-				const code = Number.parseInt(rd.status_code, 10);
-				if (Number.isNaN(code) || code < 100 || code > 599) {
-					setFormError("Status code must be between 100 and 599");
-					return;
-				}
-			}
-		}
-
-		if (rule.handler_type === "file_server") {
-			const fs = rule.handler_config as FileServerConfig;
-			if (!fs.root.trim()) {
-				setFormError("Root directory is required");
-				return;
-			}
+		const ruleError = validateRule(rule);
+		if (ruleError) {
+			setFormError(ruleError);
+			return;
 		}
 
 		const req: CreatePathRequest = {

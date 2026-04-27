@@ -12,6 +12,7 @@ interface HeadersGroupProps {
 	idPrefix: string;
 	advancedMode?: boolean;
 	onModeChange?: (advanced: boolean) => void;
+	disabled?: boolean;
 }
 
 function hasAdvancedResponseCustomizations(headers: HeadersConfig): boolean {
@@ -24,6 +25,7 @@ export function ResponseHeadersGroup({
 	idPrefix,
 	advancedMode = false,
 	onModeChange,
+	disabled,
 }: HeadersGroupProps) {
 	const [advanced, setAdvanced] = useState(advancedMode);
 	const enabled = toggles.headers.response.enabled;
@@ -44,9 +46,10 @@ export function ResponseHeadersGroup({
 						response: { ...toggles.headers.response, enabled: v },
 					})
 				}
+				disabled={disabled}
 			/>
 			{enabled && (
-				<div className="toggle-detail">
+				<div className={cn("toggle-detail", disabled && "toggle-detail-disabled")}>
 					<div className="headers-mode-switch">
 						<Toggle
 							options={["basic", "advanced"] as const}
@@ -56,6 +59,7 @@ export function ResponseHeadersGroup({
 								setAdvanced(isAdvanced);
 								onModeChange?.(isAdvanced);
 							}}
+							disabled={disabled}
 						/>
 					</div>
 

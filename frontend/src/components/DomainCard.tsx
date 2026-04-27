@@ -1,23 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { useDomain } from "../hooks/useDomain";
 import type {
 	CreatePathRequest,
 	DomainToggles,
 	Path,
-	Rule,
+	Subdomain,
 	UpdatePathRequest,
 } from "../types/domain";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
-import { DomainToggleGrid } from "./DomainToggleGrid";
-import { ErrorAlert } from "./ErrorAlert";
 import Feedback from "./Feedback";
-import PathCard from "./PathCard";
 import PathForm from "./PathForm";
-import RuleEditor from "./RuleEditor";
-import RuleSummaryCard from "./RuleSummaryCard";
+import RuleCard, { normalizeRule, normalizeToggles } from "./RuleCard";
 import { SectionHeader } from "./SectionHeader";
-import SubdomainCard from "./SubdomainCard";
 import SubdomainForm from "./SubdomainForm";
 import { Toggle } from "./Toggle";
 
@@ -36,8 +31,6 @@ export default function DomainCard({
 }: Props) {
 	const {
 		domain,
-		error,
-		setError,
 		saving: detailSaving,
 		feedback,
 		handleUpdateDomain,
@@ -57,60 +50,7 @@ export default function DomainCard({
 		handleToggleSubdomainPath,
 	} = useDomain(domainSummary.id);
 
-	const [localToggles, setLocalToggles] = useState<DomainToggles | null>(null);
-	const lastSyncedToggles = useRef<string>("");
-
-	const [editingRule, setEditingRule] = useState(false);
-	const [editedRule, setEditedRule] = useState<Rule>(domain.rule);
-	const [savingRule, setSavingRule] = useState(false);
 	const [addingSubdomain, setAddingSubdomain] = useState(false);
-
-	useEffect(() => {
-		if (!domain.id) return;
-		const serialized = JSON.stringify(domain.toggles);
-		if (serialized !== lastSyncedToggles.current) {
-			lastSyncedToggles.current = serialized;
-			setLocalToggles(domain.toggles);
-		}
-	}, [domain.id, domain.toggles]);
-
-	useEffect(() => {
-		if (!editingRule) {
-			setEditedRule(domain.rule);
-		}
-	}, [domain.rule, editingRule]);
-
-	const togglesDirty =
-		localToggles !== null && JSON.stringify(localToggles) !== lastSyncedToggles.current;
-
-	async function handleSaveToggles() {
-		if (!localToggles) return;
-		await handleUpdateDomain({ name: domain.name, toggles: localToggles });
-	}
-
-	function handleDiscardToggles() {
-		setLocalToggles(domain.toggles);
-		lastSyncedToggles.current = JSON.stringify(domain.toggles);
-	}
-
-	async function handleSaveRule() {
-		setSavingRule(true);
-		try {
-			await handleUpdateDomainRule({
-				handler_type: editedRule.handler_type,
-				handler_config: editedRule.handler_config,
-				advanced_headers: editedRule.advanced_headers,
-			});
-			setEditingRule(false);
-		} finally {
-			setSavingRule(false);
-		}
-	}
-
-	function handleCancelRule() {
-		setEditedRule(domain.rule);
-		setEditingRule(false);
-	}
 
 	const title = <span className="domain-card-name">{domainSummary.name}</span>;
 
@@ -136,84 +76,33 @@ export default function DomainCard({
 
 	return (
 		<CollapsibleCard title={title} actions={actions} ariaLabel={domainSummary.name}>
-			<ErrorAlert message={error} onDismiss={() => setError("")} />
 			<Feedback msg={feedback.msg} type={feedback.type} />
 
-			{localToggles && (
-				<section className="domain-detail-section">
-					<SectionHeader title="Domain Toggles">
-						{togglesDirty && (
-							<div className="domain-detail-toggle-actions">
-								<button
-									type="button"
-									className="btn btn-ghost"
-									onClick={handleDiscardToggles}
-									disabled={isSaving}
-								>
-									Discard
-								</button>
-								<button
-									type="button"
-									className="btn btn-primary"
-									onClick={handleSaveToggles}
-									disabled={isSaving}
-								>
-									{isSaving ? "Saving..." : "Save"}
-								</button>
-							</div>
-						)}
-					</SectionHeader>
-					<DomainToggleGrid
-						toggles={localToggles}
-						onUpdate={(key, value) =>
-							setLocalToggles((prev) => (prev ? { ...prev, [key]: value } : prev))
-						}
-						idPrefix={`domain-${domainSummary.id}`}
-						domain={domainSummary.name}
-					/>
-				</section>
-			)}
-
 			<section className="domain-detail-section">
-				<SectionHeader title="Domain Rule" />
-				{editingRule ? (
-					<div className="rule-editor-inline">
-						<RuleEditor
-							allowNone
-							value={editedRule}
-							onChange={setEditedRule}
-							idPrefix={`domain-${domainSummary.id}-rule`}
-						/>
-						<div className="form-row" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
-							<button
-								type="button"
-								className="btn btn-ghost"
-								onClick={handleCancelRule}
-								disabled={savingRule}
-							>
-								Cancel
-							</button>
-							<button
-								type="button"
-								className="btn btn-primary"
-								onClick={handleSaveRule}
-								disabled={savingRule}
-							>
-								{savingRule ? "Saving..." : "Save Rule"}
-							</button>
-						</div>
-					</div>
-				) : (
-					<RuleSummaryCard
-						title="Root"
-						rule={domain.rule}
-						onEdit={() => {
-							setEditedRule(domain.rule);
-							setEditingRule(true);
-						}}
-						disabled={isSaving}
-					/>
-				)}
+				<SectionHeader title="Domain" />
+				<RuleCard
+					kind="domain"
+					hostLabel={domain.name}
+					rule={domain.rule}
+					toggles={domain.toggles}
+					saving={isSaving}
+					ariaLabel={`${domain.name} settings`}
+					idPrefix={`domain-${domainSummary.id}`}
+					domainName={domain.name}
+					onSave={async ({ rule, toggles }) => {
+						const togglesChanged =
+							JSON.stringify(toggles) !== JSON.stringify(normalizeToggles(domain.toggles));
+						const ruleChanged = JSON.stringify(rule) !== JSON.stringify(normalizeRule(domain.rule));
+						if (togglesChanged) {
+							const ok = await handleUpdateDomain({ name: domain.name, toggles });
+							if (!ok) throw new Error("Failed to update domain");
+						}
+						if (ruleChanged) {
+							const ok = await handleUpdateDomainRule(rule);
+							if (!ok) throw new Error("Failed to update domain rule");
+						}
+					}}
+				/>
 			</section>
 
 			<section className="domain-detail-section">
@@ -222,30 +111,52 @@ export default function DomainCard({
 					<div className="empty-state">No subdomains yet.</div>
 				) : (
 					<div className="rule-list">
-						{domain.subdomains.map((sub) => (
-							<SubdomainCard
-								key={sub.id}
-								domainName={domain.name}
-								subdomain={sub}
-								saving={isSaving}
-								onUpdateRule={(req) => handleUpdateSubdomainRule(sub.id, req)}
-								onUpdate={(req) => handleUpdateSubdomain(sub.id, req)}
-								onDelete={() => handleDeleteSubdomain(sub.id)}
-								onToggle={(enabled) => handleToggleSubdomain(sub.id, enabled)}
-								onCreatePath={(req) => handleCreateSubdomainPath(sub.id, req)}
-								onUpdatePath={(pathId, req) => handleUpdateSubdomainPath(sub.id, pathId, req)}
-								onDeletePath={(pathId) => handleDeleteSubdomainPath(sub.id, pathId)}
-								onTogglePath={(pathId, enabled) =>
-									handleToggleSubdomainPath(sub.id, pathId, enabled)
-								}
-							/>
-						))}
+						{domain.subdomains.map((sub) => {
+							const fullHost = `${sub.name}.${domain.name}`;
+							return (
+								<RuleCard
+									key={sub.id}
+									kind="subdomain"
+									hostLabel={fullHost}
+									rule={sub.rule}
+									toggles={sub.toggles}
+									enabled={sub.enabled}
+									saving={isSaving}
+									ariaLabel={`${fullHost} subdomain`}
+									idPrefix={`subdomain-${sub.id}`}
+									domainName={fullHost}
+									onSave={async ({ rule, toggles }) => {
+										const togglesChanged =
+											JSON.stringify(toggles) !== JSON.stringify(normalizeToggles(sub.toggles));
+										const ruleChanged =
+											JSON.stringify(rule) !== JSON.stringify(normalizeRule(sub.rule));
+										if (togglesChanged) {
+											const ok = await handleUpdateSubdomain(sub.id, {
+												name: sub.name,
+												toggles,
+											});
+											if (!ok) throw new Error("Failed to update subdomain");
+										}
+										if (ruleChanged) {
+											const ok = await handleUpdateSubdomainRule(sub.id, rule);
+											if (!ok) throw new Error("Failed to update subdomain rule");
+										}
+									}}
+									onToggleEnabled={(enabled) => handleToggleSubdomain(sub.id, enabled)}
+									onDelete={() => handleDeleteSubdomain(sub.id)}
+									deleteLabel={`Delete ${fullHost}`}
+									enableLabel={`Enable ${fullHost}`}
+									disableLabel={`Disable ${fullHost}`}
+								/>
+							);
+						})}
 					</div>
 				)}
 				{addingSubdomain ? (
 					<SubdomainForm
 						onSubmit={async (req) => {
-							await handleCreateSubdomain(req);
+							const ok = await handleCreateSubdomain(req);
+							if (!ok) throw new Error("Failed to create subdomain");
 							setAddingSubdomain(false);
 						}}
 						onCancel={() => setAddingSubdomain(false)}
@@ -266,12 +177,17 @@ export default function DomainCard({
 				<SectionHeader title="Paths" />
 				<PathGroup
 					domainName={domain.name}
-					paths={domain.paths}
-					parentToggles={domain.toggles}
-					onCreate={handleCreateDomainPath}
-					onUpdate={handleUpdateDomainPath}
-					onDelete={handleDeleteDomainPath}
-					onToggle={handleToggleDomainPath}
+					rootPaths={domain.paths}
+					rootToggles={domain.toggles}
+					subdomains={domain.subdomains}
+					onCreateRoot={handleCreateDomainPath}
+					onUpdateRoot={handleUpdateDomainPath}
+					onDeleteRoot={handleDeleteDomainPath}
+					onToggleRoot={handleToggleDomainPath}
+					onCreateSub={handleCreateSubdomainPath}
+					onUpdateSub={handleUpdateSubdomainPath}
+					onDeleteSub={handleDeleteSubdomainPath}
+					onToggleSub={handleToggleSubdomainPath}
 					saving={isSaving}
 				/>
 			</section>
@@ -281,63 +197,187 @@ export default function DomainCard({
 
 interface PathGroupProps {
 	domainName: string;
-	paths: Path[];
-	parentToggles: DomainToggles;
-	onCreate: (req: CreatePathRequest) => Promise<void>;
-	onUpdate: (pathId: string, req: UpdatePathRequest) => Promise<void>;
-	onDelete: (pathId: string) => void;
-	onToggle: (pathId: string, enabled: boolean) => void;
+	rootPaths: Path[];
+	rootToggles: DomainToggles;
+	subdomains: Subdomain[];
+	onCreateRoot: (req: CreatePathRequest) => Promise<boolean>;
+	onUpdateRoot: (pathId: string, req: UpdatePathRequest) => Promise<boolean>;
+	onDeleteRoot: (pathId: string) => void;
+	onToggleRoot: (pathId: string, enabled: boolean) => void;
+	onCreateSub: (subId: string, req: CreatePathRequest) => Promise<boolean>;
+	onUpdateSub: (subId: string, pathId: string, req: UpdatePathRequest) => Promise<boolean>;
+	onDeleteSub: (subId: string, pathId: string) => void;
+	onToggleSub: (subId: string, pathId: string, enabled: boolean) => void;
 	saving: boolean;
+}
+
+interface PathEntry {
+	key: string;
+	path: Path;
+	host: string;
+	parentToggles: DomainToggles;
+	onUpdate: (req: UpdatePathRequest) => Promise<boolean>;
+	onDelete: () => void;
+	onToggle: (enabled: boolean) => void;
+}
+
+function formatPathLabel(p: Path, host: string): string {
+	if (p.path_match === "exact") return `${host}${p.match_value}`;
+	if (p.path_match === "prefix") return `${host}${p.match_value}*`;
+	if (p.path_match === "regex") return `${host}~${p.match_value}`;
+	return `${host}${p.match_value}`;
 }
 
 function PathGroup({
 	domainName,
-	paths,
-	parentToggles,
-	onCreate,
-	onUpdate,
-	onDelete,
-	onToggle,
+	rootPaths,
+	rootToggles,
+	subdomains,
+	onCreateRoot,
+	onUpdateRoot,
+	onDeleteRoot,
+	onToggleRoot,
+	onCreateSub,
+	onUpdateSub,
+	onDeleteSub,
+	onToggleSub,
 	saving,
 }: PathGroupProps) {
 	const [adding, setAdding] = useState(false);
+	const [addTarget, setAddTarget] = useState<string>("");
+	const targetSelectId = useId();
+
+	const sortedRoot = [...rootPaths].sort((a, b) => a.match_value.localeCompare(b.match_value));
+	const sortedSubdomains = [...subdomains].sort((a, b) => a.name.localeCompare(b.name));
+
+	const entries: PathEntry[] = [
+		...sortedRoot.map<PathEntry>((p) => ({
+			key: `root-${p.id}`,
+			path: p,
+			host: domainName,
+			parentToggles: rootToggles,
+			onUpdate: (req) => onUpdateRoot(p.id, req),
+			onDelete: () => onDeleteRoot(p.id),
+			onToggle: (enabled) => onToggleRoot(p.id, enabled),
+		})),
+		...sortedSubdomains.flatMap((sub) =>
+			[...sub.paths]
+				.sort((a, b) => a.match_value.localeCompare(b.match_value))
+				.map<PathEntry>((p) => ({
+					key: `sub-${sub.id}-${p.id}`,
+					path: p,
+					host: `${sub.name}.${domainName}`,
+					parentToggles: sub.toggles,
+					onUpdate: (req) => onUpdateSub(sub.id, p.id, req),
+					onDelete: () => onDeleteSub(sub.id, p.id),
+					onToggle: (enabled) => onToggleSub(sub.id, p.id, enabled),
+				})),
+		),
+	];
+
+	const targetOptions: { value: string; label: string; toggles: DomainToggles }[] = [
+		{ value: "", label: domainName || "Root domain", toggles: rootToggles },
+		...sortedSubdomains.map((s) => ({
+			value: s.id,
+			label: `${s.name}.${domainName}`,
+			toggles: s.toggles,
+		})),
+	];
+
+	const activeTarget = targetOptions.find((o) => o.value === addTarget) ?? targetOptions[0];
+
+	function handleStartAdd() {
+		setAddTarget("");
+		setAdding(true);
+	}
+
+	function handleCancelAdd() {
+		setAdding(false);
+		setAddTarget("");
+	}
+
+	async function handleSubmitAdd(req: CreatePathRequest) {
+		const ok = addTarget === "" ? await onCreateRoot(req) : await onCreateSub(addTarget, req);
+		if (!ok) throw new Error("Failed to create path");
+		handleCancelAdd();
+	}
 
 	return (
 		<div className="path-group">
-			{paths.length === 0 && !adding ? (
+			{entries.length === 0 && !adding ? (
 				<div className="empty-state">No paths.</div>
 			) : (
 				<div className="rule-list">
-					{paths.map((p) => (
-						<PathCard
-							key={p.id}
-							path={p}
-							domainName={domainName}
-							parentToggles={parentToggles}
-							onUpdate={(req) => onUpdate(p.id, req)}
-							onDelete={() => onDelete(p.id)}
-							onToggle={(enabled) => onToggle(p.id, enabled)}
+					{entries.map((e) => (
+						<RuleCard
+							key={e.key}
+							kind="path"
+							hostLabel={formatPathLabel(e.path, e.host)}
+							rule={e.path.rule}
+							toggles={e.path.toggle_overrides ?? e.parentToggles}
+							parentToggles={e.parentToggles}
+							pathMatch={e.path.path_match}
+							matchValue={e.path.match_value}
+							hasOverrides={!!e.path.toggle_overrides}
+							enabled={e.path.enabled}
 							saving={saving}
+							ariaLabel={`${formatPathLabel(e.path, e.host)} path`}
+							idPrefix={`path-${e.path.id}`}
+							domainName={e.host}
+							onSave={async ({ rule, toggles, pathMatch, matchValue, hasOverrides }) => {
+								const ok = await e.onUpdate({
+									path_match: pathMatch ?? e.path.path_match,
+									match_value: matchValue ?? e.path.match_value,
+									rule,
+									toggle_overrides: hasOverrides ? toggles : null,
+								});
+								if (!ok) throw new Error("Failed to update path");
+							}}
+							onToggleEnabled={e.onToggle}
+							onDelete={e.onDelete}
+							deleteLabel={`Delete ${formatPathLabel(e.path, e.host)}`}
+							enableLabel={`Enable ${formatPathLabel(e.path, e.host)}`}
+							disableLabel={`Disable ${formatPathLabel(e.path, e.host)}`}
 						/>
 					))}
 				</div>
 			)}
 			{adding ? (
-				<PathForm
-					domainName={domainName}
-					parentToggles={parentToggles}
-					inline
-					onSubmit={async (req) => {
-						await onCreate(req as CreatePathRequest);
-						setAdding(false);
-					}}
-					onCancel={() => setAdding(false)}
-				/>
+				<div className="path-add-form">
+					{targetOptions.length > 1 && (
+						<div className="form-row">
+							<div className="form-field">
+								<label htmlFor={targetSelectId}>Target Domain</label>
+								<select
+									id={targetSelectId}
+									value={addTarget}
+									onChange={(e) => setAddTarget(e.target.value)}
+									disabled={saving}
+								>
+									{targetOptions.map((opt) => (
+										<option key={opt.value || "root"} value={opt.value}>
+											{opt.label}
+										</option>
+									))}
+								</select>
+							</div>
+						</div>
+					)}
+					<PathForm
+						domainName={activeTarget.label}
+						parentToggles={activeTarget.toggles}
+						inline
+						onSubmit={async (req) => {
+							await handleSubmitAdd(req as CreatePathRequest);
+						}}
+						onCancel={handleCancelAdd}
+					/>
+				</div>
 			) : (
 				<button
 					type="button"
 					className="btn btn-primary"
-					onClick={() => setAdding(true)}
+					onClick={handleStartAdd}
 					disabled={saving}
 				>
 					Add Path
