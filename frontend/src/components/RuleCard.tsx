@@ -97,6 +97,8 @@ interface RuleCardProps {
 	matchValue?: string;
 	hasOverrides?: boolean;
 	enabled?: boolean;
+	parentEnabled?: boolean;
+	ruleEnabled?: boolean;
 	saving: boolean;
 	ariaLabel?: string;
 	idPrefix: string;
@@ -104,9 +106,12 @@ interface RuleCardProps {
 	deleteLabel?: string;
 	enableLabel?: string;
 	disableLabel?: string;
+	enableRuleLabel?: string;
+	disableRuleLabel?: string;
 	mode?: "view" | "create";
 	onSave: (payload: RuleCardSavePayload) => Promise<void>;
 	onToggleEnabled?: (enabled: boolean) => void;
+	onToggleRuleEnabled?: (enabled: boolean) => void;
 	onDelete?: () => void;
 	onCancel?: () => void;
 }
@@ -121,6 +126,8 @@ export default function RuleCard({
 	matchValue,
 	hasOverrides,
 	enabled,
+	parentEnabled,
+	ruleEnabled,
 	saving,
 	ariaLabel,
 	idPrefix,
@@ -128,17 +135,25 @@ export default function RuleCard({
 	deleteLabel,
 	enableLabel,
 	disableLabel,
+	enableRuleLabel,
+	disableRuleLabel,
 	mode = "view",
 	onSave,
 	onToggleEnabled,
+	onToggleRuleEnabled,
 	onDelete,
 	onCancel,
 }: RuleCardProps) {
 	const formId = useId();
 	const isPath = kind === "path";
 	const isCreate = mode === "create";
+	const parentLocked = parentEnabled === false;
+	const wrapperOff = enabled === false;
+	const ruleOff = ruleEnabled === false;
 	const showEnableToggle =
 		!isCreate && kind !== "domain" && enabled !== undefined && !!onToggleEnabled;
+	const showRuleToggle =
+		!isCreate && rule.handler_type !== "none" && ruleEnabled !== undefined && !!onToggleRuleEnabled;
 	const showDelete = !isCreate && kind !== "domain" && !!onDelete;
 
 	const [editing, setEditing] = useState(isCreate);
@@ -223,13 +238,27 @@ export default function RuleCard({
 		</>
 	);
 
-	const actions = (showEnableToggle || showDelete) && (
+	const actions = (showEnableToggle || showRuleToggle || showDelete) && (
 		<>
+			{showRuleToggle && ruleEnabled !== undefined && onToggleRuleEnabled && (
+				<Toggle
+					value={ruleEnabled}
+					onChange={onToggleRuleEnabled}
+					disabled={saving || parentLocked || wrapperOff}
+					title={ruleEnabled ? "Disable rule" : "Enable rule"}
+					aria-label={
+						ruleEnabled
+							? (disableRuleLabel ?? `Disable ${kind} rule`)
+							: (enableRuleLabel ?? `Enable ${kind} rule`)
+					}
+					stopPropagation
+				/>
+			)}
 			{showEnableToggle && enabled !== undefined && onToggleEnabled && (
 				<Toggle
 					value={enabled}
 					onChange={onToggleEnabled}
-					disabled={saving}
+					disabled={saving || parentLocked}
 					title={enabled ? "Disable" : "Enable"}
 					aria-label={
 						enabled ? (disableLabel ?? `Disable ${kind}`) : (enableLabel ?? `Enable ${kind}`)
@@ -258,7 +287,7 @@ export default function RuleCard({
 		<CollapsibleCard
 			title={title}
 			actions={actions || undefined}
-			disabled={enabled === false && !editing}
+			disabled={(wrapperOff || ruleOff) && !editing}
 			forceExpanded={editing}
 			ariaLabel={ariaLabel ?? hostLabel}
 		>
