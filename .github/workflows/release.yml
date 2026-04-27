@@ -50,6 +50,10 @@ jobs:
         id: caddy
         run: echo "version=$(cat .caddy-version)" >> "$GITHUB_OUTPUT"
 
+      - name: Read Cloudflare DNS module version
+        id: cloudflare_dns
+        run: echo "version=$(cat .cloudflare-dns-version)" >> "$GITHUB_OUTPUT"
+
       - name: Install xcaddy
         run: go install github.com/caddyserver/xcaddy/cmd/xcaddy@v0.4.5
 
@@ -57,6 +61,7 @@ jobs:
         run: |
           set -e
           CADDY_VERSION="${{ steps.caddy.outputs.version }}"
+          CLOUDFLARE_DNS_VERSION="${{ steps.cloudflare_dns.outputs.version }}"
           platforms=(
             "linux/amd64"
             "linux/arm64"
@@ -69,7 +74,7 @@ jobs:
             output="caddy-${os}-${arch}"
             echo "Building ${output}..."
             GOOS="${os}" GOARCH="${arch}" xcaddy build "v${CADDY_VERSION}" \
-              --with github.com/caddy-dns/cloudflare \
+              --with "github.com/caddy-dns/cloudflare@v${CLOUDFLARE_DNS_VERSION}" \
               --output "${output}"
           done
 

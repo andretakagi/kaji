@@ -7,6 +7,10 @@
   "timezone": "America/Los_Angeles",
   "packageRules": [
     {
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "minor and patch dependencies",
       "automerge": false
@@ -21,6 +25,16 @@
       "matchStrings": ["(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
       "depNameTemplate": "caddyserver/caddy",
       "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.cloudflare-dns-version$/"
+      ],
+      "matchStrings": ["(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "caddy-dns/cloudflare",
+      "datasourceTemplate": "github-tags",
       "extractVersionTemplate": "^v(?<version>.*)$"
     }
   ]

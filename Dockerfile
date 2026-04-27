@@ -2,10 +2,12 @@
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS caddy
 ARG TARGETARCH
 COPY .caddy-version /tmp/.caddy-version
+COPY .cloudflare-dns-version /tmp/.cloudflare-dns-version
 RUN CADDY_VERSION=$(cat /tmp/.caddy-version) \
+    && CLOUDFLARE_DNS_VERSION=$(cat /tmp/.cloudflare-dns-version) \
     && go install github.com/caddyserver/xcaddy/cmd/xcaddy@v0.4.5 \
     && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} xcaddy build v${CADDY_VERSION} \
-        --with github.com/caddy-dns/cloudflare \
+        --with github.com/caddy-dns/cloudflare@v${CLOUDFLARE_DNS_VERSION} \
         --output /usr/bin/caddy \
     && rm -rf /go/pkg/mod /root/.cache/go-build
 
