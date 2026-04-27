@@ -1,29 +1,58 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getErrorMessage } from "../utils/getErrorMessage";
 
 export type Feedback = { msg: string; type: "success" | "error" };
 
 const empty: Feedback = { msg: "", type: "success" };
+const SUCCESS_TIMEOUT_MS = 12000;
 
 export function useAsyncAction() {
 	const [saving, setSaving] = useState(false);
 	const [feedback, setFeedback] = useState<Feedback>(empty);
+	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const run = useCallback(async (action: () => Promise<string | undefined>) => {
-		setSaving(true);
-		setFeedback(empty);
-		try {
-			const msg = (await action()) ?? "";
-			setFeedback({ msg, type: "success" });
-		} catch (err) {
-			setFeedback({
-				msg: getErrorMessage(err, "Something went wrong"),
-				type: "error",
-			});
-		} finally {
-			setSaving(false);
+	const clearTimer = useCallback(() => {
+		if (timerRef.current !== null) {
+			clearTimeout(timerRef.current);
+			timerRef.current = null;
 		}
 	}, []);
 
-	return { saving, feedback, setFeedback, run } as const;
+	useEffect(() => clearTimer, [clearTimer]);
+
+	const updateFeedback = useCallback(
+		(next: Feedback) => {
+			clearTimer();
+			setFeedback(next);
+			if (next.type === "success" && next.msg) {
+				timerRef.current = setTimeout(() => {
+					setFeedback(empty);
+					timerRef.current = null;
+				}, SUCCESS_TIMEOUT_MS);
+			}
+		},
+		[clearTimer],
+	);
+
+	const run = useCallback(
+		async (action: () => Promise<string | undefined>) => {
+			setSaving(true);
+			clearTimer();
+			setFeedback(empty);
+			try {
+				const msg = (await action()) ?? "";
+				updateFeedback({ msg, type: "success" });
+			} catch (err) {
+				updateFeedback({
+					msg: getErrorMessage(err, "Something went wrong"),
+					type: "error",
+				});
+			} finally {
+				setSaving(false);
+			}
+		},
+		[clearTimer, updateFeedback],
+	);
+
+	return { saving, feedback, setFeedback: updateFeedback, run } as const;
 }

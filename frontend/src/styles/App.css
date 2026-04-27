@@ -464,10 +464,27 @@ textarea:focus-visible {
 
 .feedback.success {
 	color: var(--green);
+	animation: feedback-fade 12s forwards;
 }
 
 .feedback.error {
 	color: var(--red);
+}
+
+@keyframes feedback-fade {
+	0%,
+	90% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.feedback.success {
+		animation: none;
+	}
 }
 
 /* Loading screen */

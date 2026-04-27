@@ -11,7 +11,11 @@ function Feedback({
 }) {
 	if (!msg) return null;
 	return (
-		<div className={cn("feedback", type, className)} role={type === "error" ? "alert" : "status"}>
+		<div
+			key={`${type}:${msg}`}
+			className={cn("feedback", type, className)}
+			role={type === "error" ? "alert" : "status"}
+		>
 			{msg}
 		</div>
 	);
