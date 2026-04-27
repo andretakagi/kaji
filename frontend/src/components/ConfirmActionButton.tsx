@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { cn } from "../cn";
 
 interface ConfirmActionButtonProps {
-	onConfirm: () => void | Promise<void>;
+	onConfirm: () => Promise<boolean>;
 	trigger: ReactNode;
 	confirmLabel?: string;
 	confirmingLabel?: string;

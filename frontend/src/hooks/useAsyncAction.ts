@@ -35,18 +35,20 @@ export function useAsyncAction() {
 	);
 
 	const run = useCallback(
-		async (action: () => Promise<string | undefined>) => {
+		async (action: () => Promise<string | undefined>): Promise<boolean> => {
 			setSaving(true);
 			clearTimer();
 			setFeedback(empty);
 			try {
 				const msg = (await action()) ?? "";
 				updateFeedback({ msg, type: "success" });
+				return true;
 			} catch (err) {
 				updateFeedback({
 					msg: getErrorMessage(err, "Something went wrong"),
 					type: "error",
 				});
+				return false;
 			} finally {
 				setSaving(false);
 			}

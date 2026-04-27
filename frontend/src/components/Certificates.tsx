@@ -190,8 +190,8 @@ function CertCard({
 	deletingSaving,
 }: {
 	cert: CertInfo;
-	onRenew: (cert: CertInfo) => void;
-	onDelete: (cert: CertInfo) => void;
+	onRenew: (cert: CertInfo) => Promise<boolean>;
+	onDelete: (cert: CertInfo) => Promise<boolean>;
 	renewingSaving: boolean;
 	deletingSaving: boolean;
 }) {
