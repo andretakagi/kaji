@@ -292,3 +292,211 @@ func TestExtractUpstream(t *testing.T) {
 		t.Errorf("extractUpstream with no reverse_proxy = %q, want empty", got)
 	}
 }
+
+func TestConvertSubdomainRulesExtractsMatching(t *testing.T) {
+	dom := map[string]any{
+		"name":    "example.com",
+		"toggles": map[string]any{"force_https": true},
+		"rules": []any{
+			map[string]any{
+				"id":             "rule_root",
+				"enabled":        true,
+				"match_type":     "",
+				"handler_type":   "reverse_proxy",
+				"handler_config": map[string]any{"upstream": "localhost:80"},
+			},
+			map[string]any{
+				"id":             "rule_api",
+				"enabled":        true,
+				"match_type":     "subdomain",
+				"match_value":    "api",
+				"handler_type":   "reverse_proxy",
+				"handler_config": map[string]any{"upstream": "localhost:9000"},
+			},
+		},
+	}
+
+	change := convertSubdomainRules(dom)
+	if change != "converted 1 subdomain rules to subdomain entities for example.com" {
+		t.Errorf("change = %q", change)
+	}
+
+	rules := dom["rules"].([]any)
+	if len(rules) != 1 {
+		t.Fatalf("expected 1 remaining rule, got %d", len(rules))
+	}
+	if rules[0].(map[string]any)["id"] != "rule_root" {
+		t.Errorf("remaining rule id = %v, want rule_root", rules[0])
+	}
+
+	subs := dom["subdomains"].([]any)
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subdomain, got %d", len(subs))
+	}
+	sub := subs[0].(map[string]any)
+	if sub["id"] != "sub_migrated_api" {
+		t.Errorf("subdomain id = %v, want sub_migrated_api", sub["id"])
+	}
+	if sub["name"] != "api" {
+		t.Errorf("subdomain name = %v, want api", sub["name"])
+	}
+	if sub["enabled"] != true {
+		t.Errorf("subdomain enabled = %v, want true", sub["enabled"])
+	}
+	if sub["handler_type"] != "reverse_proxy" {
+		t.Errorf("subdomain handler_type = %v, want reverse_proxy", sub["handler_type"])
+	}
+	toggles, ok := sub["toggles"].(map[string]any)
+	if !ok {
+		t.Fatalf("subdomain toggles = %T, want map[string]any", sub["toggles"])
+	}
+	if toggles["force_https"] != true {
+		t.Errorf("subdomain inherited toggles force_https = %v, want true", toggles["force_https"])
+	}
+}
+
+func TestConvertSubdomainRulesPrefersExplicitOverrides(t *testing.T) {
+	dom := map[string]any{
+		"name":    "example.com",
+		"toggles": map[string]any{"force_https": true, "compression": true},
+		"rules": []any{
+			map[string]any{
+				"id":             "rule_api",
+				"enabled":        true,
+				"match_type":     "subdomain",
+				"match_value":    "api",
+				"handler_type":   "reverse_proxy",
+				"handler_config": map[string]any{"upstream": "localhost:9000"},
+				"toggle_overrides": map[string]any{
+					"force_https": false,
+				},
+			},
+		},
+	}
+
+	convertSubdomainRules(dom)
+
+	subs := dom["subdomains"].([]any)
+	sub := subs[0].(map[string]any)
+	toggles := sub["toggles"].(map[string]any)
+	if toggles["force_https"] != false {
+		t.Errorf("force_https = %v, want false (override)", toggles["force_https"])
+	}
+	if _, exists := toggles["compression"]; exists {
+		t.Error("override should replace toggles entirely, not merge")
+	}
+}
+
+func TestConvertSubdomainRulesLeavesNonMatchAlone(t *testing.T) {
+	dom := map[string]any{
+		"name": "example.com",
+		"rules": []any{
+			map[string]any{
+				"id":           "rule_root",
+				"match_type":   "",
+				"handler_type": "reverse_proxy",
+			},
+			map[string]any{
+				"id":           "rule_path",
+				"match_type":   "path",
+				"match_value":  "/api",
+				"handler_type": "reverse_proxy",
+			},
+		},
+	}
+
+	change := convertSubdomainRules(dom)
+	if change != "" {
+		t.Errorf("change = %q, want empty", change)
+	}
+
+	subs := dom["subdomains"].([]any)
+	if len(subs) != 0 {
+		t.Errorf("expected 0 subdomains, got %d", len(subs))
+	}
+	rules := dom["rules"].([]any)
+	if len(rules) != 2 {
+		t.Errorf("expected 2 rules preserved, got %d", len(rules))
+	}
+}
+
+func TestConvertSubdomainRulesSkipsEmptyName(t *testing.T) {
+	dom := map[string]any{
+		"name": "example.com",
+		"rules": []any{
+			map[string]any{
+				"id":           "rule_bad",
+				"match_type":   "subdomain",
+				"match_value":  "",
+				"handler_type": "reverse_proxy",
+			},
+		},
+	}
+
+	change := convertSubdomainRules(dom)
+	if change != "" {
+		t.Errorf("change = %q, want empty (empty name should be skipped)", change)
+	}
+
+	rules := dom["rules"].([]any)
+	if len(rules) != 1 {
+		t.Errorf("expected the rule to be preserved, got %d rules", len(rules))
+	}
+	subs := dom["subdomains"].([]any)
+	if len(subs) != 0 {
+		t.Errorf("expected 0 subdomains, got %d", len(subs))
+	}
+}
+
+func TestConvertSubdomainRulesNoRulesField(t *testing.T) {
+	dom := map[string]any{"name": "example.com"}
+
+	change := convertSubdomainRules(dom)
+	if change != "" {
+		t.Errorf("change = %q, want empty", change)
+	}
+	subs, ok := dom["subdomains"].([]any)
+	if !ok {
+		t.Fatalf("subdomains = %T, want []any", dom["subdomains"])
+	}
+	if len(subs) != 0 {
+		t.Errorf("expected empty subdomains slice")
+	}
+}
+
+func TestMigrateV170ConvertsSubdomainsForExistingDomain(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name":    "example.com",
+				"toggles": map[string]any{},
+				"rules": []any{
+					map[string]any{
+						"id":             "rule_api",
+						"match_type":     "subdomain",
+						"match_value":    "api",
+						"handler_type":   "reverse_proxy",
+						"handler_config": map[string]any{"upstream": "localhost:9000"},
+					},
+				},
+			},
+		},
+	}
+
+	changes := migrateV170(m)
+	found := false
+	for _, c := range changes {
+		if c == "converted 1 subdomain rules to subdomain entities for example.com" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected subdomain conversion change message, got %v", changes)
+	}
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	subs := dom["subdomains"].([]any)
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subdomain after migration, got %d", len(subs))
+	}
+}
