@@ -65,6 +65,7 @@ export interface Rule {
 	handler_type: RuleHandlerType;
 	handler_config: HandlerConfigValue;
 	advanced_headers: boolean;
+	enabled: boolean;
 }
 
 export interface Path {

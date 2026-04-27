@@ -21,6 +21,7 @@ const newPathRule: Rule = {
 	handler_type: "reverse_proxy",
 	handler_config: { ...defaultReverseProxyConfig },
 	advanced_headers: false,
+	enabled: true,
 };
 
 interface Props {

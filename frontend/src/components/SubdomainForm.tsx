@@ -17,6 +17,7 @@ export default function SubdomainForm({ onSubmit, onCancel }: SubdomainFormProps
 		handler_type: "reverse_proxy",
 		handler_config: { ...defaultReverseProxyConfig },
 		advanced_headers: false,
+		enabled: true,
 	});
 	const [submitting, setSubmitting] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);

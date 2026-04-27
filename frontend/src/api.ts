@@ -629,6 +629,22 @@ export function updateDomainRule(domainId: string, req: UpdateRuleRequest): Prom
 	);
 }
 
+export function enableDomainRule(domainId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rule/enable`,
+		{ method: "POST" },
+		(d) => normalizeDomain(validateDomain(d)),
+	);
+}
+
+export function disableDomainRule(domainId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/rule/disable`,
+		{ method: "POST" },
+		(d) => normalizeDomain(validateDomain(d)),
+	);
+}
+
 export function createDomainPath(domainId: string, req: CreatePathRequest): Promise<Domain> {
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/paths`,
@@ -725,6 +741,22 @@ export function updateSubdomainRule(
 	return request(
 		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rule`,
 		{ method: "PUT", ...jsonBody(req) },
+		(d) => normalizeDomain(validateDomain(d)),
+	);
+}
+
+export function enableSubdomainRule(domainId: string, subId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rule/enable`,
+		{ method: "POST" },
+		(d) => normalizeDomain(validateDomain(d)),
+	);
+}
+
+export function disableSubdomainRule(domainId: string, subId: string): Promise<Domain> {
+	return request(
+		`/api/domains/${encodeURIComponent(domainId)}/subdomains/${encodeURIComponent(subId)}/rule/disable`,
+		{ method: "POST" },
 		(d) => normalizeDomain(validateDomain(d)),
 	);
 }

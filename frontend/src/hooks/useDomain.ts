@@ -37,7 +37,7 @@ const emptyDomain: Domain = {
 	name: "",
 	enabled: true,
 	toggles: {} as Domain["toggles"],
-	rule: { handler_type: "none", handler_config: {}, advanced_headers: false },
+	rule: { handler_type: "none", handler_config: {}, advanced_headers: false, enabled: true },
 	subdomains: [],
 	paths: [],
 };

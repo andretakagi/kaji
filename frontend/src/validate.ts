@@ -304,7 +304,11 @@ export function validateLokiTestResult(data: unknown): LokiTestResult {
 }
 
 function isRule(d: unknown): boolean {
-	return hasFields(d, { handler_type: is.string, handler_config: is.object });
+	return hasFields(d, {
+		handler_type: is.string,
+		handler_config: is.object,
+		enabled: is.boolean,
+	});
 }
 
 function isPath(d: unknown): boolean {
