@@ -77,6 +77,12 @@ const pathMatchOptions: { value: PathMatch; label: string }[] = [
 	{ value: "regex", label: "Regex" },
 ];
 
+const pathMatchLabels: Record<PathMatch, string> = {
+	prefix: "Prefix",
+	exact: "Exact",
+	regex: "Regex",
+};
+
 const handlerTypeOptions: { value: HandlerType; label: string }[] = [
 	{ value: "reverse_proxy", label: "Reverse Proxy" },
 	{ value: "redirect", label: "Redirect" },
@@ -1153,6 +1159,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													<span className="wizard-rule-match">
 														{entry.targetLabel}
 														{entry.path.matchValue}
+													</span>
+													<span className={`path-match-badge path-match-${entry.path.pathMatch}`}>
+														{pathMatchLabels[entry.path.pathMatch]}
 													</span>
 													<span
 														className={`rule-card-handler-badge handler-${entry.path.handlerType}`}

@@ -83,6 +83,12 @@ const handlerLabels: Record<RuleHandlerType, string> = {
 	none: "No Handler",
 };
 
+const pathMatchLabels: Record<PathMatch, string> = {
+	prefix: "Prefix",
+	exact: "Exact",
+	regex: "Regex",
+};
+
 const pathMatchOptions: { value: PathMatch; label: string }[] = [
 	{ value: "prefix", label: "Prefix" },
 	{ value: "exact", label: "Exact" },
@@ -214,6 +220,11 @@ export default function RuleCard({
 	const title = (
 		<>
 			<span className="rule-card-match">{hostLabel}</span>
+			{isPath && pathMatch && (
+				<span className={cn("path-match-badge", `path-match-${pathMatch}`)}>
+					{pathMatchLabels[pathMatch]}
+				</span>
+			)}
 			<span className={cn("rule-card-handler-badge", `handler-${rule.handler_type}`)}>
 				{handlerLabels[rule.handler_type]}
 			</span>

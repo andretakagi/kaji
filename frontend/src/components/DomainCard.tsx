@@ -222,9 +222,6 @@ interface PathEntry {
 }
 
 function formatPathLabel(p: Path, host: string): string {
-	if (p.path_match === "exact") return `${host}${p.match_value}`;
-	if (p.path_match === "prefix") return `${host}${p.match_value}*`;
-	if (p.path_match === "regex") return `${host}~${p.match_value}`;
 	return `${host}${p.match_value}`;
 }
 

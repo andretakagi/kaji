@@ -171,9 +171,17 @@ function SubdomainReviewItem({ sub, domainName }: { sub: WizardSubdomain; domain
 }
 
 function formatPathLabel(target: string, path: WizardPath): string {
-	if (path.pathMatch === "prefix") return `${target}${path.matchValue}*`;
-	if (path.pathMatch === "regex") return `${target}~${path.matchValue}`;
 	return `${target}${path.matchValue}`;
+}
+
+const pathMatchLabels: Record<WizardPath["pathMatch"], string> = {
+	prefix: "Prefix",
+	exact: "Exact",
+	regex: "Regex",
+};
+
+function PathMatchBadge({ match }: { match: WizardPath["pathMatch"] }) {
+	return <span className={`path-match-badge path-match-${match}`}>{pathMatchLabels[match]}</span>;
 }
 
 export default function WizardReview({ data, onEditStep }: Props) {
@@ -252,7 +260,10 @@ export default function WizardReview({ data, onEditStep }: Props) {
 							<div key={`${entry.targetLabel}-${entry.path.key}`} className="wizard-review-item">
 								<div className="wizard-review-item-title">
 									<span>{formatPathLabel(entry.targetLabel, entry.path)}</span>
-									<HandlerBadge type={entry.path.handlerType} />
+									<div className="wizard-review-item-badges">
+										<PathMatchBadge match={entry.path.pathMatch} />
+										<HandlerBadge type={entry.path.handlerType} />
+									</div>
 								</div>
 								<div className="wizard-review-details">
 									<HandlerDetails type={entry.path.handlerType} config={entry.path.handlerConfig} />
