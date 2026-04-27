@@ -9,15 +9,100 @@ import (
 func init() {
 	migrations = append(migrations, Migration{
 		Before:  "1.7.0",
-		Summary: "Convert flat routes to domain-centric model; split rules into rule + paths",
+		Summary: "Restructure to domain-centric model: lift request headers, split rules, rename ip lists, default rule.enabled",
 		Fn:      migrateV170,
 	})
 }
 
 func migrateV170(m map[string]any) []string {
 	var changes []string
+	changes = append(changes, liftRequestHeadersIntoRules(m)...)
+	changes = append(changes, restructureDomains(m)...)
+	if c := renameField(m, "route_ip_lists", "domain_ip_lists"); c != "" {
+		changes = append(changes, c)
+	}
+	changes = append(changes, defaultRuleEnabledOnAll(m)...)
+	return changes
+}
 
-	// Convert disabled_routes to domain entries
+func liftRequestHeadersIntoRules(m map[string]any) []string {
+	var changes []string
+
+	domainsRaw, ok := m["domains"]
+	if !ok {
+		return changes
+	}
+	domains, ok := domainsRaw.([]any)
+	if !ok {
+		return changes
+	}
+
+	for _, domRaw := range domains {
+		dom, ok := domRaw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		var requestData any
+		if toggles, ok := dom["toggles"].(map[string]any); ok {
+			if headers, ok := toggles["headers"].(map[string]any); ok {
+				requestData = headers["request"]
+				delete(headers, "request")
+			}
+		}
+
+		rulesRaw, ok := dom["rules"]
+		if !ok {
+			continue
+		}
+		rules, ok := rulesRaw.([]any)
+		if !ok {
+			continue
+		}
+
+		for _, ruleRaw := range rules {
+			rule, ok := ruleRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			effectiveRequest := requestData
+			if overrides, ok := rule["toggle_overrides"].(map[string]any); ok {
+				if headers, ok := overrides["headers"].(map[string]any); ok {
+					if ruleRequest, hasOverride := headers["request"]; hasOverride {
+						effectiveRequest = ruleRequest
+					}
+					delete(headers, "request")
+				}
+			}
+
+			if effectiveRequest != nil {
+				handlerType, _ := rule["handler_type"].(string)
+				if handlerType == "reverse_proxy" || handlerType == "" {
+					if hc, ok := rule["handler_config"].(map[string]any); ok {
+						if _, exists := hc["request_headers"]; !exists {
+							hc["request_headers"] = effectiveRequest
+						}
+					}
+				}
+			}
+		}
+
+		if requestData != nil {
+			domName, _ := dom["name"].(string)
+			if domName == "" {
+				domName, _ = dom["id"].(string)
+			}
+			changes = append(changes, "moved request headers from domain toggles to rule handler_config for "+domName)
+		}
+	}
+
+	return changes
+}
+
+func restructureDomains(m map[string]any) []string {
+	var changes []string
+
 	if raw, ok := m["disabled_routes"]; ok {
 		if routes, ok := raw.([]any); ok && len(routes) > 0 {
 			domains := ensureDomains(m)
@@ -48,7 +133,6 @@ func migrateV170(m map[string]any) []string {
 		changes = append(changes, c)
 	}
 
-	// Convert subdomain rules to first-class subdomain entities
 	domainsRaw, ok := m["domains"]
 	if ok {
 		if domains, ok := domainsRaw.([]any); ok {
@@ -64,7 +148,6 @@ func migrateV170(m map[string]any) []string {
 		}
 	}
 
-	// Split domain rules into rule + paths and lift subdomain handler into subdomain.rule
 	changes = append(changes, migrateV170Paths(m)...)
 
 	return changes
@@ -422,4 +505,75 @@ func convertSubdomainRules(dom map[string]any) string {
 		domName, _ = dom["id"].(string)
 	}
 	return fmt.Sprintf("converted %d subdomain rules to subdomain entities for %s", len(subdomains), domName)
+}
+
+func defaultRuleEnabledOnAll(m map[string]any) []string {
+	var changes []string
+
+	domains, ok := m["domains"].([]any)
+	if !ok {
+		return changes
+	}
+
+	for _, domRaw := range domains {
+		dom, ok := domRaw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if defaultRuleEnabled(dom) {
+			changes = append(changes, "defaulted rule.enabled=true on "+ruleScope(dom, "domain"))
+		}
+
+		if paths, ok := dom["paths"].([]any); ok {
+			for _, pRaw := range paths {
+				if p, ok := pRaw.(map[string]any); ok && defaultRuleEnabled(p) {
+					changes = append(changes, "defaulted rule.enabled=true on "+ruleScope(p, "path"))
+				}
+			}
+		}
+
+		if subs, ok := dom["subdomains"].([]any); ok {
+			for _, sRaw := range subs {
+				sub, ok := sRaw.(map[string]any)
+				if !ok {
+					continue
+				}
+				if defaultRuleEnabled(sub) {
+					changes = append(changes, "defaulted rule.enabled=true on "+ruleScope(sub, "subdomain"))
+				}
+				if paths, ok := sub["paths"].([]any); ok {
+					for _, pRaw := range paths {
+						if p, ok := pRaw.(map[string]any); ok && defaultRuleEnabled(p) {
+							changes = append(changes, "defaulted rule.enabled=true on "+ruleScope(p, "path"))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return changes
+}
+
+func defaultRuleEnabled(parent map[string]any) bool {
+	rule, ok := parent["rule"].(map[string]any)
+	if !ok {
+		return false
+	}
+	if _, exists := rule["enabled"]; exists {
+		return false
+	}
+	rule["enabled"] = true
+	return true
+}
+
+func ruleScope(parent map[string]any, kind string) string {
+	if name, ok := parent["name"].(string); ok && name != "" {
+		return kind + " " + name
+	}
+	if id, ok := parent["id"].(string); ok && id != "" {
+		return kind + " " + id
+	}
+	return kind
 }

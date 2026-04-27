@@ -952,3 +952,391 @@ func TestMigrateV170PathsRunsForOldVersion(t *testing.T) {
 		t.Error("domain.paths should be set after migration")
 	}
 }
+
+func TestLiftRequestHeadersMovesIntoRules(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "example.com",
+				"toggles": map[string]any{
+					"headers": map[string]any{
+						"response": map[string]any{"enabled": true},
+						"request": map[string]any{
+							"enabled":       true,
+							"host_override": true,
+							"host_value":    "backend.local",
+						},
+					},
+				},
+				"rules": []any{
+					map[string]any{
+						"handler_type":   "reverse_proxy",
+						"handler_config": map[string]any{"upstream": "localhost:3000"},
+					},
+				},
+			},
+		},
+	}
+
+	changes := liftRequestHeadersIntoRules(m)
+	if len(changes) == 0 {
+		t.Fatal("expected changes")
+	}
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	headers := dom["toggles"].(map[string]any)["headers"].(map[string]any)
+	if _, ok := headers["request"]; ok {
+		t.Error("request should be removed from domain toggles headers")
+	}
+
+	rule := dom["rules"].([]any)[0].(map[string]any)
+	hc := rule["handler_config"].(map[string]any)
+	rh, ok := hc["request_headers"].(map[string]any)
+	if !ok {
+		t.Fatal("request_headers not found in handler_config")
+	}
+	if rh["host_override"] != true {
+		t.Errorf("host_override = %v, want true", rh["host_override"])
+	}
+	if rh["host_value"] != "backend.local" {
+		t.Errorf("host_value = %v, want backend.local", rh["host_value"])
+	}
+}
+
+func TestLiftRequestHeadersOverrideTakesPriority(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "override.com",
+				"toggles": map[string]any{
+					"headers": map[string]any{
+						"request": map[string]any{
+							"enabled":    true,
+							"host_value": "domain-level.local",
+						},
+					},
+				},
+				"rules": []any{
+					map[string]any{
+						"handler_type":   "reverse_proxy",
+						"handler_config": map[string]any{"upstream": "localhost:4000"},
+						"toggle_overrides": map[string]any{
+							"headers": map[string]any{
+								"request": map[string]any{
+									"enabled":    true,
+									"host_value": "rule-level.local",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	liftRequestHeadersIntoRules(m)
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	rule := dom["rules"].([]any)[0].(map[string]any)
+	hc := rule["handler_config"].(map[string]any)
+	rh := hc["request_headers"].(map[string]any)
+	if rh["host_value"] != "rule-level.local" {
+		t.Errorf("host_value = %v, want rule-level.local (override should take priority)", rh["host_value"])
+	}
+
+	overrides := rule["toggle_overrides"].(map[string]any)
+	overrideHeaders := overrides["headers"].(map[string]any)
+	if _, ok := overrideHeaders["request"]; ok {
+		t.Error("request should be removed from toggle_overrides headers")
+	}
+}
+
+func TestLiftRequestHeadersSkipsStaticResponseRules(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "static.com",
+				"toggles": map[string]any{
+					"headers": map[string]any{
+						"request": map[string]any{
+							"enabled":    true,
+							"host_value": "should-not-appear.local",
+						},
+					},
+				},
+				"rules": []any{
+					map[string]any{
+						"handler_type":   "static_response",
+						"handler_config": map[string]any{"status_code": "200", "body": "OK"},
+					},
+				},
+			},
+		},
+	}
+
+	liftRequestHeadersIntoRules(m)
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	rule := dom["rules"].([]any)[0].(map[string]any)
+	hc := rule["handler_config"].(map[string]any)
+	if _, ok := hc["request_headers"]; ok {
+		t.Error("static_response rules should not receive request_headers")
+	}
+}
+
+func TestLiftRequestHeadersNoDomains(t *testing.T) {
+	m := map[string]any{}
+	changes := liftRequestHeadersIntoRules(m)
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes for missing domains, got %d", len(changes))
+	}
+}
+
+func TestLiftRequestHeadersNoRequestHeaders(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "no-request.com",
+				"toggles": map[string]any{
+					"headers": map[string]any{
+						"response": map[string]any{"enabled": true},
+					},
+				},
+				"rules": []any{
+					map[string]any{
+						"handler_type":   "reverse_proxy",
+						"handler_config": map[string]any{"upstream": "localhost:5000"},
+					},
+				},
+			},
+		},
+	}
+
+	changes := liftRequestHeadersIntoRules(m)
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes when no request headers exist, got %d", len(changes))
+	}
+}
+
+func TestLiftRequestHeadersPreservesExisting(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "existing.com",
+				"toggles": map[string]any{
+					"headers": map[string]any{
+						"request": map[string]any{
+							"enabled":    true,
+							"host_value": "new.local",
+						},
+					},
+				},
+				"rules": []any{
+					map[string]any{
+						"handler_type": "reverse_proxy",
+						"handler_config": map[string]any{
+							"upstream": "localhost:6000",
+							"request_headers": map[string]any{
+								"enabled":    true,
+								"host_value": "already-set.local",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	liftRequestHeadersIntoRules(m)
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	rule := dom["rules"].([]any)[0].(map[string]any)
+	hc := rule["handler_config"].(map[string]any)
+	rh := hc["request_headers"].(map[string]any)
+	if rh["host_value"] != "already-set.local" {
+		t.Errorf("host_value = %v, want already-set.local (existing should not be overwritten)", rh["host_value"])
+	}
+}
+
+func TestMigrateV170RenamesRouteIPLists(t *testing.T) {
+	m := map[string]any{
+		"route_ip_lists": map[string]any{
+			"domain_abc": "list1",
+		},
+	}
+	changes := migrateV170(m)
+	if _, ok := m["route_ip_lists"]; ok {
+		t.Fatal("route_ip_lists should be removed")
+	}
+	if _, ok := m["domain_ip_lists"]; !ok {
+		t.Fatal("domain_ip_lists should exist")
+	}
+	found := false
+	for _, c := range changes {
+		if c == "renamed route_ip_lists to domain_ip_lists" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected rename change message, got %v", changes)
+	}
+}
+
+func TestDefaultRuleEnabledOnAll(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "example.com",
+				"rule": map[string]any{"handler_type": "reverse_proxy"},
+				"paths": []any{
+					map[string]any{
+						"id":   "p1",
+						"rule": map[string]any{"handler_type": "reverse_proxy"},
+					},
+				},
+				"subdomains": []any{
+					map[string]any{
+						"name": "api",
+						"rule": map[string]any{"handler_type": "none"},
+						"paths": []any{
+							map[string]any{
+								"id":   "sp1",
+								"rule": map[string]any{"handler_type": "reverse_proxy"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	changes := defaultRuleEnabledOnAll(m)
+	if len(changes) != 4 {
+		t.Fatalf("expected 4 changes, got %d: %v", len(changes), changes)
+	}
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	if dom["rule"].(map[string]any)["enabled"] != true {
+		t.Error("domain rule.enabled should default to true")
+	}
+	domPath := dom["paths"].([]any)[0].(map[string]any)
+	if domPath["rule"].(map[string]any)["enabled"] != true {
+		t.Error("domain path rule.enabled should default to true")
+	}
+	sub := dom["subdomains"].([]any)[0].(map[string]any)
+	if sub["rule"].(map[string]any)["enabled"] != true {
+		t.Error("subdomain rule.enabled should default to true")
+	}
+	subPath := sub["paths"].([]any)[0].(map[string]any)
+	if subPath["rule"].(map[string]any)["enabled"] != true {
+		t.Error("subdomain path rule.enabled should default to true")
+	}
+}
+
+func TestDefaultRuleEnabledPreservesExistingFalse(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "example.com",
+				"rule": map[string]any{"handler_type": "reverse_proxy", "enabled": false},
+			},
+		},
+	}
+
+	changes := defaultRuleEnabledOnAll(m)
+	if len(changes) != 0 {
+		t.Errorf("expected no changes when enabled is already set, got %v", changes)
+	}
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	if dom["rule"].(map[string]any)["enabled"] != false {
+		t.Error("existing rule.enabled=false should be preserved")
+	}
+}
+
+func TestDefaultRuleEnabledNoDomains(t *testing.T) {
+	m := map[string]any{}
+	changes := defaultRuleEnabledOnAll(m)
+	if len(changes) != 0 {
+		t.Errorf("expected no changes when domains missing, got %v", changes)
+	}
+}
+
+func TestDefaultRuleEnabledSkipsRuleWithoutMap(t *testing.T) {
+	m := map[string]any{
+		"domains": []any{
+			map[string]any{
+				"name": "example.com",
+				"rule": "not a map",
+			},
+		},
+	}
+	changes := defaultRuleEnabledOnAll(m)
+	if len(changes) != 0 {
+		t.Errorf("expected no changes when rule is not a map, got %v", changes)
+	}
+}
+
+func TestMigrateV170FromV160FullPath(t *testing.T) {
+	m := map[string]any{
+		"route_ip_lists": map[string]any{"abc": "list1"},
+		"domains": []any{
+			map[string]any{
+				"name": "example.com",
+				"toggles": map[string]any{
+					"headers": map[string]any{
+						"request": map[string]any{"enabled": true, "host_value": "backend.local"},
+					},
+				},
+				"rules": []any{
+					map[string]any{
+						"id":             "rule_root",
+						"match_type":     "",
+						"handler_type":   "reverse_proxy",
+						"handler_config": map[string]any{"upstream": "localhost:80"},
+					},
+				},
+			},
+		},
+	}
+
+	changes, err := RunMigrations(m, "1.6.0")
+	if err != nil {
+		t.Fatalf("RunMigrations: %v", err)
+	}
+	if len(changes) == 0 {
+		t.Fatal("expected migrations to produce changes from 1.6.0")
+	}
+
+	if _, ok := m["route_ip_lists"]; ok {
+		t.Error("route_ip_lists should be renamed to domain_ip_lists")
+	}
+	if _, ok := m["domain_ip_lists"]; !ok {
+		t.Error("domain_ip_lists should exist")
+	}
+
+	dom := m["domains"].([]any)[0].(map[string]any)
+	if _, ok := dom["rules"]; ok {
+		t.Error("dom.rules should be removed after rule split")
+	}
+
+	rule, ok := dom["rule"].(map[string]any)
+	if !ok {
+		t.Fatalf("dom.rule should be a map, got %T", dom["rule"])
+	}
+	if rule["enabled"] != true {
+		t.Error("dom.rule.enabled should default to true")
+	}
+
+	hc, ok := rule["handler_config"].(map[string]any)
+	if !ok {
+		t.Fatalf("rule.handler_config should be a map, got %T", rule["handler_config"])
+	}
+	rh, ok := hc["request_headers"].(map[string]any)
+	if !ok {
+		t.Fatal("request_headers should have been lifted into handler_config")
+	}
+	if rh["host_value"] != "backend.local" {
+		t.Errorf("host_value = %v, want backend.local", rh["host_value"])
+	}
+}
