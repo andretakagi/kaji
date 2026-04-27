@@ -2,6 +2,12 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [1.10.0] - 2026-04-27
+
+### Added
+- Domain rule toggle. The Domain card now has its own enable switch alongside the domain wrapper toggle, so the root rule can be turned off without affecting subdomains or paths.
+- Parent-lock cascade. When a domain is disabled, its subdomain and path toggles lock so they can't be flipped while the parent is off, making the on/off state of every route obvious at a glance.
+
 ## [1.7.0] - 2026-04-27
 
 ### Added
