@@ -2969,6 +2969,10 @@ input:disabled + .toggle-slider {
 	align-self: flex-end;
 }
 
+.domain-detail-section--no-button {
+	padding-bottom: 2.85rem;
+}
+
 .path-group {
 	display: flex;
 	flex-direction: column;

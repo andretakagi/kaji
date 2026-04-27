@@ -85,7 +85,7 @@ export default function DomainCard({
 		<CollapsibleCard title={title} actions={actions} ariaLabel={domainSummary.name}>
 			<Feedback msg={feedback.msg} type={feedback.type} />
 
-			<section className="domain-detail-section">
+			<section className="domain-detail-section domain-detail-section--no-button">
 				<SectionHeader title="Domain" />
 				<RuleCard
 					kind="domain"
