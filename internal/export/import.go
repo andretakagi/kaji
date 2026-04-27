@@ -361,6 +361,7 @@ func toSyncRule(r config.Rule) caddy.SyncRule {
 		HandlerType:     r.HandlerType,
 		HandlerConfig:   r.HandlerConfig,
 		AdvancedHeaders: r.AdvancedHeaders,
+		Enabled:         r.Enabled,
 	}
 }
 

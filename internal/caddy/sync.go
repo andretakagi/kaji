@@ -11,6 +11,7 @@ type SyncRule struct {
 	HandlerType     string
 	HandlerConfig   json.RawMessage
 	AdvancedHeaders bool
+	Enabled         bool
 }
 
 type SyncPath struct {
@@ -61,7 +62,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 			continue
 		}
 
-		if dom.Rule.HandlerType != "" && dom.Rule.HandlerType != "none" {
+		if dom.Rule.HandlerType != "" && dom.Rule.HandlerType != "none" && dom.Rule.Enabled {
 			params := RuleBuildParams{
 				RuleID:          dom.ID,
 				HandlerType:     dom.Rule.HandlerType,
@@ -92,7 +93,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 			}
 			subHost := sub.Name + "." + dom.Name
 
-			if sub.Rule.HandlerType != "" && sub.Rule.HandlerType != "none" {
+			if sub.Rule.HandlerType != "" && sub.Rule.HandlerType != "none" && sub.Rule.Enabled {
 				params := RuleBuildParams{
 					RuleID:          sub.ID,
 					HandlerType:     sub.Rule.HandlerType,
@@ -213,14 +214,16 @@ func DiffDomains(desired, current map[string]json.RawMessage, disabledIDs map[st
 }
 
 // CollectDisabledIDs returns the set of CaddyDomainIDs for entries that are
-// disabled or belong to disabled parents. These IDs are protected from
-// deletion during sync. Entries with HandlerType "none" are skipped because
-// they are intentionally absent from Caddy.
+// disabled (domain-level, rule-level, or by a disabled parent). These IDs are
+// protected from deletion during sync. Entries with HandlerType "none" are
+// skipped because they are intentionally absent from Caddy.
 func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 	ids := make(map[string]bool)
 	for _, dom := range domains {
-		if !dom.Enabled && dom.Rule.HandlerType != "" && dom.Rule.HandlerType != "none" {
-			ids[CaddyDomainID(dom.ID)] = true
+		if dom.Rule.HandlerType != "" && dom.Rule.HandlerType != "none" {
+			if !dom.Enabled || !dom.Rule.Enabled {
+				ids[CaddyDomainID(dom.ID)] = true
+			}
 		}
 		for _, p := range dom.Paths {
 			if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
@@ -232,7 +235,7 @@ func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 		}
 		for _, sub := range dom.Subdomains {
 			if sub.Rule.HandlerType != "" && sub.Rule.HandlerType != "none" {
-				if !dom.Enabled || !sub.Enabled {
+				if !dom.Enabled || !sub.Enabled || !sub.Rule.Enabled {
 					ids[CaddyDomainID(sub.ID)] = true
 				}
 			}

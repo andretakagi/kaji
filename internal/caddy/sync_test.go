@@ -26,6 +26,7 @@ func TestBuildDesiredState_EnabledDomains(t *testing.T) {
 			Rule: SyncRule{
 				HandlerType:   "reverse_proxy",
 				HandlerConfig: rpConfig(t, "localhost:3000"),
+				Enabled:       true,
 			},
 		},
 		{
@@ -42,6 +43,7 @@ func TestBuildDesiredState_EnabledDomains(t *testing.T) {
 					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:4000"),
+						Enabled:       true,
 					},
 				},
 			},
@@ -75,6 +77,7 @@ func TestBuildDesiredState_DisabledDomain(t *testing.T) {
 			Rule: SyncRule{
 				HandlerType:   "reverse_proxy",
 				HandlerConfig: rpConfig(t, "localhost:5000"),
+				Enabled:       true,
 			},
 		},
 		{
@@ -85,6 +88,7 @@ func TestBuildDesiredState_DisabledDomain(t *testing.T) {
 			Rule: SyncRule{
 				HandlerType:   "reverse_proxy",
 				HandlerConfig: rpConfig(t, "localhost:6000"),
+				Enabled:       true,
 			},
 		},
 	}
@@ -116,6 +120,7 @@ func TestBuildDesiredState_DisabledRule(t *testing.T) {
 			Rule: SyncRule{
 				HandlerType:   "reverse_proxy",
 				HandlerConfig: rpConfig(t, "localhost:7000"),
+				Enabled:       true,
 			},
 			Paths: []SyncPath{
 				{
@@ -126,6 +131,7 @@ func TestBuildDesiredState_DisabledRule(t *testing.T) {
 					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:7001"),
+						Enabled:       true,
 					},
 				},
 			},
@@ -168,6 +174,7 @@ func TestBuildDesiredState_ToggleOverride(t *testing.T) {
 					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:8000"),
+						Enabled:       true,
 					},
 					ToggleOverrides: &DomainToggles{
 						ForceHTTPS:  false,
@@ -219,6 +226,7 @@ func TestBuildDesiredState_WithIPList(t *testing.T) {
 			Rule: SyncRule{
 				HandlerType:   "reverse_proxy",
 				HandlerConfig: rpConfig(t, "localhost:9000"),
+				Enabled:       true,
 			},
 		},
 	}
@@ -292,6 +300,7 @@ func TestBuildDesiredState_HandlerNoneSkipsRoute(t *testing.T) {
 					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: rpConfig(t, "localhost:1234"),
+						Enabled:       true,
 					},
 				},
 			},
@@ -313,6 +322,7 @@ func TestBuildDesiredState_HandlerNoneSkipsRoute(t *testing.T) {
 							Rule: SyncRule{
 								HandlerType:   "reverse_proxy",
 								HandlerConfig: rpConfig(t, "localhost:5678"),
+								Enabled:       true,
 							},
 						},
 					},
@@ -478,6 +488,7 @@ func TestCollectDisabledIDs_DisabledRules(t *testing.T) {
 			Enabled: true,
 			Rule: SyncRule{
 				HandlerType: "reverse_proxy",
+				Enabled:     true,
 			},
 			Paths: []SyncPath{
 				{
@@ -486,6 +497,7 @@ func TestCollectDisabledIDs_DisabledRules(t *testing.T) {
 					PathMatch: "prefix",
 					Rule: SyncRule{
 						HandlerType: "reverse_proxy",
+						Enabled:     true,
 					},
 				},
 			},
@@ -510,6 +522,7 @@ func TestCollectDisabledIDs_DisabledDomain(t *testing.T) {
 			Enabled: false,
 			Rule: SyncRule{
 				HandlerType: "reverse_proxy",
+				Enabled:     true,
 			},
 			Paths: []SyncPath{
 				{
@@ -518,6 +531,7 @@ func TestCollectDisabledIDs_DisabledDomain(t *testing.T) {
 					PathMatch: "prefix",
 					Rule: SyncRule{
 						HandlerType: "reverse_proxy",
+						Enabled:     true,
 					},
 				},
 			},
@@ -528,6 +542,7 @@ func TestCollectDisabledIDs_DisabledDomain(t *testing.T) {
 			Enabled: true,
 			Rule: SyncRule{
 				HandlerType: "reverse_proxy",
+				Enabled:     true,
 			},
 		},
 	}
@@ -844,6 +859,7 @@ func syncDomain(ruleID, upstream string) SyncDomain {
 		Rule: SyncRule{
 			HandlerType:   "reverse_proxy",
 			HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: upstream}),
+			Enabled:       true,
 		},
 	}
 }
@@ -1047,6 +1063,7 @@ func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
 			Rule: SyncRule{
 				HandlerType:   "reverse_proxy",
 				HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:7001"}),
+				Enabled:       true,
 			},
 		},
 		{
@@ -1062,6 +1079,7 @@ func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
 					Rule: SyncRule{
 						HandlerType:   "reverse_proxy",
 						HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:7002"}),
+						Enabled:       true,
 					},
 				},
 			},
@@ -1107,6 +1125,7 @@ func TestSyncDomains_ErrorOnIPListResolutionFailure(t *testing.T) {
 			Rule: SyncRule{
 				HandlerType:   "reverse_proxy",
 				HandlerConfig: mustMarshalStatic(ReverseProxyConfig{Upstream: "localhost:5000"}),
+				Enabled:       true,
 			},
 		},
 	}
@@ -1121,5 +1140,111 @@ func TestSyncDomains_ErrorOnIPListResolutionFailure(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "building desired state") {
 		t.Errorf("error = %q, want to mention 'building desired state'", err)
+	}
+}
+
+func TestBuildDesiredState_DomainRuleDisabledOmitsDomainRouteOnly(t *testing.T) {
+	domains := []SyncDomain{{
+		ID:      "rule_dom_disabled",
+		Name:    "example.com",
+		Enabled: true,
+		Rule: SyncRule{
+			HandlerType:   "reverse_proxy",
+			HandlerConfig: rpConfig(t, "localhost:3000"),
+			Enabled:       false,
+		},
+		Paths: []SyncPath{{
+			ID:         "rule_path_alive",
+			Enabled:    true,
+			PathMatch:  "prefix",
+			MatchValue: "/api/",
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:4000"),
+				Enabled:       true,
+			},
+		}},
+	}}
+
+	desired, err := BuildDesiredState(domains, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := desired["kaji_rule_dom_disabled"]; ok {
+		t.Errorf("domain route should be omitted when Rule.Enabled is false")
+	}
+	if _, ok := desired["kaji_rule_path_alive"]; !ok {
+		t.Errorf("path route should still be emitted when only Rule.Enabled is false")
+	}
+}
+
+func TestBuildDesiredState_SubdomainRuleDisabledOmitsSubdomainRouteOnly(t *testing.T) {
+	domains := []SyncDomain{{
+		ID:      "rule_dom_active",
+		Name:    "example.com",
+		Enabled: true,
+		Rule:    SyncRule{HandlerType: "none", Enabled: true},
+		Subdomains: []SyncSubdomain{{
+			ID:      "rule_sub_disabled",
+			Name:    "api",
+			Enabled: true,
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:3000"),
+				Enabled:       false,
+			},
+			Paths: []SyncPath{{
+				ID:         "rule_subpath_alive",
+				Enabled:    true,
+				PathMatch:  "prefix",
+				MatchValue: "/v1/",
+				Rule: SyncRule{
+					HandlerType:   "reverse_proxy",
+					HandlerConfig: rpConfig(t, "localhost:4000"),
+					Enabled:       true,
+				},
+			}},
+		}},
+	}}
+
+	desired, err := BuildDesiredState(domains, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := desired["kaji_rule_sub_disabled"]; ok {
+		t.Errorf("subdomain route should be omitted when its Rule.Enabled is false")
+	}
+	if _, ok := desired["kaji_rule_subpath_alive"]; !ok {
+		t.Errorf("subdomain path route should still be emitted")
+	}
+}
+
+func TestCollectDisabledIDs_RuleDisabled(t *testing.T) {
+	domains := []SyncDomain{{
+		ID:      "rule_dom_active",
+		Enabled: true,
+		Rule: SyncRule{
+			HandlerType:   "reverse_proxy",
+			HandlerConfig: rpConfig(t, "localhost:3000"),
+			Enabled:       false,
+		},
+		Subdomains: []SyncSubdomain{{
+			ID:      "rule_sub_active",
+			Name:    "api",
+			Enabled: true,
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:4000"),
+				Enabled:       false,
+			},
+		}},
+	}}
+
+	ids := CollectDisabledIDs(domains)
+	if !ids["kaji_rule_dom_active"] {
+		t.Error("rule-disabled domain should be in disabled IDs (protected from deletion)")
+	}
+	if !ids["kaji_rule_sub_active"] {
+		t.Error("rule-disabled subdomain should be in disabled IDs (protected from deletion)")
 	}
 }
