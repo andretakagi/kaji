@@ -43,6 +43,7 @@ export default function DomainCard({
 		feedback,
 		handleUpdateDomain,
 		handleUpdateDomainRule,
+		handleToggleDomainRule,
 		handleCreateDomainPath,
 		handleUpdateDomainPath,
 		handleDeleteDomainPath,
@@ -93,10 +94,15 @@ export default function DomainCard({
 					hostLabel={domain.name}
 					rule={domain.rule}
 					toggles={domain.toggles}
+					ruleEnabled={domain.rule.enabled}
+					parentEnabled={domainSummary.enabled}
 					saving={isSaving}
 					ariaLabel={`${domain.name} settings`}
 					idPrefix={`domain-${domainSummary.id}`}
 					domainName={domain.name}
+					onToggleRuleEnabled={(en) => handleToggleDomainRule(en)}
+					enableRuleLabel={`Enable ${domain.name} rule`}
+					disableRuleLabel={`Disable ${domain.name} rule`}
 					onSave={async ({ rule, toggles }) => {
 						const togglesChanged =
 							JSON.stringify(toggles) !== JSON.stringify(normalizeToggles(domain.toggles));
@@ -129,6 +135,7 @@ export default function DomainCard({
 									rule={sub.rule}
 									toggles={sub.toggles}
 									enabled={sub.enabled}
+									parentEnabled={domainSummary.enabled}
 									saving={isSaving}
 									ariaLabel={`${fullHost} subdomain`}
 									idPrefix={`subdomain-${sub.id}`}
@@ -185,6 +192,7 @@ export default function DomainCard({
 				<SectionHeader title="Paths" />
 				<PathGroup
 					domainName={domain.name}
+					domainEnabled={domainSummary.enabled}
 					rootPaths={domain.paths}
 					rootToggles={domain.toggles}
 					subdomains={domain.subdomains}
@@ -205,6 +213,7 @@ export default function DomainCard({
 
 interface PathGroupProps {
 	domainName: string;
+	domainEnabled: boolean;
 	rootPaths: Path[];
 	rootToggles: DomainToggles;
 	subdomains: Subdomain[];
@@ -224,6 +233,7 @@ interface PathEntry {
 	path: Path;
 	host: string;
 	parentToggles: DomainToggles;
+	parentEnabled: boolean;
 	onUpdate: (req: UpdatePathRequest) => Promise<boolean>;
 	onDelete: () => void;
 	onToggle: (enabled: boolean) => void;
@@ -235,6 +245,7 @@ function formatPathLabel(p: Path, host: string): string {
 
 function PathGroup({
 	domainName,
+	domainEnabled,
 	rootPaths,
 	rootToggles,
 	subdomains,
@@ -261,6 +272,7 @@ function PathGroup({
 			path: p,
 			host: domainName,
 			parentToggles: rootToggles,
+			parentEnabled: domainEnabled,
 			onUpdate: (req) => onUpdateRoot(p.id, req),
 			onDelete: () => onDeleteRoot(p.id),
 			onToggle: (enabled) => onToggleRoot(p.id, enabled),
@@ -273,6 +285,7 @@ function PathGroup({
 					path: p,
 					host: `${sub.name}.${domainName}`,
 					parentToggles: sub.toggles,
+					parentEnabled: domainEnabled && sub.enabled,
 					onUpdate: (req) => onUpdateSub(sub.id, p.id, req),
 					onDelete: () => onDeleteSub(sub.id, p.id),
 					onToggle: (enabled) => onToggleSub(sub.id, p.id, enabled),
@@ -290,6 +303,10 @@ function PathGroup({
 	];
 
 	const activeTarget = targetOptions.find((o) => o.value === addTarget) ?? targetOptions[0];
+	const activeTargetEnabled =
+		addTarget === ""
+			? domainEnabled
+			: domainEnabled && (sortedSubdomains.find((s) => s.id === addTarget)?.enabled ?? true);
 
 	function handleStartAdd() {
 		setAddTarget("");
@@ -325,6 +342,7 @@ function PathGroup({
 							matchValue={e.path.match_value}
 							hasOverrides={!!e.path.toggle_overrides}
 							enabled={e.path.enabled}
+							parentEnabled={e.parentEnabled}
 							saving={saving}
 							ariaLabel={`${formatPathLabel(e.path, e.host)} path`}
 							idPrefix={`path-${e.path.id}`}
@@ -378,6 +396,7 @@ function PathGroup({
 						pathMatch="prefix"
 						matchValue=""
 						hasOverrides={false}
+						parentEnabled={activeTargetEnabled}
 						saving={saving}
 						ariaLabel={`New path for ${activeTarget.label}`}
 						idPrefix={`path-new-${addTarget || "root"}`}
