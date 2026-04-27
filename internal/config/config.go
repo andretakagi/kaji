@@ -51,6 +51,7 @@ type Rule struct {
 	HandlerType     string          `json:"handler_type"`
 	HandlerConfig   json.RawMessage `json:"handler_config"`
 	AdvancedHeaders bool            `json:"advanced_headers,omitempty"`
+	Enabled         bool            `json:"enabled"`
 }
 
 type Path struct {
