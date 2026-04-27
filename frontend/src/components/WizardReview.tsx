@@ -1,6 +1,7 @@
 import type {
 	DomainToggles,
 	FileServerConfig,
+	HandlerConfigValue,
 	RedirectConfig,
 	ReverseProxyConfig,
 	StaticResponseConfig,
@@ -134,7 +135,7 @@ function HandlerBadge({ type }: { type: string }) {
 	);
 }
 
-function HandlerDetails({ type, config }: { type: string; config: unknown }) {
+function HandlerDetails({ type, config }: { type: string; config: HandlerConfigValue }) {
 	if (type === "reverse_proxy")
 		return <ReverseProxySummary config={config as ReverseProxyConfig} />;
 	if (type === "static_response")

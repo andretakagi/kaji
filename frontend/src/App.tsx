@@ -137,7 +137,7 @@ function App() {
 		};
 	}, [appState]);
 
-	async function handleServiceAction(action: () => Promise<unknown>) {
+	async function handleServiceAction(action: () => Promise<void>) {
 		setServiceActing(true);
 		setServiceError(null);
 		try {
@@ -236,7 +236,7 @@ function App() {
 										type="button"
 										className="svc-btn svc-start"
 										disabled={serviceActing}
-										onClick={() => handleServiceAction(startCaddy)}
+										onClick={() => handleServiceAction(async () => void (await startCaddy()))}
 									>
 										Start
 									</button>
@@ -246,7 +246,7 @@ function App() {
 											type="button"
 											className="svc-btn svc-stop"
 											disabled={serviceActing}
-											onClick={() => handleServiceAction(stopCaddy)}
+											onClick={() => handleServiceAction(async () => void (await stopCaddy()))}
 										>
 											Stop
 										</button>
@@ -254,7 +254,7 @@ function App() {
 											type="button"
 											className="svc-btn"
 											disabled={serviceActing}
-											onClick={() => handleServiceAction(restartCaddy)}
+											onClick={() => handleServiceAction(async () => void (await restartCaddy()))}
 										>
 											Restart
 										</button>

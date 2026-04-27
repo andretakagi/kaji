@@ -8,7 +8,10 @@ interface HeadersBasicProps {
 }
 
 export function HeadersBasic({ headers, onChange, idPrefix }: HeadersBasicProps) {
-	function updateResponse(key: string, value: unknown) {
+	function updateResponse<K extends keyof HeadersConfig["response"]>(
+		key: K,
+		value: HeadersConfig["response"][K],
+	) {
 		onChange({
 			...headers,
 			response: { ...headers.response, [key]: value },

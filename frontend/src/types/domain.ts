@@ -55,7 +55,7 @@ export type HandlerConfigValue =
 	| StaticResponseConfig
 	| RedirectConfig
 	| FileServerConfig
-	| Record<string, unknown>;
+	| Record<string, never>;
 
 export type HandlerType = "reverse_proxy" | "redirect" | "file_server" | "static_response";
 export type RuleHandlerType = "none" | HandlerType;
