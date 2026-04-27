@@ -419,6 +419,54 @@ func domainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapsh
 	}
 }
 
+func handleEnableDomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return domainRuleToggleHandler(store, cc, ss, version, true)
+}
+
+func handleDisableDomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return domainRuleToggleHandler(store, cc, ss, version, false)
+}
+
+func domainRuleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, enabled bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+
+		action := "enabled"
+		if !enabled {
+			action = "disabled"
+		}
+
+		cfg := store.Get()
+		existing := findDomain(cfg, id)
+		if existing == nil {
+			writeError(w, "domain not found", http.StatusNotFound)
+			return
+		}
+		maybeAutoSnapshot(cc, ss, store, version, "Domain rule "+action+": "+existing.Name)
+
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
+			dom := findDomain(&c, id)
+			if dom == nil {
+				return nil, errMutationNotFound
+			}
+			dom.Rule.Enabled = enabled
+			return &c, nil
+		})
+		if writeMutateError(w, "handleToggleDomainRule", err, "domain not found", "failed to update rule") {
+			return
+		}
+
+		persistCaddyConfig(cc, store)
+
+		cfg = store.Get()
+		if dom := findDomain(cfg, id); dom != nil {
+			writeJSON(w, dom)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
 func handleUpdateDomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		domainID := r.PathValue("id")

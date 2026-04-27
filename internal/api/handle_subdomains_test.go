@@ -591,3 +591,53 @@ func TestHandleUpdateSubdomainRuleDomainNotFound(t *testing.T) {
 		t.Errorf("got %d, want 404", rec.Code)
 	}
 }
+
+// --- handleEnableSubdomainRule / handleDisableSubdomainRule ---
+
+func TestHandleEnableDisableSubdomainRule(t *testing.T) {
+	th := newTestHarness(t)
+	dom := mustCreateDomain(t, th, baseDomainBody)
+	domID := dom["id"].(string)
+	sub := mustCreateSubdomain(t, th,
+		domID,
+		`{"name":"api","rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}}}`,
+	)
+	subID := sub["subdomains"].([]any)[0].(map[string]any)["id"].(string)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domID+"/subdomains/"+subID+"/rule/disable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disable subdomain rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if findStoreSubdomain(t, th, domID, subID).Rule.Enabled {
+		t.Error("subdomain rule should be disabled")
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/domains/"+domID+"/subdomains/"+subID+"/rule/enable", nil)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enable subdomain rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if !findStoreSubdomain(t, th, domID, subID).Rule.Enabled {
+		t.Error("subdomain rule should be enabled")
+	}
+}
+
+func TestHandleToggleSubdomainRuleNotFound(t *testing.T) {
+	th := newTestHarness(t)
+	dom := mustCreateDomain(t, th, baseDomainBody)
+	domID := dom["id"].(string)
+
+	for _, action := range []string{"enable", "disable"} {
+		t.Run(action, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domID+"/subdomains/missing/rule/"+action, nil)
+			rec := httptest.NewRecorder()
+			th.handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("got %d, want 404", rec.Code)
+			}
+		})
+	}
+}

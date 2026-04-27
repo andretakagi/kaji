@@ -598,3 +598,64 @@ func TestHandleDisableDomainNotFound(t *testing.T) {
 		t.Errorf("disable nonexistent domain: got %d, want 404", rec.Code)
 	}
 }
+
+// --- handleEnableDomainRule / handleDisableDomainRule ---
+
+func TestHandleEnableDisableDomainRule(t *testing.T) {
+	th := newTestHarness(t)
+
+	body := `{"name":"example.com","toggles":{},"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}}`
+	created := mustCreateDomain(t, th, body)
+	id := created["id"].(string)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+id+"/rule/disable", nil)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disable domain rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg := th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == id {
+			if d.Rule.Enabled {
+				t.Error("domain rule should be disabled in store")
+			}
+			break
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/domains/"+id+"/rule/enable", nil)
+	rec = httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enable domain rule: got %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	cfg = th.store.Get()
+	for _, d := range cfg.Domains {
+		if d.ID == id {
+			if !d.Rule.Enabled {
+				t.Error("domain rule should be enabled in store")
+			}
+			return
+		}
+	}
+	t.Error("domain not found in store after rule toggle")
+}
+
+func TestHandleEnableDomainRuleNotFound(t *testing.T) {
+	th := newTestHarness(t)
+
+	for _, action := range []string{"enable", "disable"} {
+		t.Run(action, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/domains/nonexistent/rule/"+action, nil)
+			rec := httptest.NewRecorder()
+			th.handler.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("got %d, want 404", rec.Code)
+			}
+		})
+	}
+}

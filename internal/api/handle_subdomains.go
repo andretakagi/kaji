@@ -281,6 +281,53 @@ func subdomainToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *sna
 	}
 }
 
+func handleEnableSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return subdomainRuleToggleHandler(store, cc, ss, version, true)
+}
+
+func handleDisableSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return subdomainRuleToggleHandler(store, cc, ss, version, false)
+}
+
+func subdomainRuleToggleHandler(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string, enabled bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		domainID := r.PathValue("id")
+		subID := r.PathValue("subId")
+
+		action := "enabled"
+		if !enabled {
+			action = "disabled"
+		}
+
+		maybeAutoSnapshot(cc, ss, store, version, "Subdomain rule "+action+": "+subdomainHost(store.Get(), domainID, subID))
+
+		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
+			d := findDomain(&c, domainID)
+			if d == nil {
+				return nil, errMutationNotFound
+			}
+			s := findSubdomain(d, subID)
+			if s == nil {
+				return nil, errMutationNotFound
+			}
+			s.Rule.Enabled = enabled
+			return &c, nil
+		})
+		if writeMutateError(w, "handleToggleSubdomainRule", err, "subdomain not found", "failed to update rule") {
+			return
+		}
+
+		persistCaddyConfig(cc, store)
+
+		cfg := store.Get()
+		if d := findDomain(cfg, domainID); d != nil {
+			writeJSON(w, d)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
 func handleUpdateSubdomainRule(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		domainID := r.PathValue("id")
