@@ -309,6 +309,17 @@ function ErrorPagesGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) 
 		toggles.error_pages.map(() => nextKey.current++),
 	);
 
+	useEffect(() => {
+		setKeys((prev) => {
+			if (prev.length === toggles.error_pages.length) return prev;
+			const next: number[] = [];
+			for (let i = 0; i < toggles.error_pages.length; i++) {
+				next.push(prev[i] ?? nextKey.current++);
+			}
+			return next;
+		});
+	}, [toggles.error_pages.length]);
+
 	const addEntry = () => {
 		const next: ErrorPage = { status_code: "404", body: "", content_type: "text/html" };
 		const k = nextKey.current++;
