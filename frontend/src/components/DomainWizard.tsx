@@ -158,9 +158,29 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		setPathToggleOverrides({ ...data.toggles });
 	}, [data.toggles]);
 
+	const validateErrorPageStatus = (pattern: string): string | null => {
+		const trimmed = pattern.trim();
+		if (!trimmed) return "Status code is required";
+		if (trimmed === "4xx" || trimmed === "5xx") return null;
+		const codes = trimmed.includes(",") ? trimmed.split(",") : [trimmed];
+		for (const raw of codes) {
+			const code = raw.trim();
+			if (!code) return "Status code cannot be empty";
+			const n = Number.parseInt(code, 10);
+			if (Number.isNaN(n) || String(n) !== code) return `"${code}" is not a valid status code`;
+			if (n < 100 || n > 599) return `Status code ${n} must be between 100 and 599`;
+		}
+		return null;
+	};
+
 	const validateToggles = (toggles: DomainToggles): string | null => {
 		if (toggles.basic_auth.enabled && !toggles.basic_auth.username.trim()) {
 			return "Username is required for basic auth";
+		}
+		for (let i = 0; i < toggles.error_pages.length; i++) {
+			const ep = toggles.error_pages[i];
+			const err = validateErrorPageStatus(ep.status_code);
+			if (err) return `Error Page ${i + 1}: ${err}`;
 		}
 		return null;
 	};
