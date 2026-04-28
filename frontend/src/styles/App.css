@@ -4116,6 +4116,20 @@ input:disabled + .toggle-slider {
 		flex-direction: column;
 		align-items: flex-start;
 	}
+
+	/* Log skip rules */
+	.log-skip-condition-row {
+		flex-wrap: wrap;
+	}
+
+	.log-skip-condition-row select {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.log-skip-condition-row input[type="text"] {
+		flex-basis: 100%;
+	}
 }
 
 /* Snapshots */
