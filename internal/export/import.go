@@ -340,6 +340,29 @@ func restoreSnapshots(ss *snapshot.Store, data *SnapshotData) error {
 	return ss.ReplaceIndex(data.Index)
 }
 
+func ToSyncSkipRules(rules map[string]config.LogSkipConfig) map[string]caddy.LogSkipRule {
+	if len(rules) == 0 {
+		return nil
+	}
+	out := make(map[string]caddy.LogSkipRule, len(rules))
+	for name, r := range rules {
+		conditions := make([]caddy.SkipConditionEntry, len(r.Conditions))
+		for i, c := range r.Conditions {
+			conditions[i] = caddy.SkipConditionEntry{
+				Type:  c.Type,
+				Key:   c.Key,
+				Value: c.Value,
+			}
+		}
+		out[name] = caddy.LogSkipRule{
+			Mode:        r.Mode,
+			Conditions:  conditions,
+			AdvancedRaw: r.AdvancedRaw,
+		}
+	}
+	return out
+}
+
 func ToSyncDomains(domains []config.Domain) []caddy.SyncDomain {
 	result := make([]caddy.SyncDomain, len(domains))
 	for i, d := range domains {

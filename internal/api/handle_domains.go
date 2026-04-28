@@ -38,33 +38,10 @@ func ipResolver(store *config.ConfigStore) func(string) ([]string, string, error
 	}
 }
 
-func toSyncSkipRules(rules map[string]config.LogSkipConfig) map[string]caddy.LogSkipRule {
-	if len(rules) == 0 {
-		return nil
-	}
-	out := make(map[string]caddy.LogSkipRule, len(rules))
-	for name, r := range rules {
-		conditions := make([]caddy.SkipConditionEntry, len(r.Conditions))
-		for i, c := range r.Conditions {
-			conditions[i] = caddy.SkipConditionEntry{
-				Type:  c.Type,
-				Key:   c.Key,
-				Value: c.Value,
-			}
-		}
-		out[name] = caddy.LogSkipRule{
-			Mode:        r.Mode,
-			Conditions:  conditions,
-			AdvancedRaw: r.AdvancedRaw,
-		}
-	}
-	return out
-}
-
 func syncAfterMutation(cc *caddy.Client, store *config.ConfigStore) error {
 	cfg := store.Get()
 	syncDomains := export.ToSyncDomains(cfg.Domains)
-	skipRules := toSyncSkipRules(cfg.LogSkipRules)
+	skipRules := export.ToSyncSkipRules(cfg.LogSkipRules)
 	_, err := caddy.SyncDomains(cc, syncDomains, ipResolver(store), skipRules)
 	return err
 }
