@@ -43,6 +43,11 @@ type FileServerConfig struct {
 	Hide       []string `json:"hide"`
 }
 
+type ErrorConfig struct {
+	StatusCode string `json:"status_code"`
+	Message    string `json:"message"`
+}
+
 type SkipConditionEntry struct {
 	Type  string `json:"type"`
 	Key   string `json:"key,omitempty"`
@@ -149,6 +154,22 @@ func ParseFileServerConfig(raw json.RawMessage) (FileServerConfig, error) {
 }
 
 func MarshalFileServerConfig(cfg FileServerConfig) (json.RawMessage, error) {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+func ParseErrorConfig(raw json.RawMessage) (ErrorConfig, error) {
+	var cfg ErrorConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return ErrorConfig{}, err
+	}
+	return cfg, nil
+}
+
+func MarshalErrorConfig(cfg ErrorConfig) (json.RawMessage, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, err
