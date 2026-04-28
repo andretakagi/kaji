@@ -15,6 +15,7 @@ interface Props {
 	hideResponseHeaders?: boolean;
 	disabled?: boolean;
 	errorMessage?: string;
+	isCreate?: boolean;
 }
 
 export function DomainToggleGrid({
@@ -25,6 +26,7 @@ export function DomainToggleGrid({
 	hideResponseHeaders,
 	disabled,
 	errorMessage,
+	isCreate,
 }: Props) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 	const [autoHttps, setAutoHttps] = useState<GlobalToggles["auto_https"] | null>(null);
@@ -82,6 +84,7 @@ export function DomainToggleGrid({
 				onUpdate={onUpdate}
 				idPrefix={idPrefix}
 				disabled={disabled}
+				isCreate={isCreate}
 			/>
 			<AccessLogGroup
 				toggles={toggles}
@@ -114,7 +117,13 @@ interface GroupProps {
 	disabled?: boolean;
 }
 
-function BasicAuthGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) {
+function BasicAuthGroup({
+	toggles,
+	onUpdate,
+	idPrefix,
+	disabled,
+	isCreate,
+}: GroupProps & { isCreate?: boolean }) {
 	return (
 		<div className={cn("toggle-group", toggles.basic_auth.enabled && "toggle-group-open")}>
 			<ToggleItem
@@ -145,7 +154,7 @@ function BasicAuthGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) {
 					<input
 						id={`auth-pass-${idPrefix}`}
 						type="password"
-						placeholder="(unchanged)"
+						placeholder={isCreate ? "password" : "(unchanged)"}
 						maxLength={512}
 						value={toggles.basic_auth.password}
 						onChange={(e) =>

@@ -857,6 +857,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 									? (data.rootRule.handlerConfig as ErrorConfig).message
 									: undefined
 							}
+							isCreate
 						/>
 					</div>
 				)}
@@ -987,6 +988,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																		? (subHandlerConfig as ErrorConfig).message
 																		: undefined
 																}
+																isCreate
 															/>
 														</div>
 													)}
@@ -1112,6 +1114,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 														? (subHandlerConfig as ErrorConfig).message
 														: undefined
 												}
+												isCreate
 											/>
 										</div>
 									)}
@@ -1343,6 +1346,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																			? (pathHandlerConfig as ErrorConfig).message
 																			: undefined
 																	}
+																	isCreate
 																/>
 															</div>
 														)}
@@ -1515,6 +1519,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 														? (pathHandlerConfig as ErrorConfig).message
 														: undefined
 												}
+												isCreate
 											/>
 										</div>
 									)}
