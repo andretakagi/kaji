@@ -1821,6 +1821,9 @@ input:disabled + .toggle-slider {
 }
 
 .error-page-entry {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
 	border-top: 1px solid var(--border);
 	padding-top: 0.75rem;
 	margin-top: 0.75rem;
@@ -1832,11 +1835,19 @@ input:disabled + .toggle-slider {
 	margin-top: 0;
 }
 
+.error-page-entry .form-field {
+	margin: 0;
+}
+
+.error-page-entry textarea {
+	width: 100%;
+	resize: vertical;
+}
+
 .error-page-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 0.5rem;
 }
 
 .error-page-label {

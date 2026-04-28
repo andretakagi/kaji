@@ -415,75 +415,82 @@ function ErrorPageEntry({
 				</button>
 			</div>
 
-			<label htmlFor={`${idPrefix}-ep-${index}-status`}>Status Code</label>
-			<select
-				id={`${idPrefix}-ep-${index}-status`}
-				value={isCustomStatus ? "custom" : entry.status_code}
-				onChange={(e) => {
-					if (e.target.value === "custom") {
-						onChange({ status_code: "" });
-					} else {
-						onChange({ status_code: e.target.value });
-					}
-				}}
-				disabled={disabled}
-			>
-				{statusCodePresets.map((p) => (
-					<option key={p.value} value={p.value}>
-						{p.label}
-					</option>
-				))}
-				<option value="custom">Custom...</option>
-			</select>
-			{isCustomStatus && (
-				<input
-					type="text"
-					placeholder="e.g. 400, 404, 500"
-					value={entry.status_code}
-					onChange={(e) => onChange({ status_code: e.target.value })}
-					disabled={disabled}
-				/>
-			)}
+			<div className="form-row">
+				<div className="form-field">
+					<label htmlFor={`${idPrefix}-ep-${index}-status`}>Status Code</label>
+					<select
+						id={`${idPrefix}-ep-${index}-status`}
+						value={isCustomStatus ? "custom" : entry.status_code}
+						onChange={(e) => {
+							if (e.target.value === "custom") {
+								onChange({ status_code: "" });
+							} else {
+								onChange({ status_code: e.target.value });
+							}
+						}}
+						disabled={disabled}
+					>
+						{statusCodePresets.map((p) => (
+							<option key={p.value} value={p.value}>
+								{p.label}
+							</option>
+						))}
+						<option value="custom">Custom...</option>
+					</select>
+					{isCustomStatus && (
+						<input
+							type="text"
+							placeholder="e.g. 400, 404, 500"
+							value={entry.status_code}
+							onChange={(e) => onChange({ status_code: e.target.value })}
+							disabled={disabled}
+						/>
+					)}
+				</div>
+				<div className="form-field">
+					<label htmlFor={`${idPrefix}-ep-${index}-ct`}>Content Type</label>
+					<select
+						id={`${idPrefix}-ep-${index}-ct`}
+						value={isCustomContentType ? "custom" : entry.content_type}
+						onChange={(e) => {
+							if (e.target.value === "custom") {
+								onChange({ content_type: "" });
+							} else {
+								onChange({ content_type: e.target.value });
+							}
+						}}
+						disabled={disabled}
+					>
+						{contentTypePresets.map((p) => (
+							<option key={p.value} value={p.value}>
+								{p.label}
+							</option>
+						))}
+						<option value="custom">Custom...</option>
+					</select>
+					{isCustomContentType && (
+						<input
+							type="text"
+							placeholder="e.g. text/xml"
+							value={entry.content_type}
+							onChange={(e) => onChange({ content_type: e.target.value })}
+							disabled={disabled}
+						/>
+					)}
+				</div>
+			</div>
 
-			<label htmlFor={`${idPrefix}-ep-${index}-ct`}>Content Type</label>
-			<select
-				id={`${idPrefix}-ep-${index}-ct`}
-				value={isCustomContentType ? "custom" : entry.content_type}
-				onChange={(e) => {
-					if (e.target.value === "custom") {
-						onChange({ content_type: "" });
-					} else {
-						onChange({ content_type: e.target.value });
-					}
-				}}
-				disabled={disabled}
-			>
-				{contentTypePresets.map((p) => (
-					<option key={p.value} value={p.value}>
-						{p.label}
-					</option>
-				))}
-				<option value="custom">Custom...</option>
-			</select>
-			{isCustomContentType && (
-				<input
-					type="text"
-					placeholder="e.g. text/xml"
-					value={entry.content_type}
-					onChange={(e) => onChange({ content_type: e.target.value })}
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-ep-${index}-body`}>Body</label>
+				<textarea
+					id={`${idPrefix}-ep-${index}-body`}
+					placeholder="Response body for this error"
+					value={entry.body}
+					onChange={(e) => onChange({ body: e.target.value })}
 					disabled={disabled}
+					rows={4}
 				/>
-			)}
-
-			<label htmlFor={`${idPrefix}-ep-${index}-body`}>Body</label>
-			<textarea
-				id={`${idPrefix}-ep-${index}-body`}
-				placeholder="Response body for this error"
-				value={entry.body}
-				onChange={(e) => onChange({ body: e.target.value })}
-				disabled={disabled}
-				rows={4}
-			/>
+			</div>
 		</div>
 	);
 }

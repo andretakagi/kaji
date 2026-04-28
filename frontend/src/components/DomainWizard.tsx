@@ -5,6 +5,7 @@ import type {
 	CreateSubdomainRequest,
 	Domain,
 	DomainToggles,
+	ErrorConfig,
 	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
@@ -16,6 +17,7 @@ import type {
 } from "../types/domain";
 import {
 	defaultDomainToggles,
+	defaultErrorConfig,
 	defaultFileServerConfig,
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
@@ -208,6 +210,14 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			const fs = config as FileServerConfig;
 			if (!fs.root.trim()) return "Root directory is required";
 		}
+		if (ht === "error") {
+			const ec = config as ErrorConfig;
+			if (!ec.status_code.trim()) return "Status code is required";
+			const code = Number.parseInt(ec.status_code, 10);
+			if (Number.isNaN(code) || code < 100 || code > 599) {
+				return "Status code must be between 100 and 599";
+			}
+		}
 		return null;
 	};
 
@@ -216,7 +226,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		ht === "reverse_proxy" ||
 		ht === "static_response" ||
 		ht === "redirect" ||
-		ht === "file_server";
+		ht === "file_server" ||
+		ht === "error";
 
 	const validateStep = (): boolean => {
 		setError("");
@@ -776,7 +787,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																? { ...defaultRedirectConfig }
 																: next === "file_server"
 																	? { ...defaultFileServerConfig }
-																	: {},
+																	: next === "error"
+																		? { ...defaultErrorConfig }
+																		: {},
 											},
 										}));
 									}}
@@ -900,6 +913,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																	setSubHandlerConfig({
 																		...defaultFileServerConfig,
 																	});
+																} else if (next === "error") {
+																	setSubHandlerConfig({
+																		...defaultErrorConfig,
+																	});
 																} else {
 																	setSubHandlerConfig({});
 																}
@@ -1015,6 +1032,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												} else if (next === "file_server") {
 													setSubHandlerConfig({
 														...defaultFileServerConfig,
+													});
+												} else if (next === "error") {
+													setSubHandlerConfig({
+														...defaultErrorConfig,
 													});
 												} else {
 													setSubHandlerConfig({});
@@ -1232,6 +1253,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																		setPathHandlerConfig({
 																			...defaultFileServerConfig,
 																		});
+																	} else if (next === "error") {
+																		setPathHandlerConfig({
+																			...defaultErrorConfig,
+																		});
 																	} else {
 																		setPathHandlerConfig({});
 																	}
@@ -1394,6 +1419,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												} else if (next === "file_server") {
 													setPathHandlerConfig({
 														...defaultFileServerConfig,
+													});
+												} else if (next === "error") {
+													setPathHandlerConfig({
+														...defaultErrorConfig,
 													});
 												} else {
 													setPathHandlerConfig({});
