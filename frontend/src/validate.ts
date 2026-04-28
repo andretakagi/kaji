@@ -53,9 +53,11 @@ import type { Domain, Path, Subdomain } from "./types/domain";
 import type {
 	CaddyLogEntry,
 	CaddyLoggingConfig,
+	LogSkipConfig,
 	LokiConfig,
 	LokiStatus,
 	LokiTestResult,
+	SkipCondition,
 } from "./types/logs";
 import type { Snapshot, SnapshotIndex } from "./types/snapshots";
 
@@ -358,4 +360,15 @@ export function validatePath(data: unknown): Path {
 
 export function validateSubdomain(data: unknown): Subdomain {
 	return assertValid("Subdomain", data, isSubdomain);
+}
+
+export function validateLogSkipConfig(data: unknown): LogSkipConfig {
+	const obj = data as Record<string, unknown>;
+	return {
+		mode: (obj.mode === "basic" || obj.mode === "advanced"
+			? obj.mode
+			: "basic") as LogSkipConfig["mode"],
+		conditions: Array.isArray(obj.conditions) ? (obj.conditions as SkipCondition[]) : [],
+		advanced_raw: Array.isArray(obj.advanced_raw) ? (obj.advanced_raw as unknown[]) : null,
+	};
 }
