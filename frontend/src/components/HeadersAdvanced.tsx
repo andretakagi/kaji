@@ -111,6 +111,7 @@ export function HeadersAdvanced({ headers, onChange }: HeadersAdvancedProps) {
 						entry={entry}
 						isBuiltin={true}
 						isOverridden={responseCustomKeys.has(entry.key)}
+						operations={["set", "add", "delete"]}
 						onChange={(e) => updateResponseBuiltin(i, e)}
 					/>
 				))}
@@ -123,6 +124,7 @@ export function HeadersAdvanced({ headers, onChange }: HeadersAdvancedProps) {
 						entry={k.entry}
 						isBuiltin={false}
 						isOverridden={builtinResponseKeys.has(k.entry.key)}
+						operations={["set", "add", "delete"]}
 						onChange={(e) => updateResponseCustom(i, e)}
 						onDelete={() => deleteResponseCustom(i)}
 					/>
