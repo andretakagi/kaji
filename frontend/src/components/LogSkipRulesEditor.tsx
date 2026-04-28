@@ -1,8 +1,10 @@
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { updateLogSkipRules } from "../api";
 import type { Feedback } from "../hooks/useAsyncAction";
 import type { LogSkipConfig, SkipCondition } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
+
+type KeyedCondition = SkipCondition & { _key: number };
 
 interface Props {
 	sinkName: string;
@@ -103,10 +105,21 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 	initialRules,
 	onSaved,
 }: Props) {
+	const nextKey = useRef(0);
+	function assignKey(c: SkipCondition): KeyedCondition {
+		return { ...c, _key: nextKey.current++ };
+	}
+	function assignKeys(cs: SkipCondition[]): KeyedCondition[] {
+		return cs.map(assignKey);
+	}
+
 	const [rules, setRules] = useState<LogSkipConfig>(() => ({
 		...initialRules,
 		conditions: initialRules.conditions ?? [],
 	}));
+	const [keyedConditions, setKeyedConditions] = useState<KeyedCondition[]>(() =>
+		assignKeys(initialRules.conditions ?? []),
+	);
 	const [advancedText, setAdvancedText] = useState(() => {
 		if (initialRules.mode === "advanced" && initialRules.advanced_raw) {
 			return JSON.stringify(initialRules.advanced_raw, null, 2);
@@ -126,13 +139,27 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 	function addCondition() {
 		const next: SkipCondition = { type: "path", value: "" };
 		setRules((r) => ({ ...r, conditions: [...(r.conditions ?? []), next] }));
+		setKeyedConditions((prev) => [...prev, assignKey(next)]);
 	}
 
 	function removeCondition(index: number) {
 		setRules((r) => ({
 			...r,
-			conditions: (r.conditions ?? []).filter((_, i) => i !== index),
+			conditions: (r.conditions ?? []).filter((_, j) => j !== index),
 		}));
+		setKeyedConditions((prev) => prev.filter((_, j) => j !== index));
+	}
+
+	function mergeCondition(current: SkipCondition, updates: Partial<SkipCondition>): SkipCondition {
+		const typeChanging = updates.type !== undefined && updates.type !== current.type;
+		if (typeChanging) {
+			if (updates.type === "header") {
+				return { type: "header", key: "", value: current.value };
+			}
+			const { key: _key, ...rest } = current;
+			return { ...rest, ...updates } as SkipCondition;
+		}
+		return { ...current, ...updates } as SkipCondition;
 	}
 
 	function updateCondition(index: number, updates: Partial<SkipCondition>) {
@@ -140,22 +167,15 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 			const conditions = [...(r.conditions ?? [])];
 			const current = conditions[index];
 			if (!current) return r;
-
-			const typeChanging = updates.type !== undefined && updates.type !== current.type;
-			let merged: SkipCondition;
-			if (typeChanging) {
-				if (updates.type === "header") {
-					merged = { type: "header", key: "", value: current.value };
-				} else {
-					const { key: _key, ...rest } = current;
-					merged = { ...rest, ...updates } as SkipCondition;
-				}
-			} else {
-				merged = { ...current, ...updates } as SkipCondition;
-			}
-
-			conditions[index] = merged;
+			conditions[index] = mergeCondition(current, updates);
 			return { ...r, conditions };
+		});
+		setKeyedConditions((prev) => {
+			const next = [...prev];
+			const current = next[index];
+			if (!current) return prev;
+			next[index] = { ...mergeCondition(current, updates), _key: current._key };
+			return next;
 		});
 	}
 
@@ -187,6 +207,7 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 
 	function applyBasicSwitch(conditions: SkipCondition[]) {
 		setRules({ mode: "basic", conditions, advanced_raw: null });
+		setKeyedConditions(assignKeys(conditions));
 		setConfirmSwitch(null);
 		setFeedback(null);
 	}
@@ -208,10 +229,9 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 		setFeedback(null);
 		try {
 			const saved = await updateLogSkipRules(sinkName, payload);
-			setRules({
-				...saved,
-				conditions: saved.conditions ?? [],
-			});
+			const savedConditions = saved.conditions ?? [];
+			setRules({ ...saved, conditions: savedConditions });
+			setKeyedConditions(assignKeys(savedConditions));
 			if (saved.mode === "advanced" && saved.advanced_raw) {
 				setAdvancedText(JSON.stringify(saved.advanced_raw, null, 2));
 			}
@@ -224,8 +244,6 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 			setSaving(false);
 		}
 	}
-
-	const conditions = rules.conditions ?? [];
 
 	return (
 		<div className="log-skip-rules">
@@ -300,18 +318,12 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 						/>
 					) : (
 						<>
-							{conditions.length === 0 ? (
+							{keyedConditions.length === 0 ? (
 								<p className="log-skip-rules-empty">No skip rules configured.</p>
 							) : (
 								<div className="log-skip-condition-list">
-									{conditions.map((cond, i) => (
-										<div
-											key={`condition-${
-												// biome-ignore lint/suspicious/noArrayIndexKey: index is the stable identity here
-												i
-											}`}
-											className="log-skip-condition-row"
-										>
+									{keyedConditions.map((cond, i) => (
+										<div key={cond._key} className="log-skip-condition-row">
 											<select
 												value={cond.type}
 												onChange={(e) =>
