@@ -50,8 +50,9 @@ func migrateHeaderManipulationPaths(parent map[string]any) []string {
 		if !ok {
 			continue
 		}
+		// toggle_overrides is a DomainToggles object directly (no "toggles" wrapper).
 		if overrides, ok := path["toggle_overrides"].(map[string]any); ok {
-			changes = append(changes, migrateHeaderManipulationToggles(overrides)...)
+			changes = append(changes, migrateHeadersBlock(overrides, entityName(path))...)
 		}
 		changes = append(changes, migrateHeaderManipulationRule(path)...)
 	}
@@ -59,11 +60,15 @@ func migrateHeaderManipulationPaths(parent map[string]any) []string {
 }
 
 func migrateHeaderManipulationToggles(entity map[string]any) []string {
-	var changes []string
 	toggles, ok := entity["toggles"].(map[string]any)
 	if !ok {
-		return changes
+		return nil
 	}
+	return migrateHeadersBlock(toggles, entityName(entity))
+}
+
+func migrateHeadersBlock(toggles map[string]any, name string) []string {
+	var changes []string
 	headers, ok := toggles["headers"].(map[string]any)
 	if !ok {
 		return changes
@@ -71,7 +76,7 @@ func migrateHeaderManipulationToggles(entity map[string]any) []string {
 
 	if _, exists := headers["request"]; !exists {
 		headers["request"] = map[string]any{
-			"enabled":            false,
+			"enabled":           false,
 			"x_forwarded_for":   false,
 			"x_real_ip":         false,
 			"x_forwarded_proto": false,
@@ -80,7 +85,6 @@ func migrateHeaderManipulationToggles(entity map[string]any) []string {
 			"builtin":           []any{},
 			"custom":            []any{},
 		}
-		name := entityName(entity)
 		changes = append(changes, fmt.Sprintf("added headers.request default for %s", name))
 	}
 

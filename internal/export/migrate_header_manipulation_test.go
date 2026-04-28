@@ -332,10 +332,8 @@ func TestMigrateHeaderManipulation_WalksPaths(t *testing.T) {
 							},
 						},
 						"toggle_overrides": map[string]any{
-							"toggles": map[string]any{
-								"headers": map[string]any{
-									"response": map[string]any{"enabled": false},
-								},
+							"headers": map[string]any{
+								"response": map[string]any{"enabled": false},
 							},
 						},
 					},
