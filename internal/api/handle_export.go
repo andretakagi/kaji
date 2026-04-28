@@ -38,7 +38,7 @@ func handleExportCaddyfile(cc *caddy.Client, store *config.ConfigStore) http.Han
 			return
 		}
 		cfg := store.Get()
-		content, err := caddy.GenerateCaddyfile(raw, cfg.LogFile)
+		content, err := caddy.GenerateCaddyfile(raw, cfg.LogFile, convertSkipRules(cfg.LogSkipRules))
 		if err != nil {
 			log.Printf("handleExportCaddyfile: %v", err)
 			writeError(w, "failed to generate Caddyfile", http.StatusInternalServerError)
@@ -250,6 +250,25 @@ func handleSetupImportCaddyfile(cc *caddy.Client) http.HandlerFunc {
 		}
 		writeJSON(w, resp)
 	}
+}
+
+func convertSkipRules(rules map[string]config.LogSkipConfig) map[string]caddy.LogSkipRule {
+	if len(rules) == 0 {
+		return nil
+	}
+	out := make(map[string]caddy.LogSkipRule, len(rules))
+	for k, v := range rules {
+		conds := make([]caddy.SkipConditionEntry, len(v.Conditions))
+		for i, c := range v.Conditions {
+			conds[i] = caddy.SkipConditionEntry{Type: c.Type, Key: c.Key, Value: c.Value}
+		}
+		out[k] = caddy.LogSkipRule{
+			Mode:        v.Mode,
+			Conditions:  conds,
+			AdvancedRaw: v.AdvancedRaw,
+		}
+	}
+	return out
 }
 
 func handleSetupImportFull(cc *caddy.Client, version string) http.HandlerFunc {

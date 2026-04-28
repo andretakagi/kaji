@@ -40,7 +40,7 @@ func BuildZIP(w io.Writer, cc *caddy.Client, store *config.ConfigStore, ss *snap
 	}
 
 	cfg := store.Get()
-	caddyfileContent, err := caddy.GenerateCaddyfile(caddyConfig, cfg.LogFile)
+	caddyfileContent, err := caddy.GenerateCaddyfile(caddyConfig, cfg.LogFile, convertSkipRules(cfg.LogSkipRules))
 	if err != nil {
 		return fmt.Errorf("generating caddyfile: %w", err)
 	}
@@ -79,6 +79,25 @@ func writeRaw(zw *zip.Writer, name string, data []byte) error {
 	}
 	_, err = f.Write(data)
 	return err
+}
+
+func convertSkipRules(rules map[string]config.LogSkipConfig) map[string]caddy.LogSkipRule {
+	if len(rules) == 0 {
+		return nil
+	}
+	out := make(map[string]caddy.LogSkipRule, len(rules))
+	for k, v := range rules {
+		conds := make([]caddy.SkipConditionEntry, len(v.Conditions))
+		for i, c := range v.Conditions {
+			conds[i] = caddy.SkipConditionEntry{Type: c.Type, Key: c.Key, Value: c.Value}
+		}
+		out[k] = caddy.LogSkipRule{
+			Mode:        v.Mode,
+			Conditions:  conds,
+			AdvancedRaw: v.AdvancedRaw,
+		}
+	}
+	return out
 }
 
 func writeSnapshots(zw *zip.Writer, ss *snapshot.Store) error {
