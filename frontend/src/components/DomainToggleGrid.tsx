@@ -383,7 +383,7 @@ function ErrorPagesGroup({
 							errorMessage={errorMessage}
 						/>
 					))}
-					<button type="button" className="btn-add" onClick={addEntry} disabled={disabled}>
+					<button type="button" className="btn btn-ghost" onClick={addEntry} disabled={disabled}>
 						+ Add Error Page
 					</button>
 				</div>
@@ -418,12 +418,12 @@ function ErrorPageEntry({
 				<span className="error-page-label">Error Page {index + 1}</span>
 				<button
 					type="button"
-					className="btn-remove"
+					className="btn btn-ghost header-row-delete"
 					onClick={onRemove}
 					disabled={disabled}
 					aria-label={`Remove error page ${index + 1}`}
 				>
-					x
+					&#x2715;
 				</button>
 			</div>
 
