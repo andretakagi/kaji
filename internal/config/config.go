@@ -47,6 +47,18 @@ type IPList struct {
 	UpdatedAt   string   `json:"updated_at"`
 }
 
+type SkipCondition struct {
+	Type  string `json:"type"`
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value"`
+}
+
+type LogSkipConfig struct {
+	Mode        string          `json:"mode"`
+	Conditions  []SkipCondition `json:"conditions"`
+	AdvancedRaw json.RawMessage `json:"advanced_raw"`
+}
+
 type Rule struct {
 	HandlerType     string          `json:"handler_type"`
 	HandlerConfig   json.RawMessage `json:"handler_config"`
@@ -96,22 +108,23 @@ func IPListsToEntries(lists []IPList) []caddy.IPListEntry {
 }
 
 type AppConfig struct {
-	AuthEnabled     bool              `json:"auth_enabled"`
-	PasswordHash    string            `json:"password_hash"`
-	SessionSecret   string            `json:"session_secret"`
-	SessionMaxAge   int               `json:"session_max_age"`
-	APIKeyHash      string            `json:"api_key_hash"`
-	CaddyAdminURL   string            `json:"caddy_admin_url"`
-	CaddyConfigPath string            `json:"caddy_config_path"`
-	CaddyDataDir    string            `json:"caddy_data_dir"`
-	SecureCookies   string            `json:"secure_cookies"`
-	LogFile         string            `json:"log_file"`
-	LogDir          string            `json:"log_dir"`
-	Loki            LokiConfig        `json:"loki"`
-	Domains         []Domain          `json:"domains"`
-	KajiVersion     string            `json:"kaji_version,omitempty"`
-	IPLists         []IPList          `json:"ip_lists"`
-	DomainIPLists   map[string]string `json:"domain_ip_lists"`
+	AuthEnabled     bool                     `json:"auth_enabled"`
+	PasswordHash    string                   `json:"password_hash"`
+	SessionSecret   string                   `json:"session_secret"`
+	SessionMaxAge   int                      `json:"session_max_age"`
+	APIKeyHash      string                   `json:"api_key_hash"`
+	CaddyAdminURL   string                   `json:"caddy_admin_url"`
+	CaddyConfigPath string                   `json:"caddy_config_path"`
+	CaddyDataDir    string                   `json:"caddy_data_dir"`
+	SecureCookies   string                   `json:"secure_cookies"`
+	LogFile         string                   `json:"log_file"`
+	LogDir          string                   `json:"log_dir"`
+	Loki            LokiConfig               `json:"loki"`
+	Domains         []Domain                 `json:"domains"`
+	KajiVersion     string                   `json:"kaji_version,omitempty"`
+	IPLists         []IPList                 `json:"ip_lists"`
+	DomainIPLists   map[string]string        `json:"domain_ip_lists"`
+	LogSkipRules    map[string]LogSkipConfig `json:"log_skip_rules"`
 }
 
 func (c *AppConfig) StripCredentials() {
