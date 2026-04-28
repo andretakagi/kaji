@@ -1426,6 +1426,20 @@ input:disabled + .toggle-slider {
 	width: 100%;
 }
 
+.form-hint {
+	font-size: 0.7rem;
+	color: var(--text-muted);
+	line-height: 1.4;
+}
+
+.form-hint code {
+	font-size: 0.7rem;
+	color: var(--text-secondary);
+	background: var(--bg-tertiary);
+	padding: 0.1rem 0.3rem;
+	border-radius: var(--radius-xs);
+}
+
 .form-row-spread {
 	justify-content: space-between;
 	align-items: flex-end;
@@ -1779,6 +1793,81 @@ input:disabled + .toggle-slider {
 
 .toggle-radio-option span {
 	user-select: none;
+}
+
+.btn-add {
+	font-size: 0.8125rem;
+	color: var(--accent);
+	padding: 0.3rem 0;
+	margin-top: 0.25rem;
+	align-self: flex-start;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+}
+
+.btn-add:hover {
+	color: var(--text);
+	border: none;
+	background: transparent;
+}
+
+.btn-remove {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	padding: 0 0 1px 0;
+	font-size: 0.85rem;
+	line-height: 1;
+	color: var(--text-secondary);
+	flex-shrink: 0;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+}
+
+.btn-remove:hover {
+	color: var(--red);
+	border: none;
+	background: transparent;
+}
+
+.error-page-entry {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	border-top: 1px solid var(--border);
+	padding-top: 0.75rem;
+	margin-top: 0.75rem;
+}
+
+.error-page-entry:first-child {
+	border-top: none;
+	padding-top: 0;
+	margin-top: 0;
+}
+
+.error-page-entry .form-field {
+	margin: 0;
+}
+
+.error-page-entry textarea {
+	width: 100%;
+	resize: vertical;
+}
+
+.error-page-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.error-page-label {
+	font-weight: 500;
+	font-size: 0.85rem;
+	color: var(--text-secondary);
 }
 
 .handler-static-headers {
@@ -3176,6 +3265,11 @@ input:disabled + .toggle-slider {
 .handler-static_response {
 	background: rgba(var(--teal-rgb), 0.12);
 	color: rgb(var(--teal-rgb));
+}
+
+.handler-error {
+	background: rgba(var(--red-rgb), 0.12);
+	color: rgb(var(--red-rgb));
 }
 
 .path-match-badge {

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchGlobalToggles, fetchIPLists } from "../api";
 import { cn } from "../cn";
 import type { GlobalToggles, IPList } from "../types/api";
-import type { DomainToggles } from "../types/domain";
+import type { DomainToggles, ErrorPage } from "../types/domain";
 import { ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
 import { ToggleItem } from "./ToggleGrid";
@@ -14,6 +14,8 @@ interface Props {
 	domain?: string;
 	hideResponseHeaders?: boolean;
 	disabled?: boolean;
+	errorMessage?: string;
+	isCreate?: boolean;
 }
 
 export function DomainToggleGrid({
@@ -23,6 +25,8 @@ export function DomainToggleGrid({
 	domain,
 	hideResponseHeaders,
 	disabled,
+	errorMessage,
+	isCreate,
 }: Props) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 	const [autoHttps, setAutoHttps] = useState<GlobalToggles["auto_https"] | null>(null);
@@ -80,6 +84,7 @@ export function DomainToggleGrid({
 				onUpdate={onUpdate}
 				idPrefix={idPrefix}
 				disabled={disabled}
+				isCreate={isCreate}
 			/>
 			<AccessLogGroup
 				toggles={toggles}
@@ -94,6 +99,13 @@ export function DomainToggleGrid({
 				ipLists={ipLists}
 				disabled={disabled}
 			/>
+			<ErrorPagesGroup
+				toggles={toggles}
+				onUpdate={onUpdate}
+				idPrefix={idPrefix}
+				disabled={disabled}
+				errorMessage={errorMessage}
+			/>
 		</div>
 	);
 }
@@ -105,7 +117,13 @@ interface GroupProps {
 	disabled?: boolean;
 }
 
-function BasicAuthGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) {
+function BasicAuthGroup({
+	toggles,
+	onUpdate,
+	idPrefix,
+	disabled,
+	isCreate,
+}: GroupProps & { isCreate?: boolean }) {
 	return (
 		<div className={cn("toggle-group", toggles.basic_auth.enabled && "toggle-group-open")}>
 			<ToggleItem
@@ -136,7 +154,7 @@ function BasicAuthGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) {
 					<input
 						id={`auth-pass-${idPrefix}`}
 						type="password"
-						placeholder="(unchanged)"
+						placeholder={isCreate ? "password" : "(unchanged)"}
 						maxLength={512}
 						value={toggles.basic_auth.password}
 						onChange={(e) =>
@@ -269,6 +287,242 @@ function IPFilteringGroup({
 					)}
 				</div>
 			)}
+		</div>
+	);
+}
+
+const statusCodePresets = [
+	{ value: "4xx", label: "4xx - All client errors" },
+	{ value: "5xx", label: "5xx - All server errors" },
+	{ value: "403", label: "403 - Forbidden" },
+	{ value: "404", label: "404 - Not Found" },
+	{ value: "502", label: "502 - Bad Gateway" },
+	{ value: "503", label: "503 - Service Unavailable" },
+];
+
+const contentTypePresets = [
+	{ value: "text/html", label: "text/html" },
+	{ value: "text/plain", label: "text/plain" },
+	{ value: "application/json", label: "application/json" },
+];
+
+function isPresetStatusCode(code: string): boolean {
+	return statusCodePresets.some((p) => p.value === code);
+}
+
+function isPresetContentType(ct: string): boolean {
+	return contentTypePresets.some((p) => p.value === ct);
+}
+
+function ErrorPagesGroup({
+	toggles,
+	onUpdate,
+	idPrefix,
+	disabled,
+	errorMessage,
+}: GroupProps & { errorMessage?: string }) {
+	const enabled = toggles.error_pages.length > 0;
+	const nextKey = useRef(0);
+	const [keys, setKeys] = useState<number[]>(() =>
+		toggles.error_pages.map(() => nextKey.current++),
+	);
+
+	useEffect(() => {
+		setKeys((prev) => {
+			if (prev.length === toggles.error_pages.length) return prev;
+			const next: number[] = [];
+			for (let i = 0; i < toggles.error_pages.length; i++) {
+				next.push(prev[i] ?? nextKey.current++);
+			}
+			return next;
+		});
+	}, [toggles.error_pages.length]);
+
+	const addEntry = () => {
+		const next: ErrorPage = { status_code: "404", body: "", content_type: "text/html" };
+		const k = nextKey.current++;
+		setKeys((prev) => [...prev, k]);
+		onUpdate("error_pages", [...toggles.error_pages, next]);
+	};
+
+	const removeEntry = (index: number) => {
+		setKeys((prev) => prev.filter((_, i) => i !== index));
+		onUpdate(
+			"error_pages",
+			toggles.error_pages.filter((_, i) => i !== index),
+		);
+	};
+
+	const updateEntry = (index: number, patch: Partial<ErrorPage>) => {
+		onUpdate(
+			"error_pages",
+			toggles.error_pages.map((ep, i) => (i === index ? { ...ep, ...patch } : ep)),
+		);
+	};
+
+	return (
+		<div className={cn("toggle-group", enabled && "toggle-group-open")}>
+			<ToggleItem
+				label="Error Pages"
+				description="Custom responses for error status codes"
+				checked={enabled}
+				onChange={(v) => {
+					if (v) {
+						const k = nextKey.current++;
+						setKeys([k]);
+						onUpdate("error_pages", [{ status_code: "404", body: "", content_type: "text/html" }]);
+					} else {
+						setKeys([]);
+						onUpdate("error_pages", []);
+					}
+				}}
+				disabled={disabled}
+			/>
+			{enabled && (
+				<div className="toggle-detail">
+					{toggles.error_pages.map((ep, i) => (
+						<ErrorPageEntry
+							key={keys[i]}
+							entry={ep}
+							index={i}
+							idPrefix={idPrefix}
+							onChange={(patch) => updateEntry(i, patch)}
+							onRemove={() => removeEntry(i)}
+							disabled={disabled}
+							errorMessage={errorMessage}
+						/>
+					))}
+					<button type="button" className="btn btn-ghost" onClick={addEntry} disabled={disabled}>
+						+ Add Error Page
+					</button>
+				</div>
+			)}
+		</div>
+	);
+}
+
+function ErrorPageEntry({
+	entry,
+	index,
+	idPrefix,
+	onChange,
+	onRemove,
+	disabled,
+	errorMessage,
+}: {
+	entry: ErrorPage;
+	index: number;
+	idPrefix: string;
+	onChange: (patch: Partial<ErrorPage>) => void;
+	onRemove: () => void;
+	disabled?: boolean;
+	errorMessage?: string;
+}) {
+	const isCustomStatus = !isPresetStatusCode(entry.status_code);
+	const isCustomContentType = !isPresetContentType(entry.content_type);
+
+	return (
+		<div className="error-page-entry">
+			<div className="error-page-header">
+				<span className="error-page-label">Error Page {index + 1}</span>
+				<button
+					type="button"
+					className="btn btn-ghost header-row-delete"
+					onClick={onRemove}
+					disabled={disabled}
+					aria-label={`Remove error page ${index + 1}`}
+				>
+					&#x2715;
+				</button>
+			</div>
+
+			<div className="form-row">
+				<div className="form-field">
+					<label htmlFor={`${idPrefix}-ep-${index}-status`}>Status Code</label>
+					<select
+						id={`${idPrefix}-ep-${index}-status`}
+						value={isCustomStatus ? "custom" : entry.status_code}
+						onChange={(e) => {
+							if (e.target.value === "custom") {
+								onChange({ status_code: "" });
+							} else {
+								onChange({ status_code: e.target.value });
+							}
+						}}
+						disabled={disabled}
+					>
+						{statusCodePresets.map((p) => (
+							<option key={p.value} value={p.value}>
+								{p.label}
+							</option>
+						))}
+						<option value="custom">Custom...</option>
+					</select>
+					{isCustomStatus && (
+						<input
+							type="text"
+							placeholder="e.g. 400, 404, 500"
+							value={entry.status_code}
+							onChange={(e) => onChange({ status_code: e.target.value })}
+							disabled={disabled}
+						/>
+					)}
+				</div>
+				<div className="form-field">
+					<label htmlFor={`${idPrefix}-ep-${index}-ct`}>Content Type</label>
+					<select
+						id={`${idPrefix}-ep-${index}-ct`}
+						value={isCustomContentType ? "custom" : entry.content_type}
+						onChange={(e) => {
+							if (e.target.value === "custom") {
+								onChange({ content_type: "" });
+							} else {
+								onChange({ content_type: e.target.value });
+							}
+						}}
+						disabled={disabled}
+					>
+						{contentTypePresets.map((p) => (
+							<option key={p.value} value={p.value}>
+								{p.label}
+							</option>
+						))}
+						<option value="custom">Custom...</option>
+					</select>
+					{isCustomContentType && (
+						<input
+							type="text"
+							placeholder="e.g. text/xml"
+							value={entry.content_type}
+							onChange={(e) => onChange({ content_type: e.target.value })}
+							disabled={disabled}
+						/>
+					)}
+				</div>
+			</div>
+
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-ep-${index}-body`}>Body</label>
+				<textarea
+					id={`${idPrefix}-ep-${index}-body`}
+					placeholder="Response body for this error"
+					value={entry.body}
+					onChange={(e) => onChange({ body: e.target.value })}
+					disabled={disabled}
+					rows={4}
+				/>
+				{errorMessage !== undefined && (
+					<span className="form-hint">
+						{"Use {http.error.message} in the body to include the error message"}
+						{errorMessage && (
+							<>
+								{": "}
+								<code>{errorMessage}</code>
+							</>
+						)}
+					</span>
+				)}
+			</div>
 		</div>
 	);
 }

@@ -13,6 +13,13 @@ type DomainToggles struct {
 	BasicAuth   BasicAuth       `json:"basic_auth"`
 	AccessLog   string          `json:"access_log"`
 	IPFiltering IPFilteringOpts `json:"ip_filtering"`
+	ErrorPages  []ErrorPage     `json:"error_pages"`
+}
+
+type ErrorPage struct {
+	StatusCode  string `json:"status_code"`
+	Body        string `json:"body"`
+	ContentType string `json:"content_type"`
 }
 
 type ReverseProxyConfig struct {
@@ -41,6 +48,11 @@ type FileServerConfig struct {
 	Browse     bool     `json:"browse"`
 	IndexNames []string `json:"index_names"`
 	Hide       []string `json:"hide"`
+}
+
+type ErrorConfig struct {
+	StatusCode string `json:"status_code"`
+	Message    string `json:"message"`
 }
 
 type SkipConditionEntry struct {
@@ -149,6 +161,22 @@ func ParseFileServerConfig(raw json.RawMessage) (FileServerConfig, error) {
 }
 
 func MarshalFileServerConfig(cfg FileServerConfig) (json.RawMessage, error) {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(data), nil
+}
+
+func ParseErrorConfig(raw json.RawMessage) (ErrorConfig, error) {
+	var cfg ErrorConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return ErrorConfig{}, err
+	}
+	return cfg, nil
+}
+
+func MarshalErrorConfig(cfg ErrorConfig) (json.RawMessage, error) {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return nil, err

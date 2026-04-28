@@ -316,6 +316,24 @@ func validateFileServerConfig(w http.ResponseWriter, raw json.RawMessage) bool {
 	return true
 }
 
+func validateErrorConfig(w http.ResponseWriter, raw json.RawMessage) bool {
+	var ec caddy.ErrorConfig
+	if err := json.Unmarshal(raw, &ec); err != nil {
+		writeError(w, "invalid handler config", http.StatusBadRequest)
+		return false
+	}
+	if strings.TrimSpace(ec.StatusCode) == "" {
+		writeError(w, "status code is required", http.StatusBadRequest)
+		return false
+	}
+	code, err := strconv.Atoi(ec.StatusCode)
+	if err != nil || code < 100 || code > 599 {
+		writeError(w, "status code must be between 100 and 599", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 // validateRule enforces handler_type and validates handler_config. When
 // allowNone is true, handler_type "none" is accepted and handler-config
 // validation is skipped (used by domain and subdomain rules, where "none"
@@ -339,6 +357,8 @@ func validateRule(w http.ResponseWriter, rule updateRuleRequest, allowNone bool)
 		return validateRedirectConfig(w, rule.HandlerConfig)
 	case "file_server":
 		return validateFileServerConfig(w, rule.HandlerConfig)
+	case "error":
+		return validateErrorConfig(w, rule.HandlerConfig)
 	default:
 		writeError(w, fmt.Sprintf("unknown handler type: %s", rule.HandlerType), http.StatusBadRequest)
 		return false

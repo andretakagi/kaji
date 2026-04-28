@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -605,6 +606,9 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 
 		case "file_server":
 			parseFileServerHandler(h, p)
+
+		case "error":
+			parseErrorHandler(h, p)
 		}
 	}
 }
@@ -713,5 +717,26 @@ func parseStaticResponseHandler(raw json.RawMessage, p *DomainParams) {
 		return
 	}
 	p.HandlerType = "static_response"
+	p.HandlerConfig = data
+}
+
+func parseErrorHandler(raw json.RawMessage, p *DomainParams) {
+	var eh struct {
+		StatusCode int    `json:"status_code"`
+		Message    string `json:"error"`
+	}
+	if json.Unmarshal(raw, &eh) != nil {
+		return
+	}
+
+	cfg := ErrorConfig{
+		StatusCode: strconv.Itoa(eh.StatusCode),
+		Message:    eh.Message,
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return
+	}
+	p.HandlerType = "error"
 	p.HandlerConfig = data
 }

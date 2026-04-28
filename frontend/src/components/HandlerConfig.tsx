@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import { cn } from "../cn";
 import type { RequestHeaders } from "../types/api";
 import type {
+	ErrorConfig,
 	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
@@ -99,6 +100,10 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 					onChange={onChange}
 					disabled={disabled}
 				/>
+			);
+		case "error":
+			return (
+				<ErrorSection config={config as ErrorConfig} onChange={onChange} disabled={disabled} />
 			);
 		case "" as HandlerType:
 			return null;
@@ -379,6 +384,16 @@ function StaticResponseSection({
 	);
 }
 
+const errorStatusOptions = [
+	{ value: "403", label: "403 - Forbidden" },
+	{ value: "404", label: "404 - Not Found" },
+	{ value: "410", label: "410 - Gone" },
+	{ value: "500", label: "500 - Internal Server Error" },
+	{ value: "502", label: "502 - Bad Gateway" },
+	{ value: "503", label: "503 - Service Unavailable" },
+	{ value: "custom", label: "Custom..." },
+];
+
 const redirectStatusOptions = [
 	{ value: "301", label: "301 - Permanent Redirect" },
 	{ value: "302", label: "302 - Found (Temporary)" },
@@ -501,6 +516,95 @@ function RedirectSection({
 				onChange={(v) => update({ preserve_path: v })}
 				disabled={disabled}
 			/>
+		</div>
+	);
+}
+
+function ErrorSection({
+	config,
+	onChange,
+	disabled,
+}: {
+	config: ErrorConfig;
+	onChange: (config: ErrorConfig) => void;
+	disabled?: boolean;
+}) {
+	const idPrefix = useId();
+	const [customMode, setCustomMode] = useState(
+		() => !errorStatusOptions.some((o) => o.value === config.status_code),
+	);
+
+	function update(patch: Partial<ErrorConfig>) {
+		onChange({ ...config, ...patch });
+	}
+
+	return (
+		<div className="handler-config">
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-status`}>Status Code</label>
+				{customMode ? (
+					<div className="redirect-status-custom">
+						<input
+							id={`${idPrefix}-status`}
+							type="text"
+							placeholder="404"
+							value={config.status_code}
+							onChange={(e) =>
+								update({ status_code: e.target.value.replace(/\D/g, "").slice(0, 3) })
+							}
+							maxLength={3}
+							disabled={disabled}
+						/>
+						<button
+							type="button"
+							className="btn btn-ghost"
+							onClick={() => {
+								setCustomMode(false);
+								update({ status_code: "404" });
+							}}
+							disabled={disabled}
+						>
+							Presets
+						</button>
+					</div>
+				) : (
+					<select
+						id={`${idPrefix}-status`}
+						value={
+							errorStatusOptions.some((o) => o.value === config.status_code)
+								? config.status_code
+								: "custom"
+						}
+						onChange={(e) => {
+							if (e.target.value === "custom") {
+								setCustomMode(true);
+								update({ status_code: "" });
+							} else {
+								update({ status_code: e.target.value });
+							}
+						}}
+						disabled={disabled}
+					>
+						{errorStatusOptions.map((o) => (
+							<option key={o.value} value={o.value}>
+								{o.label}
+							</option>
+						))}
+					</select>
+				)}
+			</div>
+			<div className="form-field">
+				<label htmlFor={`${idPrefix}-message`}>Message</label>
+				<input
+					id={`${idPrefix}-message`}
+					type="text"
+					placeholder="Optional - available as {http.error.message} in error page bodies"
+					value={config.message}
+					onChange={(e) => update({ message: e.target.value })}
+					maxLength={1024}
+					disabled={disabled}
+				/>
+			</div>
 		</div>
 	);
 }
@@ -790,6 +894,10 @@ export function handlerSummary(type: RuleHandlerType, config: HandlerConfigValue
 			const parts: string[] = [fs.root || "..."];
 			if (fs.browse) parts.push("browse");
 			return parts.join(" / ");
+		}
+		case "error": {
+			const err = config as ErrorConfig;
+			return `Error ${err.status_code || "..."}`;
 		}
 		default:
 			return "Not yet supported";

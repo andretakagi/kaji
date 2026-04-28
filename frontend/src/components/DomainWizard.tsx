@@ -5,6 +5,7 @@ import type {
 	CreateSubdomainRequest,
 	Domain,
 	DomainToggles,
+	ErrorConfig,
 	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
@@ -16,6 +17,7 @@ import type {
 } from "../types/domain";
 import {
 	defaultDomainToggles,
+	defaultErrorConfig,
 	defaultFileServerConfig,
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
@@ -156,9 +158,29 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		setPathToggleOverrides({ ...data.toggles });
 	}, [data.toggles]);
 
+	const validateErrorPageStatus = (pattern: string): string | null => {
+		const trimmed = pattern.trim();
+		if (!trimmed) return "Status code is required";
+		if (trimmed === "4xx" || trimmed === "5xx") return null;
+		const codes = trimmed.includes(",") ? trimmed.split(",") : [trimmed];
+		for (const raw of codes) {
+			const code = raw.trim();
+			if (!code) return "Status code cannot be empty";
+			const n = Number.parseInt(code, 10);
+			if (Number.isNaN(n) || String(n) !== code) return `"${code}" is not a valid status code`;
+			if (n < 100 || n > 599) return `Status code ${n} must be between 100 and 599`;
+		}
+		return null;
+	};
+
 	const validateToggles = (toggles: DomainToggles): string | null => {
 		if (toggles.basic_auth.enabled && !toggles.basic_auth.username.trim()) {
 			return "Username is required for basic auth";
+		}
+		for (let i = 0; i < toggles.error_pages.length; i++) {
+			const ep = toggles.error_pages[i];
+			const err = validateErrorPageStatus(ep.status_code);
+			if (err) return `Error Page ${i + 1}: ${err}`;
 		}
 		return null;
 	};
@@ -208,6 +230,14 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			const fs = config as FileServerConfig;
 			if (!fs.root.trim()) return "Root directory is required";
 		}
+		if (ht === "error") {
+			const ec = config as ErrorConfig;
+			if (!ec.status_code.trim()) return "Status code is required";
+			const code = Number.parseInt(ec.status_code, 10);
+			if (Number.isNaN(code) || code < 100 || code > 599) {
+				return "Status code must be between 100 and 599";
+			}
+		}
 		return null;
 	};
 
@@ -216,7 +246,8 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		ht === "reverse_proxy" ||
 		ht === "static_response" ||
 		ht === "redirect" ||
-		ht === "file_server";
+		ht === "file_server" ||
+		ht === "error";
 
 	const validateStep = (): boolean => {
 		setError("");
@@ -776,7 +807,9 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																? { ...defaultRedirectConfig }
 																: next === "file_server"
 																	? { ...defaultFileServerConfig }
-																	: {},
+																	: next === "error"
+																		? { ...defaultErrorConfig }
+																		: {},
 											},
 										}));
 									}}
@@ -819,6 +852,12 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 							idPrefix="wizard-domain"
 							domain={data.name}
 							hideResponseHeaders={data.rootRule.handlerType === "static_response"}
+							errorMessage={
+								data.rootRule.handlerType === "error"
+									? (data.rootRule.handlerConfig as ErrorConfig).message
+									: undefined
+							}
+							isCreate
 						/>
 					</div>
 				)}
@@ -900,6 +939,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																	setSubHandlerConfig({
 																		...defaultFileServerConfig,
 																	});
+																} else if (next === "error") {
+																	setSubHandlerConfig({
+																		...defaultErrorConfig,
+																	});
 																} else {
 																	setSubHandlerConfig({});
 																}
@@ -940,6 +983,12 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																idPrefix="wizard-sub-toggle"
 																domain={`${subPrefix || "sub"}.${data.name}`}
 																hideResponseHeaders={subHandlerType === "static_response"}
+																errorMessage={
+																	subHandlerType === "error"
+																		? (subHandlerConfig as ErrorConfig).message
+																		: undefined
+																}
+																isCreate
 															/>
 														</div>
 													)}
@@ -1016,6 +1065,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													setSubHandlerConfig({
 														...defaultFileServerConfig,
 													});
+												} else if (next === "error") {
+													setSubHandlerConfig({
+														...defaultErrorConfig,
+													});
 												} else {
 													setSubHandlerConfig({});
 												}
@@ -1056,6 +1109,12 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												idPrefix="wizard-sub-toggle"
 												domain={`${subPrefix || "sub"}.${data.name}`}
 												hideResponseHeaders={subHandlerType === "static_response"}
+												errorMessage={
+													subHandlerType === "error"
+														? (subHandlerConfig as ErrorConfig).message
+														: undefined
+												}
+												isCreate
 											/>
 										</div>
 									)}
@@ -1232,6 +1291,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																		setPathHandlerConfig({
 																			...defaultFileServerConfig,
 																		});
+																	} else if (next === "error") {
+																		setPathHandlerConfig({
+																			...defaultErrorConfig,
+																		});
 																	} else {
 																		setPathHandlerConfig({});
 																	}
@@ -1278,6 +1341,12 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																	idPrefix="wizard-rule-override"
 																	domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
 																	hideResponseHeaders={pathHandlerType === "static_response"}
+																	errorMessage={
+																		pathHandlerType === "error"
+																			? (pathHandlerConfig as ErrorConfig).message
+																			: undefined
+																	}
+																	isCreate
 																/>
 															</div>
 														)}
@@ -1395,6 +1464,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 													setPathHandlerConfig({
 														...defaultFileServerConfig,
 													});
+												} else if (next === "error") {
+													setPathHandlerConfig({
+														...defaultErrorConfig,
+													});
 												} else {
 													setPathHandlerConfig({});
 												}
@@ -1441,6 +1514,12 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												idPrefix="wizard-rule-override"
 												domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
 												hideResponseHeaders={pathHandlerType === "static_response"}
+												errorMessage={
+													pathHandlerType === "error"
+														? (pathHandlerConfig as ErrorConfig).message
+														: undefined
+												}
+												isCreate
 											/>
 										</div>
 									)}

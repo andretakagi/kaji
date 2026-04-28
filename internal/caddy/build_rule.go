@@ -3,6 +3,7 @@ package caddy
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -143,6 +144,12 @@ func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainTogg
 			return nil, err
 		}
 		handlers = append(handlers, fsHandler)
+	case "error":
+		errHandler, err := buildErrorHandler(rule.HandlerConfig)
+		if err != nil {
+			return nil, err
+		}
+		handlers = append(handlers, errHandler)
 	default:
 		return nil, fmt.Errorf("unsupported handler type: %q", rule.HandlerType)
 	}
@@ -299,6 +306,28 @@ func buildFileServerHandler(handlerConfig json.RawMessage) (map[string]any, erro
 	}
 
 	return fs, nil
+}
+
+func buildErrorHandler(handlerConfig json.RawMessage) (map[string]any, error) {
+	var cfg ErrorConfig
+	if err := json.Unmarshal(handlerConfig, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing error handler config: %w", err)
+	}
+
+	statusCode, err := strconv.Atoi(cfg.StatusCode)
+	if err != nil {
+		return nil, fmt.Errorf("invalid status code %q: %w", cfg.StatusCode, err)
+	}
+
+	handler := map[string]any{
+		"handler":     "error",
+		"status_code": statusCode,
+	}
+	if cfg.Message != "" {
+		handler["error"] = cfg.Message
+	}
+
+	return handler, nil
 }
 
 func buildMatchBlock(domainName string, rule RuleBuildParams) []map[string]any {

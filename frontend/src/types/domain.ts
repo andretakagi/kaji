@@ -16,6 +16,13 @@ export interface DomainToggles {
 		list_id: string;
 		type: "whitelist" | "blacklist" | "";
 	};
+	error_pages: ErrorPage[];
+}
+
+export interface ErrorPage {
+	status_code: string;
+	body: string;
+	content_type: string;
 }
 
 export interface ReverseProxyConfig {
@@ -50,14 +57,25 @@ export interface FileServerConfig {
 	hide: string[];
 }
 
+export interface ErrorConfig {
+	status_code: string;
+	message: string;
+}
+
 export type HandlerConfigValue =
 	| ReverseProxyConfig
 	| StaticResponseConfig
 	| RedirectConfig
 	| FileServerConfig
+	| ErrorConfig
 	| Record<string, never>;
 
-export type HandlerType = "reverse_proxy" | "redirect" | "file_server" | "static_response";
+export type HandlerType =
+	| "reverse_proxy"
+	| "redirect"
+	| "file_server"
+	| "static_response"
+	| "error";
 export type RuleHandlerType = "none" | HandlerType;
 export type PathMatch = "exact" | "prefix" | "regex";
 
@@ -156,6 +174,7 @@ export const defaultDomainToggles: DomainToggles = {
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
 	access_log: "",
 	ip_filtering: { enabled: false, list_id: "", type: "" },
+	error_pages: [],
 };
 
 export const defaultReverseProxyConfig: ReverseProxyConfig = {
@@ -194,6 +213,11 @@ export const defaultFileServerConfig: FileServerConfig = {
 	hide: [],
 };
 
+export const defaultErrorConfig: ErrorConfig = {
+	status_code: "404",
+	message: "",
+};
+
 export const pathMatchOptions: { value: PathMatch; label: string }[] = [
 	{ value: "prefix", label: "Prefix" },
 	{ value: "exact", label: "Exact" },
@@ -211,6 +235,7 @@ export const handlerLabels: Record<RuleHandlerType, string> = {
 	redirect: "Redirect",
 	file_server: "File Server",
 	static_response: "Static Response",
+	error: "Error",
 	none: "None",
 };
 
@@ -219,6 +244,7 @@ export const handlerOptions: { value: HandlerType; label: string }[] = [
 	{ value: "redirect", label: "Redirect" },
 	{ value: "file_server", label: "File Server" },
 	{ value: "static_response", label: "Static Response" },
+	{ value: "error", label: "Error" },
 ];
 
 export const handlerOptionsWithNone: { value: RuleHandlerType; label: string }[] = [

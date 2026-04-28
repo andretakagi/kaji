@@ -1,5 +1,6 @@
 import type {
 	DomainToggles,
+	ErrorConfig,
 	FileServerConfig,
 	HandlerConfigValue,
 	RedirectConfig,
@@ -22,6 +23,10 @@ function activeToggles(toggles: DomainToggles): string[] {
 	if (toggles.basic_auth.enabled) active.push("Basic Auth");
 	if (toggles.access_log) active.push("Access Log");
 	if (toggles.ip_filtering.enabled) active.push("IP Filtering");
+	if (toggles.error_pages.length > 0)
+		active.push(
+			`${toggles.error_pages.length} Error Page${toggles.error_pages.length !== 1 ? "s" : ""}`,
+		);
 	return active;
 }
 
@@ -128,6 +133,15 @@ function HandlerBadge({ type }: { type: string }) {
 	);
 }
 
+function ErrorSummary({ config }: { config: ErrorConfig }) {
+	return (
+		<>
+			<DetailRow label="Status" value={config.status_code} />
+			{config.message && <DetailRow label="Message" value={config.message} />}
+		</>
+	);
+}
+
 function HandlerDetails({ type, config }: { type: string; config: HandlerConfigValue }) {
 	if (type === "reverse_proxy")
 		return <ReverseProxySummary config={config as ReverseProxyConfig} />;
@@ -135,6 +149,7 @@ function HandlerDetails({ type, config }: { type: string; config: HandlerConfigV
 		return <StaticResponseSummary config={config as StaticResponseConfig} />;
 	if (type === "redirect") return <RedirectSummary config={config as RedirectConfig} />;
 	if (type === "file_server") return <FileServerSummary config={config as FileServerConfig} />;
+	if (type === "error") return <ErrorSummary config={config as ErrorConfig} />;
 	return null;
 }
 
@@ -218,21 +233,23 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				</div>
 			</div>
 
-			{data.subdomains.length > 0 && (
-				<div className="wizard-review-section">
-					<div className="wizard-review-header">
-						<h4>Subdomains</h4>
-						<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(2)}>
-							Edit
-						</button>
-					</div>
+			<div className="wizard-review-section">
+				<div className="wizard-review-header">
+					<h4>Subdomains</h4>
+					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(2)}>
+						Edit
+					</button>
+				</div>
+				{data.subdomains.length > 0 ? (
 					<div className="wizard-review-item-list">
 						{data.subdomains.map((sub) => (
 							<SubdomainReviewItem key={sub.key} sub={sub} domainName={data.name} />
 						))}
 					</div>
-				</div>
-			)}
+				) : (
+					<span className="text-muted">No subdomains</span>
+				)}
+			</div>
 
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">

@@ -4,6 +4,10 @@ All notable changes to Kaji are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Error handler type for domain routes, returning a configurable status code that triggers handle_errors processing.
+- Custom error pages per domain and subdomain. Map status codes (individual, ranges like 4xx/5xx, or comma-separated) to custom response bodies with configurable content types.
+
 ### Fixed
 - Log viewer connection indicator stayed stuck on "Reconnecting..." after a transient disconnect on an idle proxy. The stream was actually reconnecting, but the status only cleared when a new log line arrived.
 
