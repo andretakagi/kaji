@@ -31,6 +31,9 @@ func CheckVersion(exportVersion, runningVersion string) error {
 func RunMigrations(configMap map[string]any, fromVersion string) ([]string, error) {
 	var allChanges []string
 	for _, m := range migrations {
+		if m.Before == "" {
+			continue
+		}
 		cmp, err := compareVersions(fromVersion, m.Before)
 		if err != nil {
 			return nil, fmt.Errorf("comparing versions: %w", err)
