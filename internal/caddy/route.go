@@ -32,7 +32,6 @@ type RouteToggles struct {
 	ForceHTTPS        bool            `json:"force_https"`
 	Compression       bool            `json:"compression"`
 	Headers           HeadersConfig   `json:"headers"`
-	RequestHeaders    RequestHeaders  `json:"request_headers"`
 	TLSSkipVerify     bool            `json:"tls_skip_verify"`
 	BasicAuth         BasicAuth       `json:"basic_auth"`
 	AccessLog         string          `json:"access_log"`
@@ -48,7 +47,19 @@ type LoadBalancing struct {
 }
 
 type HeadersConfig struct {
-	Response ResponseHeaders `json:"response"`
+	Request  DomainRequestHeaders `json:"request"`
+	Response ResponseHeaders      `json:"response"`
+}
+
+type DomainRequestHeaders struct {
+	Enabled         bool          `json:"enabled"`
+	XForwardedFor   bool          `json:"x_forwarded_for"`
+	XRealIP         bool          `json:"x_real_ip"`
+	XForwardedProto bool          `json:"x_forwarded_proto"`
+	XForwardedHost  bool          `json:"x_forwarded_host"`
+	XRequestID      bool          `json:"x_request_id"`
+	Builtin         []HeaderEntry `json:"builtin"`
+	Custom          []HeaderEntry `json:"custom"`
 }
 
 type ResponseHeaders struct {
@@ -58,11 +69,12 @@ type ResponseHeaders struct {
 	CORSOrigins  []string      `json:"cors_origins"`
 	CacheControl bool          `json:"cache_control"`
 	XRobotsTag   bool          `json:"x_robots_tag"`
+	Deferred     bool          `json:"deferred"`
 	Builtin      []HeaderEntry `json:"builtin"`
 	Custom       []HeaderEntry `json:"custom"`
 }
 
-type RequestHeaders struct {
+type HeaderUpConfig struct {
 	Enabled       bool          `json:"enabled"`
 	HostOverride  bool          `json:"host_override"`
 	HostValue     string        `json:"host_value"`
@@ -72,10 +84,21 @@ type RequestHeaders struct {
 	Custom        []HeaderEntry `json:"custom"`
 }
 
+type HeaderDownConfig struct {
+	Enabled        bool          `json:"enabled"`
+	StripServer    bool          `json:"strip_server"`
+	StripPoweredBy bool          `json:"strip_powered_by"`
+	Deferred       bool          `json:"deferred"`
+	Builtin        []HeaderEntry `json:"builtin"`
+	Custom         []HeaderEntry `json:"custom"`
+}
+
 type HeaderEntry struct {
-	Key     string `json:"key"`
-	Value   string `json:"value"`
-	Enabled bool   `json:"enabled"`
+	Key       string `json:"key"`
+	Value     string `json:"value"`
+	Operation string `json:"operation"`
+	Search    string `json:"search,omitempty"`
+	Enabled   bool   `json:"enabled"`
 }
 
 type BasicAuth struct {
