@@ -107,9 +107,20 @@ func validateLogSkipRules(rules config.LogSkipConfig) string {
 		if len(rules.AdvancedRaw) == 0 {
 			return "advanced_raw is required when mode is advanced"
 		}
-		var arr []json.RawMessage
-		if err := json.Unmarshal(rules.AdvancedRaw, &arr); err != nil {
-			return "advanced_raw must be a valid JSON array"
+		var sets []map[string]json.RawMessage
+		if err := json.Unmarshal(rules.AdvancedRaw, &sets); err != nil {
+			return "advanced_raw must be a valid JSON array of matcher objects"
+		}
+		allowed := map[string]bool{"path": true, "path_regexp": true, "header": true, "remote_ip": true}
+		for i, set := range sets {
+			if len(set) == 0 {
+				return fmt.Sprintf("advanced_raw[%d]: matcher object must have at least one key", i)
+			}
+			for key := range set {
+				if !allowed[key] {
+					return fmt.Sprintf("advanced_raw[%d]: unknown matcher %q (allowed: path, path_regexp, header, remote_ip)", i, key)
+				}
+			}
 		}
 	}
 

@@ -63,7 +63,22 @@ func TestValidateLogSkipRules(t *testing.T) {
 		},
 		{
 			name:    "valid advanced with json array",
-			rules:   config.LogSkipConfig{Mode: "advanced", AdvancedRaw: json.RawMessage(`[{"match_path":"/healthz"}]`)},
+			rules:   config.LogSkipConfig{Mode: "advanced", AdvancedRaw: json.RawMessage(`[{"path":["/healthz"]}]`)},
+			wantErr: false,
+		},
+		{
+			name:    "advanced_raw element with unknown matcher",
+			rules:   config.LogSkipConfig{Mode: "advanced", AdvancedRaw: json.RawMessage(`[{"method":"GET"}]`)},
+			wantErr: true,
+		},
+		{
+			name:    "advanced_raw element empty object",
+			rules:   config.LogSkipConfig{Mode: "advanced", AdvancedRaw: json.RawMessage(`[{}]`)},
+			wantErr: true,
+		},
+		{
+			name:    "advanced_raw valid matchers",
+			rules:   config.LogSkipConfig{Mode: "advanced", AdvancedRaw: json.RawMessage(`[{"path":["/healthz"]},{"header":{"User-Agent":["kube-probe"]}}]`)},
 			wantErr: false,
 		},
 		{
