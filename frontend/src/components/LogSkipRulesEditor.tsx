@@ -89,6 +89,46 @@ function caddyMatchersToConditions(matchers: unknown[]): {
 	return { conditions, dropped };
 }
 
+function isValidCIDR(value: string): boolean {
+	const slash = value.lastIndexOf("/");
+	if (slash === -1) return false;
+	const ip = value.slice(0, slash);
+	const prefix = value.slice(slash + 1);
+	if (!/^\d+$/.test(prefix)) return false;
+	const prefixNum = Number(prefix);
+	const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(ip);
+	if (ipv4) {
+		if (prefixNum > 32) return false;
+		return ip.split(".").every((o) => Number(o) <= 255);
+	}
+	const ipv6 = ip.includes(":");
+	if (ipv6) return prefixNum <= 128;
+	return false;
+}
+
+function validateCondition(c: SkipCondition): string {
+	if (!c.value.trim()) return "Value is required";
+	switch (c.type) {
+		case "path":
+			if (!c.value.startsWith("/")) return "Path must start with /";
+			break;
+		case "path_regexp":
+			try {
+				new RegExp(c.value);
+			} catch {
+				return "Invalid regular expression";
+			}
+			break;
+		case "remote_ip":
+			if (!isValidCIDR(c.value)) return "Must be CIDR notation (e.g. 192.168.0.0/24)";
+			break;
+		case "header":
+			if (!c.key?.trim()) return "Header name is required";
+			break;
+	}
+	return "";
+}
+
 function matchersFromText(text: string): { matchers: unknown[]; error: string } {
 	let parsed: unknown;
 	try {
@@ -131,6 +171,7 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 	const [saving, setSaving] = useState(false);
 	const [feedback, setFeedback] = useState<Feedback | null>(null);
 	const [confirmSwitch, setConfirmSwitch] = useState<{ dropped: string[] } | null>(null);
+	const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map());
 	const [savedCount, setSavedCount] = useState(() => {
 		if (initialRules.mode === "advanced") return initialRules.advanced_raw?.length ?? 0;
 		return initialRules.conditions?.length ?? 0;
@@ -165,6 +206,12 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 	}
 
 	function updateCondition(index: number, updates: Partial<SkipCondition>) {
+		setRowErrors((prev) => {
+			if (!prev.has(index)) return prev;
+			const next = new Map(prev);
+			next.delete(index);
+			return next;
+		});
 		setRules((r) => {
 			const conditions = [...(r.conditions ?? [])];
 			const current = conditions[index];
@@ -224,6 +271,17 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 			}
 			payload = { mode: "advanced", conditions: [], advanced_raw: matchers };
 		} else {
+			const conditions = rules.conditions ?? [];
+			const errors = new Map<number, string>();
+			for (let i = 0; i < conditions.length; i++) {
+				const err = validateCondition(conditions[i]);
+				if (err) errors.set(i, err);
+			}
+			setRowErrors(errors);
+			if (errors.size > 0) {
+				setFeedback({ msg: "Fix validation errors before saving", type: "error" });
+				return;
+			}
 			payload = { ...rules, advanced_raw: null };
 		}
 
@@ -321,53 +379,61 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 								<p className="log-skip-rules-empty">No skip rules configured.</p>
 							) : (
 								<div className="log-skip-condition-list">
-									{keyedConditions.map((cond, i) => (
-										<div key={cond._key} className="log-skip-condition-row">
-											<select
-												value={cond.type}
-												onChange={(e) =>
-													updateCondition(i, {
-														type: e.target.value as SkipCondition["type"],
-													})
-												}
-											>
-												<option value="path">path</option>
-												<option value="path_regexp">path regexp</option>
-												<option value="header">header</option>
-												<option value="remote_ip">remote ip</option>
-											</select>
-											{cond.type === "header" && (
-												<input
-													type="text"
-													placeholder="Header name"
-													value={cond.key ?? ""}
-													onChange={(e) => updateCondition(i, { key: e.target.value })}
-												/>
-											)}
-											<input
-												type="text"
-												placeholder={
-													cond.type === "path"
-														? "/healthz"
-														: cond.type === "path_regexp"
-															? "^/static/"
-															: cond.type === "remote_ip"
-																? "192.168.0.0/24"
-																: "Header value"
-												}
-												value={cond.value}
-												onChange={(e) => updateCondition(i, { value: e.target.value })}
-											/>
-											<button
-												type="button"
-												className="btn btn-ghost btn-sm log-skip-remove-btn"
-												aria-label="Remove condition"
-												onClick={() => removeCondition(i)}
-											>
-												&times;
-											</button>
-										</div>
-									))}
+									{keyedConditions.map((cond, i) => {
+										const error = rowErrors.get(i);
+										return (
+											<div key={cond._key} className="log-skip-condition-row-wrap">
+												<div className="log-skip-condition-row">
+													<select
+														value={cond.type}
+														onChange={(e) =>
+															updateCondition(i, {
+																type: e.target.value as SkipCondition["type"],
+															})
+														}
+													>
+														<option value="path">path</option>
+														<option value="path_regexp">path regexp</option>
+														<option value="header">header</option>
+														<option value="remote_ip">remote ip</option>
+													</select>
+													{cond.type === "header" && (
+														<input
+															type="text"
+															className={error ? "input-error" : ""}
+															placeholder="Header name"
+															value={cond.key ?? ""}
+															onChange={(e) => updateCondition(i, { key: e.target.value })}
+														/>
+													)}
+													<input
+														type="text"
+														className={error ? "input-error" : ""}
+														placeholder={
+															cond.type === "path"
+																? "/healthz"
+																: cond.type === "path_regexp"
+																	? "^/static/"
+																	: cond.type === "remote_ip"
+																		? "192.168.0.0/24"
+																		: "Header value"
+														}
+														value={cond.value}
+														onChange={(e) => updateCondition(i, { value: e.target.value })}
+													/>
+													<button
+														type="button"
+														className="btn btn-ghost btn-sm log-skip-remove-btn"
+														aria-label="Remove condition"
+														onClick={() => removeCondition(i)}
+													>
+														&times;
+													</button>
+												</div>
+												{error && <p className="log-skip-condition-error">{error}</p>}
+											</div>
+										);
+									})}
 								</div>
 							)}
 							<button type="button" className="btn btn-ghost btn-sm" onClick={addCondition}>
