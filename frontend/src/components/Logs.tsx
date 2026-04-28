@@ -122,6 +122,10 @@ export default function Logs() {
 			const es = new EventSource("/api/logs/stream");
 			eventSourceRef.current = es;
 
+			es.onopen = () => {
+				setStreamDisconnected(false);
+			};
+
 			es.onmessage = (event) => {
 				try {
 					const entry: CaddyLogEntry = JSON.parse(event.data);

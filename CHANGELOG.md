@@ -2,6 +2,11 @@
 
 All notable changes to Kaji are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Log viewer connection indicator stayed stuck on "Reconnecting..." after a transient disconnect on an idle proxy. The stream was actually reconnecting, but the status only cleared when a new log line arrived.
+
 ## [1.7.0] - 2026-04-27
 
 ### Added
