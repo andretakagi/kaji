@@ -3,6 +3,7 @@ package caddy
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -25,12 +26,30 @@ func buildStatusExpression(pattern string) (string, error) {
 		parts := strings.Split(pattern, ",")
 		codes := make([]string, 0, len(parts))
 		for _, p := range parts {
-			codes = append(codes, strings.TrimSpace(p))
+			code := strings.TrimSpace(p)
+			if err := validateStatusCode(code); err != nil {
+				return "", err
+			}
+			codes = append(codes, code)
 		}
 		return fmt.Sprintf("{http.error.status_code} in [%s]", strings.Join(codes, ", ")), nil
 	}
 
+	if err := validateStatusCode(pattern); err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("{http.error.status_code} == %s", pattern), nil
+}
+
+func validateStatusCode(code string) error {
+	n, err := strconv.Atoi(code)
+	if err != nil {
+		return fmt.Errorf("invalid status code %q: must be a number", code)
+	}
+	if n < 100 || n > 599 {
+		return fmt.Errorf("invalid status code %d: must be between 100 and 599", n)
+	}
+	return nil
 }
 
 func parseStatusExpression(expr string) string {
