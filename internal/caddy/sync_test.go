@@ -1585,6 +1585,118 @@ func TestBuildDesiredState_WithSkipRules_Subdomain(t *testing.T) {
 	}
 }
 
+func TestSyncDomains_HandleErrors(t *testing.T) {
+	var mu sync.Mutex
+	var errorsSet bool
+	var errorsBody []byte
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/config/") {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`))
+			return
+		}
+
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/errors") {
+			errorsSet = true
+			errorsBody, _ = io.ReadAll(r.Body)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	cc := NewClient(func() string { return srv.URL })
+
+	domains := []SyncDomain{
+		{
+			ID: "dom_1", Name: "example.com", Enabled: true,
+			Toggles: DomainToggles{
+				ErrorPages: []ErrorPage{
+					{StatusCode: "404", Body: "<h1>Not Found</h1>", ContentType: "text/html"},
+				},
+			},
+			Rule: SyncRule{HandlerType: "reverse_proxy", HandlerConfig: rpConfig(t, "localhost:3000"), Enabled: true},
+		},
+	}
+
+	_, err := SyncDomains(cc, domains, nil, nil)
+	if err != nil {
+		t.Fatalf("sync error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !errorsSet {
+		t.Fatal("expected SetHandleErrors to be called")
+	}
+
+	var parsed struct {
+		Routes []json.RawMessage `json:"routes"`
+	}
+	if err := json.Unmarshal(errorsBody, &parsed); err != nil {
+		t.Fatalf("failed to parse errors body: %v", err)
+	}
+	if len(parsed.Routes) != 1 {
+		t.Errorf("error routes = %d, want 1", len(parsed.Routes))
+	}
+}
+
+func TestSyncDomains_HandleErrors_NoErrorPages(t *testing.T) {
+	var mu sync.Mutex
+	var errorsDeleted bool
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/config/") {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"apps":{"http":{"servers":{"srv0":{"routes":[]}}}}}`))
+			return
+		}
+
+		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/errors") {
+			errorsDeleted = true
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	cc := NewClient(func() string { return srv.URL })
+
+	domains := []SyncDomain{
+		{
+			ID: "dom_1", Name: "example.com", Enabled: true,
+			Toggles: DomainToggles{},
+			Rule:    SyncRule{HandlerType: "reverse_proxy", HandlerConfig: rpConfig(t, "localhost:3000"), Enabled: true},
+		},
+	}
+
+	_, err := SyncDomains(cc, domains, nil, nil)
+	if err != nil {
+		t.Fatalf("sync error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if !errorsDeleted {
+		t.Error("expected DeleteHandleErrors to be called when no error pages exist")
+	}
+}
+
 func TestCollectDisabledIDs_SkipRoutesProtected(t *testing.T) {
 	domains := []SyncDomain{
 		{

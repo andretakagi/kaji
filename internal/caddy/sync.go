@@ -493,6 +493,18 @@ func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]st
 		}
 	}
 
+	errorsConfig, err := BuildHandleErrorsRoutes(domains)
+	if err != nil {
+		return result, fmt.Errorf("building handle_errors config: %w", err)
+	}
+	if errorsConfig != nil {
+		if err := cc.SetHandleErrors(serverName, errorsConfig); err != nil {
+			return result, fmt.Errorf("setting handle_errors: %w", err)
+		}
+	} else {
+		_ = cc.DeleteHandleErrors(serverName)
+	}
+
 	return result, nil
 }
 
