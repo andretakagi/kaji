@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/andretakagi/kaji/internal/config"
@@ -196,6 +197,7 @@ func TestHandleLogSkipRulesPut_SavesAndReturns(t *testing.T) {
 	th := newTestHarness(t)
 	setupRec := th.doSetup(t, "testpass")
 	cookie := sessionCookie(setupRec)
+	seedLoggingConfig(t, th, "access")
 
 	body := `{"mode":"basic","conditions":[{"type":"path","value":"/healthz"}],"advanced_raw":null}`
 	req := authedRequest(http.MethodPut, "/api/log-skip-rules/access", body, cookie)
@@ -242,10 +244,26 @@ func TestHandleLogSkipRulesPut_RejectsDefaultSink(t *testing.T) {
 	}
 }
 
+func TestHandleLogSkipRulesPut_RejectsNonexistentSink(t *testing.T) {
+	th := newTestHarness(t)
+	setupRec := th.doSetup(t, "testpass")
+	cookie := sessionCookie(setupRec)
+
+	body := `{"mode":"basic","conditions":[]}`
+	req := authedRequest(http.MethodPut, "/api/log-skip-rules/nonexistent_sink", body, cookie)
+	rec := httptest.NewRecorder()
+	th.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("got status %d, want 404; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestHandleLogSkipRulesPut_RejectsInvalidConditionType(t *testing.T) {
 	th := newTestHarness(t)
 	setupRec := th.doSetup(t, "testpass")
 	cookie := sessionCookie(setupRec)
+	seedLoggingConfig(t, th, "access")
 
 	body := `{"mode":"basic","conditions":[{"type":"cookie","value":"session"}]}`
 	req := authedRequest(http.MethodPut, "/api/log-skip-rules/access", body, cookie)
@@ -261,6 +279,7 @@ func TestHandleLogSkipRulesPut_RejectsEmptyValue(t *testing.T) {
 	th := newTestHarness(t)
 	setupRec := th.doSetup(t, "testpass")
 	cookie := sessionCookie(setupRec)
+	seedLoggingConfig(t, th, "access")
 
 	body := `{"mode":"basic","conditions":[{"type":"path","value":""}]}`
 	req := authedRequest(http.MethodPut, "/api/log-skip-rules/access", body, cookie)
@@ -276,6 +295,7 @@ func TestHandleLogSkipRulesPut_RejectsHeaderWithoutKey(t *testing.T) {
 	th := newTestHarness(t)
 	setupRec := th.doSetup(t, "testpass")
 	cookie := sessionCookie(setupRec)
+	seedLoggingConfig(t, th, "access")
 
 	body := `{"mode":"basic","conditions":[{"type":"header","value":"kube-probe"}]}`
 	req := authedRequest(http.MethodPut, "/api/log-skip-rules/access", body, cookie)
@@ -291,6 +311,7 @@ func TestHandleLogSkipRulesPut_ValidatesAdvancedRawIsArray(t *testing.T) {
 	th := newTestHarness(t)
 	setupRec := th.doSetup(t, "testpass")
 	cookie := sessionCookie(setupRec)
+	seedLoggingConfig(t, th, "access")
 
 	body := `{"mode":"advanced","conditions":[],"advanced_raw":{"not":"array"}}`
 	req := authedRequest(http.MethodPut, "/api/log-skip-rules/access", body, cookie)
@@ -300,4 +321,18 @@ func TestHandleLogSkipRulesPut_ValidatesAdvancedRawIsArray(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("got status %d, want 400", rec.Code)
 	}
+}
+
+func seedLoggingConfig(t *testing.T, th *testHarness, sinkNames ...string) {
+	t.Helper()
+	logs := make(map[string]any, len(sinkNames))
+	for _, name := range sinkNames {
+		logs[name] = map[string]any{}
+	}
+	payload, _ := json.Marshal(map[string]any{"logs": logs})
+	resp, err := http.Post(th.caddySrv.URL+"/config/logging", "application/json", strings.NewReader(string(payload)))
+	if err != nil {
+		t.Fatalf("seeding logging config: %v", err)
+	}
+	resp.Body.Close()
 }

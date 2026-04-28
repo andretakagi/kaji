@@ -49,6 +49,23 @@ func handleLogSkipRulesPut(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			return
 		}
 
+		loggingRaw, err := cc.GetLoggingConfig()
+		if err != nil || loggingRaw == nil {
+			writeError(w, "sink not found", http.StatusNotFound)
+			return
+		}
+		var loggingCfg struct {
+			Logs map[string]json.RawMessage `json:"logs"`
+		}
+		if json.Unmarshal(loggingRaw, &loggingCfg) != nil {
+			writeError(w, "sink not found", http.StatusNotFound)
+			return
+		}
+		if _, ok := loggingCfg.Logs[sinkName]; !ok {
+			writeError(w, "sink not found", http.StatusNotFound)
+			return
+		}
+
 		var rules config.LogSkipConfig
 		if !decodeBody(w, r, &rules) {
 			return
@@ -63,7 +80,7 @@ func handleLogSkipRulesPut(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			rules.Conditions = []config.SkipCondition{}
 		}
 
-		err := mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
+		err = mutateAndSync(store, cc, func(c config.AppConfig) (*config.AppConfig, error) {
 			maybeAutoSnapshot(cc, ss, store, version, "Log skip rules updated")
 			if c.LogSkipRules == nil {
 				c.LogSkipRules = make(map[string]config.LogSkipConfig)
