@@ -48,11 +48,74 @@ type SyncResult struct {
 	Deleted int
 }
 
+// BuildLogSkipRoute generates a non-terminal vars route that sets log_skip=true
+// for requests matching the given skip rules and hostname. Returns nil, nil when
+// there are no matchers to emit (empty conditions in basic mode, or no
+// advanced_raw in advanced mode).
+func BuildLogSkipRoute(domainID, hostname string, rule LogSkipRule) (json.RawMessage, error) {
+	routeID := "kaji_logskip_" + domainID
+
+	var matchSets []map[string]any
+
+	if rule.Mode == "advanced" {
+		if len(rule.AdvancedRaw) == 0 {
+			return nil, nil
+		}
+		var sets []map[string]any
+		if err := json.Unmarshal(rule.AdvancedRaw, &sets); err != nil {
+			return nil, fmt.Errorf("parsing advanced_raw for %s: %w", domainID, err)
+		}
+		for _, s := range sets {
+			m := make(map[string]any, len(s)+1)
+			for k, v := range s {
+				m[k] = v
+			}
+			m["host"] = []string{hostname}
+			matchSets = append(matchSets, m)
+		}
+	} else {
+		for _, c := range rule.Conditions {
+			m := map[string]any{"host": []string{hostname}}
+			switch c.Type {
+			case "path":
+				m["path"] = []string{c.Value}
+			case "path_regexp":
+				m["path_regexp"] = map[string]any{"pattern": c.Value}
+			case "header":
+				m["header"] = map[string]any{c.Key: []string{c.Value}}
+			case "remote_ip":
+				m["remote_ip"] = map[string]any{"ranges": []string{c.Value}}
+			default:
+				continue
+			}
+			matchSets = append(matchSets, m)
+		}
+	}
+
+	if len(matchSets) == 0 {
+		return nil, nil
+	}
+
+	route := map[string]any{
+		"@id":      routeID,
+		"match":    matchSets,
+		"handle":   []any{map[string]any{"handler": "vars", "log_skip": true}},
+		"terminal": false,
+	}
+	data, err := json.Marshal(route)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling skip route for %s: %w", domainID, err)
+	}
+	return json.RawMessage(data), nil
+}
+
 // BuildDesiredState generates a map of CaddyDomainID -> route JSON for all
 // enabled domains, subdomains, and paths. Disabled entries and entries with
 // HandlerType "none" are skipped. Toggle inheritance is resolved via
 // MergeToggles. IP lists are resolved through the provided callback.
-func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips []string, listType string, err error)) (map[string]json.RawMessage, error) {
+// logSkipRules maps sink names to their skip rules; when a domain's AccessLog
+// sink has rules, a kaji_logskip_<id> route is also emitted.
+func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips []string, listType string, err error), logSkipRules map[string]LogSkipRule) (map[string]json.RawMessage, error) {
 	desired := make(map[string]json.RawMessage)
 
 	_, logSkipIDs := CollectAccessLogState(domains)
@@ -81,6 +144,18 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 				return nil, fmt.Errorf("building route for domain %s: %w", dom.ID, err)
 			}
 			desired[caddyID] = routeJSON
+		}
+
+		if dom.Toggles.AccessLog != "" {
+			if rule, ok := logSkipRules[dom.Toggles.AccessLog]; ok {
+				skipJSON, err := BuildLogSkipRoute(dom.ID, dom.Name, rule)
+				if err != nil {
+					return nil, fmt.Errorf("building skip route for domain %s: %w", dom.ID, err)
+				}
+				if skipJSON != nil {
+					desired["kaji_logskip_"+dom.ID] = skipJSON
+				}
+			}
 		}
 
 		if err := emitPathRoutes(dom.Name, dom.Paths, dom.Toggles, resolveIPs, logSkipIDs, desired); err != nil {
@@ -112,6 +187,18 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 					return nil, fmt.Errorf("building route for subdomain %s: %w", sub.ID, err)
 				}
 				desired[caddyID] = routeJSON
+			}
+
+			if sub.Toggles.AccessLog != "" {
+				if rule, ok := logSkipRules[sub.Toggles.AccessLog]; ok {
+					skipJSON, err := BuildLogSkipRoute(sub.ID, subHost, rule)
+					if err != nil {
+						return nil, fmt.Errorf("building skip route for subdomain %s: %w", sub.ID, err)
+					}
+					if skipJSON != nil {
+						desired["kaji_logskip_"+sub.ID] = skipJSON
+					}
+				}
 			}
 
 			if err := emitPathRoutes(subHost, sub.Paths, sub.Toggles, resolveIPs, logSkipIDs, desired); err != nil {
@@ -217,6 +304,8 @@ func DiffDomains(desired, current map[string]json.RawMessage, disabledIDs map[st
 // disabled (domain-level, rule-level, or by a disabled parent). These IDs are
 // protected from deletion during sync. Entries with HandlerType "none" are
 // skipped because they are intentionally absent from Caddy.
+// Skip routes (kaji_logskip_*) follow the same disabled/enabled status as their
+// parent domain or subdomain.
 func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 	ids := make(map[string]bool)
 	for _, dom := range domains {
@@ -224,6 +313,9 @@ func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 			if !dom.Enabled || !dom.Rule.Enabled {
 				ids[CaddyDomainID(dom.ID)] = true
 			}
+		}
+		if !dom.Enabled {
+			ids["kaji_logskip_"+dom.ID] = true
 		}
 		for _, p := range dom.Paths {
 			if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
@@ -238,6 +330,9 @@ func CollectDisabledIDs(domains []SyncDomain) map[string]bool {
 				if !dom.Enabled || !sub.Enabled || !sub.Rule.Enabled {
 					ids[CaddyDomainID(sub.ID)] = true
 				}
+			}
+			if !dom.Enabled || !sub.Enabled {
+				ids["kaji_logskip_"+sub.ID] = true
 			}
 			for _, p := range sub.Paths {
 				if p.Rule.HandlerType == "" || p.Rule.HandlerType == "none" {
@@ -339,8 +434,8 @@ func ReadCurrentKajiDomains(cc *Client) (map[string]json.RawMessage, string, err
 
 // SyncDomains orchestrates a full sync: builds desired state from domains,
 // reads current kaji domains from Caddy, diffs, and applies changes.
-func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]string, string, error)) (*SyncResult, error) {
-	desired, err := BuildDesiredState(domains, resolveIPs)
+func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]string, string, error), logSkipRules map[string]LogSkipRule) (*SyncResult, error) {
+	desired, err := BuildDesiredState(domains, resolveIPs, logSkipRules)
 	if err != nil {
 		return nil, fmt.Errorf("building desired state: %w", err)
 	}

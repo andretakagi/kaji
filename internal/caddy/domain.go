@@ -43,6 +43,18 @@ type FileServerConfig struct {
 	Hide       []string `json:"hide"`
 }
 
+type SkipConditionEntry struct {
+	Type  string `json:"type"`
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value"`
+}
+
+type LogSkipRule struct {
+	Mode        string               `json:"mode"`
+	Conditions  []SkipConditionEntry `json:"conditions"`
+	AdvancedRaw json.RawMessage      `json:"advanced_raw"`
+}
+
 func generateOpaqueID(prefix string) string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {

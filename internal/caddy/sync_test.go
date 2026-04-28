@@ -50,7 +50,7 @@ func TestBuildDesiredState_EnabledDomains(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil)
+	desired, err := BuildDesiredState(domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestBuildDesiredState_DisabledDomain(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil)
+	desired, err := BuildDesiredState(domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestBuildDesiredState_DisabledRule(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil)
+	desired, err := BuildDesiredState(domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestBuildDesiredState_ToggleOverride(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil)
+	desired, err := BuildDesiredState(domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestBuildDesiredState_WithIPList(t *testing.T) {
 		return nil, "", nil
 	}
 
-	desired, err := BuildDesiredState(domains, resolveIPs)
+	desired, err := BuildDesiredState(domains, resolveIPs, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestBuildDesiredState_WithIPList(t *testing.T) {
 }
 
 func TestBuildDesiredState_EmptyDomains(t *testing.T) {
-	desired, err := BuildDesiredState(nil, nil)
+	desired, err := BuildDesiredState(nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestBuildDesiredState_HandlerNoneSkipsRoute(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil)
+	desired, err := BuildDesiredState(domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -939,7 +939,7 @@ func TestSyncDomains_AddsNewRoute(t *testing.T) {
 
 	domains := []SyncDomain{syncDomain("rule_new1", "localhost:4000")}
 
-	result, err := SyncDomains(cc, domains, nil)
+	result, err := SyncDomains(cc, domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -967,7 +967,7 @@ func TestSyncDomains_DeletesOrphanRoute(t *testing.T) {
 	mock := newMockCaddyServer([]json.RawMessage{orphan})
 	cc := newMockCaddyClient(t, mock)
 
-	result, err := SyncDomains(cc, nil, nil)
+	result, err := SyncDomains(cc, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -992,7 +992,7 @@ func TestSyncDomains_UpdatesChangedRoute(t *testing.T) {
 	// Same rule ID, different upstream - should produce an update
 	domains := []SyncDomain{syncDomain("rule_upd", "localhost:2222")}
 
-	result, err := SyncDomains(cc, domains, nil)
+	result, err := SyncDomains(cc, domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1020,7 +1020,7 @@ func TestSyncDomains_MixedAddUpdateDelete(t *testing.T) {
 		syncDomain("rule_new2", "localhost:9002"),
 	}
 
-	result, err := SyncDomains(cc, domains, nil)
+	result, err := SyncDomains(cc, domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1086,7 +1086,7 @@ func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
 		},
 	}
 
-	result, err := SyncDomains(cc, domains, nil)
+	result, err := SyncDomains(cc, domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1134,7 +1134,7 @@ func TestSyncDomains_ErrorOnIPListResolutionFailure(t *testing.T) {
 		return nil, "", fmt.Errorf("list %q not found", listID)
 	}
 
-	_, err := SyncDomains(cc, domains, resolveIPs)
+	_, err := SyncDomains(cc, domains, resolveIPs, nil)
 	if err == nil {
 		t.Fatal("expected error when IP list resolution fails")
 	}
@@ -1166,7 +1166,7 @@ func TestBuildDesiredState_DomainRuleDisabledOmitsDomainRouteOnly(t *testing.T) 
 		}},
 	}}
 
-	desired, err := BuildDesiredState(domains, nil)
+	desired, err := BuildDesiredState(domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1207,7 +1207,7 @@ func TestBuildDesiredState_SubdomainRuleDisabledOmitsSubdomainRouteOnly(t *testi
 		}},
 	}}
 
-	desired, err := BuildDesiredState(domains, nil)
+	desired, err := BuildDesiredState(domains, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1246,5 +1246,400 @@ func TestCollectDisabledIDs_RuleDisabled(t *testing.T) {
 	}
 	if !ids["kaji_rule_sub_active"] {
 		t.Error("rule-disabled subdomain should be in disabled IDs (protected from deletion)")
+	}
+}
+
+func TestBuildLogSkipRoute_EmptyConditions(t *testing.T) {
+	rule := LogSkipRule{Mode: "basic", Conditions: nil}
+	got, err := BuildLogSkipRoute("dom_abc", "example.com", rule)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for empty conditions, got %s", got)
+	}
+}
+
+func TestBuildLogSkipRoute_BasicConditions(t *testing.T) {
+	tests := []struct {
+		name      string
+		condition SkipConditionEntry
+		wantKey   string
+		wantCheck func(t *testing.T, match map[string]any)
+	}{
+		{
+			name:      "path",
+			condition: SkipConditionEntry{Type: "path", Value: "/health"},
+			wantKey:   "path",
+			wantCheck: func(t *testing.T, match map[string]any) {
+				t.Helper()
+				paths, ok := match["path"].([]any)
+				if !ok || len(paths) != 1 || paths[0] != "/health" {
+					t.Errorf("path matcher = %v, want [\"/health\"]", match["path"])
+				}
+			},
+		},
+		{
+			name:      "path_regexp",
+			condition: SkipConditionEntry{Type: "path_regexp", Value: "^/static/"},
+			wantKey:   "path_regexp",
+			wantCheck: func(t *testing.T, match map[string]any) {
+				t.Helper()
+				re, ok := match["path_regexp"].(map[string]any)
+				if !ok || re["pattern"] != "^/static/" {
+					t.Errorf("path_regexp matcher = %v, want pattern ^/static/", match["path_regexp"])
+				}
+			},
+		},
+		{
+			name:      "header",
+			condition: SkipConditionEntry{Type: "header", Key: "X-Health", Value: "true"},
+			wantKey:   "header",
+			wantCheck: func(t *testing.T, match map[string]any) {
+				t.Helper()
+				hdr, ok := match["header"].(map[string]any)
+				if !ok {
+					t.Fatalf("header matcher missing")
+				}
+				vals, ok := hdr["X-Health"].([]any)
+				if !ok || len(vals) != 1 || vals[0] != "true" {
+					t.Errorf("header[X-Health] = %v, want [\"true\"]", hdr["X-Health"])
+				}
+			},
+		},
+		{
+			name:      "remote_ip",
+			condition: SkipConditionEntry{Type: "remote_ip", Value: "10.0.0.0/8"},
+			wantKey:   "remote_ip",
+			wantCheck: func(t *testing.T, match map[string]any) {
+				t.Helper()
+				rip, ok := match["remote_ip"].(map[string]any)
+				if !ok {
+					t.Fatalf("remote_ip matcher missing")
+				}
+				ranges, ok := rip["ranges"].([]any)
+				if !ok || len(ranges) != 1 || ranges[0] != "10.0.0.0/8" {
+					t.Errorf("remote_ip.ranges = %v, want [\"10.0.0.0/8\"]", rip["ranges"])
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := LogSkipRule{
+				Mode:       "basic",
+				Conditions: []SkipConditionEntry{tt.condition},
+			}
+			got, err := BuildLogSkipRoute("dom_x", "example.com", rule)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got == nil {
+				t.Fatal("expected non-nil route")
+			}
+
+			var route map[string]any
+			if err := json.Unmarshal(got, &route); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			if route["@id"] != "kaji_logskip_dom_x" {
+				t.Errorf("@id = %v, want kaji_logskip_dom_x", route["@id"])
+			}
+			if route["terminal"] != false {
+				t.Errorf("terminal = %v, want false", route["terminal"])
+			}
+
+			handles, ok := route["handle"].([]any)
+			if !ok || len(handles) != 1 {
+				t.Fatalf("handle = %v, want single-element array", route["handle"])
+			}
+			handler := handles[0].(map[string]any)
+			if handler["handler"] != "vars" {
+				t.Errorf("handler = %v, want vars", handler["handler"])
+			}
+			if handler["log_skip"] != true {
+				t.Errorf("log_skip = %v, want true", handler["log_skip"])
+			}
+
+			matchSets, ok := route["match"].([]any)
+			if !ok || len(matchSets) != 1 {
+				t.Fatalf("match = %v, want single-element array", route["match"])
+			}
+			match := matchSets[0].(map[string]any)
+
+			hosts, ok := match["host"].([]any)
+			if !ok || len(hosts) != 1 || hosts[0] != "example.com" {
+				t.Errorf("host = %v, want [\"example.com\"]", match["host"])
+			}
+
+			tt.wantCheck(t, match)
+		})
+	}
+}
+
+func TestBuildLogSkipRoute_AdvancedMode(t *testing.T) {
+	raw := json.RawMessage(`[{"path":["/metrics"]},{"path":["/healthz"]}]`)
+	rule := LogSkipRule{
+		Mode:        "advanced",
+		AdvancedRaw: raw,
+	}
+	got, err := BuildLogSkipRoute("dom_adv", "adv.example.com", rule)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected non-nil route")
+	}
+
+	var route map[string]any
+	if err := json.Unmarshal(got, &route); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	matchSets, ok := route["match"].([]any)
+	if !ok || len(matchSets) != 2 {
+		t.Fatalf("match count = %d, want 2", len(matchSets))
+	}
+
+	for i, ms := range matchSets {
+		m := ms.(map[string]any)
+		hosts, ok := m["host"].([]any)
+		if !ok || len(hosts) != 1 || hosts[0] != "adv.example.com" {
+			t.Errorf("match[%d] host = %v, want [\"adv.example.com\"]", i, m["host"])
+		}
+	}
+
+	m0 := matchSets[0].(map[string]any)
+	paths0, ok := m0["path"].([]any)
+	if !ok || len(paths0) != 1 || paths0[0] != "/metrics" {
+		t.Errorf("match[0] path = %v, want [\"/metrics\"]", m0["path"])
+	}
+}
+
+func TestBuildLogSkipRoute_AdvancedModeEmpty(t *testing.T) {
+	rule := LogSkipRule{Mode: "advanced", AdvancedRaw: nil}
+	got, err := BuildLogSkipRoute("dom_adv2", "adv2.example.com", rule)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for empty advanced_raw, got %s", got)
+	}
+}
+
+func TestBuildDesiredState_WithSkipRules(t *testing.T) {
+	domains := []SyncDomain{
+		{
+			ID:      "dom_skip",
+			Name:    "skip.example.com",
+			Enabled: true,
+			Toggles: DomainToggles{AccessLog: "myapp"},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:3000"),
+				Enabled:       true,
+			},
+		},
+		{
+			ID:      "dom_noskip",
+			Name:    "noskip.example.com",
+			Enabled: true,
+			Toggles: DomainToggles{AccessLog: "otherapp"},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:3001"),
+				Enabled:       true,
+			},
+		},
+		{
+			ID:      "dom_nosink",
+			Name:    "nosink.example.com",
+			Enabled: true,
+			Toggles: DomainToggles{},
+			Rule: SyncRule{
+				HandlerType:   "reverse_proxy",
+				HandlerConfig: rpConfig(t, "localhost:3002"),
+				Enabled:       true,
+			},
+		},
+	}
+
+	skipRules := map[string]LogSkipRule{
+		"myapp": {
+			Mode: "basic",
+			Conditions: []SkipConditionEntry{
+				{Type: "path", Value: "/health"},
+			},
+		},
+	}
+
+	desired, err := BuildDesiredState(domains, nil, skipRules)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// dom_skip has a matching sink rule: expect both domain route and skip route
+	if _, ok := desired["kaji_dom_skip"]; !ok {
+		t.Error("missing kaji_dom_skip")
+	}
+	if _, ok := desired["kaji_logskip_dom_skip"]; !ok {
+		t.Error("missing kaji_logskip_dom_skip")
+	}
+
+	// dom_noskip has a sink but no matching skip rule
+	if _, ok := desired["kaji_dom_noskip"]; !ok {
+		t.Error("missing kaji_dom_noskip")
+	}
+	if _, ok := desired["kaji_logskip_dom_noskip"]; ok {
+		t.Error("kaji_logskip_dom_noskip should not exist (no matching skip rule)")
+	}
+
+	// dom_nosink has no sink at all
+	if _, ok := desired["kaji_logskip_dom_nosink"]; ok {
+		t.Error("kaji_logskip_dom_nosink should not exist (no sink)")
+	}
+
+	// verify skip route structure
+	skipJSON := desired["kaji_logskip_dom_skip"]
+	var route map[string]any
+	if err := json.Unmarshal(skipJSON, &route); err != nil {
+		t.Fatalf("unmarshal skip route: %v", err)
+	}
+	if route["@id"] != "kaji_logskip_dom_skip" {
+		t.Errorf("skip route @id = %v", route["@id"])
+	}
+	if route["terminal"] != false {
+		t.Errorf("skip route terminal = %v, want false", route["terminal"])
+	}
+}
+
+func TestBuildDesiredState_WithSkipRules_Subdomain(t *testing.T) {
+	domains := []SyncDomain{
+		{
+			ID:      "dom_parent",
+			Name:    "example.com",
+			Enabled: true,
+			Toggles: DomainToggles{},
+			Rule:    SyncRule{HandlerType: "none"},
+			Subdomains: []SyncSubdomain{
+				{
+					ID:      "sub_with_sink",
+					Name:    "api",
+					Enabled: true,
+					Toggles: DomainToggles{AccessLog: "apisink"},
+					Rule: SyncRule{
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: rpConfig(t, "localhost:4000"),
+						Enabled:       true,
+					},
+				},
+				{
+					ID:      "sub_no_sink",
+					Name:    "www",
+					Enabled: true,
+					Toggles: DomainToggles{},
+					Rule: SyncRule{
+						HandlerType:   "reverse_proxy",
+						HandlerConfig: rpConfig(t, "localhost:4001"),
+						Enabled:       true,
+					},
+				},
+			},
+		},
+	}
+
+	skipRules := map[string]LogSkipRule{
+		"apisink": {
+			Mode: "basic",
+			Conditions: []SkipConditionEntry{
+				{Type: "path", Value: "/ping"},
+			},
+		},
+	}
+
+	desired, err := BuildDesiredState(domains, nil, skipRules)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, ok := desired["kaji_logskip_sub_with_sink"]; !ok {
+		t.Error("missing kaji_logskip_sub_with_sink")
+	}
+	if _, ok := desired["kaji_logskip_sub_no_sink"]; ok {
+		t.Error("kaji_logskip_sub_no_sink should not exist")
+	}
+
+	// verify host in skip route matches subdomain FQDN
+	skipJSON := desired["kaji_logskip_sub_with_sink"]
+	var route map[string]any
+	if err := json.Unmarshal(skipJSON, &route); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	matchSets := route["match"].([]any)
+	m := matchSets[0].(map[string]any)
+	hosts := m["host"].([]any)
+	if len(hosts) != 1 || hosts[0] != "api.example.com" {
+		t.Errorf("skip route host = %v, want [\"api.example.com\"]", hosts)
+	}
+}
+
+func TestCollectDisabledIDs_SkipRoutesProtected(t *testing.T) {
+	domains := []SyncDomain{
+		{
+			ID:      "dom_off",
+			Name:    "off.example.com",
+			Enabled: false,
+			Rule: SyncRule{
+				HandlerType: "reverse_proxy",
+				Enabled:     true,
+			},
+			Subdomains: []SyncSubdomain{
+				{
+					ID:      "sub_off",
+					Name:    "api",
+					Enabled: false,
+					Rule: SyncRule{
+						HandlerType: "reverse_proxy",
+						Enabled:     true,
+					},
+				},
+				{
+					ID:      "sub_on",
+					Name:    "www",
+					Enabled: true,
+					Rule: SyncRule{
+						HandlerType: "reverse_proxy",
+						Enabled:     true,
+					},
+				},
+			},
+		},
+		{
+			ID:      "dom_on",
+			Name:    "on.example.com",
+			Enabled: true,
+			Rule: SyncRule{
+				HandlerType: "reverse_proxy",
+				Enabled:     true,
+			},
+		},
+	}
+
+	ids := CollectDisabledIDs(domains)
+
+	if !ids["kaji_logskip_dom_off"] {
+		t.Error("disabled domain skip route should be protected")
+	}
+	if !ids["kaji_logskip_sub_off"] {
+		t.Error("disabled subdomain skip route should be protected")
+	}
+	// sub_on is under a disabled domain, so it should also be protected
+	if !ids["kaji_logskip_sub_on"] {
+		t.Error("subdomain under disabled domain skip route should be protected")
+	}
+	if ids["kaji_logskip_dom_on"] {
+		t.Error("enabled domain skip route should not be in disabled IDs")
 	}
 }
