@@ -37,6 +37,10 @@ func serverLoggerNamePath(server, domain string) string {
 	return serverLoggerNamesPath(server) + "/" + domain
 }
 
+func serverErrorsPath(server string) string {
+	return serverPath(server) + "/errors"
+}
+
 // LogSinkPath returns the Caddy config path for a named log sink.
 func LogSinkPath(name string) string {
 	return loggingLogsPath + "/" + name

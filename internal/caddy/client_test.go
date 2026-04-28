@@ -1014,3 +1014,47 @@ func TestExtractReviewDomainsSkipsNoHost(t *testing.T) {
 		t.Errorf("got %d routes, want 0 (no-host route should be skipped)", len(got))
 	}
 }
+
+func TestSetHandleErrors(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody []byte
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	errorsConfig := json.RawMessage(`{"routes":[]}`)
+	if err := c.SetHandleErrors("srv0", errorsConfig); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %s, want POST", gotMethod)
+	}
+	if want := "/config/apps/http/servers/srv0/errors"; gotPath != want {
+		t.Errorf("path = %s, want %s", gotPath, want)
+	}
+	if string(gotBody) != `{"routes":[]}` {
+		t.Errorf("body = %s, want %s", string(gotBody), `{"routes":[]}`)
+	}
+}
+
+func TestDeleteHandleErrors(t *testing.T) {
+	var gotMethod, gotPath string
+	c := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	if err := c.DeleteHandleErrors("srv0"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMethod != http.MethodDelete {
+		t.Errorf("method = %s, want DELETE", gotMethod)
+	}
+	if want := "/config/apps/http/servers/srv0/errors"; gotPath != want {
+		t.Errorf("path = %s, want %s", gotPath, want)
+	}
+}

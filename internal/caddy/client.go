@@ -457,6 +457,14 @@ func (c *Client) SetDomainAccessLog(server, domain, sinkName string) error {
 	return nil
 }
 
+func (c *Client) SetHandleErrors(server string, errorsConfig json.RawMessage) error {
+	return c.SetConfigPath(serverErrorsPath(server), errorsConfig)
+}
+
+func (c *Client) DeleteHandleErrors(server string) error {
+	return c.DeleteConfigPath(serverErrorsPath(server))
+}
+
 func (c *Client) GetAccessLogDomains(server string) (map[string]string, error) {
 	raw, err := c.GetConfigPath(serverLoggerNamesPath(server))
 	if err != nil {

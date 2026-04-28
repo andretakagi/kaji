@@ -13,6 +13,13 @@ type DomainToggles struct {
 	BasicAuth   BasicAuth       `json:"basic_auth"`
 	AccessLog   string          `json:"access_log"`
 	IPFiltering IPFilteringOpts `json:"ip_filtering"`
+	ErrorPages  []ErrorPage     `json:"error_pages"`
+}
+
+type ErrorPage struct {
+	StatusCode  string `json:"status_code"`
+	Body        string `json:"body"`
+	ContentType string `json:"content_type"`
 }
 
 type ReverseProxyConfig struct {
