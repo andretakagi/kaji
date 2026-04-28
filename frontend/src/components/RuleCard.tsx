@@ -38,6 +38,7 @@ export function normalizeToggles(t: DomainToggles | null | undefined): DomainTog
 		access_log: t.access_log ?? base.access_log,
 		basic_auth: { ...base.basic_auth, ...(t.basic_auth ?? {}) },
 		ip_filtering: { ...base.ip_filtering, ...(t.ip_filtering ?? {}) },
+		error_pages: t.error_pages ?? base.error_pages,
 		headers: {
 			response: { ...base.headers.response, ...(t.headers?.response ?? {}) },
 		},

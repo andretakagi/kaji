@@ -16,6 +16,13 @@ export interface DomainToggles {
 		list_id: string;
 		type: "whitelist" | "blacklist" | "";
 	};
+	error_pages: ErrorPage[];
+}
+
+export interface ErrorPage {
+	status_code: string;
+	body: string;
+	content_type: string;
 }
 
 export interface ReverseProxyConfig {
@@ -167,6 +174,7 @@ export const defaultDomainToggles: DomainToggles = {
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
 	access_log: "",
 	ip_filtering: { enabled: false, list_id: "", type: "" },
+	error_pages: [],
 };
 
 export const defaultReverseProxyConfig: ReverseProxyConfig = {
