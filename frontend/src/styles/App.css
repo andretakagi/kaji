@@ -3267,6 +3267,11 @@ input:disabled + .toggle-slider {
 	color: rgb(var(--teal-rgb));
 }
 
+.handler-error {
+	background: rgba(var(--red-rgb), 0.12);
+	color: rgb(var(--red-rgb));
+}
+
 .path-match-badge {
 	font-size: 0.6875rem;
 	font-weight: 500;

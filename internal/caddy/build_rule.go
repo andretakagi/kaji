@@ -324,7 +324,7 @@ func buildErrorHandler(handlerConfig json.RawMessage) (map[string]any, error) {
 		"status_code": statusCode,
 	}
 	if cfg.Message != "" {
-		handler["message"] = cfg.Message
+		handler["error"] = cfg.Message
 	}
 
 	return handler, nil

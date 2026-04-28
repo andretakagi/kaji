@@ -1,4 +1,5 @@
 import type {
+	ErrorConfig,
 	FileServerConfig,
 	RedirectConfig,
 	ReverseProxyConfig,
@@ -32,6 +33,9 @@ export function RuleDetails({
 					)}
 					{rule.handler_type === "file_server" && (
 						<FileServerDetails config={rule.handler_config as FileServerConfig} />
+					)}
+					{rule.handler_type === "error" && (
+						<ErrorDetails config={rule.handler_config as ErrorConfig} />
 					)}
 				</>
 			)}
@@ -120,5 +124,13 @@ function FileServerDetails({ config }: { config: FileServerConfig }) {
 	if (config.hide?.length > 0) {
 		details.push({ label: "Hidden", value: config.hide.join(", ") });
 	}
+	return <DetailList details={details} />;
+}
+
+function ErrorDetails({ config }: { config: ErrorConfig }) {
+	const details: { label: string; value: string }[] = [
+		{ label: "Status", value: config.status_code || "..." },
+	];
+	if (config.message) details.push({ label: "Message", value: config.message });
 	return <DetailList details={details} />;
 }

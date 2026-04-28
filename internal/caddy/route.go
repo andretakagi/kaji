@@ -723,7 +723,7 @@ func parseStaticResponseHandler(raw json.RawMessage, p *DomainParams) {
 func parseErrorHandler(raw json.RawMessage, p *DomainParams) {
 	var eh struct {
 		StatusCode int    `json:"status_code"`
-		Message    string `json:"message"`
+		Message    string `json:"error"`
 	}
 	if json.Unmarshal(raw, &eh) != nil {
 		return
