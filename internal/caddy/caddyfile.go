@@ -470,11 +470,18 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 		lbStrategy = "round_robin"
 	}
 
-	hasRequestHeaders := p.Toggles.RequestHeaders.Enabled &&
-		((p.Toggles.RequestHeaders.HostOverride && p.Toggles.RequestHeaders.HostValue != "") ||
-			(p.Toggles.RequestHeaders.Authorization && p.Toggles.RequestHeaders.AuthValue != ""))
+	var rpCfg ReverseProxyConfig
+	if len(p.HandlerConfig) > 0 {
+		json.Unmarshal(p.HandlerConfig, &rpCfg)
+	}
+
+	hasHeaderUp := rpCfg.HeaderUp.Enabled &&
+		((rpCfg.HeaderUp.HostOverride && rpCfg.HeaderUp.HostValue != "") ||
+			(rpCfg.HeaderUp.Authorization && rpCfg.HeaderUp.AuthValue != ""))
+	hasHeaderDown := rpCfg.HeaderDown.Enabled &&
+		(rpCfg.HeaderDown.StripServer || rpCfg.HeaderDown.StripPoweredBy)
 	needsBlock := p.Toggles.TLSSkipVerify || p.Toggles.WebSocketPassthru ||
-		p.Toggles.LoadBalancing.Enabled || hasRequestHeaders
+		p.Toggles.LoadBalancing.Enabled || hasHeaderUp || hasHeaderDown
 
 	if needsBlock {
 		allUpstreams := p.Upstream
@@ -499,12 +506,20 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 				b.WriteString("\t\tmax_fails 3\n")
 			}
 		}
-		if p.Toggles.RequestHeaders.Enabled {
-			if p.Toggles.RequestHeaders.HostOverride && p.Toggles.RequestHeaders.HostValue != "" {
-				b.WriteString("\t\theader_up Host " + p.Toggles.RequestHeaders.HostValue + "\n")
+		if rpCfg.HeaderUp.Enabled {
+			if rpCfg.HeaderUp.HostOverride && rpCfg.HeaderUp.HostValue != "" {
+				b.WriteString("\t\theader_up Host " + rpCfg.HeaderUp.HostValue + "\n")
 			}
-			if p.Toggles.RequestHeaders.Authorization && p.Toggles.RequestHeaders.AuthValue != "" {
-				b.WriteString("\t\theader_up Authorization \"" + p.Toggles.RequestHeaders.AuthValue + "\"\n")
+			if rpCfg.HeaderUp.Authorization && rpCfg.HeaderUp.AuthValue != "" {
+				b.WriteString("\t\theader_up Authorization \"" + rpCfg.HeaderUp.AuthValue + "\"\n")
+			}
+		}
+		if rpCfg.HeaderDown.Enabled {
+			if rpCfg.HeaderDown.StripServer {
+				b.WriteString("\t\theader_down -Server\n")
+			}
+			if rpCfg.HeaderDown.StripPoweredBy {
+				b.WriteString("\t\theader_down -X-Powered-By\n")
 			}
 		}
 		b.WriteString("\t}\n")

@@ -1053,11 +1053,11 @@ func TestParseDomainParamsNoHeadersEmptyBuiltinCustom(t *testing.T) {
 	if len(got.Toggles.Headers.Response.Custom) != 0 {
 		t.Errorf("expected empty Response.Custom, got %d entries", len(got.Toggles.Headers.Response.Custom))
 	}
-	if len(got.Toggles.RequestHeaders.Builtin) != 0 {
-		t.Errorf("expected empty RequestHeaders.Builtin, got %d entries", len(got.Toggles.RequestHeaders.Builtin))
+	if len(got.Toggles.Headers.Request.Builtin) != 0 {
+		t.Errorf("expected empty Headers.Request.Builtin, got %d entries", len(got.Toggles.Headers.Request.Builtin))
 	}
-	if len(got.Toggles.RequestHeaders.Custom) != 0 {
-		t.Errorf("expected empty RequestHeaders.Custom, got %d entries", len(got.Toggles.RequestHeaders.Custom))
+	if len(got.Toggles.Headers.Request.Custom) != 0 {
+		t.Errorf("expected empty Headers.Request.Custom, got %d entries", len(got.Toggles.Headers.Request.Custom))
 	}
 }
 
@@ -1113,22 +1113,25 @@ func TestParseDomainParamsCustomResponseHeaders(t *testing.T) {
 	}
 }
 
-func TestParseDomainParamsCustomRequestHeaders(t *testing.T) {
+func TestParseDomainParamsCustomHeaderUp(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
+		Upstream: "localhost:3000",
+		HeaderUp: HeaderUpConfig{
+			Enabled: true,
+			Builtin: []HeaderEntry{
+				{Key: "Host", Value: "custom.host", Operation: "set", Enabled: true},
+			},
+			Custom: []HeaderEntry{
+				{Key: "X-Forwarded-Proto", Value: "https", Operation: "set", Enabled: true},
+			},
+		},
+	})
 	route, err := BuildDomain(DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:3000",
+		HandlerType:     "reverse_proxy",
+		HandlerConfig:   rpCfg,
 		AdvancedHeaders: true,
-		Toggles: RouteToggles{
-			RequestHeaders: RequestHeaders{
-				Enabled: true,
-				Builtin: []HeaderEntry{
-					{Key: "Host", Value: "custom.host", Enabled: true},
-				},
-				Custom: []HeaderEntry{
-					{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
-				},
-			},
-		},
 	})
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
@@ -1139,20 +1142,25 @@ func TestParseDomainParamsCustomRequestHeaders(t *testing.T) {
 		t.Fatalf("ParseDomainParams failed: %v", err)
 	}
 
+	var parsedRPCfg ReverseProxyConfig
+	if err := json.Unmarshal(got.HandlerConfig, &parsedRPCfg); err != nil {
+		t.Fatalf("failed to parse handler config: %v", err)
+	}
+
 	builtinKeys := map[string]bool{}
-	for _, e := range got.Toggles.RequestHeaders.Builtin {
+	for _, e := range parsedRPCfg.HeaderUp.Builtin {
 		builtinKeys[e.Key] = true
 	}
 	customKeys := map[string]bool{}
-	for _, e := range got.Toggles.RequestHeaders.Custom {
+	for _, e := range parsedRPCfg.HeaderUp.Custom {
 		customKeys[e.Key] = true
 	}
 
 	if !builtinKeys["Host"] {
-		t.Error("expected Host in Request.Builtin")
+		t.Error("expected Host in HeaderUp.Builtin")
 	}
 	if !customKeys["X-Forwarded-Proto"] {
-		t.Error("expected X-Forwarded-Proto in Request.Custom")
+		t.Error("expected X-Forwarded-Proto in HeaderUp.Custom")
 	}
 	if builtinKeys["X-Forwarded-Proto"] {
 		t.Error("X-Forwarded-Proto should not be in Builtin")

@@ -326,119 +326,139 @@ func TestAdvancedEmptyEntries(t *testing.T) {
 	}
 }
 
-// --- Request headers ---
+// --- Header Up (reverse_proxy request headers) ---
 
-func TestBasicRequestHostOverride(t *testing.T) {
-	req := RequestHeaders{
+func TestBasicHeaderUpHostOverride(t *testing.T) {
+	cfg := HeaderUpConfig{
 		Enabled:      true,
 		HostOverride: true,
 		HostValue:    "backend.internal",
 	}
-	result := BuildRequestHeaders(req, false)
+	result := BuildHeaderUp(cfg, false)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if vals := result["Host"]; len(vals) == 0 || vals[0] != "backend.internal" {
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field in result")
+	}
+	if vals := set["Host"]; len(vals) == 0 || vals[0] != "backend.internal" {
 		t.Errorf("Host = %v, want [backend.internal]", vals)
 	}
 }
 
-func TestBasicRequestAuthorization(t *testing.T) {
-	req := RequestHeaders{
+func TestBasicHeaderUpAuthorization(t *testing.T) {
+	cfg := HeaderUpConfig{
 		Enabled:       true,
 		Authorization: true,
 		AuthValue:     "Bearer token123",
 	}
-	result := BuildRequestHeaders(req, false)
+	result := BuildHeaderUp(cfg, false)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if vals := result["Authorization"]; len(vals) == 0 || vals[0] != "Bearer token123" {
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field in result")
+	}
+	if vals := set["Authorization"]; len(vals) == 0 || vals[0] != "Bearer token123" {
 		t.Errorf("Authorization = %v, want [Bearer token123]", vals)
 	}
 }
 
-func TestBasicRequestBothHeaders(t *testing.T) {
-	req := RequestHeaders{
+func TestBasicHeaderUpBothHeaders(t *testing.T) {
+	cfg := HeaderUpConfig{
 		Enabled:       true,
 		HostOverride:  true,
 		HostValue:     "backend.internal",
 		Authorization: true,
 		AuthValue:     "Bearer abc",
 	}
-	result := BuildRequestHeaders(req, false)
+	result := BuildHeaderUp(cfg, false)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if len(result) != 2 {
-		t.Errorf("expected 2 headers, got %d", len(result))
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field in result")
+	}
+	if len(set) != 2 {
+		t.Errorf("expected 2 headers, got %d", len(set))
 	}
 }
 
-func TestBasicRequestDisabledReturnsNil(t *testing.T) {
-	req := RequestHeaders{
+func TestBasicHeaderUpDisabledReturnsNil(t *testing.T) {
+	cfg := HeaderUpConfig{
 		HostOverride: true,
 		HostValue:    "backend.internal",
 	}
-	result := BuildRequestHeaders(req, false)
+	result := BuildHeaderUp(cfg, false)
 	if result != nil {
 		t.Errorf("expected nil when disabled, got %v", result)
 	}
 }
 
-func TestBasicRequestEmptyValueSkipped(t *testing.T) {
-	req := RequestHeaders{
+func TestBasicHeaderUpEmptyValueSkipped(t *testing.T) {
+	cfg := HeaderUpConfig{
 		Enabled:      true,
 		HostOverride: true,
 		HostValue:    "",
 	}
-	result := BuildRequestHeaders(req, false)
+	result := BuildHeaderUp(cfg, false)
 	if result != nil {
 		t.Errorf("expected nil when host value is empty, got %v", result)
 	}
 }
 
-func TestAdvancedRequestHeaders(t *testing.T) {
-	req := RequestHeaders{
+func TestAdvancedHeaderUp(t *testing.T) {
+	cfg := HeaderUpConfig{
 		Enabled: true,
 		Builtin: []HeaderEntry{
-			{Key: "Host", Value: "builtin.host", Enabled: true},
-			{Key: "X-Disabled", Value: "no", Enabled: false},
+			{Key: "Host", Value: "builtin.host", Operation: "set", Enabled: true},
+			{Key: "X-Disabled", Value: "no", Operation: "set", Enabled: false},
 		},
 		Custom: []HeaderEntry{
-			{Key: "X-Custom-Req", Value: "custom-val", Enabled: true},
+			{Key: "X-Custom-Req", Value: "custom-val", Operation: "set", Enabled: true},
 		},
 	}
-	result := BuildRequestHeaders(req, true)
+	result := BuildHeaderUp(cfg, true)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if vals := result["Host"]; len(vals) == 0 || vals[0] != "builtin.host" {
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field in result")
+	}
+	if vals := set["Host"]; len(vals) == 0 || vals[0] != "builtin.host" {
 		t.Errorf("Host = %v, want [builtin.host]", vals)
 	}
-	if _, ok := result["X-Disabled"]; ok {
+	if _, ok := set["X-Disabled"]; ok {
 		t.Error("disabled entry should not appear")
 	}
-	if vals := result["X-Custom-Req"]; len(vals) == 0 || vals[0] != "custom-val" {
+	if vals := set["X-Custom-Req"]; len(vals) == 0 || vals[0] != "custom-val" {
 		t.Errorf("X-Custom-Req = %v, want [custom-val]", vals)
 	}
 }
 
-func TestAdvancedRequestCustomOverridesBuiltin(t *testing.T) {
-	req := RequestHeaders{
+func TestAdvancedHeaderUpCustomOverridesBuiltin(t *testing.T) {
+	cfg := HeaderUpConfig{
 		Enabled: true,
 		Builtin: []HeaderEntry{
-			{Key: "Host", Value: "builtin.host", Enabled: true},
+			{Key: "Host", Value: "builtin.host", Operation: "set", Enabled: true},
 		},
 		Custom: []HeaderEntry{
-			{Key: "Host", Value: "custom.host", Enabled: true},
+			{Key: "Host", Value: "custom.host", Operation: "set", Enabled: true},
 		},
 	}
-	result := BuildRequestHeaders(req, true)
+	result := BuildHeaderUp(cfg, true)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if vals := result["Host"]; len(vals) == 0 || vals[0] != "custom.host" {
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field in result")
+	}
+	if vals := set["Host"]; len(vals) == 0 || vals[0] != "custom.host" {
 		t.Errorf("Host = %v, want [custom.host] (custom should override)", vals)
 	}
 }
@@ -477,17 +497,21 @@ func TestBuildDomainBasicXRobotsTag(t *testing.T) {
 	}
 }
 
-func TestBuildDomainRequestHeaders(t *testing.T) {
-	p := DomainParams{
-		Domain:   "example.com",
-		Upstream: "localhost:8080",
-		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
+func TestBuildDomainHeaderUp(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
+		HeaderUp: HeaderUpConfig{
 			Enabled:       true,
 			HostOverride:  true,
 			HostValue:     "backend.internal",
 			Authorization: true,
 			AuthValue:     "Bearer xyz",
-		}},
+		},
+	})
+	p := DomainParams{
+		Domain:        "example.com",
+		Upstream:      "localhost:8080",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
 	}
 	handlers := buildAndUnmarshalHandlers(t, p)
 	rp := findHandler(t, handlers, "reverse_proxy")
@@ -511,9 +535,19 @@ func TestBuildDomainRequestHeaders(t *testing.T) {
 }
 
 func TestBuildDomainAdvancedMode(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
+		HeaderUp: HeaderUpConfig{
+			Enabled: true,
+			Builtin: []HeaderEntry{
+				{Key: "Host", Value: "advanced.host", Operation: "set", Enabled: true},
+			},
+		},
+	})
 	p := DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
+		HandlerType:     "reverse_proxy",
+		HandlerConfig:   rpCfg,
 		AdvancedHeaders: true,
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
@@ -525,12 +559,6 @@ func TestBuildDomainAdvancedMode(t *testing.T) {
 					Custom: []HeaderEntry{
 						{Key: "X-Custom", Value: "val", Enabled: true},
 					},
-				},
-			},
-			RequestHeaders: RequestHeaders{
-				Enabled: true,
-				Builtin: []HeaderEntry{
-					{Key: "Host", Value: "advanced.host", Enabled: true},
 				},
 			},
 		},
@@ -597,40 +625,62 @@ func TestParseDomainParamsXRobotsTag(t *testing.T) {
 	}
 }
 
-func TestParseDomainParamsRequestHeaders(t *testing.T) {
-	p := DomainParams{
-		Domain:   "example.com",
+func TestParseDomainParamsHeaderUp(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
 		Upstream: "localhost:8080",
-		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
+		HeaderUp: HeaderUpConfig{
 			Enabled:       true,
 			HostOverride:  true,
 			HostValue:     "backend.internal",
 			Authorization: true,
 			AuthValue:     "Bearer tok",
-		}},
+		},
+	})
+	p := DomainParams{
+		Domain:        "example.com",
+		Upstream:      "localhost:8080",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.RequestHeaders.Enabled {
-		t.Error("RequestHeaders.Enabled should round-trip to true")
+
+	var parsedRPCfg ReverseProxyConfig
+	if err := json.Unmarshal(got.HandlerConfig, &parsedRPCfg); err != nil {
+		t.Fatalf("failed to parse handler config: %v", err)
 	}
-	if !got.Toggles.RequestHeaders.HostOverride {
+	if !parsedRPCfg.HeaderUp.Enabled {
+		t.Error("HeaderUp.Enabled should round-trip to true")
+	}
+	if !parsedRPCfg.HeaderUp.HostOverride {
 		t.Error("HostOverride should round-trip to true")
 	}
-	if got.Toggles.RequestHeaders.HostValue != "backend.internal" {
-		t.Errorf("HostValue = %q, want backend.internal", got.Toggles.RequestHeaders.HostValue)
+	if parsedRPCfg.HeaderUp.HostValue != "backend.internal" {
+		t.Errorf("HostValue = %q, want backend.internal", parsedRPCfg.HeaderUp.HostValue)
 	}
-	if !got.Toggles.RequestHeaders.Authorization {
+	if !parsedRPCfg.HeaderUp.Authorization {
 		t.Error("Authorization should round-trip to true")
 	}
-	if got.Toggles.RequestHeaders.AuthValue != "Bearer tok" {
-		t.Errorf("AuthValue = %q, want Bearer tok", got.Toggles.RequestHeaders.AuthValue)
+	if parsedRPCfg.HeaderUp.AuthValue != "Bearer tok" {
+		t.Errorf("AuthValue = %q, want Bearer tok", parsedRPCfg.HeaderUp.AuthValue)
 	}
 }
 
 func TestParseDomainParamsAllBasicHeaders(t *testing.T) {
-	p := DomainParams{
-		Domain:   "example.com",
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
 		Upstream: "localhost:8080",
+		HeaderUp: HeaderUpConfig{
+			Enabled:       true,
+			HostOverride:  true,
+			HostValue:     "internal.host",
+			Authorization: true,
+			AuthValue:     "Basic creds",
+		},
+	})
+	p := DomainParams{
+		Domain:        "example.com",
+		Upstream:      "localhost:8080",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
 		Toggles: RouteToggles{
 			Headers: HeadersConfig{
 				Response: ResponseHeaders{
@@ -641,13 +691,6 @@ func TestParseDomainParamsAllBasicHeaders(t *testing.T) {
 					CacheControl: true,
 					XRobotsTag:   true,
 				},
-			},
-			RequestHeaders: RequestHeaders{
-				Enabled:       true,
-				HostOverride:  true,
-				HostValue:     "internal.host",
-				Authorization: true,
-				AuthValue:     "Basic creds",
 			},
 		},
 	}
@@ -664,10 +707,15 @@ func TestParseDomainParamsAllBasicHeaders(t *testing.T) {
 	if !got.Toggles.Headers.Response.XRobotsTag {
 		t.Error("XRobotsTag should round-trip")
 	}
-	if !got.Toggles.RequestHeaders.HostOverride {
+
+	var parsedRPCfg ReverseProxyConfig
+	if err := json.Unmarshal(got.HandlerConfig, &parsedRPCfg); err != nil {
+		t.Fatalf("failed to parse handler config: %v", err)
+	}
+	if !parsedRPCfg.HeaderUp.HostOverride {
 		t.Error("HostOverride should round-trip")
 	}
-	if !got.Toggles.RequestHeaders.Authorization {
+	if !parsedRPCfg.HeaderUp.Authorization {
 		t.Error("Authorization should round-trip")
 	}
 }
@@ -747,13 +795,13 @@ func TestClassifyHeadersEmpty(t *testing.T) {
 	}
 }
 
-func TestClassifyHeadersRequestKeys(t *testing.T) {
+func TestClassifyHeadersHeaderUpKeys(t *testing.T) {
 	headers := map[string][]string{
 		"Host":          {"backend.internal"},
 		"Authorization": {"Bearer tok"},
 		"X-Forwarded":   {"custom"},
 	}
-	builtin, custom := classifyHeaders(headers, builtinRequestKeys)
+	builtin, custom := classifyHeaders(headers, builtinHeaderUpKeys)
 	if len(builtin) != 2 {
 		t.Errorf("expected 2 builtins (Host, Authorization), got %d", len(builtin))
 	}
@@ -864,69 +912,89 @@ func TestRoundTripAdvancedCustomHeadersSurvive(t *testing.T) {
 	}
 }
 
-func TestRoundTripRequestHeadersPopulateBuiltin(t *testing.T) {
-	p := DomainParams{
-		Domain:   "example.com",
+func TestRoundTripHeaderUpPopulateBuiltin(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
 		Upstream: "localhost:8080",
-		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
+		HeaderUp: HeaderUpConfig{
 			Enabled:       true,
 			HostOverride:  true,
 			HostValue:     "backend.internal",
 			Authorization: true,
 			AuthValue:     "Bearer tok",
-		}},
+		},
+	})
+	p := DomainParams{
+		Domain:        "example.com",
+		Upstream:      "localhost:8080",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
 	}
 	got := buildAndParse(t, p)
 
+	var parsedRPCfg ReverseProxyConfig
+	if err := json.Unmarshal(got.HandlerConfig, &parsedRPCfg); err != nil {
+		t.Fatalf("failed to parse handler config: %v", err)
+	}
+
 	builtinKeys := map[string]string{}
-	for _, e := range got.Toggles.RequestHeaders.Builtin {
+	for _, e := range parsedRPCfg.HeaderUp.Builtin {
 		builtinKeys[e.Key] = e.Value
 	}
 
 	if val, ok := builtinKeys["Host"]; !ok {
-		t.Error("Host not found in Request.Builtin")
+		t.Error("Host not found in HeaderUp.Builtin")
 	} else if val != "backend.internal" {
 		t.Errorf("Host value = %q, want backend.internal", val)
 	}
 
 	if val, ok := builtinKeys["Authorization"]; !ok {
-		t.Error("Authorization not found in Request.Builtin")
+		t.Error("Authorization not found in HeaderUp.Builtin")
 	} else if val != "Bearer tok" {
 		t.Errorf("Authorization value = %q, want Bearer tok", val)
 	}
 }
 
-func TestRoundTripAdvancedRequestCustomSurvives(t *testing.T) {
+func TestRoundTripAdvancedHeaderUpCustomSurvives(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
+		Upstream: "localhost:8080",
+		HeaderUp: HeaderUpConfig{
+			Enabled: true,
+			Builtin: []HeaderEntry{
+				{Key: "Host", Value: "custom.host", Operation: "set", Enabled: true},
+			},
+			Custom: []HeaderEntry{
+				{Key: "X-Forwarded-Proto", Value: "https", Operation: "set", Enabled: true},
+			},
+		},
+	})
 	p := DomainParams{
 		Domain:          "example.com",
 		Upstream:        "localhost:8080",
+		HandlerType:     "reverse_proxy",
+		HandlerConfig:   rpCfg,
 		AdvancedHeaders: true,
-		Toggles: RouteToggles{RequestHeaders: RequestHeaders{
-			Enabled: true,
-			Builtin: []HeaderEntry{
-				{Key: "Host", Value: "custom.host", Enabled: true},
-			},
-			Custom: []HeaderEntry{
-				{Key: "X-Forwarded-Proto", Value: "https", Enabled: true},
-			},
-		}},
 	}
 	got := buildAndParse(t, p)
 
+	var parsedRPCfg ReverseProxyConfig
+	if err := json.Unmarshal(got.HandlerConfig, &parsedRPCfg); err != nil {
+		t.Fatalf("failed to parse handler config: %v", err)
+	}
+
 	builtinKeys := map[string]bool{}
-	for _, e := range got.Toggles.RequestHeaders.Builtin {
+	for _, e := range parsedRPCfg.HeaderUp.Builtin {
 		builtinKeys[e.Key] = true
 	}
 	customKeys := map[string]bool{}
-	for _, e := range got.Toggles.RequestHeaders.Custom {
+	for _, e := range parsedRPCfg.HeaderUp.Custom {
 		customKeys[e.Key] = true
 	}
 
 	if !builtinKeys["Host"] {
-		t.Error("Host should be in Request.Builtin after round-trip")
+		t.Error("Host should be in HeaderUp.Builtin after round-trip")
 	}
 	if !customKeys["X-Forwarded-Proto"] {
-		t.Error("X-Forwarded-Proto should be in Request.Custom after round-trip")
+		t.Error("X-Forwarded-Proto should be in HeaderUp.Custom after round-trip")
 	}
 }
 

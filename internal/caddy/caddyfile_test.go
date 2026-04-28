@@ -971,17 +971,27 @@ func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
 	assertContains(t, out, `header X-Robots-Tag "noindex, nofollow"`, "X-Robots-Tag directive")
 }
 
+func rpConfigJSON(t *testing.T, cfg ReverseProxyConfig) json.RawMessage {
+	t.Helper()
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal ReverseProxyConfig: %v", err)
+	}
+	return data
+}
+
 func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 	route, err := BuildDomain(DomainParams{
-		Domain:   "example.com",
-		Upstream: "localhost:8080",
-		Toggles: RouteToggles{
-			RequestHeaders: RequestHeaders{
+		Domain:      "example.com",
+		Upstream:    "localhost:8080",
+		HandlerType: "reverse_proxy",
+		HandlerConfig: rpConfigJSON(t, ReverseProxyConfig{
+			HeaderUp: HeaderUpConfig{
 				Enabled:      true,
 				HostOverride: true,
 				HostValue:    "backend.internal",
 			},
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
@@ -999,15 +1009,16 @@ func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 
 func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 	route, err := BuildDomain(DomainParams{
-		Domain:   "example.com",
-		Upstream: "localhost:8080",
-		Toggles: RouteToggles{
-			RequestHeaders: RequestHeaders{
+		Domain:      "example.com",
+		Upstream:    "localhost:8080",
+		HandlerType: "reverse_proxy",
+		HandlerConfig: rpConfigJSON(t, ReverseProxyConfig{
+			HeaderUp: HeaderUpConfig{
 				Enabled:       true,
 				Authorization: true,
 				AuthValue:     "Bearer tok123",
 			},
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
@@ -1025,17 +1036,18 @@ func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 
 func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
 	route, err := BuildDomain(DomainParams{
-		Domain:   "example.com",
-		Upstream: "localhost:8080",
-		Toggles: RouteToggles{
-			RequestHeaders: RequestHeaders{
+		Domain:      "example.com",
+		Upstream:    "localhost:8080",
+		HandlerType: "reverse_proxy",
+		HandlerConfig: rpConfigJSON(t, ReverseProxyConfig{
+			HeaderUp: HeaderUpConfig{
 				Enabled:       true,
 				HostOverride:  true,
 				HostValue:     "upstream.local",
 				Authorization: true,
 				AuthValue:     "Basic abc",
 			},
-		},
+		}),
 	})
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)

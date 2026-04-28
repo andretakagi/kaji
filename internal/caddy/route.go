@@ -193,8 +193,26 @@ func BuildDomain(p DomainParams) (json.RawMessage, error) {
 		})
 	}
 
-	// Response headers (security, CORS, cache-control, x-robots-tag, advanced)
-	handlers = append(handlers, buildResponseHeaders(p.Toggles.Headers, p.AdvancedHeaders)...)
+	// Domain-level headers (request + response combined into one handler when possible)
+	reqBlock := buildDomainRequestHeaders(p.Toggles.Headers, p.AdvancedHeaders)
+	respHandlers := buildResponseHeaders(p.Toggles.Headers, p.AdvancedHeaders)
+
+	if reqBlock != nil {
+		merged := false
+		if len(respHandlers) > 0 {
+			if first, ok := respHandlers[0].(map[string]any); ok && first["handler"] == "headers" {
+				first["request"] = reqBlock
+				merged = true
+			}
+		}
+		if !merged {
+			handlers = append(handlers, map[string]any{
+				"handler": "headers",
+				"request": reqBlock,
+			})
+		}
+	}
+	handlers = append(handlers, respHandlers...)
 
 	// Basic auth
 	if p.Toggles.BasicAuth.Enabled && p.Toggles.BasicAuth.Username != "" {
@@ -260,11 +278,25 @@ func BuildDomain(p DomainParams) (json.RawMessage, error) {
 		}
 	}
 
-	if reqHeaders := BuildRequestHeaders(p.Toggles.RequestHeaders, p.AdvancedHeaders); reqHeaders != nil {
-		rp["headers"] = map[string]any{
-			"request": map[string]any{
-				"set": reqHeaders,
-			},
+	if p.HandlerType == "reverse_proxy" && len(p.HandlerConfig) > 0 {
+		var rpCfg ReverseProxyConfig
+		if json.Unmarshal(p.HandlerConfig, &rpCfg) == nil {
+			var rpHeaders map[string]any
+			if up := BuildHeaderUp(rpCfg.HeaderUp, p.AdvancedHeaders); up != nil {
+				if rpHeaders == nil {
+					rpHeaders = make(map[string]any)
+				}
+				rpHeaders["request"] = up
+			}
+			if down := BuildHeaderDown(rpCfg.HeaderDown, p.AdvancedHeaders); down != nil {
+				if rpHeaders == nil {
+					rpHeaders = make(map[string]any)
+				}
+				rpHeaders["response"] = down
+			}
+			if rpHeaders != nil {
+				rp["headers"] = rpHeaders
+			}
 		}
 	}
 
@@ -526,37 +558,26 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 					p.Toggles.LoadBalancing.Strategy = lb.SelectionPolicy.Policy
 				}
 			}
-			parseReverseProxyRequestHeaders(h, p)
+			parseReverseProxyHeaders(h, p)
 
 		case "encode":
 			p.Toggles.Compression = true
 
 		case "headers":
-			if handler.Response != nil {
-				var resp struct {
-					Set map[string][]string `json:"set"`
-				}
-				if json.Unmarshal(handler.Response, &resp) == nil && len(resp.Set) > 0 {
-					p.Toggles.Headers.Response.Enabled = true
-					if _, ok := resp.Set["X-Content-Type-Options"]; ok {
-						p.Toggles.Headers.Response.Security = true
-					}
-					if origins, ok := resp.Set["Access-Control-Allow-Origin"]; ok {
-						p.Toggles.Headers.Response.CORS = true
-						if len(origins) > 0 && origins[0] != "*" {
-							p.Toggles.Headers.Response.CORSOrigins = []string{origins[0]}
-						}
-					}
-					if _, ok := resp.Set["Cache-Control"]; ok {
-						p.Toggles.Headers.Response.CacheControl = true
-					}
-					if _, ok := resp.Set["X-Robots-Tag"]; ok {
-						p.Toggles.Headers.Response.XRobotsTag = true
-					}
-					builtin, custom := classifyHeaders(resp.Set, builtinResponseKeys)
-					p.Toggles.Headers.Response.Builtin = append(p.Toggles.Headers.Response.Builtin, builtin...)
-					p.Toggles.Headers.Response.Custom = append(p.Toggles.Headers.Response.Custom, custom...)
-				}
+			var full struct {
+				Request  json.RawMessage `json:"request"`
+				Response json.RawMessage `json:"response"`
+			}
+			if json.Unmarshal(h, &full) != nil {
+				continue
+			}
+
+			if full.Request != nil {
+				parseHeadersRequestBlock(full.Request, p)
+			}
+
+			if full.Response != nil {
+				parseHeadersResponseBlock(full.Response, p)
 			}
 
 		case "subroute":
@@ -636,36 +657,223 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 	}
 }
 
-func parseReverseProxyRequestHeaders(raw json.RawMessage, p *DomainParams) {
+func parseHeadersRequestBlock(raw json.RawMessage, p *DomainParams) {
+	var block struct {
+		Set     map[string][]string            `json:"set"`
+		Add     map[string][]string            `json:"add"`
+		Delete  []string                       `json:"delete"`
+		Replace map[string][]map[string]string `json:"replace"`
+	}
+	if json.Unmarshal(raw, &block) != nil {
+		return
+	}
+
+	hasContent := len(block.Set) > 0 || len(block.Add) > 0 || len(block.Delete) > 0 || len(block.Replace) > 0
+	if !hasContent {
+		return
+	}
+
+	p.Toggles.Headers.Request.Enabled = true
+
+	if _, ok := block.Set["X-Forwarded-For"]; ok {
+		p.Toggles.Headers.Request.XForwardedFor = true
+	}
+	if _, ok := block.Set["X-Real-IP"]; ok {
+		p.Toggles.Headers.Request.XRealIP = true
+	}
+	if _, ok := block.Set["X-Forwarded-Proto"]; ok {
+		p.Toggles.Headers.Request.XForwardedProto = true
+	}
+	if _, ok := block.Set["X-Forwarded-Host"]; ok {
+		p.Toggles.Headers.Request.XForwardedHost = true
+	}
+	if _, ok := block.Set["X-Request-ID"]; ok {
+		p.Toggles.Headers.Request.XRequestID = true
+	}
+
+	var entries []HeaderEntry
+	appendOpsToEntries(&entries, block.Set, "set")
+	appendOpsToEntries(&entries, block.Add, "add")
+	appendDeleteEntries(&entries, block.Delete)
+	appendReplaceEntries(&entries, block.Replace)
+
+	for _, e := range entries {
+		if builtinDomainRequestKeys[e.Key] {
+			p.Toggles.Headers.Request.Builtin = append(p.Toggles.Headers.Request.Builtin, e)
+		} else {
+			p.Toggles.Headers.Request.Custom = append(p.Toggles.Headers.Request.Custom, e)
+		}
+	}
+}
+
+func parseHeadersResponseBlock(raw json.RawMessage, p *DomainParams) {
+	var resp struct {
+		Set      map[string][]string            `json:"set"`
+		Add      map[string][]string            `json:"add"`
+		Delete   []string                       `json:"delete"`
+		Replace  map[string][]map[string]string `json:"replace"`
+		Deferred bool                           `json:"deferred"`
+	}
+	if json.Unmarshal(raw, &resp) != nil {
+		return
+	}
+
+	if len(resp.Set) == 0 && len(resp.Add) == 0 && len(resp.Delete) == 0 && len(resp.Replace) == 0 {
+		return
+	}
+
+	p.Toggles.Headers.Response.Enabled = true
+	p.Toggles.Headers.Response.Deferred = resp.Deferred
+
+	if _, ok := resp.Set["X-Content-Type-Options"]; ok {
+		p.Toggles.Headers.Response.Security = true
+	}
+	if origins, ok := resp.Set["Access-Control-Allow-Origin"]; ok {
+		p.Toggles.Headers.Response.CORS = true
+		if len(origins) > 0 && origins[0] != "*" {
+			p.Toggles.Headers.Response.CORSOrigins = []string{origins[0]}
+		}
+	}
+	if _, ok := resp.Set["Cache-Control"]; ok {
+		p.Toggles.Headers.Response.CacheControl = true
+	}
+	if _, ok := resp.Set["X-Robots-Tag"]; ok {
+		p.Toggles.Headers.Response.XRobotsTag = true
+	}
+
+	builtin, custom := classifyHeaders(resp.Set, builtinResponseKeys)
+	p.Toggles.Headers.Response.Builtin = append(p.Toggles.Headers.Response.Builtin, builtin...)
+	p.Toggles.Headers.Response.Custom = append(p.Toggles.Headers.Response.Custom, custom...)
+}
+
+func parseReverseProxyHeaders(raw json.RawMessage, p *DomainParams) {
 	var rp struct {
 		Headers struct {
-			Request struct {
-				Set map[string][]string `json:"set"`
-			} `json:"request"`
+			Request  json.RawMessage `json:"request"`
+			Response json.RawMessage `json:"response"`
 		} `json:"headers"`
 	}
 	if json.Unmarshal(raw, &rp) != nil {
 		return
 	}
-	reqSet := rp.Headers.Request.Set
-	if len(reqSet) == 0 {
+
+	var headerUp HeaderUpConfig
+	if len(rp.Headers.Request) > 0 {
+		headerUp = parseHeaderUpBlock(rp.Headers.Request)
+	}
+
+	var headerDown HeaderDownConfig
+	if len(rp.Headers.Response) > 0 {
+		headerDown = parseHeaderDownBlock(rp.Headers.Response)
+	}
+
+	if !headerUp.Enabled && !headerDown.Enabled {
 		return
 	}
 
-	p.Toggles.RequestHeaders.Enabled = true
-
-	if vals, ok := reqSet["Host"]; ok && len(vals) > 0 {
-		p.Toggles.RequestHeaders.HostOverride = true
-		p.Toggles.RequestHeaders.HostValue = vals[0]
+	// Merge parsed headers into the handler config
+	var rpCfg ReverseProxyConfig
+	if len(p.HandlerConfig) > 0 {
+		json.Unmarshal(p.HandlerConfig, &rpCfg)
 	}
-	if vals, ok := reqSet["Authorization"]; ok && len(vals) > 0 {
-		p.Toggles.RequestHeaders.Authorization = true
-		p.Toggles.RequestHeaders.AuthValue = vals[0]
+	if headerUp.Enabled {
+		rpCfg.HeaderUp = headerUp
+	}
+	if headerDown.Enabled {
+		rpCfg.HeaderDown = headerDown
+	}
+	if data, err := json.Marshal(rpCfg); err == nil {
+		p.HandlerConfig = data
+	}
+}
+
+func parseHeaderUpBlock(raw json.RawMessage) HeaderUpConfig {
+	var block struct {
+		Set     map[string][]string            `json:"set"`
+		Add     map[string][]string            `json:"add"`
+		Delete  []string                       `json:"delete"`
+		Replace map[string][]map[string]string `json:"replace"`
+	}
+	if json.Unmarshal(raw, &block) != nil {
+		return HeaderUpConfig{}
 	}
 
-	builtin, custom := classifyHeaders(reqSet, builtinRequestKeys)
-	p.Toggles.RequestHeaders.Builtin = append(p.Toggles.RequestHeaders.Builtin, builtin...)
-	p.Toggles.RequestHeaders.Custom = append(p.Toggles.RequestHeaders.Custom, custom...)
+	hasContent := len(block.Set) > 0 || len(block.Add) > 0 || len(block.Delete) > 0 || len(block.Replace) > 0
+	if !hasContent {
+		return HeaderUpConfig{}
+	}
+
+	cfg := HeaderUpConfig{Enabled: true}
+
+	if vals, ok := block.Set["Host"]; ok && len(vals) > 0 {
+		cfg.HostOverride = true
+		cfg.HostValue = vals[0]
+	}
+	if vals, ok := block.Set["Authorization"]; ok && len(vals) > 0 {
+		cfg.Authorization = true
+		cfg.AuthValue = vals[0]
+	}
+
+	var entries []HeaderEntry
+	appendOpsToEntries(&entries, block.Set, "set")
+	appendOpsToEntries(&entries, block.Add, "add")
+	appendDeleteEntries(&entries, block.Delete)
+	appendReplaceEntries(&entries, block.Replace)
+
+	for _, e := range entries {
+		if builtinHeaderUpKeys[e.Key] {
+			cfg.Builtin = append(cfg.Builtin, e)
+		} else {
+			cfg.Custom = append(cfg.Custom, e)
+		}
+	}
+
+	return cfg
+}
+
+func parseHeaderDownBlock(raw json.RawMessage) HeaderDownConfig {
+	var block struct {
+		Set      map[string][]string            `json:"set"`
+		Add      map[string][]string            `json:"add"`
+		Delete   []string                       `json:"delete"`
+		Replace  map[string][]map[string]string `json:"replace"`
+		Deferred bool                           `json:"deferred"`
+	}
+	if json.Unmarshal(raw, &block) != nil {
+		return HeaderDownConfig{}
+	}
+
+	hasContent := len(block.Set) > 0 || len(block.Add) > 0 || len(block.Delete) > 0 || len(block.Replace) > 0
+	if !hasContent {
+		return HeaderDownConfig{}
+	}
+
+	cfg := HeaderDownConfig{Enabled: true, Deferred: block.Deferred}
+
+	for _, key := range block.Delete {
+		if key == "Server" {
+			cfg.StripServer = true
+		}
+		if key == "X-Powered-By" {
+			cfg.StripPoweredBy = true
+		}
+	}
+
+	var entries []HeaderEntry
+	appendOpsToEntries(&entries, block.Set, "set")
+	appendOpsToEntries(&entries, block.Add, "add")
+	appendDeleteEntries(&entries, block.Delete)
+	appendReplaceEntries(&entries, block.Replace)
+
+	for _, e := range entries {
+		if builtinHeaderDownKeys[e.Key] {
+			cfg.Builtin = append(cfg.Builtin, e)
+		} else {
+			cfg.Custom = append(cfg.Custom, e)
+		}
+	}
+
+	return cfg
 }
 
 const requestURIPlaceholder = "{http.request.uri}"
