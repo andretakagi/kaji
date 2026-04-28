@@ -202,7 +202,7 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 
 	cfg := store.Get()
 	syncDomains := ToSyncDomains(cfg.Domains)
-	if _, err := caddy.SyncDomains(cc, syncDomains, ResolveIPsFromConfig(cfg), nil); err != nil {
+	if _, err := caddy.SyncDomains(cc, syncDomains, ResolveIPsFromConfig(cfg), ToSyncSkipRules(cfg.LogSkipRules)); err != nil {
 		cc.LoadConfig(currentConfig)
 		var rollbackCfg config.AppConfig
 		if json.Unmarshal(previousAppJSON, &rollbackCfg) == nil {

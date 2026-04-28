@@ -949,6 +949,81 @@ func TestParseZIPErrorMessages(t *testing.T) {
 	}
 }
 
+func TestRestorePreservesLogSkipRules(t *testing.T) {
+	_, cc := newMockCaddy(t, `{"apps":{}}`)
+
+	store := config.NewStore(&config.AppConfig{
+		CaddyAdminURL: "http://localhost:2019",
+		Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+	})
+
+	snapDir := t.TempDir()
+	ss := snapshot.NewStore(snapDir)
+
+	skipRules := map[string]config.LogSkipConfig{
+		"my-sink": {
+			Mode: "conditions",
+			Conditions: []config.SkipCondition{
+				{Type: "path", Value: "/health"},
+				{Type: "header", Key: "User-Agent", Value: "kube-probe"},
+			},
+		},
+	}
+
+	backup := &Backup{
+		Manifest:    validManifest("1.0.0"),
+		CaddyConfig: json.RawMessage(`{"apps":{}}`),
+		AppConfig: config.AppConfig{
+			CaddyAdminURL: "http://localhost:2019",
+			LogSkipRules:  skipRules,
+			Loki:          config.LokiConfig{BatchSize: 1048576, FlushIntervalSeconds: 5},
+		},
+	}
+
+	_, err := Restore(backup, cc, store, ss, false, "1.0.0")
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+
+	cfg := store.Get()
+	if len(cfg.LogSkipRules) != 1 {
+		t.Fatalf("LogSkipRules count = %d, want 1", len(cfg.LogSkipRules))
+	}
+
+	rule, ok := cfg.LogSkipRules["my-sink"]
+	if !ok {
+		t.Fatal("LogSkipRules missing key 'my-sink'")
+	}
+	if rule.Mode != "conditions" {
+		t.Errorf("rule.Mode = %q, want conditions", rule.Mode)
+	}
+	if len(rule.Conditions) != 2 {
+		t.Fatalf("rule.Conditions count = %d, want 2", len(rule.Conditions))
+	}
+	if rule.Conditions[0].Type != "path" || rule.Conditions[0].Value != "/health" {
+		t.Errorf("condition[0] = %+v, want path:/health", rule.Conditions[0])
+	}
+	if rule.Conditions[1].Type != "header" || rule.Conditions[1].Key != "User-Agent" || rule.Conditions[1].Value != "kube-probe" {
+		t.Errorf("condition[1] = %+v, want header:User-Agent:kube-probe", rule.Conditions[1])
+	}
+
+	// Verify ToSyncSkipRules produces the expected conversion
+	syncRules := ToSyncSkipRules(cfg.LogSkipRules)
+	if len(syncRules) != 1 {
+		t.Fatalf("ToSyncSkipRules count = %d, want 1", len(syncRules))
+	}
+	syncRule, ok := syncRules["my-sink"]
+	if !ok {
+		t.Fatal("ToSyncSkipRules missing key 'my-sink'")
+	}
+	if syncRule.Mode != "conditions" {
+		t.Errorf("syncRule.Mode = %q, want conditions", syncRule.Mode)
+	}
+	if len(syncRule.Conditions) != 2 {
+		t.Fatalf("syncRule.Conditions count = %d, want 2", len(syncRule.Conditions))
+	}
+}
+
 func TestToSyncDomains(t *testing.T) {
 	domains := []config.Domain{
 		{
