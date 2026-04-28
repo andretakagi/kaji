@@ -2359,7 +2359,7 @@ input:disabled + .toggle-slider {
 .log-config-loki-toggle-group {
 	display: flex;
 	align-items: baseline;
-	gap: 0.5rem;
+	gap: 0.75rem;
 }
 
 /* ========================================================================
@@ -2367,19 +2367,7 @@ input:disabled + .toggle-slider {
    ======================================================================== */
 
 .log-skip-rules {
-	border-top: 1px solid var(--border);
 	margin-top: 0.75rem;
-	padding-top: 0.25rem;
-}
-
-.log-skip-rules .card {
-	border: none;
-	background: none;
-	box-shadow: none;
-}
-
-.log-skip-rules .card-body-inner {
-	padding: 0;
 }
 
 .log-skip-rules-badge {
@@ -2446,9 +2434,10 @@ input:disabled + .toggle-slider {
 
 .log-skip-remove-btn {
 	flex-shrink: 0;
-	padding: 0.3rem 0.55rem;
-	font-size: 1rem;
-	line-height: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.35rem;
 	color: var(--text-secondary);
 }
 
@@ -2886,7 +2875,7 @@ input:disabled + .toggle-slider {
 }
 
 .log-config-loki-hint {
-	font-size: 0.65rem;
+	font-size: 0.75rem;
 	color: var(--text-muted);
 }
 

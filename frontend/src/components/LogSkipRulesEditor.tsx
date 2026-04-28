@@ -4,6 +4,7 @@ import type { Feedback } from "../hooks/useAsyncAction";
 import type { LogSkipConfig, SkipCondition } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
+import { DeleteIcon } from "./DeleteIcon";
 import { Toggle } from "./Toggle";
 
 type KeyedCondition = SkipCondition & { _key: number };
@@ -427,7 +428,7 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 														aria-label="Remove condition"
 														onClick={() => removeCondition(i)}
 													>
-														&times;
+														<DeleteIcon />
 													</button>
 												</div>
 												{error && <p className="log-skip-condition-error">{error}</p>}

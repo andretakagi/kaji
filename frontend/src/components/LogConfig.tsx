@@ -308,7 +308,7 @@ const LogConfigCard = memo(function LogConfigCard({
 	const [skipRulesError, setSkipRulesError] = useState("");
 	const isAccessLog = name === "kaji_access";
 	const isDiscard = sink.writer?.output === "discard";
-	const showSkipRules = !isDefault && !isDiscard;
+	const showSkipRules = !isDefault;
 
 	useEffect(() => {
 		if (!showSkipRules) return;
