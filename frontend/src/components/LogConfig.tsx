@@ -611,7 +611,7 @@ export function LogConfigList() {
 
 	return (
 		<>
-			<SectionHeader title="Log Configuration" />
+			<SectionHeader title="Log Sinks" />
 
 			{sinkEntries.length === 0 ? (
 				<div className="empty-state">
