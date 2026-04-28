@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
 	fetchAccessDomains,
 	fetchLogConfig,
+	fetchLogSkipRules,
 	fetchLokiConfig,
 	updateLogConfig,
 	updateLokiConfig,
@@ -9,11 +10,12 @@ import {
 import { useCaddyStatus } from "../contexts/CaddyContext";
 import { deepEqual } from "../deepEqual";
 import type { Feedback } from "../hooks/useAsyncAction";
-import type { CaddyLoggingConfig, CaddyLogSink, LokiConfig } from "../types/logs";
+import type { CaddyLoggingConfig, CaddyLogSink, LogSkipConfig, LokiConfig } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
 import CollapsibleCard from "./CollapsibleCard";
 import { ConfirmDeleteButton } from "./ConfirmDeleteButton";
 import LoadingState from "./LoadingState";
+import { LogSkipRulesEditor } from "./LogSkipRulesEditor";
 import { SectionHeader } from "./SectionHeader";
 import { Toggle } from "./Toggle";
 
@@ -302,8 +304,26 @@ const LogConfigCard = memo(function LogConfigCard({
 	onLokiToggle: (sink: string, enabled: boolean) => Promise<void>;
 }) {
 	const [removeError, setRemoveError] = useState("");
+	const [skipRules, setSkipRules] = useState<LogSkipConfig | null>(null);
+	const [skipRulesError, setSkipRulesError] = useState("");
 	const isAccessLog = name === "kaji_access";
 	const isDiscard = sink.writer?.output === "discard";
+	const showSkipRules = !isDefault;
+
+	useEffect(() => {
+		if (!showSkipRules) return;
+		let cancelled = false;
+		fetchLogSkipRules(name)
+			.then((r) => {
+				if (!cancelled) setSkipRules(r);
+			})
+			.catch((err) => {
+				if (!cancelled) setSkipRulesError(getErrorMessage(err, "Failed to load skip rules"));
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [name, showSkipRules]);
 
 	const [confirmDisable, setConfirmDisable] = useState(false);
 	const hasDomains = isAccessLog && accessDomains && accessDomains.length > 0;
@@ -400,6 +420,10 @@ const LogConfigCard = memo(function LogConfigCard({
 				lokiSinks={lokiSinks}
 				onLokiToggle={onLokiToggle}
 			/>
+			{showSkipRules && skipRulesError && <div className="feedback error">{skipRulesError}</div>}
+			{showSkipRules && skipRules && (
+				<LogSkipRulesEditor sinkName={name} initialRules={skipRules} />
+			)}
 			{isAccessLog && !isDiscard && (
 				<div className="access-log-domains">
 					{accessDomains && accessDomains.length > 0 ? (
@@ -587,7 +611,7 @@ export function LogConfigList() {
 
 	return (
 		<>
-			<SectionHeader title="Log Configuration" />
+			<SectionHeader title="Log Sinks" />
 
 			{sinkEntries.length === 0 ? (
 				<div className="empty-state">

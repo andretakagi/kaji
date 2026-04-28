@@ -2359,6 +2359,154 @@ input:disabled + .toggle-slider {
 .log-config-loki-toggle-group {
 	display: flex;
 	align-items: baseline;
+	gap: 0.75rem;
+}
+
+/* ========================================================================
+   Log Skip Rules Editor
+   ======================================================================== */
+
+.log-skip-rules {
+	margin-top: 0.75rem;
+}
+
+.log-skip-rules-badge {
+	display: inline-block;
+	font-size: 0.65rem;
+	font-weight: 700;
+	background: rgba(var(--accent-rgb), 0.25);
+	color: var(--text-secondary);
+	padding: 0.1rem 0.45rem;
+	border-radius: 10px;
+	letter-spacing: 0.02em;
+}
+
+.log-skip-rules-body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	padding-bottom: 0.5rem;
+}
+
+.log-skip-rules-mode-toggle {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.log-skip-condition-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.log-skip-condition-row-wrap {
+	display: flex;
+	flex-direction: column;
+}
+
+.log-skip-condition-row {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	flex-wrap: nowrap;
+}
+
+.log-skip-condition-error {
+	margin: 0.15rem 0 0;
+	font-size: 0.75rem;
+	color: var(--red);
+}
+
+.log-skip-condition-row select {
+	flex-shrink: 0;
+	width: auto;
+	min-width: 9rem;
+	padding: 0.35rem 0.55rem;
+	font-size: 0.8125rem;
+}
+
+.log-skip-condition-row input[type="text"] {
+	flex: 1;
+	min-width: 0;
+	padding: 0.35rem 0.55rem;
+	font-size: 0.8125rem;
+}
+
+.log-skip-remove-btn {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.35rem;
+	color: var(--text-secondary);
+}
+
+.log-skip-remove-btn:hover {
+	color: var(--text);
+}
+
+.log-skip-rules-empty {
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+	opacity: 0.7;
+	margin: 0;
+}
+
+.log-skip-rules-footer {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding-top: 0.5rem;
+	border-top: 1px solid var(--border);
+}
+
+.log-skip-advanced-editor {
+	width: 100%;
+	min-height: 10rem;
+	font-family: var(--font-mono);
+	font-size: 0.775rem;
+	padding: 0.6rem 0.75rem;
+	background: var(--bg);
+	color: var(--text);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+	resize: vertical;
+	box-sizing: border-box;
+}
+
+.log-skip-advanced-editor:focus {
+	border-color: var(--accent-hover);
+	outline: 2px solid var(--accent);
+	outline-offset: -1px;
+}
+
+.log-skip-rules-confirm {
+	background: rgba(var(--red-rgb, 200, 80, 80), 0.08);
+	border: 1px solid rgba(var(--red-rgb, 200, 80, 80), 0.25);
+	border-radius: var(--radius-sm);
+	padding: 0.75rem;
+	font-size: 0.8125rem;
+}
+
+.log-skip-rules-confirm p {
+	margin: 0 0 0.4rem;
+	color: var(--text);
+}
+
+.log-skip-rules-confirm ul {
+	margin: 0 0 0.6rem;
+	padding-left: 1.25rem;
+	color: var(--text-secondary);
+}
+
+.log-skip-rules-confirm code {
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	word-break: break-all;
+}
+
+.log-skip-rules-confirm-actions {
+	display: flex;
 	gap: 0.5rem;
 }
 
@@ -2727,7 +2875,7 @@ input:disabled + .toggle-slider {
 }
 
 .log-config-loki-hint {
-	font-size: 0.65rem;
+	font-size: 0.75rem;
 	color: var(--text-muted);
 }
 
@@ -3937,6 +4085,20 @@ input:disabled + .toggle-slider {
 	.mini-editor {
 		flex-direction: column;
 		align-items: flex-start;
+	}
+
+	/* Log skip rules */
+	.log-skip-condition-row {
+		flex-wrap: wrap;
+	}
+
+	.log-skip-condition-row select {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.log-skip-condition-row input[type="text"] {
+		flex-basis: 100%;
 	}
 }
 

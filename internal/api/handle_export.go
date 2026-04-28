@@ -38,7 +38,7 @@ func handleExportCaddyfile(cc *caddy.Client, store *config.ConfigStore) http.Han
 			return
 		}
 		cfg := store.Get()
-		content, err := caddy.GenerateCaddyfile(raw, cfg.LogFile)
+		content, err := caddy.GenerateCaddyfile(raw, cfg.LogFile, export.ToSyncSkipRules(cfg.LogSkipRules))
 		if err != nil {
 			log.Printf("handleExportCaddyfile: %v", err)
 			writeError(w, "failed to generate Caddyfile", http.StatusInternalServerError)

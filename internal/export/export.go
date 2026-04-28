@@ -40,7 +40,7 @@ func BuildZIP(w io.Writer, cc *caddy.Client, store *config.ConfigStore, ss *snap
 	}
 
 	cfg := store.Get()
-	caddyfileContent, err := caddy.GenerateCaddyfile(caddyConfig, cfg.LogFile)
+	caddyfileContent, err := caddy.GenerateCaddyfile(caddyConfig, cfg.LogFile, ToSyncSkipRules(cfg.LogSkipRules))
 	if err != nil {
 		return fmt.Errorf("generating caddyfile: %w", err)
 	}

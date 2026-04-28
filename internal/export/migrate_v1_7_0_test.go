@@ -184,14 +184,14 @@ func TestMigrateV170RunsForOldVersion(t *testing.T) {
 	}
 }
 
-func TestMigrateV170SkipsForCurrentVersion(t *testing.T) {
+func TestMigrateV170AppliesLaterMigrations(t *testing.T) {
 	m := map[string]any{}
 	changes, err := RunMigrations(m, "1.7.0")
 	if err != nil {
 		t.Fatalf("RunMigrations: %v", err)
 	}
-	if len(changes) != 0 {
-		t.Errorf("expected 0 changes for version 1.7.0, got %d: %v", len(changes), changes)
+	if len(changes) != 1 {
+		t.Errorf("expected 1 change for version 1.7.0 (log_skip_rules), got %d: %v", len(changes), changes)
 	}
 }
 

@@ -53,9 +53,11 @@ import type { Domain, Path, Subdomain } from "./types/domain";
 import type {
 	CaddyLogEntry,
 	CaddyLoggingConfig,
+	LogSkipConfig,
 	LokiConfig,
 	LokiStatus,
 	LokiTestResult,
+	SkipCondition,
 } from "./types/logs";
 import type { Snapshot, SnapshotIndex } from "./types/snapshots";
 
@@ -358,4 +360,33 @@ export function validatePath(data: unknown): Path {
 
 export function validateSubdomain(data: unknown): Subdomain {
 	return assertValid("Subdomain", data, isSubdomain);
+}
+
+export function validateLogSkipConfig(data: unknown): LogSkipConfig {
+	const obj = data as Record<string, unknown>;
+	if (obj.mode !== "basic" && obj.mode !== "advanced") {
+		throw new ValidationError("LogSkipConfig", data);
+	}
+	const conditions: SkipCondition[] = [];
+	if (Array.isArray(obj.conditions)) {
+		for (const c of obj.conditions) {
+			const cond = c as Record<string, unknown>;
+			if (
+				typeof cond.type !== "string" ||
+				typeof cond.value !== "string" ||
+				!["path", "path_regexp", "header", "remote_ip"].includes(cond.type)
+			) {
+				throw new ValidationError("SkipCondition", c);
+			}
+			if (cond.type === "header" && typeof cond.key !== "string") {
+				throw new ValidationError("SkipCondition", c);
+			}
+			conditions.push(cond as unknown as SkipCondition);
+		}
+	}
+	return {
+		mode: obj.mode as LogSkipConfig["mode"],
+		conditions,
+		advanced_raw: Array.isArray(obj.advanced_raw) ? (obj.advanced_raw as unknown[]) : null,
+	};
 }

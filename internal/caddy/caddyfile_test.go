@@ -175,7 +175,7 @@ func TestParseCaddyfileAdminAddr(t *testing.T) {
 // minimal site block with only a reverse_proxy directive.
 func TestGenerateCaddyfileMinimal(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestGenerateCaddyfileMinimal(t *testing.T) {
 // produced correctly when ACME email, auto_https off, and metrics are set.
 func TestGenerateCaddyfileGlobalOptions(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "admin@example.com", "off", true, true)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestGenerateCaddyfileGlobalOptions(t *testing.T) {
 // block is still written when auto_https is off but no ACME email is set.
 func TestGenerateCaddyfileGlobalOptionsNoEmail(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestGenerateCaddyfileGlobalOptionsNoEmail(t *testing.T) {
 // appears without a nested block when per_host is false.
 func TestGenerateCaddyfileMetricsNoPerHost(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "off", true, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestGenerateCaddyfileCompression(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestGenerateCaddyfileSecurityHeaders(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestGenerateCaddyfileCORSWildcard(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestGenerateCaddyfileCORSSingleOrigin(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -344,7 +344,7 @@ func TestGenerateCaddyfileBasicAuth(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -366,7 +366,7 @@ func TestGenerateCaddyfileTLSSkipVerify(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -389,7 +389,7 @@ func TestGenerateCaddyfileWebSocket(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -417,7 +417,7 @@ func TestGenerateCaddyfileLoadBalancing(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestGenerateCaddyfileLoadBalancingFirst(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -470,7 +470,7 @@ func TestGenerateCaddyfileForceHTTPS(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -673,7 +673,7 @@ func TestGenerateCaddyfileLogFileWriter(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -702,7 +702,7 @@ func TestGenerateCaddyfileLogStdout(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -728,7 +728,7 @@ func TestGenerateCaddyfileLogIncludeExclude(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -753,7 +753,7 @@ func TestGenerateCaddyfileLogDefaultWithExtras(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -777,7 +777,7 @@ func TestGenerateCaddyfileLogFileNoRollSettings(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -804,7 +804,7 @@ func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -846,7 +846,7 @@ func TestGenerateCaddyfileMultipleServers(t *testing.T) {
 		"srv0": route1,
 	})
 
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -908,7 +908,7 @@ func TestGenerateCaddyfileAccessLog(t *testing.T) {
 		t.Fatalf("failed to marshal config: %v", err)
 	}
 
-	out, err := GenerateCaddyfile(json.RawMessage(data), "")
+	out, err := GenerateCaddyfile(json.RawMessage(data), "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -940,7 +940,7 @@ func TestGenerateCaddyfileCacheControl(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -963,7 +963,7 @@ func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -988,7 +988,7 @@ func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1014,7 +1014,7 @@ func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1042,7 +1042,7 @@ func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1063,7 +1063,7 @@ func TestGenerateCaddyfileNoHeadersNoDirectives(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "")
+	out, err := GenerateCaddyfile(cfg, "", nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1071,4 +1071,195 @@ func TestGenerateCaddyfileNoHeadersNoDirectives(t *testing.T) {
 	assertNotContains(t, out, "header ", "no header directives")
 	assertNotContains(t, out, "header_up", "no header_up directives")
 	assertContains(t, out, "reverse_proxy localhost:8080\n", "inline reverse_proxy")
+}
+
+func buildAccessLogConfig(t *testing.T, domain string) json.RawMessage {
+	t.Helper()
+	route, err := BuildDomain(DomainParams{
+		Domain:   domain,
+		Upstream: "localhost:8080",
+	})
+	if err != nil {
+		t.Fatalf("BuildDomain failed: %v", err)
+	}
+	srv := map[string]any{
+		"routes": []json.RawMessage{route},
+		"logs": map[string]any{
+			"logger_names": map[string]string{
+				domain: "kaji_access",
+			},
+		},
+	}
+	cfg := map[string]any{
+		"apps": map[string]any{
+			"http": map[string]any{
+				"servers": map[string]any{
+					"srv0": srv,
+				},
+			},
+		},
+		"logging": map[string]any{
+			"logs": map[string]any{
+				"kaji_access": map[string]any{
+					"writer": map[string]any{
+						"output":   "file",
+						"filename": "/var/log/caddy/access.log",
+					},
+				},
+			},
+		},
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("failed to marshal access log config: %v", err)
+	}
+	return json.RawMessage(data)
+}
+
+func TestGenerateCaddyfileSkipLogBasicMode(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+	skipRules := map[string]LogSkipRule{
+		"kaji_access": {
+			Mode: "basic",
+			Conditions: []SkipConditionEntry{
+				{Type: "path", Value: "/health"},
+				{Type: "path", Value: "/ready"},
+				{Type: "path_regexp", Value: `\.(js|css)$`},
+				{Type: "header", Key: "User-Agent", Value: "*kube-probe*"},
+				{Type: "remote_ip", Value: "10.0.0.0/8"},
+			},
+		},
+	}
+
+	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "@logskip {", "logskip named matcher")
+	assertContains(t, out, "path /health /ready", "grouped paths")
+	assertContains(t, out, `path_regexp \.(js|css)$`, "path_regexp condition")
+	assertContains(t, out, "header User-Agent *kube-probe*", "header condition")
+	assertContains(t, out, "remote_ip 10.0.0.0/8", "remote_ip condition")
+	assertContains(t, out, "skip_log @logskip", "skip_log directive")
+}
+
+func TestGenerateCaddyfileSkipLogAdvancedMode(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+	advancedRaw := json.RawMessage(`[{"path":["/health","/ready"],"remote_ip":{"ranges":["192.168.1.0/24"]}}]`)
+	skipRules := map[string]LogSkipRule{
+		"kaji_access": {
+			Mode:        "advanced",
+			AdvancedRaw: advancedRaw,
+		},
+	}
+
+	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "@logskip {", "logskip named matcher")
+	assertContains(t, out, "path /health /ready", "advanced path condition")
+	assertContains(t, out, "remote_ip 192.168.1.0/24", "advanced remote_ip condition")
+	assertContains(t, out, "skip_log @logskip", "skip_log directive")
+}
+
+func TestGenerateCaddyfileSkipLogNilRules(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+
+	out, err := GenerateCaddyfile(cfg, "", nil)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertNotContains(t, out, "@logskip", "no logskip matcher when no rules")
+	assertNotContains(t, out, "skip_log", "no skip_log when no rules")
+}
+
+func TestGenerateCaddyfileSkipLogEmptyConditions(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+	skipRules := map[string]LogSkipRule{
+		"kaji_access": {
+			Mode:       "basic",
+			Conditions: []SkipConditionEntry{},
+		},
+	}
+
+	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertNotContains(t, out, "@logskip", "no logskip matcher when empty conditions")
+	assertNotContains(t, out, "skip_log", "no skip_log when empty conditions")
+}
+
+func TestGenerateCaddyfileSkipLogNoMatchingSink(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+	skipRules := map[string]LogSkipRule{
+		"other_sink": {
+			Mode: "basic",
+			Conditions: []SkipConditionEntry{
+				{Type: "path", Value: "/health"},
+			},
+		},
+	}
+
+	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertNotContains(t, out, "@logskip", "no logskip when sink name doesn't match")
+}
+
+func TestGenerateCaddyfileSkipLogBeforeLogBlock(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+	skipRules := map[string]LogSkipRule{
+		"kaji_access": {
+			Mode: "basic",
+			Conditions: []SkipConditionEntry{
+				{Type: "path", Value: "/health"},
+			},
+		},
+	}
+
+	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	skipIdx := strings.Index(out, "skip_log @logskip")
+	logIdx := strings.Index(out, "\tlog {")
+	if skipIdx < 0 {
+		t.Fatal("skip_log directive not found")
+	}
+	if logIdx < 0 {
+		t.Fatal("log block not found")
+	}
+	if skipIdx > logIdx {
+		t.Error("skip_log should appear before the log block")
+	}
+}
+
+func TestGenerateCaddyfileSkipLogUnsupportedMatcher(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+	advancedRaw := json.RawMessage(`[{"path":["/health"],"method":{"methods":["GET"]},"query":{"key":["val"]}}]`)
+	skipRules := map[string]LogSkipRule{
+		"kaji_access": {
+			Mode:        "advanced",
+			AdvancedRaw: advancedRaw,
+		},
+	}
+
+	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "path /health", "known path matcher still rendered")
+	assertContains(t, out, "# unsupported matcher: method", "unknown method matcher gets comment")
+	assertContains(t, out, "# unsupported matcher: query", "unknown query matcher gets comment")
+	assertContains(t, out, "skip_log @logskip", "skip_log directive present")
 }

@@ -202,7 +202,7 @@ func Restore(backup *Backup, cc *caddy.Client, store *config.ConfigStore, ss *sn
 
 	cfg := store.Get()
 	syncDomains := ToSyncDomains(cfg.Domains)
-	if _, err := caddy.SyncDomains(cc, syncDomains, ResolveIPsFromConfig(cfg)); err != nil {
+	if _, err := caddy.SyncDomains(cc, syncDomains, ResolveIPsFromConfig(cfg), ToSyncSkipRules(cfg.LogSkipRules)); err != nil {
 		cc.LoadConfig(currentConfig)
 		var rollbackCfg config.AppConfig
 		if json.Unmarshal(previousAppJSON, &rollbackCfg) == nil {
@@ -338,6 +338,29 @@ func restoreSnapshots(ss *snapshot.Store, data *SnapshotData) error {
 	data.Index.Snapshots = combined
 
 	return ss.ReplaceIndex(data.Index)
+}
+
+func ToSyncSkipRules(rules map[string]config.LogSkipConfig) map[string]caddy.LogSkipRule {
+	if len(rules) == 0 {
+		return nil
+	}
+	out := make(map[string]caddy.LogSkipRule, len(rules))
+	for name, r := range rules {
+		conditions := make([]caddy.SkipConditionEntry, len(r.Conditions))
+		for i, c := range r.Conditions {
+			conditions[i] = caddy.SkipConditionEntry{
+				Type:  c.Type,
+				Key:   c.Key,
+				Value: c.Value,
+			}
+		}
+		out[name] = caddy.LogSkipRule{
+			Mode:        r.Mode,
+			Conditions:  conditions,
+			AdvancedRaw: r.AdvancedRaw,
+		}
+	}
+	return out
 }
 
 func ToSyncDomains(domains []config.Domain) []caddy.SyncDomain {

@@ -33,6 +33,7 @@ import type {
 	CaddyLogSink,
 	LogQueryParams,
 	LogQueryResponse,
+	LogSkipConfig,
 	LokiConfig,
 	LokiStatus,
 	LokiTestResult,
@@ -63,6 +64,7 @@ import {
 	validateIPLists,
 	validateIPListUsage,
 	validateLoggingConfig,
+	validateLogSkipConfig,
 	validateLogs,
 	validateLokiConfig,
 	validateLokiStatus,
@@ -571,6 +573,22 @@ export function updateLokiConfig(config: LokiConfig): Promise<{ status: string }
 
 export function testLokiConnection(): Promise<LokiTestResult> {
 	return request("/api/loki/test", { method: "POST" }, validateLokiTestResult);
+}
+
+export function fetchLogSkipRules(sinkName: string): Promise<LogSkipConfig> {
+	return request(
+		`/api/log-skip-rules/${encodeURIComponent(sinkName)}`,
+		undefined,
+		validateLogSkipConfig,
+	);
+}
+
+export function updateLogSkipRules(sinkName: string, rules: LogSkipConfig): Promise<LogSkipConfig> {
+	return request(
+		`/api/log-skip-rules/${encodeURIComponent(sinkName)}`,
+		{ method: "PUT", ...jsonBody(rules) },
+		validateLogSkipConfig,
+	);
 }
 
 function normalizeDomain(d: Domain): Domain {

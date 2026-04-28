@@ -219,7 +219,7 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 	return cfg, nil
 }
 
-func GenerateCaddyfile(raw json.RawMessage, logFile string) (string, error) {
+func GenerateCaddyfile(raw json.RawMessage, logFile string, logSkipRules map[string]LogSkipRule) (string, error) {
 	cfg, err := parseCaddyfileConfig(raw, logFile)
 	if err != nil {
 		return "", fmt.Errorf("parsing config for caddyfile generation: %w", err)
@@ -245,7 +245,13 @@ func GenerateCaddyfile(raw json.RawMessage, logFile string) (string, error) {
 	for _, name := range serverNames {
 		srv := cfg.Servers[name]
 		for _, route := range srv.Domains {
-			writeSiteBlock(&b, route, logWriter)
+			var skipRule *LogSkipRule
+			if route.Toggles.AccessLog != "" && logSkipRules != nil {
+				if r, ok := logSkipRules[route.Toggles.AccessLog]; ok {
+					skipRule = &r
+				}
+			}
+			writeSiteBlock(&b, route, logWriter, skipRule)
 		}
 	}
 
@@ -398,7 +404,7 @@ func writeLogWriter(b *strings.Builder, w *caddyfileLogWriter) {
 	}
 }
 
-func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogWriter) {
+func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogWriter, skipRules *LogSkipRule) {
 	if p.Toggles.ForceHTTPS {
 		b.WriteString("http://" + p.Domain + " {\n")
 		b.WriteString("\tredir https://{host}{uri} 301\n")
@@ -506,6 +512,10 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 		b.WriteString("\treverse_proxy " + p.Upstream + "\n")
 	}
 
+	if skipRules != nil && hasSkipConditions(*skipRules) {
+		writeSkipLogBlock(b, *skipRules)
+	}
+
 	if p.Toggles.AccessLog != "" && logWriter != nil {
 		b.WriteString("\tlog {\n")
 		writeLogWriter(b, logWriter)
@@ -514,4 +524,97 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 	}
 
 	b.WriteString("}\n\n")
+}
+
+func hasSkipConditions(rules LogSkipRule) bool {
+	if rules.Mode == "advanced" {
+		return len(rules.AdvancedRaw) > 0 && string(rules.AdvancedRaw) != "null"
+	}
+	return len(rules.Conditions) > 0
+}
+
+func writeSkipLogBlock(b *strings.Builder, rules LogSkipRule) {
+	b.WriteString("\t@logskip {\n")
+
+	if rules.Mode == "advanced" && len(rules.AdvancedRaw) > 0 {
+		var sets []map[string]json.RawMessage
+		if json.Unmarshal(rules.AdvancedRaw, &sets) == nil {
+			for _, set := range sets {
+				writeAdvancedMatcherLines(b, set)
+			}
+		}
+	} else {
+		var paths []string
+		var regexes []string
+		for _, cond := range rules.Conditions {
+			switch cond.Type {
+			case "path":
+				paths = append(paths, cond.Value)
+			case "path_regexp":
+				regexes = append(regexes, cond.Value)
+			case "header":
+				b.WriteString("\t\theader " + cond.Key + " " + cond.Value + "\n")
+			case "remote_ip":
+				b.WriteString("\t\tremote_ip " + cond.Value + "\n")
+			}
+		}
+		if len(paths) > 0 {
+			b.WriteString("\t\tpath " + strings.Join(paths, " ") + "\n")
+		}
+		for _, re := range regexes {
+			b.WriteString("\t\tpath_regexp " + re + "\n")
+		}
+	}
+
+	b.WriteString("\t}\n")
+	b.WriteString("\tskip_log @logskip\n")
+}
+
+func writeAdvancedMatcherLines(b *strings.Builder, set map[string]json.RawMessage) {
+	if pathRaw, ok := set["path"]; ok {
+		var paths []string
+		if json.Unmarshal(pathRaw, &paths) == nil && len(paths) > 0 {
+			b.WriteString("\t\tpath " + strings.Join(paths, " ") + "\n")
+		}
+	}
+	if regexpRaw, ok := set["path_regexp"]; ok {
+		var re struct {
+			Pattern string `json:"pattern"`
+		}
+		if json.Unmarshal(regexpRaw, &re) == nil && re.Pattern != "" {
+			b.WriteString("\t\tpath_regexp " + re.Pattern + "\n")
+		}
+	}
+	if headerRaw, ok := set["header"]; ok {
+		var headers map[string][]string
+		if json.Unmarshal(headerRaw, &headers) == nil {
+			for key, vals := range headers {
+				for _, v := range vals {
+					b.WriteString("\t\theader " + key + " " + v + "\n")
+				}
+			}
+		}
+	}
+	if ipRaw, ok := set["remote_ip"]; ok {
+		var ip struct {
+			Ranges []string `json:"ranges"`
+		}
+		if json.Unmarshal(ipRaw, &ip) == nil {
+			for _, r := range ip.Ranges {
+				b.WriteString("\t\tremote_ip " + r + "\n")
+			}
+		}
+	}
+
+	known := map[string]bool{"path": true, "path_regexp": true, "header": true, "remote_ip": true}
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		if !known[k] {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		b.WriteString("\t\t# unsupported matcher: " + k + "\n")
+	}
 }

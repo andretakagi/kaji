@@ -292,3 +292,41 @@ func TestSetNestedDefaultExistingNonMap(t *testing.T) {
 		t.Errorf("expected empty message when intermediate is not a map, got %q", msg)
 	}
 }
+
+func TestMigrateV180AddsLogSkipRules(t *testing.T) {
+	m := map[string]any{}
+	changes := migrateV180(m)
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 change, got %d: %v", len(changes), changes)
+	}
+	val, ok := m["log_skip_rules"]
+	if !ok {
+		t.Fatal("log_skip_rules not set")
+	}
+	rules, ok := val.(map[string]any)
+	if !ok {
+		t.Fatalf("log_skip_rules = %T, want map[string]any", val)
+	}
+	if len(rules) != 0 {
+		t.Errorf("log_skip_rules should be empty, got %v", rules)
+	}
+}
+
+func TestMigrateV180PreservesExistingLogSkipRules(t *testing.T) {
+	m := map[string]any{
+		"log_skip_rules": map[string]any{
+			"sink1": map[string]any{"mode": "any"},
+		},
+	}
+	changes := migrateV180(m)
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes when log_skip_rules already set, got %d: %v", len(changes), changes)
+	}
+	rules, ok := m["log_skip_rules"].(map[string]any)
+	if !ok {
+		t.Fatal("log_skip_rules should still be a map")
+	}
+	if _, ok := rules["sink1"]; !ok {
+		t.Error("existing sink1 entry should be preserved")
+	}
+}

@@ -129,6 +129,9 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("PUT /api/loki/config", handleLokiConfigUpdate(store, pipeline))
 	mux.HandleFunc("POST /api/loki/test", handleLokiTest(store))
 
+	mux.HandleFunc("GET /api/log-skip-rules/{sinkName}", handleLogSkipRulesGet(store))
+	mux.HandleFunc("PUT /api/log-skip-rules/{sinkName}", handleLogSkipRulesPut(store, cc, ss, version))
+
 	return accessLog(limitRequestBody(requireAuth(store, mux)))
 }
 

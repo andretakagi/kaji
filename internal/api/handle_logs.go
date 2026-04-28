@@ -198,6 +198,14 @@ func handleLogConfigUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snap
 						if err := cc.ClearDomainsForSink(name); err != nil {
 							log.Printf("handleLogConfigUpdate: clear domains for removed sink %q: %v", name, err)
 						}
+						if err := store.Update(func(cfg config.AppConfig) (*config.AppConfig, error) {
+							if cfg.LogSkipRules != nil {
+								delete(cfg.LogSkipRules, name)
+							}
+							return &cfg, nil
+						}); err != nil {
+							log.Printf("handleLogConfigUpdate: remove skip rules for deleted sink %q: %v", name, err)
+						}
 					}
 				}
 			}

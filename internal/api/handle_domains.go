@@ -41,7 +41,8 @@ func ipResolver(store *config.ConfigStore) func(string) ([]string, string, error
 func syncAfterMutation(cc *caddy.Client, store *config.ConfigStore) error {
 	cfg := store.Get()
 	syncDomains := export.ToSyncDomains(cfg.Domains)
-	_, err := caddy.SyncDomains(cc, syncDomains, ipResolver(store))
+	skipRules := export.ToSyncSkipRules(cfg.LogSkipRules)
+	_, err := caddy.SyncDomains(cc, syncDomains, ipResolver(store), skipRules)
 	return err
 }
 

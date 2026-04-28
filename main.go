@@ -281,7 +281,7 @@ func runStartupMigration(store *config.ConfigStore, cc *caddy.Client, ver string
 
 	cfg = store.Get()
 	syncDomains := export.ToSyncDomains(cfg.Domains)
-	if _, err := caddy.SyncDomains(cc, syncDomains, export.ResolveIPsFromConfig(cfg)); err != nil {
+	if _, err := caddy.SyncDomains(cc, syncDomains, export.ResolveIPsFromConfig(cfg), nil); err != nil {
 		log.Printf("Migration: failed to sync domains to Caddy: %v", err)
 	}
 }

@@ -89,3 +89,15 @@ export interface LokiTestResult {
 	success: boolean;
 	message: string;
 }
+
+export interface SkipCondition {
+	type: "path" | "path_regexp" | "header" | "remote_ip";
+	key?: string;
+	value: string;
+}
+
+export interface LogSkipConfig {
+	mode: "basic" | "advanced";
+	conditions: SkipCondition[];
+	advanced_raw: unknown[] | null;
+}
