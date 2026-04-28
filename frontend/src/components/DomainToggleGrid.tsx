@@ -110,7 +110,7 @@ function BasicAuthGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) {
 		<div className={cn("toggle-group", toggles.basic_auth.enabled && "toggle-group-open")}>
 			<ToggleItem
 				label="Basic Auth"
-				description="HTTP basic authentication"
+				description="Basic authentication"
 				checked={toggles.basic_auth.enabled}
 				onChange={(v) => onUpdate("basic_auth", { ...toggles.basic_auth, enabled: v })}
 				disabled={disabled}
