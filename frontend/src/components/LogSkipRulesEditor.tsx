@@ -130,11 +130,12 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 	const [feedback, setFeedback] = useState<Feedback | null>(null);
 	const [confirmSwitch, setConfirmSwitch] = useState<{ dropped: string[] } | null>(null);
 	const [expanded, setExpanded] = useState(false);
+	const [savedCount, setSavedCount] = useState(() => {
+		if (initialRules.mode === "advanced") return initialRules.advanced_raw?.length ?? 0;
+		return initialRules.conditions?.length ?? 0;
+	});
 
 	const isAdvanced = rules.mode === "advanced";
-	const conditionCount = isAdvanced
-		? (rules.advanced_raw?.length ?? 0)
-		: (rules.conditions?.length ?? 0);
 
 	function addCondition() {
 		const next: SkipCondition = { type: "path", value: "" };
@@ -235,6 +236,9 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 			if (saved.mode === "advanced" && saved.advanced_raw) {
 				setAdvancedText(JSON.stringify(saved.advanced_raw, null, 2));
 			}
+			const nextCount =
+				saved.mode === "advanced" ? (saved.advanced_raw?.length ?? 0) : savedConditions.length;
+			setSavedCount(nextCount);
 			setFeedback({ msg: "Saved", type: "success" });
 			setTimeout(() => setFeedback(null), 3000);
 			onSaved?.();
@@ -255,7 +259,7 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 			>
 				<span className="log-skip-rules-title">
 					Log Skip Rules
-					{conditionCount > 0 && <span className="log-skip-rules-badge">{conditionCount}</span>}
+					{savedCount > 0 && <span className="log-skip-rules-badge">{savedCount}</span>}
 				</span>
 				<span className={`log-skip-rules-chevron${expanded ? " open" : ""}`} />
 			</button>
