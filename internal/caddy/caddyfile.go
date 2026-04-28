@@ -605,4 +605,16 @@ func writeAdvancedMatcherLines(b *strings.Builder, set map[string]json.RawMessag
 			}
 		}
 	}
+
+	known := map[string]bool{"path": true, "path_regexp": true, "header": true, "remote_ip": true}
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		if !known[k] {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		b.WriteString("\t\t# unsupported matcher: " + k + "\n")
+	}
 }

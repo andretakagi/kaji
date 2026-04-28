@@ -1242,3 +1242,24 @@ func TestGenerateCaddyfileSkipLogBeforeLogBlock(t *testing.T) {
 		t.Error("skip_log should appear before the log block")
 	}
 }
+
+func TestGenerateCaddyfileSkipLogUnsupportedMatcher(t *testing.T) {
+	cfg := buildAccessLogConfig(t, "example.com")
+	advancedRaw := json.RawMessage(`[{"path":["/health"],"method":{"methods":["GET"]},"query":{"key":["val"]}}]`)
+	skipRules := map[string]LogSkipRule{
+		"kaji_access": {
+			Mode:        "advanced",
+			AdvancedRaw: advancedRaw,
+		},
+	}
+
+	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "path /health", "known path matcher still rendered")
+	assertContains(t, out, "# unsupported matcher: method", "unknown method matcher gets comment")
+	assertContains(t, out, "# unsupported matcher: query", "unknown query matcher gets comment")
+	assertContains(t, out, "skip_log @logskip", "skip_log directive present")
+}
