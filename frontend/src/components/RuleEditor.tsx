@@ -1,5 +1,6 @@
 import type { HandlerConfigValue, Rule, RuleHandlerType } from "../types/domain";
 import {
+	defaultErrorConfig,
 	defaultFileServerConfig,
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
@@ -25,6 +26,8 @@ function defaultConfigFor(type: RuleHandlerType): HandlerConfigValue {
 			return { ...defaultRedirectConfig };
 		case "file_server":
 			return { ...defaultFileServerConfig };
+		case "error":
+			return { ...defaultErrorConfig };
 		case "none":
 			return {};
 	}
