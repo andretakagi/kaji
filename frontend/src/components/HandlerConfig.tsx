@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
 import { cn } from "../cn";
-import type { RequestHeaders } from "../types/api";
+import type { HeaderUpConfig } from "../types/api";
 import type {
 	ErrorConfig,
 	FileServerConfig,
@@ -69,8 +69,8 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 					/>
 					<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
 					<RequestHeadersSection
-						config={rpConfig.request_headers}
-						onChange={(rh) => update({ request_headers: rh })}
+						config={rpConfig.header_up}
+						onChange={(rh) => update({ header_up: rh })}
 						disabled={disabled}
 					/>
 				</div>
@@ -790,13 +790,13 @@ function RequestHeadersSection({
 	onChange,
 	disabled,
 }: {
-	config: RequestHeaders;
-	onChange: (config: RequestHeaders) => void;
+	config: HeaderUpConfig;
+	onChange: (config: HeaderUpConfig) => void;
 	disabled?: boolean;
 }) {
 	const idPrefix = useId();
 
-	function update(patch: Partial<RequestHeaders>) {
+	function update(patch: Partial<HeaderUpConfig>) {
 		onChange({ ...config, ...patch });
 	}
 

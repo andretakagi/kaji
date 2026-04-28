@@ -87,9 +87,13 @@ export interface AuthStatus {
 	has_password: boolean;
 }
 
+export type HeaderOperation = "set" | "add" | "delete" | "replace";
+
 export interface HeaderEntry {
 	key: string;
 	value: string;
+	operation: HeaderOperation;
+	search?: string;
 	enabled: boolean;
 }
 
@@ -100,11 +104,28 @@ export interface ResponseHeaders {
 	cors_origins: string[];
 	cache_control: boolean;
 	x_robots_tag: boolean;
+	deferred: boolean;
 	builtin: HeaderEntry[];
 	custom: HeaderEntry[];
 }
 
-export interface RequestHeaders {
+export interface DomainRequestHeaders {
+	enabled: boolean;
+	x_forwarded_for: boolean;
+	x_real_ip: boolean;
+	x_forwarded_proto: boolean;
+	x_forwarded_host: boolean;
+	x_request_id: boolean;
+	builtin: HeaderEntry[];
+	custom: HeaderEntry[];
+}
+
+export interface HeadersConfig {
+	request: DomainRequestHeaders;
+	response: ResponseHeaders;
+}
+
+export interface HeaderUpConfig {
 	enabled: boolean;
 	host_override: boolean;
 	host_value: string;
@@ -114,8 +135,13 @@ export interface RequestHeaders {
 	custom: HeaderEntry[];
 }
 
-export interface HeadersConfig {
-	response: ResponseHeaders;
+export interface HeaderDownConfig {
+	enabled: boolean;
+	strip_server: boolean;
+	strip_powered_by: boolean;
+	deferred: boolean;
+	builtin: HeaderEntry[];
+	custom: HeaderEntry[];
 }
 
 export interface ChangePasswordRequest {

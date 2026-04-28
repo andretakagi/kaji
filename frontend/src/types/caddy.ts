@@ -32,14 +32,32 @@ export interface ReverseProxyHandler {
 	headers?: {
 		request?: {
 			set?: Record<string, string[]>;
+			add?: Record<string, string[]>;
+			delete?: string[];
+			replace?: Record<string, { search: string; replace: string }[]>;
+		};
+		response?: {
+			set?: Record<string, string[]>;
+			add?: Record<string, string[]>;
+			delete?: string[];
+			deferred?: boolean;
 		};
 	};
 }
 
 export interface HeadersHandler {
 	handler: "headers";
+	request?: {
+		set?: Record<string, string[]>;
+		add?: Record<string, string[]>;
+		delete?: string[];
+		replace?: Record<string, { search: string; replace: string }[]>;
+	};
 	response?: {
 		set?: Record<string, string[]>;
+		add?: Record<string, string[]>;
+		delete?: string[];
+		deferred?: boolean;
 	};
 }
 
@@ -90,10 +108,22 @@ export interface CaddyHandler {
 	};
 	response?: {
 		set?: Record<string, string[]>;
+		add?: Record<string, string[]>;
+		delete?: string[];
+		deferred?: boolean;
 	};
 	headers?: {
 		request?: {
 			set?: Record<string, string[]>;
+			add?: Record<string, string[]>;
+			delete?: string[];
+			replace?: Record<string, { search: string; replace: string }[]>;
+		};
+		response?: {
+			set?: Record<string, string[]>;
+			add?: Record<string, string[]>;
+			delete?: string[];
+			deferred?: boolean;
 		};
 	};
 	providers?: {

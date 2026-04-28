@@ -36,7 +36,7 @@ function useKeyedEntries(entries: HeaderEntry[]) {
 		nextId.current += 1;
 		const newEntry: KeyedEntry = {
 			id: nextId.current,
-			entry: { key: "", value: "", enabled: true },
+			entry: { key: "", value: "", operation: "set" as const, enabled: true },
 		};
 		const next = [...keyed, newEntry];
 		setKeyed(next);
