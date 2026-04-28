@@ -218,21 +218,23 @@ export default function WizardReview({ data, onEditStep }: Props) {
 				</div>
 			</div>
 
-			{data.subdomains.length > 0 && (
-				<div className="wizard-review-section">
-					<div className="wizard-review-header">
-						<h4>Subdomains</h4>
-						<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(2)}>
-							Edit
-						</button>
-					</div>
+			<div className="wizard-review-section">
+				<div className="wizard-review-header">
+					<h4>Subdomains</h4>
+					<button type="button" className="btn btn-ghost btn-sm" onClick={() => onEditStep(2)}>
+						Edit
+					</button>
+				</div>
+				{data.subdomains.length > 0 ? (
 					<div className="wizard-review-item-list">
 						{data.subdomains.map((sub) => (
 							<SubdomainReviewItem key={sub.key} sub={sub} domainName={data.name} />
 						))}
 					</div>
-				</div>
-			)}
+				) : (
+					<span className="text-muted">No subdomains</span>
+				)}
+			</div>
 
 			<div className="wizard-review-section">
 				<div className="wizard-review-header">
