@@ -2372,29 +2372,14 @@ input:disabled + .toggle-slider {
 	padding-top: 0.25rem;
 }
 
-.log-skip-rules-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	background: none;
+.log-skip-rules .card {
 	border: none;
-	padding: 0.5rem 0;
-	cursor: pointer;
-	color: var(--text);
-	font-size: 0.8125rem;
-	font-weight: 600;
-	text-align: left;
+	background: none;
+	box-shadow: none;
 }
 
-.log-skip-rules-header:hover {
-	color: var(--text-emphasis);
-}
-
-.log-skip-rules-title {
-	display: flex;
-	align-items: center;
-	gap: 0.4rem;
+.log-skip-rules .card-body-inner {
+	padding: 0;
 }
 
 .log-skip-rules-badge {
@@ -2406,21 +2391,6 @@ input:disabled + .toggle-slider {
 	padding: 0.1rem 0.45rem;
 	border-radius: 10px;
 	letter-spacing: 0.02em;
-}
-
-.log-skip-rules-chevron {
-	display: inline-block;
-	width: 0.55rem;
-	height: 0.55rem;
-	border-right: 2px solid var(--text-secondary);
-	border-bottom: 2px solid var(--text-secondary);
-	transform: rotate(45deg);
-	transition: transform 0.15s;
-	flex-shrink: 0;
-}
-
-.log-skip-rules-chevron.open {
-	transform: rotate(-135deg);
 }
 
 .log-skip-rules-body {

@@ -3,6 +3,8 @@ import { updateLogSkipRules } from "../api";
 import type { Feedback } from "../hooks/useAsyncAction";
 import type { LogSkipConfig, SkipCondition } from "../types/logs";
 import { getErrorMessage } from "../utils/getErrorMessage";
+import CollapsibleCard from "./CollapsibleCard";
+import { Toggle } from "./Toggle";
 
 type KeyedCondition = SkipCondition & { _key: number };
 
@@ -129,7 +131,6 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 	const [saving, setSaving] = useState(false);
 	const [feedback, setFeedback] = useState<Feedback | null>(null);
 	const [confirmSwitch, setConfirmSwitch] = useState<{ dropped: string[] } | null>(null);
-	const [expanded, setExpanded] = useState(false);
 	const [savedCount, setSavedCount] = useState(() => {
 		if (initialRules.mode === "advanced") return initialRules.advanced_raw?.length ?? 0;
 		return initialRules.conditions?.length ?? 0;
@@ -249,22 +250,16 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 		}
 	}
 
+	const title = (
+		<>
+			Log Skip Rules
+			{savedCount > 0 && <span className="log-skip-rules-badge">{savedCount}</span>}
+		</>
+	);
+
 	return (
 		<div className="log-skip-rules">
-			<button
-				type="button"
-				className="log-skip-rules-header"
-				aria-expanded={expanded}
-				onClick={() => setExpanded((v) => !v)}
-			>
-				<span className="log-skip-rules-title">
-					Log Skip Rules
-					{savedCount > 0 && <span className="log-skip-rules-badge">{savedCount}</span>}
-				</span>
-				<span className={`log-skip-rules-chevron${expanded ? " open" : ""}`} />
-			</button>
-
-			{expanded && (
+			<CollapsibleCard title={title} ariaLabel="Log Skip Rules">
 				<div className="log-skip-rules-body">
 					{confirmSwitch && (
 						<div className="log-skip-rules-confirm">
@@ -300,15 +295,15 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 					)}
 
 					<div className="log-skip-rules-mode-toggle">
-						{isAdvanced ? (
-							<button type="button" className="btn btn-ghost btn-sm" onClick={requestSwitchToBasic}>
-								Switch to Basic
-							</button>
-						) : (
-							<button type="button" className="btn btn-ghost btn-sm" onClick={switchToAdvanced}>
-								Switch to Advanced
-							</button>
-						)}
+						<Toggle<"basic" | "advanced">
+							options={["basic", "advanced"] as const}
+							value={isAdvanced ? "advanced" : "basic"}
+							onChange={(v: "basic" | "advanced") => {
+								if (v === "advanced") switchToAdvanced();
+								else requestSwitchToBasic();
+							}}
+							aria-label="Skip rules mode"
+						/>
 					</div>
 
 					{isAdvanced ? (
@@ -337,9 +332,9 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 												}
 											>
 												<option value="path">path</option>
-												<option value="path_regexp">path_regexp</option>
+												<option value="path_regexp">path regexp</option>
 												<option value="header">header</option>
-												<option value="remote_ip">remote_ip</option>
+												<option value="remote_ip">remote ip</option>
 											</select>
 											{cond.type === "header" && (
 												<input
@@ -357,7 +352,7 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 														: cond.type === "path_regexp"
 															? "^/static/"
 															: cond.type === "remote_ip"
-																? "127.0.0.1/32"
+																? "192.168.0.0/24"
 																: "Header value"
 												}
 												value={cond.value}
@@ -397,7 +392,7 @@ export const LogSkipRulesEditor = memo(function LogSkipRulesEditor({
 						)}
 					</div>
 				</div>
-			)}
+			</CollapsibleCard>
 		</div>
 	);
 });
