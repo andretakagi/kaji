@@ -1426,6 +1426,20 @@ input:disabled + .toggle-slider {
 	width: 100%;
 }
 
+.form-hint {
+	font-size: 0.7rem;
+	color: var(--text-muted);
+	line-height: 1.4;
+}
+
+.form-hint code {
+	font-size: 0.7rem;
+	color: var(--text-secondary);
+	background: var(--bg-tertiary);
+	padding: 0.1rem 0.3rem;
+	border-radius: var(--radius-xs);
+}
+
 .form-row-spread {
 	justify-content: space-between;
 	align-items: flex-end;

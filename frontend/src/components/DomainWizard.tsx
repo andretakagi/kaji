@@ -832,6 +832,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 							idPrefix="wizard-domain"
 							domain={data.name}
 							hideResponseHeaders={data.rootRule.handlerType === "static_response"}
+							errorMessage={
+								data.rootRule.handlerType === "error"
+									? (data.rootRule.handlerConfig as ErrorConfig).message
+									: undefined
+							}
 						/>
 					</div>
 				)}
@@ -957,6 +962,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																idPrefix="wizard-sub-toggle"
 																domain={`${subPrefix || "sub"}.${data.name}`}
 																hideResponseHeaders={subHandlerType === "static_response"}
+																errorMessage={
+																	subHandlerType === "error"
+																		? (subHandlerConfig as ErrorConfig).message
+																		: undefined
+																}
 															/>
 														</div>
 													)}
@@ -1077,6 +1087,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												idPrefix="wizard-sub-toggle"
 												domain={`${subPrefix || "sub"}.${data.name}`}
 												hideResponseHeaders={subHandlerType === "static_response"}
+												errorMessage={
+													subHandlerType === "error"
+														? (subHandlerConfig as ErrorConfig).message
+														: undefined
+												}
 											/>
 										</div>
 									)}
@@ -1303,6 +1318,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																	idPrefix="wizard-rule-override"
 																	domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
 																	hideResponseHeaders={pathHandlerType === "static_response"}
+																	errorMessage={
+																		pathHandlerType === "error"
+																			? (pathHandlerConfig as ErrorConfig).message
+																			: undefined
+																	}
 																/>
 															</div>
 														)}
@@ -1470,6 +1490,11 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												idPrefix="wizard-rule-override"
 												domain={pathTarget ? `${pathTarget}.${data.name}` : data.name}
 												hideResponseHeaders={pathHandlerType === "static_response"}
+												errorMessage={
+													pathHandlerType === "error"
+														? (pathHandlerConfig as ErrorConfig).message
+														: undefined
+												}
 											/>
 										</div>
 									)}

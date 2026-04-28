@@ -14,6 +14,7 @@ interface Props {
 	domain?: string;
 	hideResponseHeaders?: boolean;
 	disabled?: boolean;
+	errorMessage?: string;
 }
 
 export function DomainToggleGrid({
@@ -23,6 +24,7 @@ export function DomainToggleGrid({
 	domain,
 	hideResponseHeaders,
 	disabled,
+	errorMessage,
 }: Props) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 	const [autoHttps, setAutoHttps] = useState<GlobalToggles["auto_https"] | null>(null);
@@ -99,6 +101,7 @@ export function DomainToggleGrid({
 				onUpdate={onUpdate}
 				idPrefix={idPrefix}
 				disabled={disabled}
+				errorMessage={errorMessage}
 			/>
 		</div>
 	);
@@ -302,7 +305,13 @@ function isPresetContentType(ct: string): boolean {
 	return contentTypePresets.some((p) => p.value === ct);
 }
 
-function ErrorPagesGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) {
+function ErrorPagesGroup({
+	toggles,
+	onUpdate,
+	idPrefix,
+	disabled,
+	errorMessage,
+}: GroupProps & { errorMessage?: string }) {
 	const enabled = toggles.error_pages.length > 0;
 	const nextKey = useRef(0);
 	const [keys, setKeys] = useState<number[]>(() =>
@@ -371,6 +380,7 @@ function ErrorPagesGroup({ toggles, onUpdate, idPrefix, disabled }: GroupProps) 
 							onChange={(patch) => updateEntry(i, patch)}
 							onRemove={() => removeEntry(i)}
 							disabled={disabled}
+							errorMessage={errorMessage}
 						/>
 					))}
 					<button type="button" className="btn-add" onClick={addEntry} disabled={disabled}>
@@ -389,6 +399,7 @@ function ErrorPageEntry({
 	onChange,
 	onRemove,
 	disabled,
+	errorMessage,
 }: {
 	entry: ErrorPage;
 	index: number;
@@ -396,6 +407,7 @@ function ErrorPageEntry({
 	onChange: (patch: Partial<ErrorPage>) => void;
 	onRemove: () => void;
 	disabled?: boolean;
+	errorMessage?: string;
 }) {
 	const isCustomStatus = !isPresetStatusCode(entry.status_code);
 	const isCustomContentType = !isPresetContentType(entry.content_type);
@@ -490,6 +502,17 @@ function ErrorPageEntry({
 					disabled={disabled}
 					rows={4}
 				/>
+				{errorMessage !== undefined && (
+					<span className="form-hint">
+						{"Use {http.error.message} in the body to include the error message"}
+						{errorMessage && (
+							<>
+								{": "}
+								<code>{errorMessage}</code>
+							</>
+						)}
+					</span>
+				)}
 			</div>
 		</div>
 	);

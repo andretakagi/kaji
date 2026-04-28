@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { cn } from "../cn";
 import type {
 	DomainToggles,
+	ErrorConfig,
 	FileServerConfig,
 	PathMatch,
 	RedirectConfig,
@@ -12,6 +13,7 @@ import type {
 } from "../types/domain";
 import {
 	defaultDomainToggles,
+	defaultErrorConfig,
 	defaultFileServerConfig,
 	defaultRedirectConfig,
 	defaultReverseProxyConfig,
@@ -72,6 +74,10 @@ export function normalizeRule(r: Rule): Rule {
 		case "file_server": {
 			const c = (r.handler_config ?? {}) as Partial<FileServerConfig>;
 			return { ...r, handler_config: { ...defaultFileServerConfig, ...c } };
+		}
+		case "error": {
+			const c = (r.handler_config ?? {}) as Partial<ErrorConfig>;
+			return { ...r, handler_config: { ...defaultErrorConfig, ...c } };
 		}
 		default:
 			return r;
@@ -156,6 +162,9 @@ export default function RuleCard({
 	const showRuleToggle =
 		!isCreate && rule.handler_type !== "none" && ruleEnabled !== undefined && !!onToggleRuleEnabled;
 	const showDelete = !isCreate && kind !== "domain" && !!onDelete;
+
+	const errorMessageForRule = (r: Rule): string | undefined =>
+		r.handler_type === "error" ? (r.handler_config as ErrorConfig).message : undefined;
 
 	const [editing, setEditing] = useState(isCreate);
 	const [editedRule, setEditedRule] = useState<Rule>(normalizeRule(rule));
@@ -377,6 +386,7 @@ export default function RuleCard({
 									onUpdate={(key, value) => setEditedToggles((prev) => ({ ...prev, [key]: value }))}
 									idPrefix={togglesIdPrefix}
 									domain={domainName ?? hostLabel}
+									errorMessage={errorMessageForRule(editedRule)}
 								/>
 							)}
 						</div>
@@ -424,6 +434,7 @@ export default function RuleCard({
 									idPrefix={togglesIdPrefix}
 									domain={domainName ?? hostLabel}
 									disabled
+									errorMessage={errorMessageForRule(rule)}
 								/>
 							)}
 						</div>

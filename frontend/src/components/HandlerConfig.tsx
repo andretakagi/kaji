@@ -598,7 +598,7 @@ function ErrorSection({
 				<input
 					id={`${idPrefix}-message`}
 					type="text"
-					placeholder="Optional - available as {http.error.message} in error handlers"
+					placeholder="Optional - available as {http.error.message} in error page bodies"
 					value={config.message}
 					onChange={(e) => update({ message: e.target.value })}
 					maxLength={1024}
