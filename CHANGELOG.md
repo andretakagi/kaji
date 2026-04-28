@@ -10,6 +10,7 @@ All notable changes to Kaji are documented in this file.
 
 ### Fixed
 - Log viewer connection indicator stayed stuck on "Reconnecting..." after a transient disconnect on an idle proxy. The stream was actually reconnecting, but the status only cleared when a new log line arrived.
+- Handler picker in the rule editor showed a plain dropdown instead of the pill toggle used everywhere else.
 
 ## [1.7.0] - 2026-04-27
 

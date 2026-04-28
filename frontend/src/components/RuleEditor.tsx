@@ -6,8 +6,10 @@ import {
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
 	handlerOptions,
+	handlerOptionsWithNone,
 } from "../types/domain";
 import HandlerConfig from "./HandlerConfig";
+import { Toggle } from "./Toggle";
 
 interface Props {
 	value: Rule;
@@ -43,19 +45,13 @@ export default function RuleEditor({ value, allowNone, onChange, idPrefix }: Pro
 	return (
 		<div className="rule-editor">
 			<div className="form-field">
-				<label htmlFor={`${idPrefix}-handler`}>Handler</label>
-				<select
+				<span className="form-label">Handler</span>
+				<Toggle<RuleHandlerType>
 					id={`${idPrefix}-handler`}
+					options={allowNone ? handlerOptionsWithNone : handlerOptions}
 					value={value.handler_type}
-					onChange={(e) => setHandler(e.target.value as RuleHandlerType)}
-				>
-					{allowNone && <option value="none">None</option>}
-					{handlerOptions.map((o) => (
-						<option key={o.value} value={o.value}>
-							{o.label}
-						</option>
-					))}
-				</select>
+					onChange={setHandler}
+				/>
 			</div>
 			{value.handler_type !== "none" && (
 				<HandlerConfig
