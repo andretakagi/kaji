@@ -305,15 +305,24 @@ const LogConfigCard = memo(function LogConfigCard({
 }) {
 	const [removeError, setRemoveError] = useState("");
 	const [skipRules, setSkipRules] = useState<LogSkipConfig | null>(null);
+	const [skipRulesError, setSkipRulesError] = useState("");
 	const isAccessLog = name === "kaji_access";
 	const isDiscard = sink.writer?.output === "discard";
 	const showSkipRules = !isDefault && !isDiscard;
 
 	useEffect(() => {
 		if (!showSkipRules) return;
+		let cancelled = false;
 		fetchLogSkipRules(name)
-			.then(setSkipRules)
-			.catch(() => {});
+			.then((r) => {
+				if (!cancelled) setSkipRules(r);
+			})
+			.catch((err) => {
+				if (!cancelled) setSkipRulesError(getErrorMessage(err, "Failed to load skip rules"));
+			});
+		return () => {
+			cancelled = true;
+		};
 	}, [name, showSkipRules]);
 
 	const [confirmDisable, setConfirmDisable] = useState(false);
@@ -411,6 +420,7 @@ const LogConfigCard = memo(function LogConfigCard({
 				lokiSinks={lokiSinks}
 				onLokiToggle={onLokiToggle}
 			/>
+			{showSkipRules && skipRulesError && <div className="feedback error">{skipRulesError}</div>}
 			{showSkipRules && skipRules && (
 				<LogSkipRulesEditor sinkName={name} initialRules={skipRules} />
 			)}
