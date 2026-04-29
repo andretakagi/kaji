@@ -205,7 +205,7 @@ func TestMigrateHeaderManipulation_PreservesExistingRequestHeaders(t *testing.T)
 				"toggles": map[string]any{
 					"headers": map[string]any{
 						"request": map[string]any{
-							"enabled": true,
+							"enabled":   true,
 							"x_real_ip": true,
 						},
 					},
