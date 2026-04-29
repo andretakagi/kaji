@@ -1082,6 +1082,857 @@ func TestRoundTripAdvancedDisabledEntriesNotInOutput(t *testing.T) {
 	}
 }
 
+// --- Header Down (reverse_proxy response headers) ---
+
+func TestBasicHeaderDownStripServer(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled:     true,
+		StripServer: true,
+	}
+	result := BuildHeaderDown(cfg, false)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	deletes, ok := result["delete"].([]string)
+	if !ok {
+		t.Fatal("expected delete field in result")
+	}
+	if len(deletes) != 1 || deletes[0] != "Server" {
+		t.Errorf("delete = %v, want [Server]", deletes)
+	}
+}
+
+func TestBasicHeaderDownStripPoweredBy(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled:        true,
+		StripPoweredBy: true,
+	}
+	result := BuildHeaderDown(cfg, false)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	deletes, ok := result["delete"].([]string)
+	if !ok {
+		t.Fatal("expected delete field in result")
+	}
+	if len(deletes) != 1 || deletes[0] != "X-Powered-By" {
+		t.Errorf("delete = %v, want [X-Powered-By]", deletes)
+	}
+}
+
+func TestBasicHeaderDownBothStrips(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled:        true,
+		StripServer:    true,
+		StripPoweredBy: true,
+	}
+	result := BuildHeaderDown(cfg, false)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	deletes, ok := result["delete"].([]string)
+	if !ok {
+		t.Fatal("expected delete field in result")
+	}
+	if len(deletes) != 2 {
+		t.Errorf("expected 2 deletes, got %d", len(deletes))
+	}
+}
+
+func TestBasicHeaderDownDeferred(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled:     true,
+		StripServer: true,
+		Deferred:    true,
+	}
+	result := BuildHeaderDown(cfg, false)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if deferred, ok := result["deferred"].(bool); !ok || !deferred {
+		t.Error("expected deferred=true in result")
+	}
+}
+
+func TestBasicHeaderDownNotDeferred(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled:     true,
+		StripServer: true,
+		Deferred:    false,
+	}
+	result := BuildHeaderDown(cfg, false)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if _, ok := result["deferred"]; ok {
+		t.Error("deferred should not be present when false")
+	}
+}
+
+func TestBasicHeaderDownDisabledReturnsNil(t *testing.T) {
+	cfg := HeaderDownConfig{
+		StripServer:    true,
+		StripPoweredBy: true,
+	}
+	result := BuildHeaderDown(cfg, false)
+	if result != nil {
+		t.Errorf("expected nil when disabled, got %v", result)
+	}
+}
+
+func TestBasicHeaderDownNothingEnabledReturnsNil(t *testing.T) {
+	cfg := HeaderDownConfig{Enabled: true}
+	result := BuildHeaderDown(cfg, false)
+	if result != nil {
+		t.Errorf("expected nil when no strips enabled, got %v", result)
+	}
+}
+
+func TestAdvancedHeaderDown(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled: true,
+		Builtin: []HeaderEntry{
+			{Key: "Server", Value: "", Operation: "delete", Enabled: true},
+			{Key: "X-Powered-By", Value: "", Operation: "delete", Enabled: false},
+		},
+		Custom: []HeaderEntry{
+			{Key: "X-Custom-Down", Value: "val", Operation: "set", Enabled: true},
+		},
+	}
+	result := BuildHeaderDown(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	deletes, ok := result["delete"].([]string)
+	if !ok || len(deletes) != 1 || deletes[0] != "Server" {
+		t.Errorf("delete = %v, want [Server]", deletes)
+	}
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field")
+	}
+	if vals := set["X-Custom-Down"]; len(vals) == 0 || vals[0] != "val" {
+		t.Errorf("X-Custom-Down = %v, want [val]", vals)
+	}
+}
+
+func TestAdvancedHeaderDownDeferred(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled:  true,
+		Deferred: true,
+		Builtin: []HeaderEntry{
+			{Key: "Server", Value: "", Operation: "delete", Enabled: true},
+		},
+	}
+	result := BuildHeaderDown(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if deferred, ok := result["deferred"].(bool); !ok || !deferred {
+		t.Error("expected deferred=true")
+	}
+}
+
+func TestAdvancedHeaderDownCustomOverridesBuiltin(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled: true,
+		Builtin: []HeaderEntry{
+			{Key: "Server", Value: "", Operation: "delete", Enabled: true},
+		},
+		Custom: []HeaderEntry{
+			{Key: "Server", Value: "custom-server", Operation: "set", Enabled: true},
+		},
+	}
+	result := BuildHeaderDown(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field (custom should override builtin)")
+	}
+	if vals := set["Server"]; len(vals) == 0 || vals[0] != "custom-server" {
+		t.Errorf("Server = %v, want [custom-server]", vals)
+	}
+	if _, ok := result["delete"]; ok {
+		t.Error("delete should not be present after custom override")
+	}
+}
+
+// --- Domain-level request headers ---
+
+func TestBuildDomainRequestDisabled(t *testing.T) {
+	cfg := HeadersConfig{Request: DomainRequestHeaders{XForwardedFor: true}}
+	result := buildDomainRequestHeaders(cfg, false)
+	if result != nil {
+		t.Errorf("expected nil when disabled, got %v", result)
+	}
+}
+
+func TestBasicDomainRequestXForwardedFor(t *testing.T) {
+	req := DomainRequestHeaders{Enabled: true, XForwardedFor: true}
+	result := buildBasicDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set, ok := result["set"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected set field")
+	}
+	if vals := set["X-Forwarded-For"]; len(vals) == 0 || vals[0] != "{http.request.remote.host}" {
+		t.Errorf("X-Forwarded-For = %v, want [{http.request.remote.host}]", vals)
+	}
+}
+
+func TestBasicDomainRequestXRealIP(t *testing.T) {
+	req := DomainRequestHeaders{Enabled: true, XRealIP: true}
+	result := buildBasicDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set := result["set"].(map[string][]string)
+	if vals := set["X-Real-IP"]; len(vals) == 0 || vals[0] != "{http.request.remote.host}" {
+		t.Errorf("X-Real-IP = %v, want [{http.request.remote.host}]", vals)
+	}
+}
+
+func TestBasicDomainRequestXForwardedProto(t *testing.T) {
+	req := DomainRequestHeaders{Enabled: true, XForwardedProto: true}
+	result := buildBasicDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set := result["set"].(map[string][]string)
+	if vals := set["X-Forwarded-Proto"]; len(vals) == 0 || vals[0] != "{http.request.scheme}" {
+		t.Errorf("X-Forwarded-Proto = %v, want [{http.request.scheme}]", vals)
+	}
+}
+
+func TestBasicDomainRequestXForwardedHost(t *testing.T) {
+	req := DomainRequestHeaders{Enabled: true, XForwardedHost: true}
+	result := buildBasicDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set := result["set"].(map[string][]string)
+	if vals := set["X-Forwarded-Host"]; len(vals) == 0 || vals[0] != "{http.request.host}" {
+		t.Errorf("X-Forwarded-Host = %v, want [{http.request.host}]", vals)
+	}
+}
+
+func TestBasicDomainRequestXRequestID(t *testing.T) {
+	req := DomainRequestHeaders{Enabled: true, XRequestID: true}
+	result := buildBasicDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set := result["set"].(map[string][]string)
+	if vals := set["X-Request-ID"]; len(vals) == 0 || vals[0] != "{http.request.uuid}" {
+		t.Errorf("X-Request-ID = %v, want [{http.request.uuid}]", vals)
+	}
+}
+
+func TestBasicDomainRequestAllToggles(t *testing.T) {
+	req := DomainRequestHeaders{
+		Enabled:         true,
+		XForwardedFor:   true,
+		XRealIP:         true,
+		XForwardedProto: true,
+		XForwardedHost:  true,
+		XRequestID:      true,
+	}
+	result := buildBasicDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set := result["set"].(map[string][]string)
+	if len(set) != 5 {
+		t.Errorf("expected 5 headers, got %d", len(set))
+	}
+}
+
+func TestBasicDomainRequestNothingEnabledReturnsNil(t *testing.T) {
+	req := DomainRequestHeaders{Enabled: true}
+	result := buildBasicDomainRequestHeaders(req)
+	if result != nil {
+		t.Errorf("expected nil when no toggles enabled, got %v", result)
+	}
+}
+
+func TestAdvancedDomainRequest(t *testing.T) {
+	req := DomainRequestHeaders{
+		Enabled: true,
+		Builtin: []HeaderEntry{
+			{Key: "X-Forwarded-For", Value: "{http.request.remote.host}", Operation: "set", Enabled: true},
+			{Key: "X-Real-IP", Value: "{http.request.remote.host}", Operation: "set", Enabled: false},
+		},
+		Custom: []HeaderEntry{
+			{Key: "X-Custom-Req", Value: "custom-val", Operation: "set", Enabled: true},
+		},
+	}
+	result := buildAdvancedDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	set := result["set"].(map[string][]string)
+	if vals := set["X-Forwarded-For"]; len(vals) == 0 || vals[0] != "{http.request.remote.host}" {
+		t.Errorf("X-Forwarded-For = %v, want [{http.request.remote.host}]", vals)
+	}
+	if _, ok := set["X-Real-IP"]; ok {
+		t.Error("disabled entry should not appear")
+	}
+	if vals := set["X-Custom-Req"]; len(vals) == 0 || vals[0] != "custom-val" {
+		t.Errorf("X-Custom-Req = %v, want [custom-val]", vals)
+	}
+}
+
+// --- Operations through build pipeline (add, delete, replace) ---
+
+func TestGroupByOperationAllTypes(t *testing.T) {
+	entries := []HeaderEntry{
+		{Key: "X-Set", Value: "val1", Operation: "set", Enabled: true},
+		{Key: "X-Add", Value: "val2", Operation: "add", Enabled: true},
+		{Key: "X-Add", Value: "val3", Operation: "add", Enabled: true},
+		{Key: "X-Del", Value: "", Operation: "delete", Enabled: true},
+		{Key: "X-Rep", Value: "new", Operation: "replace", Search: "old", Enabled: true},
+		{Key: "X-Disabled", Value: "no", Operation: "set", Enabled: false},
+		{Key: "", Value: "no-key", Operation: "set", Enabled: true},
+	}
+	g := groupByOperation(entries)
+
+	if vals := g.set["X-Set"]; len(vals) != 1 || vals[0] != "val1" {
+		t.Errorf("set[X-Set] = %v, want [val1]", vals)
+	}
+	if vals := g.add["X-Add"]; len(vals) != 2 {
+		t.Errorf("add[X-Add] = %v, want 2 values", vals)
+	}
+	if len(g.del) != 1 || g.del[0] != "X-Del" {
+		t.Errorf("del = %v, want [X-Del]", g.del)
+	}
+	if reps := g.replace["X-Rep"]; len(reps) != 1 || reps[0]["search"] != "old" || reps[0]["replace"] != "new" {
+		t.Errorf("replace[X-Rep] = %v, want [{search:old, replace:new}]", reps)
+	}
+	if _, ok := g.set["X-Disabled"]; ok {
+		t.Error("disabled entry should be skipped")
+	}
+	if _, ok := g.set[""]; ok {
+		t.Error("empty-key entry should be skipped")
+	}
+}
+
+func TestAdvancedResponseAddOperation(t *testing.T) {
+	resp := ResponseHeaders{
+		Custom: []HeaderEntry{
+			{Key: "X-Multi", Value: "first", Operation: "add", Enabled: true},
+			{Key: "X-Extra", Value: "second", Operation: "add", Enabled: true},
+		},
+	}
+	handlers := buildAdvancedResponseHeaders(resp)
+	if len(handlers) != 1 {
+		t.Fatalf("expected 1 handler, got %d", len(handlers))
+	}
+	raw := marshalHandler(t, handlers[0])
+	var h struct {
+		Response struct {
+			Add map[string][]string `json:"add"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(raw, &h); err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+	if vals := h.Response.Add["X-Multi"]; len(vals) != 1 || vals[0] != "first" {
+		t.Errorf("add[X-Multi] = %v, want [first]", vals)
+	}
+	if vals := h.Response.Add["X-Extra"]; len(vals) != 1 || vals[0] != "second" {
+		t.Errorf("add[X-Extra] = %v, want [second]", vals)
+	}
+}
+
+func TestAdvancedResponseDeleteOperation(t *testing.T) {
+	resp := ResponseHeaders{
+		Builtin: []HeaderEntry{
+			{Key: "X-Remove-Me", Value: "", Operation: "delete", Enabled: true},
+		},
+	}
+	handlers := buildAdvancedResponseHeaders(resp)
+	if len(handlers) != 1 {
+		t.Fatalf("expected 1 handler, got %d", len(handlers))
+	}
+	raw := marshalHandler(t, handlers[0])
+	var h struct {
+		Response struct {
+			Delete []string `json:"delete"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(raw, &h); err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+	if len(h.Response.Delete) != 1 || h.Response.Delete[0] != "X-Remove-Me" {
+		t.Errorf("delete = %v, want [X-Remove-Me]", h.Response.Delete)
+	}
+}
+
+func TestAdvancedHeaderUpAddOperation(t *testing.T) {
+	cfg := HeaderUpConfig{
+		Enabled: true,
+		Custom: []HeaderEntry{
+			{Key: "X-Trace", Value: "id1", Operation: "add", Enabled: true},
+			{Key: "X-Trace", Value: "id2", Operation: "add", Enabled: true},
+		},
+	}
+	result := BuildHeaderUp(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	add, ok := result["add"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected add field")
+	}
+	if vals := add["X-Trace"]; len(vals) != 2 {
+		t.Errorf("add[X-Trace] = %v, want 2 values", vals)
+	}
+}
+
+func TestAdvancedHeaderUpDeleteOperation(t *testing.T) {
+	cfg := HeaderUpConfig{
+		Enabled: true,
+		Custom: []HeaderEntry{
+			{Key: "Accept-Encoding", Value: "", Operation: "delete", Enabled: true},
+		},
+	}
+	result := BuildHeaderUp(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	del, ok := result["delete"].([]string)
+	if !ok {
+		t.Fatal("expected delete field")
+	}
+	if len(del) != 1 || del[0] != "Accept-Encoding" {
+		t.Errorf("delete = %v, want [Accept-Encoding]", del)
+	}
+}
+
+func TestAdvancedHeaderUpReplaceOperation(t *testing.T) {
+	cfg := HeaderUpConfig{
+		Enabled: true,
+		Custom: []HeaderEntry{
+			{Key: "Authorization", Value: "Bearer new", Operation: "replace", Search: "Bearer old", Enabled: true},
+		},
+	}
+	result := BuildHeaderUp(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	replace, ok := result["replace"].(map[string][]map[string]string)
+	if !ok {
+		t.Fatal("expected replace field")
+	}
+	reps := replace["Authorization"]
+	if len(reps) != 1 || reps[0]["search"] != "Bearer old" || reps[0]["replace"] != "Bearer new" {
+		t.Errorf("replace[Authorization] = %v, want [{search: Bearer old, replace: Bearer new}]", reps)
+	}
+}
+
+func TestAdvancedHeaderUpMixedOperations(t *testing.T) {
+	cfg := HeaderUpConfig{
+		Enabled: true,
+		Custom: []HeaderEntry{
+			{Key: "Host", Value: "backend.internal", Operation: "set", Enabled: true},
+			{Key: "X-Extra", Value: "val", Operation: "add", Enabled: true},
+			{Key: "Accept-Encoding", Value: "", Operation: "delete", Enabled: true},
+			{Key: "Authorization", Value: "new", Operation: "replace", Search: "old", Enabled: true},
+		},
+	}
+	result := BuildHeaderUp(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if _, ok := result["set"]; !ok {
+		t.Error("expected set field")
+	}
+	if _, ok := result["add"]; !ok {
+		t.Error("expected add field")
+	}
+	if _, ok := result["delete"]; !ok {
+		t.Error("expected delete field")
+	}
+	if _, ok := result["replace"]; !ok {
+		t.Error("expected replace field")
+	}
+}
+
+func TestAdvancedDomainRequestReplaceOperation(t *testing.T) {
+	req := DomainRequestHeaders{
+		Enabled: true,
+		Custom: []HeaderEntry{
+			{Key: "X-Forwarded-For", Value: "127.0.0.1", Operation: "replace", Search: "10.0.0.1", Enabled: true},
+		},
+	}
+	result := buildAdvancedDomainRequestHeaders(req)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	replace, ok := result["replace"].(map[string][]map[string]string)
+	if !ok {
+		t.Fatal("expected replace field")
+	}
+	reps := replace["X-Forwarded-For"]
+	if len(reps) != 1 || reps[0]["search"] != "10.0.0.1" || reps[0]["replace"] != "127.0.0.1" {
+		t.Errorf("replace = %v", reps)
+	}
+}
+
+func TestAdvancedHeaderDownDeleteAndAdd(t *testing.T) {
+	cfg := HeaderDownConfig{
+		Enabled: true,
+		Custom: []HeaderEntry{
+			{Key: "Server", Value: "", Operation: "delete", Enabled: true},
+			{Key: "X-Served-By", Value: "kaji", Operation: "add", Enabled: true},
+		},
+	}
+	result := BuildHeaderDown(cfg, true)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	del, ok := result["delete"].([]string)
+	if !ok || len(del) != 1 || del[0] != "Server" {
+		t.Errorf("delete = %v, want [Server]", del)
+	}
+	add, ok := result["add"].(map[string][]string)
+	if !ok {
+		t.Fatal("expected add field")
+	}
+	if vals := add["X-Served-By"]; len(vals) != 1 || vals[0] != "kaji" {
+		t.Errorf("add[X-Served-By] = %v, want [kaji]", vals)
+	}
+}
+
+// --- Parse helpers ---
+
+func TestAppendOpsToEntries(t *testing.T) {
+	var entries []HeaderEntry
+	ops := map[string][]string{
+		"X-One": {"val1"},
+		"X-Two": {"val2a", "val2b"},
+	}
+	appendOpsToEntries(&entries, ops, "set")
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(entries))
+	}
+	for _, e := range entries {
+		if e.Operation != "set" {
+			t.Errorf("entry %q operation = %q, want set", e.Key, e.Operation)
+		}
+		if !e.Enabled {
+			t.Errorf("entry %q should be Enabled", e.Key)
+		}
+	}
+}
+
+func TestAppendOpsToEntriesAdd(t *testing.T) {
+	var entries []HeaderEntry
+	ops := map[string][]string{"X-Multi": {"a", "b"}}
+	appendOpsToEntries(&entries, ops, "add")
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+	for _, e := range entries {
+		if e.Operation != "add" {
+			t.Errorf("operation = %q, want add", e.Operation)
+		}
+	}
+}
+
+func TestAppendDeleteEntries(t *testing.T) {
+	var entries []HeaderEntry
+	appendDeleteEntries(&entries, []string{"Server", "X-Powered-By"})
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+	for _, e := range entries {
+		if e.Operation != "delete" {
+			t.Errorf("entry %q operation = %q, want delete", e.Key, e.Operation)
+		}
+		if e.Value != "" {
+			t.Errorf("delete entry %q should have empty value, got %q", e.Key, e.Value)
+		}
+		if !e.Enabled {
+			t.Errorf("entry %q should be Enabled", e.Key)
+		}
+	}
+}
+
+func TestAppendDeleteEntriesEmpty(t *testing.T) {
+	var entries []HeaderEntry
+	appendDeleteEntries(&entries, nil)
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries for nil input, got %d", len(entries))
+	}
+}
+
+func TestAppendReplaceEntries(t *testing.T) {
+	var entries []HeaderEntry
+	replacements := map[string][]map[string]string{
+		"Authorization": {
+			{"search": "Bearer old", "replace": "Bearer new"},
+		},
+		"Host": {
+			{"search": "old.host", "replace": "new.host"},
+			{"search": "alt.host", "replace": "final.host"},
+		},
+	}
+	appendReplaceEntries(&entries, replacements)
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(entries))
+	}
+	for _, e := range entries {
+		if e.Operation != "replace" {
+			t.Errorf("entry %q operation = %q, want replace", e.Key, e.Operation)
+		}
+		if e.Search == "" {
+			t.Errorf("replace entry %q should have non-empty Search", e.Key)
+		}
+		if !e.Enabled {
+			t.Errorf("entry %q should be Enabled", e.Key)
+		}
+	}
+}
+
+func TestAppendReplaceEntriesEmpty(t *testing.T) {
+	var entries []HeaderEntry
+	appendReplaceEntries(&entries, nil)
+	if len(entries) != 0 {
+		t.Errorf("expected 0 entries for nil input, got %d", len(entries))
+	}
+}
+
+// --- BuildDomain integration: domain request headers ---
+
+func TestBuildDomainBasicRequestHeaders(t *testing.T) {
+	p := DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Request: DomainRequestHeaders{
+				Enabled:       true,
+				XForwardedFor: true,
+				XRealIP:       true,
+			},
+		}},
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+	h := findHandler(t, handlers, "headers")
+
+	var parsed struct {
+		Request struct {
+			Set map[string][]string `json:"set"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal(h, &parsed); err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+	if vals := parsed.Request.Set["X-Forwarded-For"]; len(vals) == 0 {
+		t.Error("X-Forwarded-For not found in request headers")
+	}
+	if vals := parsed.Request.Set["X-Real-IP"]; len(vals) == 0 {
+		t.Error("X-Real-IP not found in request headers")
+	}
+}
+
+func TestBuildDomainCombinedRequestAndResponseHeaders(t *testing.T) {
+	p := DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Request: DomainRequestHeaders{
+				Enabled:       true,
+				XForwardedFor: true,
+			},
+			Response: ResponseHeaders{
+				Enabled:      true,
+				CacheControl: true,
+			},
+		}},
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+	h := findHandler(t, handlers, "headers")
+
+	var parsed struct {
+		Request struct {
+			Set map[string][]string `json:"set"`
+		} `json:"request"`
+		Response struct {
+			Set map[string][]string `json:"set"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(h, &parsed); err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+	if vals := parsed.Request.Set["X-Forwarded-For"]; len(vals) == 0 {
+		t.Error("request X-Forwarded-For not found")
+	}
+	if vals := parsed.Response.Set["Cache-Control"]; len(vals) == 0 || vals[0] != "no-store" {
+		t.Error("response Cache-Control not found")
+	}
+}
+
+func TestBuildDomainHeaderDown(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
+		HeaderDown: HeaderDownConfig{
+			Enabled:     true,
+			StripServer: true,
+			Deferred:    true,
+		},
+	})
+	p := DomainParams{
+		Domain:        "example.com",
+		Upstream:      "localhost:8080",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+	rp := findHandler(t, handlers, "reverse_proxy")
+
+	var proxy struct {
+		Headers struct {
+			Response struct {
+				Delete   []string `json:"delete"`
+				Deferred bool     `json:"deferred"`
+			} `json:"response"`
+		} `json:"headers"`
+	}
+	if err := json.Unmarshal(rp, &proxy); err != nil {
+		t.Fatalf("failed to parse reverse_proxy: %v", err)
+	}
+	if len(proxy.Headers.Response.Delete) != 1 || proxy.Headers.Response.Delete[0] != "Server" {
+		t.Errorf("delete = %v, want [Server]", proxy.Headers.Response.Delete)
+	}
+	if !proxy.Headers.Response.Deferred {
+		t.Error("expected deferred=true")
+	}
+}
+
+// --- Round-trip: Header Down ---
+
+func TestRoundTripHeaderDown(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
+		Upstream: "localhost:8080",
+		HeaderDown: HeaderDownConfig{
+			Enabled:        true,
+			StripServer:    true,
+			StripPoweredBy: true,
+			Deferred:       true,
+		},
+	})
+	p := DomainParams{
+		Domain:        "example.com",
+		Upstream:      "localhost:8080",
+		HandlerType:   "reverse_proxy",
+		HandlerConfig: rpCfg,
+	}
+	got := buildAndParse(t, p)
+
+	var parsedRPCfg ReverseProxyConfig
+	if err := json.Unmarshal(got.HandlerConfig, &parsedRPCfg); err != nil {
+		t.Fatalf("failed to parse handler config: %v", err)
+	}
+	if !parsedRPCfg.HeaderDown.Enabled {
+		t.Error("HeaderDown.Enabled should round-trip")
+	}
+	if !parsedRPCfg.HeaderDown.StripServer {
+		t.Error("StripServer should round-trip")
+	}
+	if !parsedRPCfg.HeaderDown.StripPoweredBy {
+		t.Error("StripPoweredBy should round-trip")
+	}
+	if !parsedRPCfg.HeaderDown.Deferred {
+		t.Error("Deferred should round-trip")
+	}
+}
+
+func TestRoundTripAdvancedHeaderDownCustomSurvives(t *testing.T) {
+	rpCfg, _ := json.Marshal(ReverseProxyConfig{
+		Upstream: "localhost:8080",
+		HeaderDown: HeaderDownConfig{
+			Enabled: true,
+			Builtin: []HeaderEntry{
+				{Key: "Server", Value: "", Operation: "delete", Enabled: true},
+			},
+			Custom: []HeaderEntry{
+				{Key: "X-Custom-Down", Value: "val", Operation: "set", Enabled: true},
+			},
+		},
+	})
+	p := DomainParams{
+		Domain:          "example.com",
+		Upstream:        "localhost:8080",
+		HandlerType:     "reverse_proxy",
+		HandlerConfig:   rpCfg,
+		AdvancedHeaders: true,
+	}
+	got := buildAndParse(t, p)
+
+	var parsedRPCfg ReverseProxyConfig
+	if err := json.Unmarshal(got.HandlerConfig, &parsedRPCfg); err != nil {
+		t.Fatalf("failed to parse handler config: %v", err)
+	}
+
+	builtinKeys := map[string]bool{}
+	for _, e := range parsedRPCfg.HeaderDown.Builtin {
+		builtinKeys[e.Key] = true
+	}
+	customKeys := map[string]bool{}
+	for _, e := range parsedRPCfg.HeaderDown.Custom {
+		customKeys[e.Key] = true
+	}
+	if !builtinKeys["Server"] {
+		t.Error("Server should be in HeaderDown.Builtin after round-trip")
+	}
+	if !customKeys["X-Custom-Down"] {
+		t.Error("X-Custom-Down should be in HeaderDown.Custom after round-trip")
+	}
+}
+
+// --- Round-trip: Domain request headers ---
+
+func TestRoundTripDomainRequestHeaders(t *testing.T) {
+	p := DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{Headers: HeadersConfig{
+			Request: DomainRequestHeaders{
+				Enabled:         true,
+				XForwardedFor:   true,
+				XRealIP:         true,
+				XForwardedProto: true,
+				XForwardedHost:  true,
+				XRequestID:      true,
+			},
+		}},
+	}
+	got := buildAndParse(t, p)
+	req := got.Toggles.Headers.Request
+	if !req.Enabled {
+		t.Error("Request.Enabled should round-trip")
+	}
+	if !req.XForwardedFor {
+		t.Error("XForwardedFor should round-trip")
+	}
+	if !req.XRealIP {
+		t.Error("XRealIP should round-trip")
+	}
+	if !req.XForwardedProto {
+		t.Error("XForwardedProto should round-trip")
+	}
+	if !req.XForwardedHost {
+		t.Error("XForwardedHost should round-trip")
+	}
+	if !req.XRequestID {
+		t.Error("XRequestID should round-trip")
+	}
+}
+
 // --- Test helpers ---
 
 func extractHeaderSet(t *testing.T, handler any) map[string][]string {
