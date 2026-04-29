@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
 import { cn } from "../cn";
-import type { HeaderUpConfig } from "../types/api";
+import type { HeaderDownConfig, HeaderUpConfig } from "../types/api";
 import type {
 	ErrorConfig,
 	FileServerConfig,
@@ -11,6 +11,18 @@ import type {
 	RuleHandlerType,
 	StaticResponseConfig,
 } from "../types/domain";
+import {
+	builtinHeaderDownKeys,
+	builtinHeaderUpKeys,
+	defaultHeaderDownBuiltins,
+	defaultHeaderUpBuiltins,
+	expandBasicHeaderDownToAdvanced,
+	expandBasicHeaderUpToAdvanced,
+} from "../utils/headerDefaults";
+import { HeaderDownBasic } from "./HeaderDownBasic";
+import { HeadersAdvanced } from "./HeadersAdvanced";
+import { HeaderUpBasic } from "./HeaderUpBasic";
+import { Toggle } from "./Toggle";
 import { ToggleItem } from "./ToggleGrid";
 
 interface Props {
@@ -68,9 +80,14 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 						disabled={disabled}
 					/>
 					<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
-					<RequestHeadersSection
+					<HeaderUpSection
 						config={rpConfig.header_up}
-						onChange={(rh) => update({ header_up: rh })}
+						onChange={(hu) => update({ header_up: hu })}
+						disabled={disabled}
+					/>
+					<HeaderDownSection
+						config={rpConfig.header_down}
+						onChange={(hd) => update({ header_down: hd })}
 						disabled={disabled}
 					/>
 				</div>
@@ -785,7 +802,15 @@ function FileServerSection({
 	);
 }
 
-function RequestHeadersSection({
+function hasAdvancedHeaderUpCustomizations(config: HeaderUpConfig): boolean {
+	return config.builtin.length > 0 || config.custom.length > 0;
+}
+
+function hasAdvancedHeaderDownCustomizations(config: HeaderDownConfig): boolean {
+	return config.builtin.length > 0 || config.custom.length > 0;
+}
+
+function HeaderUpSection({
 	config,
 	onChange,
 	disabled,
@@ -794,7 +819,7 @@ function RequestHeadersSection({
 	onChange: (config: HeaderUpConfig) => void;
 	disabled?: boolean;
 }) {
-	const idPrefix = useId();
+	const [advanced, setAdvanced] = useState(false);
 
 	function update(patch: Partial<HeaderUpConfig>) {
 		onChange({ ...config, ...patch });
@@ -810,53 +835,101 @@ function RequestHeadersSection({
 				disabled={disabled}
 			/>
 			{config.enabled && (
-				<div className="toggle-detail">
-					<div className={cn("toggle-group", config.host_override && "toggle-group-open")}>
-						<ToggleItem
-							label="Host Override"
-							description="Set the Host header sent to upstream"
-							checked={config.host_override}
-							onChange={(v) => update({ host_override: v })}
+				<div className={cn("toggle-detail", disabled && "toggle-detail-disabled")}>
+					<div className="headers-mode-switch">
+						<Toggle
+							options={["basic", "advanced"] as const}
+							value={advanced ? "advanced" : "basic"}
+							onChange={(v: "basic" | "advanced") => setAdvanced(v === "advanced")}
 							disabled={disabled}
 						/>
-						{config.host_override && (
-							<div className="toggle-detail">
-								<label htmlFor={`${idPrefix}-host-value`}>Host Value</label>
-								<input
-									id={`${idPrefix}-host-value`}
-									type="text"
-									placeholder="example.com"
-									value={config.host_value}
-									onChange={(e) => update({ host_value: e.target.value })}
-									maxLength={260}
-									disabled={disabled}
-								/>
-							</div>
-						)}
 					</div>
-					<div className={cn("toggle-group", config.authorization && "toggle-group-open")}>
-						<ToggleItem
-							label="Authorization"
-							description="Set the Authorization header sent to upstream"
-							checked={config.authorization}
-							onChange={(v) => update({ authorization: v })}
+					{advanced ? (
+						<HeadersAdvanced
+							builtin={config.builtin}
+							custom={config.custom}
+							builtinKeySet={builtinHeaderUpKeys}
+							defaultBuiltins={defaultHeaderUpBuiltins}
+							operations={["set", "add", "delete", "replace"]}
+							onBuiltinChange={(builtin) => update({ builtin })}
+							onCustomChange={(custom) => update({ custom })}
+							expandFromToggles={() => expandBasicHeaderUpToAdvanced(config)}
+						/>
+					) : (
+						<>
+							{hasAdvancedHeaderUpCustomizations(config) && (
+								<span className="headers-advanced-warning">
+									Advanced customizations exist. Saving in basic mode will reset headers to
+									defaults. Switch to advanced mode to view them.
+								</span>
+							)}
+							<HeaderUpBasic config={config} onChange={onChange} />
+						</>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function HeaderDownSection({
+	config,
+	onChange,
+	disabled,
+}: {
+	config: HeaderDownConfig;
+	onChange: (config: HeaderDownConfig) => void;
+	disabled?: boolean;
+}) {
+	const [advanced, setAdvanced] = useState(false);
+
+	function update(patch: Partial<HeaderDownConfig>) {
+		onChange({ ...config, ...patch });
+	}
+
+	return (
+		<div className={cn("toggle-group", config.enabled && "toggle-group-open")}>
+			<ToggleItem
+				label="Response Headers"
+				description="Modify headers received from upstream"
+				checked={config.enabled}
+				onChange={(v) => update({ enabled: v })}
+				disabled={disabled}
+			/>
+			{config.enabled && (
+				<div className={cn("toggle-detail", disabled && "toggle-detail-disabled")}>
+					<div className="headers-mode-switch">
+						<Toggle
+							options={["basic", "advanced"] as const}
+							value={advanced ? "advanced" : "basic"}
+							onChange={(v: "basic" | "advanced") => setAdvanced(v === "advanced")}
 							disabled={disabled}
 						/>
-						{config.authorization && (
-							<div className="toggle-detail">
-								<label htmlFor={`${idPrefix}-auth-value`}>Authorization Value</label>
-								<input
-									id={`${idPrefix}-auth-value`}
-									type="text"
-									placeholder="Bearer token123"
-									value={config.auth_value}
-									onChange={(e) => update({ auth_value: e.target.value })}
-									maxLength={1024}
-									disabled={disabled}
-								/>
-							</div>
-						)}
 					</div>
+					{advanced ? (
+						<HeadersAdvanced
+							builtin={config.builtin}
+							custom={config.custom}
+							builtinKeySet={builtinHeaderDownKeys}
+							defaultBuiltins={defaultHeaderDownBuiltins}
+							operations={["set", "add", "delete"]}
+							deferred={config.deferred}
+							onDeferredChange={(v) => update({ deferred: v })}
+							onBuiltinChange={(builtin) => update({ builtin })}
+							onCustomChange={(custom) => update({ custom })}
+							expandFromToggles={() => expandBasicHeaderDownToAdvanced(config)}
+						/>
+					) : (
+						<>
+							{hasAdvancedHeaderDownCustomizations(config) && (
+								<span className="headers-advanced-warning">
+									Advanced customizations exist. Saving in basic mode will reset headers to
+									defaults. Switch to advanced mode to view them.
+								</span>
+							)}
+							<HeaderDownBasic config={config} onChange={onChange} />
+						</>
+					)}
 				</div>
 			)}
 		</div>
