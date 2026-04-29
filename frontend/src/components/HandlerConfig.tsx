@@ -828,7 +828,7 @@ function HeaderUpSection({
 	return (
 		<div className={cn("toggle-group", config.enabled && "toggle-group-open")}>
 			<ToggleItem
-				label="Request Headers"
+				label="Header Up"
 				description="Modify headers sent to upstream"
 				checked={config.enabled}
 				onChange={(v) => update({ enabled: v })}
@@ -890,7 +890,7 @@ function HeaderDownSection({
 	return (
 		<div className={cn("toggle-group", config.enabled && "toggle-group-open")}>
 			<ToggleItem
-				label="Response Headers"
+				label="Header Down"
 				description="Modify headers received from upstream"
 				checked={config.enabled}
 				onChange={(v) => update({ enabled: v })}
