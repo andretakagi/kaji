@@ -1,4 +1,4 @@
-import type { HeadersConfig, RequestHeaders } from "./api";
+import type { HeaderDownConfig, HeadersConfig, HeaderUpConfig } from "./api";
 
 export interface DomainToggles {
 	force_https: boolean;
@@ -34,7 +34,8 @@ export interface ReverseProxyConfig {
 		strategy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
 		upstreams: string[];
 	};
-	request_headers: RequestHeaders;
+	header_up: HeaderUpConfig;
+	header_down: HeaderDownConfig;
 }
 
 export interface StaticResponseConfig {
@@ -160,6 +161,16 @@ export const defaultDomainToggles: DomainToggles = {
 	force_https: true,
 	compression: false,
 	headers: {
+		request: {
+			enabled: false,
+			x_forwarded_for: false,
+			x_real_ip: false,
+			x_forwarded_proto: false,
+			x_forwarded_host: false,
+			x_request_id: false,
+			builtin: [],
+			custom: [],
+		},
 		response: {
 			enabled: false,
 			security: false,
@@ -167,6 +178,7 @@ export const defaultDomainToggles: DomainToggles = {
 			cors_origins: [],
 			cache_control: false,
 			x_robots_tag: false,
+			deferred: false,
 			builtin: [],
 			custom: [],
 		},
@@ -182,12 +194,20 @@ export const defaultReverseProxyConfig: ReverseProxyConfig = {
 	tls_skip_verify: false,
 	websocket_passthrough: false,
 	load_balancing: { enabled: false, strategy: "round_robin", upstreams: [] },
-	request_headers: {
+	header_up: {
 		enabled: false,
 		host_override: false,
 		host_value: "",
 		authorization: false,
 		auth_value: "",
+		builtin: [],
+		custom: [],
+	},
+	header_down: {
+		enabled: false,
+		strip_server: false,
+		strip_powered_by: false,
+		deferred: false,
 		builtin: [],
 		custom: [],
 	},

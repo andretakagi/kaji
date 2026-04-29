@@ -1,11 +1,19 @@
 import { useRef, useState } from "react";
-import type { HeaderEntry, HeadersConfig } from "../types/api";
-import { builtinResponseKeys, expandBasicToAdvanced } from "../utils/headerDefaults";
+import type { HeaderEntry, HeaderOperation } from "../types/api";
 import { HeaderRow } from "./HeaderRow";
+import { ToggleItem } from "./ToggleGrid";
 
 interface HeadersAdvancedProps {
-	headers: HeadersConfig;
-	onChange: (headers: HeadersConfig) => void;
+	builtin: HeaderEntry[];
+	custom: HeaderEntry[];
+	builtinKeySet: Set<string>;
+	defaultBuiltins: HeaderEntry[];
+	operations: HeaderOperation[];
+	deferred?: boolean;
+	onDeferredChange?: (v: boolean) => void;
+	onBuiltinChange: (builtin: HeaderEntry[]) => void;
+	onCustomChange: (custom: HeaderEntry[]) => void;
+	expandFromToggles?: () => HeaderEntry[];
 }
 
 interface KeyedEntry {
@@ -36,7 +44,7 @@ function useKeyedEntries(entries: HeaderEntry[]) {
 		nextId.current += 1;
 		const newEntry: KeyedEntry = {
 			id: nextId.current,
-			entry: { key: "", value: "", enabled: true },
+			entry: { key: "", value: "", operation: "set" as const, enabled: true },
 		};
 		const next = [...keyed, newEntry];
 		setKeyed(next);
@@ -59,76 +67,90 @@ function useKeyedEntries(entries: HeaderEntry[]) {
 	return { keyed, add, update, remove };
 }
 
-export function HeadersAdvanced({ headers, onChange }: HeadersAdvancedProps) {
+export function HeadersAdvanced({
+	builtin,
+	custom,
+	builtinKeySet,
+	defaultBuiltins,
+	operations,
+	deferred,
+	onDeferredChange,
+	onBuiltinChange,
+	onCustomChange,
+	expandFromToggles,
+}: HeadersAdvancedProps) {
 	const didExpand = useRef(false);
 
-	const respCustom = useKeyedEntries(headers.response.custom);
+	const customEntries = useKeyedEntries(custom);
 
 	if (!didExpand.current) {
 		didExpand.current = true;
 
-		if (headers.response.builtin.length === 0) {
-			onChange({
-				...headers,
-				response: {
-					...headers.response,
-					builtin: expandBasicToAdvanced(headers.response),
-				},
-			});
+		if (builtin.length === 0) {
+			const initial = expandFromToggles ? expandFromToggles() : defaultBuiltins;
+			onBuiltinChange(initial);
 			return null;
 		}
 	}
 
-	const responseCustomKeys = new Set(headers.response.custom.map((e) => e.key));
+	const customKeys = new Set(custom.map((e) => e.key));
 
-	function updateResponseBuiltin(index: number, entry: HeaderEntry) {
-		const builtin = [...headers.response.builtin];
-		builtin[index] = entry;
-		onChange({ ...headers, response: { ...headers.response, builtin } });
+	function updateBuiltin(index: number, entry: HeaderEntry) {
+		const next = [...builtin];
+		next[index] = entry;
+		onBuiltinChange(next);
 	}
 
-	function updateResponseCustom(index: number, entry: HeaderEntry) {
-		const custom = respCustom.update(index, entry);
-		onChange({ ...headers, response: { ...headers.response, custom } });
+	function updateCustom(index: number, entry: HeaderEntry) {
+		onCustomChange(customEntries.update(index, entry));
 	}
 
-	function addResponseCustom() {
-		const custom = respCustom.add();
-		onChange({ ...headers, response: { ...headers.response, custom } });
+	function addCustom() {
+		onCustomChange(customEntries.add());
 	}
 
-	function deleteResponseCustom(index: number) {
-		const custom = respCustom.remove(index);
-		onChange({ ...headers, response: { ...headers.response, custom } });
+	function deleteCustom(index: number) {
+		onCustomChange(customEntries.remove(index));
 	}
 
 	return (
 		<div className="headers-advanced">
 			<div className="headers-advanced-section">
-				{headers.response.builtin.map((entry, i) => (
+				{onDeferredChange !== undefined && (
+					<ToggleItem
+						label="Deferred"
+						description="Apply headers after response is received from upstream"
+						checked={deferred ?? false}
+						onChange={onDeferredChange}
+					/>
+				)}
+
+				{builtin.map((entry, i) => (
 					<HeaderRow
 						key={entry.key}
 						entry={entry}
 						isBuiltin={true}
-						isOverridden={responseCustomKeys.has(entry.key)}
-						onChange={(e) => updateResponseBuiltin(i, e)}
+						isOverridden={customKeys.has(entry.key)}
+						operations={operations}
+						onChange={(e) => updateBuiltin(i, e)}
 					/>
 				))}
 
-				{respCustom.keyed.length > 0 && <div className="headers-advanced-divider" />}
+				{customEntries.keyed.length > 0 && <div className="headers-advanced-divider" />}
 
-				{respCustom.keyed.map((k, i) => (
+				{customEntries.keyed.map((k, i) => (
 					<HeaderRow
 						key={k.id}
 						entry={k.entry}
 						isBuiltin={false}
-						isOverridden={builtinResponseKeys.has(k.entry.key)}
-						onChange={(e) => updateResponseCustom(i, e)}
-						onDelete={() => deleteResponseCustom(i)}
+						isOverridden={builtinKeySet.has(k.entry.key)}
+						operations={operations}
+						onChange={(e) => updateCustom(i, e)}
+						onDelete={() => deleteCustom(i)}
 					/>
 				))}
 
-				<button type="button" className="btn btn-ghost" onClick={addResponseCustom}>
+				<button type="button" className="btn btn-ghost" onClick={addCustom}>
 					+ Add Header
 				</button>
 			</div>

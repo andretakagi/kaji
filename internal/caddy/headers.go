@@ -18,7 +18,6 @@ var baseCORSHeaders = map[string][]string{
 	"Access-Control-Allow-Credentials": {"true"},
 }
 
-// builtinResponseKeys are response header keys recognized as built-in entries.
 var builtinResponseKeys = map[string]bool{
 	"Strict-Transport-Security":        true,
 	"X-Content-Type-Options":           true,
@@ -34,23 +33,104 @@ var builtinResponseKeys = map[string]bool{
 	"Content-Security-Policy":          true,
 }
 
-// builtinRequestKeys are request header keys recognized as built-in entries.
-var builtinRequestKeys = map[string]bool{
-	"Host":          true,
-	"Authorization": true,
-	"X-Real-IP":     true,
+var builtinDomainRequestKeys = map[string]bool{
+	"X-Forwarded-For":   true,
+	"X-Real-IP":         true,
+	"X-Forwarded-Proto": true,
+	"X-Forwarded-Host":  true,
+	"X-Request-ID":      true,
 }
 
-// classifyHeaders splits a set of header key/values into builtin and custom
-// entries based on the provided known-key map. All entries are marked enabled
-// since they're present in the live config.
+var builtinHeaderUpKeys = map[string]bool{
+	"Host":          true,
+	"Authorization": true,
+}
+
+var builtinHeaderDownKeys = map[string]bool{
+	"Server":       true,
+	"X-Powered-By": true,
+}
+
+// groupedOps collects header entries by Caddy operation type.
+type groupedOps struct {
+	set     map[string][]string
+	add     map[string][]string
+	del     []string
+	replace map[string][]map[string]string
+}
+
+func groupByOperation(entries []HeaderEntry) groupedOps {
+	g := groupedOps{
+		set:     make(map[string][]string),
+		add:     make(map[string][]string),
+		replace: make(map[string][]map[string]string),
+	}
+	for _, e := range entries {
+		if !e.Enabled || e.Key == "" {
+			continue
+		}
+		switch e.Operation {
+		case "add":
+			g.add[e.Key] = append(g.add[e.Key], e.Value)
+		case "delete":
+			g.del = append(g.del, e.Key)
+		case "replace":
+			g.replace[e.Key] = append(g.replace[e.Key], map[string]string{
+				"search":  e.Search,
+				"replace": e.Value,
+			})
+		default:
+			g.set[e.Key] = []string{e.Value}
+		}
+	}
+	return g
+}
+
+func (g groupedOps) isEmpty() bool {
+	return len(g.set) == 0 && len(g.add) == 0 && len(g.del) == 0 && len(g.replace) == 0
+}
+
+func (g groupedOps) toMap() map[string]any {
+	m := make(map[string]any)
+	if len(g.set) > 0 {
+		m["set"] = g.set
+	}
+	if len(g.add) > 0 {
+		m["add"] = g.add
+	}
+	if len(g.del) > 0 {
+		m["delete"] = g.del
+	}
+	if len(g.replace) > 0 {
+		m["replace"] = g.replace
+	}
+	return m
+}
+
+func mergeEntries(builtin, custom []HeaderEntry) []HeaderEntry {
+	seen := make(map[string]int)
+	merged := make([]HeaderEntry, 0, len(builtin)+len(custom))
+	for _, e := range builtin {
+		seen[e.Key] = len(merged)
+		merged = append(merged, e)
+	}
+	for _, e := range custom {
+		if idx, ok := seen[e.Key]; ok {
+			merged[idx] = e
+		} else {
+			merged = append(merged, e)
+		}
+	}
+	return merged
+}
+
 func classifyHeaders(headerSet map[string][]string, knownKeys map[string]bool) (builtin, custom []HeaderEntry) {
 	for key, vals := range headerSet {
 		value := ""
 		if len(vals) > 0 {
 			value = vals[0]
 		}
-		entry := HeaderEntry{Key: key, Value: value, Enabled: true}
+		entry := HeaderEntry{Key: key, Value: value, Operation: "set", Enabled: true}
 		if knownKeys[key] {
 			builtin = append(builtin, entry)
 		} else {
@@ -59,6 +139,8 @@ func classifyHeaders(headerSet map[string][]string, knownKeys map[string]bool) (
 	}
 	return builtin, custom
 }
+
+// --- Response headers (domain-level headers handler) ---
 
 func buildResponseHeaders(cfg HeadersConfig, advancedMode bool) []any {
 	if !cfg.Response.Enabled {
@@ -88,9 +170,13 @@ func buildBasicResponseHeaders(resp ResponseHeaders) []any {
 	var handlers []any
 
 	if len(headerSet) > 0 {
+		responseBlock := map[string]any{"set": headerSet}
+		if resp.Deferred {
+			responseBlock["deferred"] = true
+		}
 		handlers = append(handlers, map[string]any{
 			"handler":  "headers",
-			"response": map[string]any{"set": headerSet},
+			"response": responseBlock,
 		})
 	}
 
@@ -102,42 +188,36 @@ func buildBasicResponseHeaders(resp ResponseHeaders) []any {
 }
 
 func buildAdvancedResponseHeaders(resp ResponseHeaders) []any {
-	merged := make(map[string][]string)
+	entries := mergeEntries(resp.Builtin, resp.Custom)
+	ops := groupByOperation(entries)
 
-	for _, entry := range resp.Builtin {
-		if entry.Enabled && entry.Key != "" {
-			merged[entry.Key] = []string{entry.Value}
-		}
-	}
-	// Custom entries override built-in on key conflict
-	for _, entry := range resp.Custom {
-		if entry.Enabled && entry.Key != "" {
-			merged[entry.Key] = []string{entry.Value}
-		}
-	}
-
-	// Separate CORS origin header for special multi-origin handling
+	// Separate CORS origin for multi-origin handling
 	var corsOrigins []string
 	hasCORS := false
-	if vals, ok := merged["Access-Control-Allow-Origin"]; ok {
+	if vals, ok := ops.set["Access-Control-Allow-Origin"]; ok {
 		hasCORS = true
-		raw := vals[0]
-		parts := strings.Split(raw, ",")
-		for _, p := range parts {
-			trimmed := strings.TrimSpace(p)
-			if trimmed != "" {
-				corsOrigins = append(corsOrigins, trimmed)
+		for _, v := range vals {
+			parts := strings.Split(v, ",")
+			for _, p := range parts {
+				trimmed := strings.TrimSpace(p)
+				if trimmed != "" {
+					corsOrigins = append(corsOrigins, trimmed)
+				}
 			}
 		}
-		delete(merged, "Access-Control-Allow-Origin")
+		delete(ops.set, "Access-Control-Allow-Origin")
 	}
 
 	var handlers []any
 
-	if len(merged) > 0 {
+	if !ops.isEmpty() {
+		responseBlock := ops.toMap()
+		if resp.Deferred {
+			responseBlock["deferred"] = true
+		}
 		handlers = append(handlers, map[string]any{
 			"handler":  "headers",
-			"response": map[string]any{"set": merged},
+			"response": responseBlock,
 		})
 	}
 
@@ -196,48 +276,170 @@ func buildCORSHandlers(origins []string) []any {
 	}
 }
 
-func BuildRequestHeaders(req RequestHeaders, advancedMode bool) map[string][]string {
+// --- Domain-level request headers (headers handler, request block) ---
+
+func buildDomainRequestHeaders(cfg HeadersConfig, advancedMode bool) map[string]any {
+	req := cfg.Request
 	if !req.Enabled {
 		return nil
 	}
 	if advancedMode {
-		return buildAdvancedRequestHeaders(req)
+		return buildAdvancedDomainRequestHeaders(req)
 	}
-	return buildBasicRequestHeaders(req)
+	return buildBasicDomainRequestHeaders(req)
 }
 
-func buildBasicRequestHeaders(req RequestHeaders) map[string][]string {
-	result := make(map[string][]string)
+func buildBasicDomainRequestHeaders(req DomainRequestHeaders) map[string]any {
+	headerSet := make(map[string][]string)
 
-	if req.HostOverride && req.HostValue != "" {
-		result["Host"] = []string{req.HostValue}
+	if req.XForwardedFor {
+		headerSet["X-Forwarded-For"] = []string{"{http.request.remote.host}"}
 	}
-	if req.Authorization && req.AuthValue != "" {
-		result["Authorization"] = []string{req.AuthValue}
+	if req.XRealIP {
+		headerSet["X-Real-IP"] = []string{"{http.request.remote.host}"}
+	}
+	if req.XForwardedProto {
+		headerSet["X-Forwarded-Proto"] = []string{"{http.request.scheme}"}
+	}
+	if req.XForwardedHost {
+		headerSet["X-Forwarded-Host"] = []string{"{http.request.host}"}
+	}
+	if req.XRequestID {
+		headerSet["X-Request-ID"] = []string{"{http.request.uuid}"}
 	}
 
-	if len(result) == 0 {
+	if len(headerSet) == 0 {
 		return nil
+	}
+	return map[string]any{"set": headerSet}
+}
+
+func buildAdvancedDomainRequestHeaders(req DomainRequestHeaders) map[string]any {
+	entries := mergeEntries(req.Builtin, req.Custom)
+	ops := groupByOperation(entries)
+	if ops.isEmpty() {
+		return nil
+	}
+	return ops.toMap()
+}
+
+// --- Header Up (reverse_proxy headers.request) ---
+
+func BuildHeaderUp(cfg HeaderUpConfig, advancedMode bool) map[string]any {
+	if !cfg.Enabled {
+		return nil
+	}
+	if advancedMode {
+		return buildAdvancedHeaderUp(cfg)
+	}
+	return buildBasicHeaderUp(cfg)
+}
+
+func buildBasicHeaderUp(cfg HeaderUpConfig) map[string]any {
+	headerSet := make(map[string][]string)
+
+	if cfg.HostOverride && cfg.HostValue != "" {
+		headerSet["Host"] = []string{cfg.HostValue}
+	}
+	if cfg.Authorization && cfg.AuthValue != "" {
+		headerSet["Authorization"] = []string{cfg.AuthValue}
+	}
+
+	if len(headerSet) == 0 {
+		return nil
+	}
+	return map[string]any{"set": headerSet}
+}
+
+func buildAdvancedHeaderUp(cfg HeaderUpConfig) map[string]any {
+	entries := mergeEntries(cfg.Builtin, cfg.Custom)
+	ops := groupByOperation(entries)
+	if ops.isEmpty() {
+		return nil
+	}
+	return ops.toMap()
+}
+
+// --- Header Down (reverse_proxy headers.response) ---
+
+func BuildHeaderDown(cfg HeaderDownConfig, advancedMode bool) map[string]any {
+	if !cfg.Enabled {
+		return nil
+	}
+	if advancedMode {
+		return buildAdvancedHeaderDown(cfg)
+	}
+	return buildBasicHeaderDown(cfg)
+}
+
+func buildBasicHeaderDown(cfg HeaderDownConfig) map[string]any {
+	var deletes []string
+
+	if cfg.StripServer {
+		deletes = append(deletes, "Server")
+	}
+	if cfg.StripPoweredBy {
+		deletes = append(deletes, "X-Powered-By")
+	}
+
+	if len(deletes) == 0 {
+		return nil
+	}
+	result := map[string]any{"delete": deletes}
+	if cfg.Deferred {
+		result["deferred"] = true
 	}
 	return result
 }
 
-func buildAdvancedRequestHeaders(req RequestHeaders) map[string][]string {
-	merged := make(map[string][]string)
-
-	for _, entry := range req.Builtin {
-		if entry.Enabled && entry.Key != "" {
-			merged[entry.Key] = []string{entry.Value}
-		}
-	}
-	for _, entry := range req.Custom {
-		if entry.Enabled && entry.Key != "" {
-			merged[entry.Key] = []string{entry.Value}
-		}
-	}
-
-	if len(merged) == 0 {
+func buildAdvancedHeaderDown(cfg HeaderDownConfig) map[string]any {
+	entries := mergeEntries(cfg.Builtin, cfg.Custom)
+	ops := groupByOperation(entries)
+	if ops.isEmpty() {
 		return nil
 	}
-	return merged
+	result := ops.toMap()
+	if cfg.Deferred {
+		result["deferred"] = true
+	}
+	return result
+}
+
+// --- Parse helpers (used by route.go parsers) ---
+
+func appendOpsToEntries(entries *[]HeaderEntry, ops map[string][]string, operation string) {
+	for key, vals := range ops {
+		for _, val := range vals {
+			*entries = append(*entries, HeaderEntry{
+				Key:       key,
+				Value:     val,
+				Operation: operation,
+				Enabled:   true,
+			})
+		}
+	}
+}
+
+func appendDeleteEntries(entries *[]HeaderEntry, keys []string) {
+	for _, key := range keys {
+		*entries = append(*entries, HeaderEntry{
+			Key:       key,
+			Operation: "delete",
+			Enabled:   true,
+		})
+	}
+}
+
+func appendReplaceEntries(entries *[]HeaderEntry, replacements map[string][]map[string]string) {
+	for key, reps := range replacements {
+		for _, rep := range reps {
+			*entries = append(*entries, HeaderEntry{
+				Key:       key,
+				Value:     rep["replace"],
+				Operation: "replace",
+				Search:    rep["search"],
+				Enabled:   true,
+			})
+		}
+	}
 }

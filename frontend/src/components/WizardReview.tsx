@@ -57,14 +57,11 @@ function ReverseProxySummary({ config }: { config: ReverseProxyConfig }) {
 			value: `${strategyLabel}${extra > 0 ? ` (+${extra} upstreams)` : ""}`,
 		});
 	}
-	if (config.request_headers.enabled) {
+	if (config.header_up.enabled) {
 		const parts: string[] = [];
-		if (config.request_headers.host_override)
-			parts.push(`Host: ${config.request_headers.host_value}`);
-		if (config.request_headers.authorization) parts.push("Authorization");
-		const custom = [...config.request_headers.builtin, ...config.request_headers.custom].filter(
-			(h) => h.key,
-		);
+		if (config.header_up.host_override) parts.push(`Host: ${config.header_up.host_value}`);
+		if (config.header_up.authorization) parts.push("Authorization");
+		const custom = [...config.header_up.builtin, ...config.header_up.custom].filter((h) => h.key);
 		if (custom.length > 0) parts.push(`${custom.length} custom`);
 		if (parts.length > 0) rows.push({ label: "Req headers", value: parts.join(", ") });
 	}

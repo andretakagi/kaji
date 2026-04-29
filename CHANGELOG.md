@@ -7,6 +7,10 @@ All notable changes to Kaji are documented in this file.
 ### Added
 - Error handler type for domain routes, returning a configurable status code that triggers handle_errors processing.
 - Custom error pages per domain and subdomain. Map status codes (individual, ranges like 4xx/5xx, or comma-separated) to custom response bodies with configurable content types.
+- Domain-level request headers. New toggle group alongside response headers with presets for X-Forwarded-For, X-Real-IP, X-Forwarded-Proto, X-Forwarded-Host, and X-Request-ID. Supports basic mode with presets and advanced mode with per-header set/add/delete/replace operations.
+- Header Up and Header Down sections in reverse proxy configuration. Header Up controls headers sent to the upstream (Host Override, Authorization). Header Down controls headers returned from the upstream (Strip Server, Strip X-Powered-By). Both support basic and advanced modes.
+- Per-header operation selector in advanced header mode. Each row can be set, add, delete, or replace (where applicable). Delete hides the value field, replace shows inline search and replacement fields.
+- Deferred header application toggle in advanced mode for response headers and header down contexts.
 
 ### Fixed
 - Log viewer connection indicator stayed stuck on "Reconnecting..." after a transient disconnect on an idle proxy. The stream was actually reconnecting, but the status only cleared when a new log line arrived.

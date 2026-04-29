@@ -3,7 +3,7 @@ import { fetchGlobalToggles, fetchIPLists } from "../api";
 import { cn } from "../cn";
 import type { GlobalToggles, IPList } from "../types/api";
 import type { DomainToggles, ErrorPage } from "../types/domain";
-import { ResponseHeadersGroup } from "./HeadersGroup";
+import { RequestHeadersGroup, ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
 import { ToggleItem } from "./ToggleGrid";
 
@@ -12,7 +12,7 @@ interface Props {
 	onUpdate: <K extends keyof DomainToggles>(key: K, value: DomainToggles[K]) => void;
 	idPrefix: string;
 	domain?: string;
-	hideResponseHeaders?: boolean;
+	hideHeaders?: boolean;
 	disabled?: boolean;
 	errorMessage?: string;
 	isCreate?: boolean;
@@ -23,7 +23,7 @@ export function DomainToggleGrid({
 	onUpdate,
 	idPrefix,
 	domain,
-	hideResponseHeaders,
+	hideHeaders,
 	disabled,
 	errorMessage,
 	isCreate,
@@ -71,7 +71,15 @@ export function DomainToggleGrid({
 				onChange={(v) => onUpdate("compression", v)}
 				disabled={disabled}
 			/>
-			{!hideResponseHeaders && (
+			{!hideHeaders && (
+				<RequestHeadersGroup
+					toggles={toggles}
+					onUpdate={onUpdate}
+					idPrefix={idPrefix}
+					disabled={disabled}
+				/>
+			)}
+			{!hideHeaders && (
 				<ResponseHeadersGroup
 					toggles={toggles}
 					onUpdate={onUpdate}

@@ -42,6 +42,7 @@ export function normalizeToggles(t: DomainToggles | null | undefined): DomainTog
 		ip_filtering: { ...base.ip_filtering, ...(t.ip_filtering ?? {}) },
 		error_pages: t.error_pages ?? base.error_pages,
 		headers: {
+			request: { ...base.headers.request, ...(t.headers?.request ?? {}) },
 			response: { ...base.headers.response, ...(t.headers?.response ?? {}) },
 		},
 	};
@@ -59,7 +60,8 @@ export function normalizeRule(r: Rule): Rule {
 					tls_skip_verify: c.tls_skip_verify ?? base.tls_skip_verify,
 					websocket_passthrough: c.websocket_passthrough ?? base.websocket_passthrough,
 					load_balancing: { ...base.load_balancing, ...(c.load_balancing ?? {}) },
-					request_headers: { ...base.request_headers, ...(c.request_headers ?? {}) },
+					header_up: { ...base.header_up, ...(c.header_up ?? {}) },
+					header_down: { ...base.header_down, ...(c.header_down ?? {}) },
 				},
 			};
 		}

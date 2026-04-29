@@ -219,12 +219,21 @@ func buildReverseProxyHandler(handlerConfig json.RawMessage, advancedHeaders boo
 		}
 	}
 
-	if reqHeaders := BuildRequestHeaders(rpCfg.RequestHeaders, advancedHeaders); reqHeaders != nil {
-		rp["headers"] = map[string]any{
-			"request": map[string]any{
-				"set": reqHeaders,
-			},
+	var rpHeaders map[string]any
+	if up := BuildHeaderUp(rpCfg.HeaderUp, advancedHeaders); up != nil {
+		if rpHeaders == nil {
+			rpHeaders = make(map[string]any)
 		}
+		rpHeaders["request"] = up
+	}
+	if down := BuildHeaderDown(rpCfg.HeaderDown, advancedHeaders); down != nil {
+		if rpHeaders == nil {
+			rpHeaders = make(map[string]any)
+		}
+		rpHeaders["response"] = down
+	}
+	if rpHeaders != nil {
+		rp["headers"] = rpHeaders
 	}
 
 	return rp, nil
