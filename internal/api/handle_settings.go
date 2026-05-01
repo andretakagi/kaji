@@ -146,6 +146,46 @@ func handleDNSProviderUpdate(store *config.ConfigStore, cc *caddy.Client, ss *sn
 	}
 }
 
+func handlePortsGet(cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ports, err := cc.GetPorts()
+		if err != nil {
+			caddyError(w, "handlePortsGet", err)
+			return
+		}
+		writeJSON(w, ports)
+	}
+}
+
+func handlePortsUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ports caddy.Ports
+		if !decodeBody(w, r, &ports) {
+			return
+		}
+		if msg := validatePort(ports.HTTPPort, "HTTP"); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
+		}
+		if msg := validatePort(ports.HTTPSPort, "HTTPS"); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
+		}
+		if ports.HTTPPort == ports.HTTPSPort {
+			writeError(w, "HTTP and HTTPS ports must be different", http.StatusBadRequest)
+			return
+		}
+		maybeAutoSnapshot(cc, ss, store, version, "Ports updated")
+
+		if err := cc.SetPorts(&ports); err != nil {
+			caddyError(w, "handlePortsUpdate", err)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+		persistCaddyConfig(cc, store)
+	}
+}
+
 func handleCaddyDataDirGet(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()

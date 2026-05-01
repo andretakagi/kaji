@@ -221,6 +221,13 @@ func validateIPListChildren(children []string, parentType string, parentID strin
 	return ""
 }
 
+func validatePort(port int, label string) string {
+	if port < 1 || port > 65535 {
+		return fmt.Sprintf("%s port must be between 1 and 65535", label)
+	}
+	return ""
+}
+
 func validatePathMatch(pathMatch string) string {
 	switch pathMatch {
 	case "exact", "prefix", "regex":
