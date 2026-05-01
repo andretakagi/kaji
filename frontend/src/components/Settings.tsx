@@ -6,12 +6,14 @@ import {
 	fetchAPIKeyStatus,
 	fetchAuthStatus,
 	fetchCaddyDataDir,
+	fetchPorts,
 	generateAPIKey,
 	importCaddyfile,
 	importFull,
 	revokeAPIKey,
 	updateAdvancedSettings,
 	updateCaddyDataDir,
+	updatePorts,
 } from "../api";
 import { useCaddyStatus } from "../contexts/CaddyContext";
 import { useAsyncAction } from "../hooks/useAsyncAction";
@@ -316,27 +318,60 @@ function ExportImportSection({ onImport }: { onImport: () => void }) {
 
 function AdvancedSection({
 	initial,
+	caddyRunning,
 }: {
 	initial: {
 		caddy_admin_url: string;
 		caddy_data_dir: string;
 		caddy_data_dir_placeholder: string;
 	};
+	caddyRunning: boolean;
 }) {
 	const [caddyAdminUrl, setCaddyAdminUrl] = useState(initial.caddy_admin_url);
 	const [caddyDataDir, setCaddyDataDir] = useState(initial.caddy_data_dir);
+	const [httpPort, setHttpPort] = useState(80);
+	const [httpsPort, setHttpsPort] = useState(443);
+	const [portsLoaded, setPortsLoaded] = useState(false);
+
 	useEffect(() => {
 		setCaddyAdminUrl(initial.caddy_admin_url);
 		setCaddyDataDir(initial.caddy_data_dir);
 	}, [initial.caddy_admin_url, initial.caddy_data_dir]);
+
+	useEffect(() => {
+		if (!caddyRunning) {
+			setPortsLoaded(false);
+			return;
+		}
+		fetchPorts()
+			.then((ports) => {
+				setHttpPort(ports.http_port);
+				setHttpsPort(ports.https_port);
+				setPortsLoaded(true);
+			})
+			.catch(() => setPortsLoaded(false));
+	}, [caddyRunning]);
+
 	const { saving, feedback, run } = useAsyncAction();
 
 	const handleSave = () =>
 		run(async () => {
 			const urlError = validateCaddyAdminUrl(caddyAdminUrl);
 			if (urlError) throw new Error(urlError);
+
+			if (portsLoaded) {
+				if (httpPort < 1 || httpPort > 65535)
+					throw new Error("HTTP port must be between 1 and 65535");
+				if (httpsPort < 1 || httpsPort > 65535)
+					throw new Error("HTTPS port must be between 1 and 65535");
+				if (httpPort === httpsPort) throw new Error("HTTP and HTTPS ports must be different");
+			}
+
 			await updateAdvancedSettings({ caddy_admin_url: caddyAdminUrl });
 			await updateCaddyDataDir(caddyDataDir);
+			if (portsLoaded) {
+				await updatePorts({ http_port: httpPort, https_port: httpsPort });
+			}
 			return "Saved";
 		});
 
@@ -365,6 +400,33 @@ function AdvancedSection({
 					maxLength={2048}
 				/>
 			</div>
+			{portsLoaded && (
+				<>
+					<h4 className="settings-subsection-heading">Ports</h4>
+					<div className="settings-field">
+						<label htmlFor="http-port">HTTP port</label>
+						<input
+							id="http-port"
+							type="number"
+							value={httpPort}
+							onChange={(e) => setHttpPort(Number(e.target.value))}
+							min={1}
+							max={65535}
+						/>
+					</div>
+					<div className="settings-field">
+						<label htmlFor="https-port">HTTPS port</label>
+						<input
+							id="https-port"
+							type="number"
+							value={httpsPort}
+							onChange={(e) => setHttpsPort(Number(e.target.value))}
+							min={1}
+							max={65535}
+						/>
+					</div>
+				</>
+			)}
 			<button
 				type="button"
 				className="btn btn-primary settings-save-btn"
@@ -519,7 +581,7 @@ export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boo
 					<p className="settings-section-error">Failed to load</p>
 				</section>
 			) : (
-				<AdvancedSection initial={advanced} />
+				<AdvancedSection initial={advanced} caddyRunning={caddyRunning} />
 			)}
 		</div>
 	);
