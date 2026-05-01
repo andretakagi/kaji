@@ -4,6 +4,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -120,7 +121,8 @@ func handleSetup(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store
 					warnings = append(warnings, "failed to load Caddyfile config: "+err.Error())
 				}
 			} else {
-				minimalCfg := []byte(`{"apps":{"http":{"servers":{"srv0":{"listen":[":443"]}}},"tls":{"automation":{"policies":[]}}}}`)
+				listenAddr := cc.HTTPSListenAddr()
+				minimalCfg := []byte(fmt.Sprintf(`{"apps":{"http":{"servers":{"srv0":{"listen":[%q]}}},"tls":{"automation":{"policies":[]}}}}`, listenAddr))
 				if err := cc.LoadConfig(minimalCfg); err != nil {
 					log.Printf("handleSetup: load minimal config: %v", err)
 					warnings = append(warnings, "failed to initialize Caddy config: "+err.Error())

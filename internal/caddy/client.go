@@ -306,7 +306,7 @@ func (c *Client) AddDomain(server string, route json.RawMessage) error {
 	routesPath := serverCaddyRoutesPath(server)
 	if _, err := c.GetConfigPath(routesPath); err != nil {
 		srv := map[string]any{
-			"listen": []string{":443"},
+			"listen": []string{c.HTTPSListenAddr()},
 			"routes": []json.RawMessage{},
 		}
 		if err := c.SetConfigCascade(serverPath(server), srv); err != nil {

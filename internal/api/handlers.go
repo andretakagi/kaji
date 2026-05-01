@@ -102,6 +102,8 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("DELETE /api/settings/api-key", handleAPIKeyRevoke(store))
 	mux.HandleFunc("GET /api/settings/advanced", handleAdvancedGet(store))
 	mux.HandleFunc("PUT /api/settings/advanced", handleAdvancedUpdate(store))
+	mux.HandleFunc("GET /api/settings/ports", handlePortsGet(cc))
+	mux.HandleFunc("PUT /api/settings/ports", handlePortsUpdate(store, cc, ss, version))
 
 	mux.HandleFunc("GET /api/ip-lists", handleListIPLists(store))
 	mux.HandleFunc("POST /api/ip-lists", handleCreateIPList(store))

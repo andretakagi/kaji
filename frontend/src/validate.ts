@@ -42,6 +42,7 @@ import type {
 	ImportResponse,
 	IPList,
 	IPListUsage,
+	Ports,
 	SetupImportFullResponse,
 	SetupResponse,
 	SetupStatus,
@@ -135,6 +136,12 @@ export function validateAdvancedUpdateResponse(data: unknown): {
 	status: string;
 } {
 	return assertValid("AdvancedUpdateResponse", data, (d) => hasFields(d, { status: is.string }));
+}
+
+export function validatePorts(data: unknown): Ports {
+	return assertValid("Ports", data, (d) =>
+		hasFields(d, { http_port: is.number, https_port: is.number }),
+	);
 }
 
 export function validateCaddyfileResponse(data: unknown): CaddyfileResponse {

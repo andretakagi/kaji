@@ -131,6 +131,8 @@ type caddyfileConfig struct {
 	AutoHTTPS      string // "on" (default/omit), "off", "disable_redirects"
 	Metrics        bool
 	PerHostMetrics bool
+	HTTPPort       int
+	HTTPSPort      int
 	Servers        map[string]caddyfileServer
 	LogFile        string // kaji_access logger file path
 	Loggers        map[string]caddyfileLogger
@@ -145,7 +147,9 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 	var full struct {
 		Apps struct {
 			HTTP struct {
-				Servers map[string]caddyServer `json:"servers"`
+				HTTPPort  *int                   `json:"http_port,omitempty"`
+				HTTPSPort *int                   `json:"https_port,omitempty"`
+				Servers   map[string]caddyServer `json:"servers"`
 			} `json:"http"`
 			TLS struct {
 				Automation struct {
@@ -169,6 +173,13 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 	}
 
 	cfg.ACMEEmail = acmeEmailFromPolicies(full.Apps.TLS.Automation.Policies)
+
+	if full.Apps.HTTP.HTTPPort != nil {
+		cfg.HTTPPort = *full.Apps.HTTP.HTTPPort
+	}
+	if full.Apps.HTTP.HTTPSPort != nil {
+		cfg.HTTPSPort = *full.Apps.HTTP.HTTPSPort
+	}
 
 	if full.Logging != nil {
 		for name, logger := range full.Logging.Logs {
@@ -260,6 +271,13 @@ func GenerateCaddyfile(raw json.RawMessage, logFile string, logSkipRules map[str
 
 func writeGlobalOptions(b *strings.Builder, cfg *caddyfileConfig) {
 	var lines []string
+
+	if cfg.HTTPPort != 0 && cfg.HTTPPort != 80 {
+		lines = append(lines, fmt.Sprintf("http_port %d", cfg.HTTPPort))
+	}
+	if cfg.HTTPSPort != 0 && cfg.HTTPSPort != 443 {
+		lines = append(lines, fmt.Sprintf("https_port %d", cfg.HTTPSPort))
+	}
 
 	if cfg.ACMEEmail != "" {
 		lines = append(lines, "email "+cfg.ACMEEmail)

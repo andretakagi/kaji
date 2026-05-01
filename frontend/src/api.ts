@@ -10,6 +10,7 @@ import type {
 	IPList,
 	IPListUsage,
 	LoginRequest,
+	Ports,
 	SetupImportFullResponse,
 	SetupRequest,
 	SetupResponse,
@@ -69,6 +70,7 @@ import {
 	validateLokiConfig,
 	validateLokiStatus,
 	validateLokiTestResult,
+	validatePorts,
 	validateSetupImportFullResponse,
 	validateSetupResponse,
 	validateSetupStatus,
@@ -291,6 +293,18 @@ export function updateAdvancedSettings(settings: {
 		"/api/settings/advanced",
 		{ method: "PUT", ...jsonBody(settings) },
 		validateAdvancedUpdateResponse,
+	);
+}
+
+export function fetchPorts(): Promise<Ports> {
+	return request("/api/settings/ports", undefined, validatePorts);
+}
+
+export function updatePorts(ports: Ports): Promise<{ status: string }> {
+	return request(
+		"/api/settings/ports",
+		{ method: "PUT", ...jsonBody(ports) },
+		validateStatusResponse,
 	);
 }
 

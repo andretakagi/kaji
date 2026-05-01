@@ -4,10 +4,16 @@ import "fmt"
 
 const (
 	httpServersPath   = "apps/http/servers"
+	httpPortPath      = "apps/http/http_port"
+	httpsPortPath     = "apps/http/https_port"
 	tlsAutomationPath = "apps/tls/automation"
 	tlsPoliciesPath   = "apps/tls/automation/policies"
 	loggingLogsPath   = "logging/logs"
 )
+
+func serverListenPath(server string) string {
+	return serverPath(server) + "/listen"
+}
 
 func serverPath(server string) string {
 	return httpServersPath + "/" + server
