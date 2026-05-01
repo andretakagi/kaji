@@ -160,6 +160,91 @@ func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 	return nil
 }
 
+type Ports struct {
+	HTTPPort  int `json:"http_port"`
+	HTTPSPort int `json:"https_port"`
+}
+
+func (c *Client) GetPorts() (*Ports, error) {
+	raw, err := c.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("fetching config for ports: %w", err)
+	}
+
+	var cfg struct {
+		Apps struct {
+			HTTP struct {
+				HTTPPort  *int `json:"http_port,omitempty"`
+				HTTPSPort *int `json:"https_port,omitempty"`
+			} `json:"http"`
+		} `json:"apps"`
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing caddy config for ports: %w", err)
+	}
+
+	ports := &Ports{
+		HTTPPort:  80,
+		HTTPSPort: 443,
+	}
+	if cfg.Apps.HTTP.HTTPPort != nil {
+		ports.HTTPPort = *cfg.Apps.HTTP.HTTPPort
+	}
+	if cfg.Apps.HTTP.HTTPSPort != nil {
+		ports.HTTPSPort = *cfg.Apps.HTTP.HTTPSPort
+	}
+
+	return ports, nil
+}
+
+func (c *Client) SetPorts(ports *Ports) error {
+	if ports.HTTPPort == 80 {
+		_ = c.DeleteConfigPath(httpPortPath)
+	} else {
+		if err := c.SetConfigCascade(httpPortPath, ports.HTTPPort); err != nil {
+			return fmt.Errorf("setting http_port: %w", err)
+		}
+	}
+
+	if ports.HTTPSPort == 443 {
+		_ = c.DeleteConfigPath(httpsPortPath)
+	} else {
+		if err := c.SetConfigCascade(httpsPortPath, ports.HTTPSPort); err != nil {
+			return fmt.Errorf("setting https_port: %w", err)
+		}
+	}
+
+	raw, err := c.GetConfigPath(httpServersPath)
+	if err != nil {
+		return nil
+	}
+	var servers map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &servers); err != nil {
+		return fmt.Errorf("parsing servers for listen update: %w", err)
+	}
+
+	listenAddr := fmt.Sprintf(":%d", ports.HTTPSPort)
+	data, err := json.Marshal([]string{listenAddr})
+	if err != nil {
+		return fmt.Errorf("marshaling listen address: %w", err)
+	}
+	for name := range servers {
+		if err := c.PatchConfigPath(serverListenPath(name), data); err != nil {
+			return fmt.Errorf("updating listen for server %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) HTTPSListenAddr() string {
+	ports, err := c.GetPorts()
+	if err != nil {
+		return ":443"
+	}
+	return fmt.Sprintf(":%d", ports.HTTPSPort)
+}
+
 // tlsPolicy mirrors the subset of a Caddy TLS automation policy we need for
 // reading ACME issuer emails.
 type tlsPolicy struct {
