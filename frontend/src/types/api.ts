@@ -211,3 +211,8 @@ export interface SetupImportFullResponse {
 	migration_log?: string[];
 	review?: ImportReview;
 }
+
+export interface Ports {
+	http_port: number;
+	https_port: number;
+}
