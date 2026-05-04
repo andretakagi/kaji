@@ -346,6 +346,17 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 	handlers := flattenHandlers(route.Handle, &p.Toggles)
 	parseHandlers(handlers, &p)
 
+	if p.HandlerType == "reverse_proxy" && (p.StripPathPrefix != "" || p.PrependPathPrefix != "") {
+		var rpCfg ReverseProxyConfig
+		if err := json.Unmarshal(p.HandlerConfig, &rpCfg); err == nil {
+			rpCfg.StripPathPrefix = p.StripPathPrefix
+			rpCfg.PrependPathPrefix = p.PrependPathPrefix
+			if updated, err := json.Marshal(rpCfg); err == nil {
+				p.HandlerConfig = updated
+			}
+		}
+	}
+
 	return p, nil
 }
 
@@ -516,10 +527,12 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 			Upstreams     []struct {
 				Dial string `json:"dial"`
 			} `json:"upstreams,omitempty"`
-			Response  json.RawMessage `json:"response,omitempty"`
-			Encodings json.RawMessage `json:"encodings,omitempty"`
-			Providers json.RawMessage `json:"providers,omitempty"`
-			LB        json.RawMessage `json:"load_balancing,omitempty"`
+			Response        json.RawMessage `json:"response,omitempty"`
+			Encodings       json.RawMessage `json:"encodings,omitempty"`
+			Providers       json.RawMessage `json:"providers,omitempty"`
+			LB              json.RawMessage `json:"load_balancing,omitempty"`
+			StripPathPrefix string          `json:"strip_path_prefix,omitempty"`
+			URI             string          `json:"uri,omitempty"`
 		}
 		if err := json.Unmarshal(h, &handler); err != nil {
 			continue
@@ -655,6 +668,20 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 
 		case "error":
 			parseErrorHandler(h, p)
+
+		case "rewrite":
+			if handler.StripPathPrefix != "" {
+				p.StripPathPrefix = handler.StripPathPrefix
+			}
+			if handler.URI != "" {
+				suffix := "{http.request.uri.path}"
+				if strings.HasSuffix(handler.URI, suffix) {
+					prefix := strings.TrimSuffix(handler.URI, suffix)
+					if prefix != "" {
+						p.PrependPathPrefix = prefix
+					}
+				}
+			}
 		}
 	}
 }
