@@ -11,6 +11,7 @@ All notable changes to Kaji are documented in this file.
 - Header Up and Header Down sections in reverse proxy configuration. Header Up controls headers sent to the upstream (Host Override, Authorization). Header Down controls headers returned from the upstream (Strip Server, Strip X-Powered-By). Both support basic and advanced modes.
 - Per-header operation selector in advanced header mode. Each row can be set, add, delete, or replace (where applicable). Delete hides the value field, replace shows inline search and replacement fields.
 - Deferred header application toggle in advanced mode for response headers and header down contexts.
+- Per-rule upstream path rewriting. Strip a path prefix, prepend a path prefix, or both (strip then prepend) before forwarding to the upstream. Configured per reverse proxy rule.
 
 ### Fixed
 - Log viewer connection indicator stayed stuck on "Reconnecting..." after a transient disconnect on an idle proxy. The stream was actually reconnecting, but the status only cleared when a new log line arrived.

@@ -65,6 +65,34 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 							disabled={disabled}
 						/>
 					</div>
+					<div className="form-field">
+						<label htmlFor={`${idPrefix}-strip-path`}>Strip path prefix</label>
+						<input
+							id={`${idPrefix}-strip-path`}
+							type="text"
+							placeholder="/app"
+							value={rpConfig.strip_path_prefix}
+							onChange={(e) => update({ strip_path_prefix: e.target.value })}
+							maxLength={260}
+							disabled={disabled}
+						/>
+					</div>
+					<div className="form-field">
+						<label htmlFor={`${idPrefix}-prepend-path`}>Prepend path prefix</label>
+						<input
+							id={`${idPrefix}-prepend-path`}
+							type="text"
+							placeholder="/v2"
+							value={rpConfig.prepend_path_prefix}
+							onChange={(e) => update({ prepend_path_prefix: e.target.value })}
+							maxLength={260}
+							disabled={disabled}
+						/>
+					</div>
+					<p className="field-hint">
+						Modify the request path before forwarding. Strip removes a prefix, prepend adds one.
+						When both are set, strip runs first.
+					</p>
 					<ToggleItem
 						label="TLS Skip Verify"
 						description="Skip TLS certificate verification for upstream"
