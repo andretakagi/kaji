@@ -118,6 +118,25 @@ func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainTogg
 		})
 	}
 
+	// Path rewriting (reverse proxy only)
+	if rule.HandlerType == "reverse_proxy" {
+		var rpCfg ReverseProxyConfig
+		if err := json.Unmarshal(rule.HandlerConfig, &rpCfg); err == nil {
+			if rpCfg.StripPathPrefix != "" {
+				handlers = append(handlers, map[string]any{
+					"handler":           "rewrite",
+					"strip_path_prefix": rpCfg.StripPathPrefix,
+				})
+			}
+			if rpCfg.PrependPathPrefix != "" {
+				handlers = append(handlers, map[string]any{
+					"handler": "rewrite",
+					"uri":     rpCfg.PrependPathPrefix + "{http.request.uri.path}",
+				})
+			}
+		}
+	}
+
 	// Terminal handler (always last)
 	switch rule.HandlerType {
 	case "reverse_proxy":
