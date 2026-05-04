@@ -16,8 +16,10 @@ type DomainParams struct {
 	HandlerType     string          `json:"handler_type"`
 	HandlerConfig   json.RawMessage `json:"handler_config,omitempty"`
 	Toggles         RouteToggles    `json:"toggles"`
-	AdvancedHeaders bool            `json:"-"`
-	IPListIPs       []string        `json:"-"`
+	AdvancedHeaders   bool            `json:"-"`
+	StripPathPrefix   string          `json:"-"`
+	PrependPathPrefix string          `json:"-"`
+	IPListIPs         []string        `json:"-"`
 	IPListType      string          `json:"-"`
 }
 

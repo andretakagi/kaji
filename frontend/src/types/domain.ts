@@ -36,6 +36,8 @@ export interface ReverseProxyConfig {
 	};
 	header_up: HeaderUpConfig;
 	header_down: HeaderDownConfig;
+	strip_path_prefix: string;
+	prepend_path_prefix: string;
 }
 
 export interface StaticResponseConfig {
@@ -211,6 +213,8 @@ export const defaultReverseProxyConfig: ReverseProxyConfig = {
 		builtin: [],
 		custom: [],
 	},
+	strip_path_prefix: "",
+	prepend_path_prefix: "",
 };
 
 export const defaultStaticResponseConfig: StaticResponseConfig = {
