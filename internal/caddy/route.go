@@ -10,17 +10,17 @@ import (
 )
 
 type DomainParams struct {
-	ID              string          `json:"@id"`
-	Domain          string          `json:"domain"`
-	Upstream        string          `json:"upstream"`
-	HandlerType     string          `json:"handler_type"`
-	HandlerConfig   json.RawMessage `json:"handler_config,omitempty"`
-	Toggles         RouteToggles    `json:"toggles"`
+	ID                string          `json:"@id"`
+	Domain            string          `json:"domain"`
+	Upstream          string          `json:"upstream"`
+	HandlerType       string          `json:"handler_type"`
+	HandlerConfig     json.RawMessage `json:"handler_config,omitempty"`
+	Toggles           RouteToggles    `json:"toggles"`
 	AdvancedHeaders   bool            `json:"-"`
 	StripPathPrefix   string          `json:"-"`
 	PrependPathPrefix string          `json:"-"`
 	IPListIPs         []string        `json:"-"`
-	IPListType      string          `json:"-"`
+	IPListType        string          `json:"-"`
 }
 
 type IPFilteringOpts struct {
