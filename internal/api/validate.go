@@ -237,6 +237,22 @@ func validatePathMatch(pathMatch string) string {
 	}
 }
 
+func validatePathPrefix(value, label string) string {
+	if value == "" {
+		return ""
+	}
+	if value == "/" {
+		return label + " cannot be just /"
+	}
+	if !strings.HasPrefix(value, "/") {
+		return label + " must start with /"
+	}
+	if strings.ContainsAny(value, "?#") {
+		return label + " must not contain query strings or fragments"
+	}
+	return ""
+}
+
 func validateReverseProxyConfig(w http.ResponseWriter, raw json.RawMessage) bool {
 	var rp caddy.ReverseProxyConfig
 	if err := json.Unmarshal(raw, &rp); err != nil {
@@ -244,6 +260,14 @@ func validateReverseProxyConfig(w http.ResponseWriter, raw json.RawMessage) bool
 		return false
 	}
 	if msg := validateUpstream(rp.Upstream); msg != "" {
+		writeError(w, msg, http.StatusBadRequest)
+		return false
+	}
+	if msg := validatePathPrefix(rp.StripPathPrefix, "strip path prefix"); msg != "" {
+		writeError(w, msg, http.StatusBadRequest)
+		return false
+	}
+	if msg := validatePathPrefix(rp.PrependPathPrefix, "prepend path prefix"); msg != "" {
 		writeError(w, msg, http.StatusBadRequest)
 		return false
 	}

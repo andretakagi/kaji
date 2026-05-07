@@ -62,6 +62,8 @@ export function normalizeRule(r: Rule): Rule {
 					load_balancing: { ...base.load_balancing, ...(c.load_balancing ?? {}) },
 					header_up: { ...base.header_up, ...(c.header_up ?? {}) },
 					header_down: { ...base.header_down, ...(c.header_down ?? {}) },
+					strip_path_prefix: c.strip_path_prefix ?? base.strip_path_prefix,
+					prepend_path_prefix: c.prepend_path_prefix ?? base.prepend_path_prefix,
 				},
 			};
 		}

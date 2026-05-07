@@ -80,6 +80,22 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 						disabled={disabled}
 					/>
 					<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
+					<PathPrefixToggle
+						label="Strip Path Prefix"
+						description="Remove a prefix from the request path before forwarding"
+						placeholder="/app"
+						value={rpConfig.strip_path_prefix}
+						onChange={(v) => update({ strip_path_prefix: v })}
+						disabled={disabled}
+					/>
+					<PathPrefixToggle
+						label="Prepend Path Prefix"
+						description="Add a prefix to the request path before forwarding"
+						placeholder="/v2"
+						value={rpConfig.prepend_path_prefix}
+						onChange={(v) => update({ prepend_path_prefix: v })}
+						disabled={disabled}
+					/>
 					<HeaderUpSection
 						config={rpConfig.header_up}
 						onChange={(hu) => update({ header_up: hu })}
@@ -136,6 +152,51 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 interface LBEntry {
 	id: number;
 	value: string;
+}
+
+function PathPrefixToggle({
+	label,
+	description,
+	placeholder,
+	value,
+	onChange,
+	disabled,
+}: {
+	label: string;
+	description: string;
+	placeholder: string;
+	value: string;
+	onChange: (value: string) => void;
+	disabled?: boolean;
+}) {
+	const [expanded, setExpanded] = useState(value !== "");
+
+	return (
+		<div className={cn("toggle-group", expanded && "toggle-group-open")}>
+			<ToggleItem
+				label={label}
+				description={description}
+				checked={expanded}
+				onChange={(v) => {
+					setExpanded(v);
+					if (!v) onChange("");
+				}}
+				disabled={disabled}
+			/>
+			{expanded && (
+				<div className={cn("toggle-detail", disabled && "toggle-detail-disabled")}>
+					<input
+						type="text"
+						placeholder={placeholder}
+						value={value}
+						onChange={(e) => onChange(e.target.value)}
+						maxLength={260}
+						disabled={disabled}
+					/>
+				</div>
+			)}
+		</div>
+	);
 }
 
 function LoadBalancingSection({
@@ -252,7 +313,7 @@ function LoadBalancingSection({
 					))}
 					<button
 						type="button"
-						className="btn btn-ghost lb-add-upstream"
+						className="btn btn-primary lb-add-upstream"
 						onClick={() => {
 							nextId.current += 1;
 							syncEntries([...entries, { id: nextId.current, value: "" }]);

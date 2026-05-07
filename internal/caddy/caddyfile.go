@@ -493,6 +493,13 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 		json.Unmarshal(p.HandlerConfig, &rpCfg)
 	}
 
+	if rpCfg.StripPathPrefix != "" {
+		b.WriteString("\turi strip_prefix " + rpCfg.StripPathPrefix + "\n")
+	}
+	if rpCfg.PrependPathPrefix != "" {
+		b.WriteString("\trewrite * " + rpCfg.PrependPathPrefix + "{http.request.uri.path}\n")
+	}
+
 	hasHeaderUp := rpCfg.HeaderUp.Enabled &&
 		((rpCfg.HeaderUp.HostOverride && rpCfg.HeaderUp.HostValue != "") ||
 			(rpCfg.HeaderUp.Authorization && rpCfg.HeaderUp.AuthValue != ""))

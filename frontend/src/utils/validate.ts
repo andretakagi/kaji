@@ -111,10 +111,23 @@ export function pathMatchWarning(pathMatch: string, value: string): string | nul
 	return null;
 }
 
+export function validatePathPrefix(value: string, label: string): string | null {
+	if (value === "") return null;
+	if (value === "/") return `${label} cannot be just /`;
+	if (!value.startsWith("/")) return `${label} must start with /`;
+	if (value.includes("?") || value.includes("#"))
+		return `${label} must not contain query strings or fragments`;
+	return null;
+}
+
 export function validateRule(rule: Rule): string | null {
 	if (rule.handler_type === "reverse_proxy") {
 		const c = rule.handler_config as ReverseProxyConfig;
 		if (!c.upstream?.trim()) return "Upstream is required";
+		const stripErr = validatePathPrefix(c.strip_path_prefix, "Strip path prefix");
+		if (stripErr) return stripErr;
+		const prependErr = validatePathPrefix(c.prepend_path_prefix, "Prepend path prefix");
+		if (prependErr) return prependErr;
 	}
 	if (rule.handler_type === "redirect") {
 		const c = rule.handler_config as RedirectConfig;

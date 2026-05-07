@@ -28,7 +28,12 @@ import {
 	pathMatchOptions,
 } from "../types/domain";
 import { getErrorMessage } from "../utils/getErrorMessage";
-import { pathMatchWarning, validateDomain, validateUpstream } from "../utils/validate";
+import {
+	pathMatchWarning,
+	validateDomain,
+	validatePathPrefix,
+	validateUpstream,
+} from "../utils/validate";
 import { DomainToggleGrid } from "./DomainToggleGrid";
 import HandlerConfig from "./HandlerConfig";
 import { Toggle } from "./Toggle";
@@ -197,6 +202,10 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 				if (err) return `Additional upstream: ${err.toLowerCase()}`;
 			}
 		}
+		const stripErr = validatePathPrefix(rp.strip_path_prefix, "Strip path prefix");
+		if (stripErr) return stripErr;
+		const prependErr = validatePathPrefix(rp.prepend_path_prefix, "Prepend path prefix");
+		if (prependErr) return prependErr;
 		return null;
 	};
 

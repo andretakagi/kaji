@@ -29,6 +29,8 @@ type ReverseProxyConfig struct {
 	LoadBalancing     LoadBalancing    `json:"load_balancing"`
 	HeaderUp          HeaderUpConfig   `json:"header_up"`
 	HeaderDown        HeaderDownConfig `json:"header_down"`
+	StripPathPrefix   string           `json:"strip_path_prefix"`
+	PrependPathPrefix string           `json:"prepend_path_prefix"`
 }
 
 type StaticResponseConfig struct {
