@@ -26,6 +26,7 @@ import { LokiSettings } from "./LokiSettings";
 import { MetricsSettings } from "./MetricsSettings";
 import { SnapshotSettings } from "./SnapshotSettings";
 import { Toggle } from "./Toggle";
+import TrustedProxiesSection from "./TrustedProxiesSection";
 
 function AppearanceSection() {
 	const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
@@ -562,6 +563,8 @@ export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boo
 			)}
 
 			{!caddyRunning ? <CaddyOffSection title="HTTPS" /> : <HttpsSettingsSection />}
+
+			{!caddyRunning ? <CaddyOffSection title="Trusted Proxies" /> : <TrustedProxiesSection />}
 
 			{!caddyRunning ? <CaddyOffSection title="Metrics" /> : <MetricsSettings />}
 

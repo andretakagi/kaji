@@ -120,9 +120,7 @@ export function validateDNSProvider(data: unknown): DNSProviderSettings {
 }
 
 export function validateTrustedProxies(data: unknown): TrustedProxies {
-	return assertValid("TrustedProxies", data, (d) =>
-		hasFields(d, { ranges: is.array }),
-	);
+	return assertValid("TrustedProxies", data, (d) => hasFields(d, { ranges: is.array }));
 }
 
 export function validateAPIKeyStatus(data: unknown): { has_api_key: boolean } {

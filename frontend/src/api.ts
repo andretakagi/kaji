@@ -55,7 +55,6 @@ import {
 	validateCaddyStatus,
 	validateCertificates,
 	validateDNSProvider,
-	validateTrustedProxies,
 	validateDomain,
 	validateDomainArray,
 	validateDomainIPListBindings,
@@ -79,6 +78,7 @@ import {
 	validateSnapshot,
 	validateSnapshotIndex,
 	validateStatusResponse,
+	validateTrustedProxies,
 	validateUpstreams,
 } from "./validate";
 
