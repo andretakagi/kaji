@@ -80,6 +80,10 @@ type caddyServer struct {
 	Logs *struct {
 		LoggerNames map[string]string `json:"logger_names"`
 	} `json:"logs"`
+	TrustedProxies *struct {
+		Source string   `json:"source"`
+		Ranges []string `json:"ranges"`
+	} `json:"trusted_proxies"`
 }
 
 // caddyConfigPartial is the minimal top-level Caddy config structure needed
