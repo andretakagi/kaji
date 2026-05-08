@@ -166,6 +166,10 @@ export interface DNSProviderSettings {
 	api_token?: string;
 }
 
+export interface TrustedProxies {
+	ranges: string[];
+}
+
 export interface IPList {
 	id: string;
 	name: string;

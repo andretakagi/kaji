@@ -15,6 +15,7 @@ import type {
 	SetupRequest,
 	SetupResponse,
 	SetupStatus,
+	TrustedProxies,
 	UpstreamStatus,
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
@@ -54,6 +55,7 @@ import {
 	validateCaddyStatus,
 	validateCertificates,
 	validateDNSProvider,
+	validateTrustedProxies,
 	validateDomain,
 	validateDomainArray,
 	validateDomainIPListBindings,
@@ -212,6 +214,18 @@ export function updateGlobalToggles(toggles: GlobalToggles): Promise<{ status: s
 	return request(
 		"/api/settings/global-toggles",
 		{ method: "PUT", ...jsonBody(toggles) },
+		validateStatusResponse,
+	);
+}
+
+export function fetchTrustedProxies(): Promise<TrustedProxies> {
+	return request("/api/settings/trusted-proxies", undefined, validateTrustedProxies);
+}
+
+export function updateTrustedProxies(tp: TrustedProxies): Promise<{ status: string }> {
+	return request(
+		"/api/settings/trusted-proxies",
+		{ method: "PUT", ...jsonBody(tp) },
 		validateStatusResponse,
 	);
 }
