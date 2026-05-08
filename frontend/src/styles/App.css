@@ -5174,3 +5174,62 @@ input:disabled + .toggle-slider {
 	word-break: break-all;
 	min-width: 0;
 }
+
+.trusted-proxies-input-row {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.trusted-proxies-input-row input {
+	flex: 1;
+	min-width: 0;
+}
+
+.trusted-proxies-presets {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.25rem;
+}
+
+.trusted-proxies-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+	margin-top: 0.75rem;
+}
+
+.trusted-proxy-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.25rem 0.5rem;
+	border-radius: 6px;
+	font-size: 0.8125rem;
+	font-family: var(--font-mono);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	color: var(--text-secondary);
+}
+
+.trusted-proxy-tag-remove {
+	all: unset;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1rem;
+	height: 1rem;
+	border-radius: 50%;
+	font-size: 0.875rem;
+	line-height: 1;
+	color: var(--text-muted);
+	transition:
+		color 0.15s,
+		background 0.15s;
+}
+
+.trusted-proxy-tag-remove:hover {
+	color: var(--red);
+	background: rgba(var(--red-rgb), 0.1);
+}
