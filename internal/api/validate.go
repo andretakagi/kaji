@@ -228,6 +228,15 @@ func validatePort(port int, label string) string {
 	return ""
 }
 
+func validateTrustedProxies(ranges []string) string {
+	for _, r := range ranges {
+		if msg := validateIPOrCIDR(r); msg != "" {
+			return msg
+		}
+	}
+	return ""
+}
+
 func validatePathMatch(pathMatch string) string {
 	switch pathMatch {
 	case "exact", "prefix", "regex":
