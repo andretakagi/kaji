@@ -54,7 +54,7 @@ type PassiveHealthCheckConfig struct {
 	Enabled               bool   `json:"enabled"`
 	FailDuration          string `json:"fail_duration"`
 	MaxFails              int    `json:"max_fails"`
-	UnhealthyStatus       []int  `json:"unhealthy_status"`
+	UnhealthyStatus       []int  `json:"unhealthy_status,omitempty"`
 	UnhealthyLatency      string `json:"unhealthy_latency"`
 	UnhealthyRequestCount int    `json:"unhealthy_request_count"`
 }
