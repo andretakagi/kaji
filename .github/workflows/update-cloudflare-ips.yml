@@ -1,0 +1,36 @@
+name: Update Cloudflare IPs
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Fetch Cloudflare IP ranges
+        run: |
+          set -euo pipefail
+          v4=$(curl -fsSL https://www.cloudflare.com/ips-v4)
+          v6=$(curl -fsSL https://www.cloudflare.com/ips-v6)
+          printf '%s\n%s\n' "$v4" "$v6" \
+            | grep -v '^$' \
+            | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n \
+            | jq -Rn '[inputs | select(length > 0)]' \
+            > frontend/src/data/cloudflare-ips.json
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: update Cloudflare IP ranges"
+          title: "chore: update Cloudflare IP ranges"
+          body: "Automated weekly update from https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6."
+          branch: chore/update-cloudflare-ips
+          delete-branch: true
