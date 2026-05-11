@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { fetchTrustedProxies, updateTrustedProxies } from "../api";
+import cloudflareRanges from "../data/cloudflare-ips.json";
 import { useSettingsSection } from "../hooks/useSettingsSection";
 import Feedback from "./Feedback";
-import cloudflareRanges from "../data/cloudflare-ips.json";
 
 const PRESETS: { label: string; ranges: string[] }[] = [
 	{
@@ -59,9 +59,10 @@ function isValidIPOrCIDR(value: string): boolean {
 }
 
 export default function TrustedProxiesSection() {
-	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } = useSettingsSection({
-		ranges: [] as string[],
-	});
+	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } =
+		useSettingsSection({
+			ranges: [] as string[],
+		});
 	const [input, setInput] = useState("");
 	const [inputError, setInputError] = useState("");
 
