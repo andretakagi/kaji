@@ -5,6 +5,7 @@
   ],
   "schedule": ["every weekend"],
   "timezone": "America/Los_Angeles",
+  "rangeStrategy": "bump",
   "packageRules": [
     {
       "matchUpdateTypes": ["major"],
