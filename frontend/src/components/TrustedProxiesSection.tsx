@@ -123,8 +123,8 @@ export default function TrustedProxiesSection() {
 	};
 
 	return (
-		<section className="settings-section">
-			<h3>Trusted Proxies</h3>
+		<div className="advanced-subsection">
+			<h4 className="settings-subsection-title">Trusted Proxies</h4>
 			<p className="settings-description">
 				IP ranges trusted to set X-Forwarded-For and other client identity headers. Required when
 				running behind a load balancer or CDN.
@@ -202,6 +202,6 @@ export default function TrustedProxiesSection() {
 				</button>
 			)}
 			<Feedback msg={feedback.msg} type={feedback.type} className="settings-feedback" />
-		</section>
+		</div>
 	);
 }
