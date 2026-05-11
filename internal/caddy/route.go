@@ -270,14 +270,6 @@ func BuildDomain(p DomainParams) (json.RawMessage, error) {
 				"policy": strategy,
 			},
 		}
-		if strategy == "first" {
-			rp["health_checks"] = map[string]any{
-				"passive": map[string]any{
-					"fail_duration": "30s",
-					"max_fails":     3,
-				},
-			}
-		}
 	}
 
 	if p.HandlerType == "reverse_proxy" && len(p.HandlerConfig) > 0 {
@@ -571,6 +563,61 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 				if json.Unmarshal(handler.LB, &lb) == nil && lb.SelectionPolicy.Policy != "" {
 					p.Toggles.LoadBalancing.Enabled = true
 					p.Toggles.LoadBalancing.Strategy = lb.SelectionPolicy.Policy
+				}
+			}
+			var hcRaw struct {
+				HealthChecks struct {
+					Active struct {
+						URI          string `json:"uri"`
+						Interval     string `json:"interval"`
+						Timeout      string `json:"timeout"`
+						Port         int    `json:"port"`
+						ExpectStatus int    `json:"expect_status"`
+						ExpectBody   string `json:"expect_body"`
+					} `json:"active"`
+					Passive struct {
+						FailDuration          string `json:"fail_duration"`
+						MaxFails              int    `json:"max_fails"`
+						UnhealthyStatus       []int  `json:"unhealthy_status"`
+						UnhealthyLatency      string `json:"unhealthy_latency"`
+						UnhealthyRequestCount int    `json:"unhealthy_request_count"`
+					} `json:"passive"`
+				} `json:"health_checks"`
+			}
+			if json.Unmarshal(h, &hcRaw) == nil {
+				hc := hcRaw.HealthChecks
+				hasActive := hc.Active.URI != "" || hc.Active.Interval != "" || hc.Active.Timeout != "" || hc.Active.Port != 0 || hc.Active.ExpectStatus != 0 || hc.Active.ExpectBody != ""
+				hasPassive := hc.Passive.FailDuration != "" || hc.Passive.MaxFails != 0 || len(hc.Passive.UnhealthyStatus) > 0 || hc.Passive.UnhealthyLatency != "" || hc.Passive.UnhealthyRequestCount != 0
+				if hasActive || hasPassive {
+					var rpCfg ReverseProxyConfig
+					if len(p.HandlerConfig) > 0 {
+						json.Unmarshal(p.HandlerConfig, &rpCfg)
+					}
+					rpCfg.HealthChecks.Enabled = true
+					if hasActive {
+						rpCfg.HealthChecks.Active = ActiveHealthCheckConfig{
+							Enabled:      true,
+							URI:          hc.Active.URI,
+							Interval:     hc.Active.Interval,
+							Timeout:      hc.Active.Timeout,
+							Port:         hc.Active.Port,
+							ExpectStatus: hc.Active.ExpectStatus,
+							ExpectBody:   hc.Active.ExpectBody,
+						}
+					}
+					if hasPassive {
+						rpCfg.HealthChecks.Passive = PassiveHealthCheckConfig{
+							Enabled:               true,
+							FailDuration:          hc.Passive.FailDuration,
+							MaxFails:              hc.Passive.MaxFails,
+							UnhealthyStatus:       hc.Passive.UnhealthyStatus,
+							UnhealthyLatency:      hc.Passive.UnhealthyLatency,
+							UnhealthyRequestCount: hc.Passive.UnhealthyRequestCount,
+						}
+					}
+					if data, err := json.Marshal(rpCfg); err == nil {
+						p.HandlerConfig = data
+					}
 				}
 			}
 			parseReverseProxyHeaders(h, p)
