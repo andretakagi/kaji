@@ -333,7 +333,10 @@ function AdvancedSection({
 	const [caddyDataDir, setCaddyDataDir] = useState(initial.caddy_data_dir);
 	const [httpPort, setHttpPort] = useState(80);
 	const [httpsPort, setHttpsPort] = useState(443);
+	const [savedPorts, setSavedPorts] = useState({ http: 80, https: 443 });
 	const [portsLoaded, setPortsLoaded] = useState(false);
+	const [proxiesDirty, setProxiesDirty] = useState(false);
+	const proxiesSaveRef = useRef<(() => Promise<void>) | null>(null);
 
 	useEffect(() => {
 		setCaddyAdminUrl(initial.caddy_admin_url);
@@ -349,31 +352,46 @@ function AdvancedSection({
 			.then((ports) => {
 				setHttpPort(ports.http_port);
 				setHttpsPort(ports.https_port);
+				setSavedPorts({ http: ports.http_port, https: ports.https_port });
 				setPortsLoaded(true);
 			})
 			.catch(() => setPortsLoaded(false));
 	}, [caddyRunning]);
 
+	const serverDirty =
+		caddyAdminUrl !== initial.caddy_admin_url ||
+		caddyDataDir !== initial.caddy_data_dir ||
+		(portsLoaded && (httpPort !== savedPorts.http || httpsPort !== savedPorts.https));
+	const dirty = serverDirty || proxiesDirty;
+
 	const { saving, feedback, run } = useAsyncAction();
 
 	const handleSave = () =>
 		run(async () => {
-			const urlError = validateCaddyAdminUrl(caddyAdminUrl);
-			if (urlError) throw new Error(urlError);
+			if (serverDirty) {
+				const urlError = validateCaddyAdminUrl(caddyAdminUrl);
+				if (urlError) throw new Error(urlError);
 
-			if (portsLoaded) {
-				if (httpPort < 1 || httpPort > 65535)
-					throw new Error("HTTP port must be between 1 and 65535");
-				if (httpsPort < 1 || httpsPort > 65535)
-					throw new Error("HTTPS port must be between 1 and 65535");
-				if (httpPort === httpsPort) throw new Error("HTTP and HTTPS ports must be different");
+				if (portsLoaded) {
+					if (httpPort < 1 || httpPort > 65535)
+						throw new Error("HTTP port must be between 1 and 65535");
+					if (httpsPort < 1 || httpsPort > 65535)
+						throw new Error("HTTPS port must be between 1 and 65535");
+					if (httpPort === httpsPort) throw new Error("HTTP and HTTPS ports must be different");
+				}
+
+				await updateAdvancedSettings({ caddy_admin_url: caddyAdminUrl });
+				await updateCaddyDataDir(caddyDataDir);
+				if (portsLoaded) {
+					await updatePorts({ http_port: httpPort, https_port: httpsPort });
+					setSavedPorts({ http: httpPort, https: httpsPort });
+				}
 			}
 
-			await updateAdvancedSettings({ caddy_admin_url: caddyAdminUrl });
-			await updateCaddyDataDir(caddyDataDir);
-			if (portsLoaded) {
-				await updatePorts({ http_port: httpPort, https_port: httpsPort });
+			if (proxiesDirty && proxiesSaveRef.current) {
+				await proxiesSaveRef.current();
 			}
+
 			return "Saved";
 		});
 
@@ -440,6 +458,17 @@ function AdvancedSection({
 								</div>
 							</>
 						)}
+					</div>
+
+					{caddyRunning && (
+						<TrustedProxiesSection
+							onDirtyChange={setProxiesDirty}
+							saveRef={proxiesSaveRef}
+							saving={saving}
+						/>
+					)}
+
+					{dirty && (
 						<button
 							type="button"
 							className="btn btn-primary settings-save-btn"
@@ -448,10 +477,8 @@ function AdvancedSection({
 						>
 							{saving ? "Saving..." : "Save"}
 						</button>
-						<Feedback msg={feedback.msg} type={feedback.type} className="settings-feedback" />
-					</div>
-
-					{caddyRunning && <TrustedProxiesSection />}
+					)}
+					<Feedback msg={feedback.msg} type={feedback.type} className="settings-feedback" />
 				</div>
 			)}
 		</section>

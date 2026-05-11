@@ -1,8 +1,8 @@
+import type React from "react";
 import { useEffect, useState } from "react";
 import { fetchTrustedProxies, updateTrustedProxies } from "../api";
 import cloudflareRanges from "../data/cloudflare-ips.json";
 import { useSettingsSection } from "../hooks/useSettingsSection";
-import Feedback from "./Feedback";
 
 const PRESETS: { label: string; ranges: string[] }[] = [
 	{
@@ -58,11 +58,19 @@ function isValidIPOrCIDR(value: string): boolean {
 	return false;
 }
 
-export default function TrustedProxiesSection() {
-	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } =
-		useSettingsSection({
-			ranges: [] as string[],
-		});
+export default function TrustedProxiesSection({
+	onDirtyChange,
+	saveRef,
+	saving: externalSaving,
+}: {
+	onDirtyChange?: (dirty: boolean) => void;
+	saveRef?: React.RefObject<(() => Promise<void>) | null>;
+	saving?: boolean;
+}) {
+	const { values, setValues, dirty, loaded, load, markLoaded, save } = useSettingsSection({
+		ranges: [] as string[],
+	});
+	const saving = externalSaving ?? false;
 	const [input, setInput] = useState("");
 	const [inputError, setInputError] = useState("");
 
@@ -71,6 +79,22 @@ export default function TrustedProxiesSection() {
 			.then((tp) => load({ ranges: tp.ranges }))
 			.catch(markLoaded);
 	}, [load, markLoaded]);
+
+	useEffect(() => {
+		onDirtyChange?.(dirty);
+	}, [dirty, onDirtyChange]);
+
+	useEffect(() => {
+		if (!saveRef) return;
+		saveRef.current = () =>
+			new Promise<void>((resolve, reject) => {
+				save(async (v) => {
+					await updateTrustedProxies({ ranges: v.ranges });
+					resolve();
+					return undefined;
+				}).catch(reject);
+			});
+	}, [save, saveRef]);
 
 	if (!loaded) return null;
 
@@ -113,13 +137,6 @@ export default function TrustedProxiesSection() {
 			e.preventDefault();
 			addRange(input);
 		}
-	};
-
-	const handleSave = () => {
-		save(async (v) => {
-			await updateTrustedProxies({ ranges: v.ranges });
-			return "Saved";
-		});
 	};
 
 	return (
@@ -190,18 +207,6 @@ export default function TrustedProxiesSection() {
 					))}
 				</div>
 			)}
-
-			{dirty && (
-				<button
-					type="button"
-					className="btn btn-primary settings-save-btn"
-					disabled={saving}
-					onClick={handleSave}
-				>
-					{saving ? "Saving..." : "Save"}
-				</button>
-			)}
-			<Feedback msg={feedback.msg} type={feedback.type} className="settings-feedback" />
 		</div>
 	);
 }
