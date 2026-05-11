@@ -186,6 +186,38 @@ func handlePortsUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot
 	}
 }
 
+func handleTrustedProxiesGet(cc *caddy.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tp, err := cc.GetTrustedProxies()
+		if err != nil {
+			caddyError(w, "handleTrustedProxiesGet", err)
+			return
+		}
+		writeJSON(w, tp)
+	}
+}
+
+func handleTrustedProxiesUpdate(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store, version string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var tp caddy.TrustedProxies
+		if !decodeBody(w, r, &tp) {
+			return
+		}
+		if msg := validateTrustedProxies(tp.Ranges); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
+		}
+		maybeAutoSnapshot(cc, ss, store, version, "Trusted proxies updated")
+
+		if err := cc.SetTrustedProxies(&tp); err != nil {
+			caddyError(w, "handleTrustedProxiesUpdate", err)
+			return
+		}
+		writeJSON(w, map[string]string{"status": "ok"})
+		persistCaddyConfig(cc, store)
+	}
+}
+
 func handleCaddyDataDirGet(store *config.ConfigStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := store.Get()

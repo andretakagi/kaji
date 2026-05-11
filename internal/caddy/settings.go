@@ -160,6 +160,68 @@ func (c *Client) SetGlobalToggles(t *GlobalToggles) error {
 	return nil
 }
 
+type TrustedProxies struct {
+	Ranges []string `json:"ranges"`
+}
+
+func (c *Client) GetTrustedProxies() (*TrustedProxies, error) {
+	raw, err := c.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("fetching config for trusted proxies: %w", err)
+	}
+
+	var cfg struct {
+		caddyConfigPartial
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse caddy config: %w", err)
+	}
+
+	tp := &TrustedProxies{Ranges: []string{}}
+	for _, srv := range cfg.Apps.HTTP.Servers {
+		if srv.TrustedProxies != nil && len(srv.TrustedProxies.Ranges) > 0 {
+			tp.Ranges = srv.TrustedProxies.Ranges
+		}
+		break
+	}
+
+	return tp, nil
+}
+
+func (c *Client) SetTrustedProxies(tp *TrustedProxies) error {
+	raw, err := c.GetConfigPath(httpServersPath)
+	if err != nil {
+		raw = nil
+	}
+
+	var servers map[string]json.RawMessage
+	if raw != nil {
+		if err := json.Unmarshal(raw, &servers); err != nil {
+			return fmt.Errorf("failed to parse servers config: %w", err)
+		}
+	}
+
+	for name := range servers {
+		if len(tp.Ranges) == 0 {
+			_ = c.DeleteConfigPath(serverTrustedProxiesPath(name))
+		} else {
+			obj := map[string]any{
+				"source": "static",
+				"ranges": tp.Ranges,
+			}
+			data, err := json.Marshal(obj)
+			if err != nil {
+				return fmt.Errorf("failed to marshal trusted_proxies config: %w", err)
+			}
+			if err := c.SetConfigPath(serverTrustedProxiesPath(name), data); err != nil {
+				return fmt.Errorf("setting trusted_proxies for server %s: %w", name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 type Ports struct {
 	HTTPPort  int `json:"http_port"`
 	HTTPSPort int `json:"https_port"`

@@ -46,6 +46,7 @@ import type {
 	SetupImportFullResponse,
 	SetupResponse,
 	SetupStatus,
+	TrustedProxies,
 	UpstreamStatus,
 } from "./types/api";
 import type { CaddyConfig } from "./types/caddy";
@@ -116,6 +117,10 @@ export function validateACMEEmail(data: unknown): { email: string } {
 
 export function validateDNSProvider(data: unknown): DNSProviderSettings {
 	return assertValid("DNSProvider", data, (d) => hasFields(d, { enabled: is.boolean }));
+}
+
+export function validateTrustedProxies(data: unknown): TrustedProxies {
+	return assertValid("TrustedProxies", data, (d) => hasFields(d, { ranges: is.array }));
 }
 
 export function validateAPIKeyStatus(data: unknown): { has_api_key: boolean } {

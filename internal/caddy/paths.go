@@ -35,6 +35,10 @@ func serverMetricsPath(server string) string {
 	return serverPath(server) + "/metrics"
 }
 
+func serverTrustedProxiesPath(server string) string {
+	return serverPath(server) + "/trusted_proxies"
+}
+
 func serverLoggerNamesPath(server string) string {
 	return serverPath(server) + "/logs/logger_names"
 }
