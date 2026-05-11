@@ -23,15 +23,15 @@ type ErrorPage struct {
 }
 
 type ReverseProxyConfig struct {
-	Upstream          string             `json:"upstream"`
-	TLSSkipVerify     bool               `json:"tls_skip_verify"`
-	WebSocketPassthru bool               `json:"websocket_passthrough"`
-	LoadBalancing     LoadBalancing      `json:"load_balancing"`
-	HealthChecks      HealthCheckConfig  `json:"health_checks"`
-	HeaderUp          HeaderUpConfig     `json:"header_up"`
-	HeaderDown        HeaderDownConfig   `json:"header_down"`
-	StripPathPrefix   string             `json:"strip_path_prefix"`
-	PrependPathPrefix string             `json:"prepend_path_prefix"`
+	Upstream          string            `json:"upstream"`
+	TLSSkipVerify     bool              `json:"tls_skip_verify"`
+	WebSocketPassthru bool              `json:"websocket_passthrough"`
+	LoadBalancing     LoadBalancing     `json:"load_balancing"`
+	HealthChecks      HealthCheckConfig `json:"health_checks"`
+	HeaderUp          HeaderUpConfig    `json:"header_up"`
+	HeaderDown        HeaderDownConfig  `json:"header_down"`
+	StripPathPrefix   string            `json:"strip_path_prefix"`
+	PrependPathPrefix string            `json:"prepend_path_prefix"`
 }
 
 type HealthCheckConfig struct {
