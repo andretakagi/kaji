@@ -21,6 +21,15 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "/^go\\.mod$/"
+      ],
+      "matchStrings": ["^go (?<currentValue>\\d+\\.\\d+\\.\\d+)$"],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "/^\\.caddy-version$/"
       ],
       "matchStrings": ["(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
