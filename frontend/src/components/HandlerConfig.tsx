@@ -943,7 +943,7 @@ function HealthCheckSection({
 								</div>
 								{!activeAdvanced && hasAdvancedActiveFields(config.active) && (
 									<span className="headers-advanced-warning">
-										Advanced fields have values. Saving in basic mode will reset them to defaults.
+										Advanced fields have values. Switch to advanced mode to view them.
 									</span>
 								)}
 								<div className="form-field">
@@ -1051,7 +1051,7 @@ function HealthCheckSection({
 								</div>
 								{!passiveAdvanced && hasAdvancedPassiveFields(config.passive) && (
 									<span className="headers-advanced-warning">
-										Advanced fields have values. Saving in basic mode will reset them to defaults.
+										Advanced fields have values. Switch to advanced mode to view them.
 									</span>
 								)}
 								<div className="form-field">
