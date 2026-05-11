@@ -144,6 +144,31 @@ export interface HeaderDownConfig {
 	custom: HeaderEntry[];
 }
 
+export interface ActiveHealthCheckConfig {
+	enabled: boolean;
+	uri: string;
+	interval: string;
+	timeout: string;
+	port: number;
+	expect_status: number;
+	expect_body: string;
+}
+
+export interface PassiveHealthCheckConfig {
+	enabled: boolean;
+	fail_duration: string;
+	max_fails: number;
+	unhealthy_status: number[];
+	unhealthy_latency: string;
+	unhealthy_request_count: number;
+}
+
+export interface HealthCheckConfig {
+	enabled: boolean;
+	active: ActiveHealthCheckConfig;
+	passive: PassiveHealthCheckConfig;
+}
+
 export interface ChangePasswordRequest {
 	new_password: string;
 }

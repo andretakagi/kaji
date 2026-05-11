@@ -19,9 +19,20 @@ export interface ReverseProxyHandler {
 		};
 	};
 	health_checks?: {
+		active?: {
+			uri?: string;
+			port?: number;
+			interval?: string;
+			timeout?: string;
+			expect_status?: number;
+			expect_body?: string;
+		};
 		passive?: {
-			fail_duration: string;
-			max_fails: number;
+			fail_duration?: string;
+			max_fails?: number;
+			unhealthy_status?: number[];
+			unhealthy_latency?: string;
+			unhealthy_request_count?: number;
 		};
 	};
 	flush_interval?: number;
@@ -96,9 +107,20 @@ export interface CaddyHandler {
 		};
 	};
 	health_checks?: {
+		active?: {
+			uri?: string;
+			port?: number;
+			interval?: string;
+			timeout?: string;
+			expect_status?: number;
+			expect_body?: string;
+		};
 		passive?: {
-			fail_duration: string;
-			max_fails: number;
+			fail_duration?: string;
+			max_fails?: number;
+			unhealthy_status?: number[];
+			unhealthy_latency?: string;
+			unhealthy_request_count?: number;
 		};
 	};
 	flush_interval?: number;
