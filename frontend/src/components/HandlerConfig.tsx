@@ -59,18 +59,54 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 			return (
 				<div className="handler-config">
 					<div className="form-field">
-						<label htmlFor={`${idPrefix}-upstream`}>Upstream</label>
-						<input
-							id={`${idPrefix}-upstream`}
-							type="text"
-							placeholder="localhost:3000"
-							value={rpConfig.upstream}
-							onChange={(e) => update({ upstream: e.target.value })}
-							maxLength={260}
-							required
+						<label htmlFor={`${idPrefix}-mode`}>Upstream Mode</label>
+						<Toggle
+							id={`${idPrefix}-mode`}
+							options={
+								[
+									{ value: "single", label: "Single Upstream" },
+									{ value: "load_balancer", label: "Load Balancer" },
+								] as const
+							}
+							value={rpConfig.load_balancing.enabled ? "load_balancer" : "single"}
+							onChange={(v: "single" | "load_balancer") => {
+								if (v === "single") {
+									update({
+										load_balancing: {
+											...rpConfig.load_balancing,
+											enabled: false,
+											upstreams: [],
+										},
+									});
+								} else {
+									update({
+										load_balancing: {
+											...rpConfig.load_balancing,
+											enabled: true,
+										},
+									});
+								}
+							}}
 							disabled={disabled}
 						/>
 					</div>
+					{rpConfig.load_balancing.enabled ? (
+						<LoadBalancerSection config={rpConfig} onChange={update} disabled={disabled} />
+					) : (
+						<div className="form-field">
+							<label htmlFor={`${idPrefix}-upstream`}>Upstream</label>
+							<input
+								id={`${idPrefix}-upstream`}
+								type="text"
+								placeholder="localhost:3000"
+								value={rpConfig.upstream}
+								onChange={(e) => update({ upstream: e.target.value })}
+								maxLength={260}
+								required
+								disabled={disabled}
+							/>
+						</div>
+					)}
 					<ToggleItem
 						label="TLS Skip Verify"
 						description="Skip TLS certificate verification for upstream"
@@ -90,7 +126,6 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 						onChange={(hc) => update({ health_checks: hc })}
 						disabled={disabled}
 					/>
-					<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
 					<PathPrefixToggle
 						label="Strip Path Prefix"
 						description="Remove a prefix from the request path before forwarding"
@@ -210,7 +245,7 @@ function PathPrefixToggle({
 	);
 }
 
-function LoadBalancingSection({
+function LoadBalancerSection({
 	config,
 	onChange,
 	disabled,
@@ -221,96 +256,93 @@ function LoadBalancingSection({
 }) {
 	const idPrefix = useId();
 	const lb = config.load_balancing;
-	const nextId = useRef(lb.upstreams.length);
+
+	const allUpstreams = [config.upstream, ...lb.upstreams];
+	const nextId = useRef(allUpstreams.length);
 	const [entries, setEntries] = useState<LBEntry[]>(() =>
-		lb.upstreams.map((v, i) => ({ id: i, value: v })),
+		allUpstreams.map((v, i) => ({ id: i, value: v })),
 	);
 
-	const prevUpstreams = useRef(lb.upstreams);
+	const prevAll = useRef(allUpstreams);
 	if (
-		lb.upstreams.length !== prevUpstreams.current.length ||
-		lb.upstreams.some((v, i) => v !== prevUpstreams.current[i])
+		allUpstreams.length !== prevAll.current.length ||
+		allUpstreams.some((v, i) => v !== prevAll.current[i])
 	) {
-		const currentValues = entries.map((e) => e.value);
+		const entryValues = entries.map((e) => e.value);
 		if (
-			lb.upstreams.length !== currentValues.length ||
-			lb.upstreams.some((v, i) => v !== currentValues[i])
+			allUpstreams.length !== entryValues.length ||
+			allUpstreams.some((v, i) => v !== entryValues[i])
 		) {
-			const newEntries = lb.upstreams.map((v, i) => ({ id: nextId.current + i, value: v }));
-			nextId.current += lb.upstreams.length;
-			setEntries(newEntries);
+			const fresh = allUpstreams.map((v, i) => ({ id: nextId.current + i, value: v }));
+			nextId.current += allUpstreams.length;
+			setEntries(fresh);
 		}
-		prevUpstreams.current = lb.upstreams;
-	}
-
-	function updateLB(patch: Partial<ReverseProxyConfig["load_balancing"]>) {
-		onChange({ load_balancing: { ...lb, ...patch } });
+		prevAll.current = allUpstreams;
 	}
 
 	function syncEntries(next: LBEntry[]) {
 		setEntries(next);
-		updateLB({ upstreams: next.map((e) => e.value) });
+		const values = next.map((e) => e.value);
+		onChange({
+			upstream: values[0] ?? "",
+			load_balancing: {
+				...lb,
+				upstreams: values.slice(1),
+			},
+		});
 	}
 
 	const isFailover = lb.strategy === "first";
 
 	return (
-		<div className="handler-lb-section">
-			<ToggleItem
-				label="Load Balancing"
-				description="Multiple upstream strategy"
-				checked={lb.enabled}
-				onChange={(v) => updateLB({ enabled: v })}
-				disabled={disabled}
-			/>
-			{lb.enabled && (
-				<div className="toggle-detail">
-					<label htmlFor={`lb-strategy-${idPrefix}`}>Strategy</label>
-					<select
-						id={`lb-strategy-${idPrefix}`}
-						value={lb.strategy}
-						onChange={(e) =>
-							updateLB({
+		<div className="lb-config">
+			<div className="form-field">
+				<label htmlFor={`lb-strategy-${idPrefix}`}>Strategy</label>
+				<select
+					id={`lb-strategy-${idPrefix}`}
+					value={lb.strategy}
+					onChange={(e) =>
+						onChange({
+							load_balancing: {
+								...lb,
 								strategy: e.target.value as ReverseProxyConfig["load_balancing"]["strategy"],
-							})
-						}
-						disabled={disabled}
+							},
+						})
+					}
+					disabled={disabled}
+				>
+					{(Object.keys(strategyLabels) as Array<keyof typeof strategyLabels>).map((key) => (
+						<option key={key} value={key}>
+							{strategyLabels[key]}
+						</option>
+					))}
+				</select>
+			</div>
+			<div className="lb-upstreams">
+				<span className="toggle-detail-heading">Upstreams</span>
+				{entries.map((entry, i) => (
+					<div
+						className={cn("lb-upstream-row", isFailover && i > 0 && "lb-upstream-fallback")}
+						key={`${idPrefix}-lbu-${entry.id}`}
 					>
-						{(Object.keys(strategyLabels) as Array<keyof typeof strategyLabels>).map((key) => (
-							<option key={key} value={key}>
-								{strategyLabels[key]}
-							</option>
-						))}
-					</select>
-					{isFailover ? (
-						<div className="lb-failover-info">
-							<span className="lb-primary-badge">Primary</span>
-							<span>The upstream above is the primary server</span>
-						</div>
-					) : (
-						<span className="lb-pool-hint">The upstream above is included in the pool</span>
-					)}
-					<span className="toggle-detail-heading">
-						{isFailover ? "Fallback Servers" : "Additional Upstreams"}
-					</span>
-					{entries.map((entry, i) => (
-						<div
-							className={isFailover ? "lb-upstream-row lb-upstream-fallback" : "lb-upstream-row"}
-							key={`${idPrefix}-lbu-${entry.id}`}
-						>
-							{isFailover && <span className="lb-fallback-badge">#{i + 1}</span>}
-							<input
-								type="text"
-								placeholder="localhost:3001"
-								maxLength={260}
-								value={entry.value}
-								disabled={disabled}
-								onChange={(e) => {
-									const next = [...entries];
-									next[i] = { ...entry, value: e.target.value };
-									syncEntries(next);
-								}}
-							/>
+						{isFailover && (
+							<span className={i === 0 ? "lb-primary-badge" : "lb-fallback-badge"}>
+								{i === 0 ? "Primary" : `#${i}`}
+							</span>
+						)}
+						<input
+							type="text"
+							placeholder="localhost:3000"
+							maxLength={260}
+							value={entry.value}
+							disabled={disabled}
+							onChange={(e) => {
+								const next = [...entries];
+								next[i] = { ...entry, value: e.target.value };
+								syncEntries(next);
+							}}
+						/>
+						{entries.length > 1 && (
 							<button
 								type="button"
 								className="btn btn-ghost lb-upstream-remove"
@@ -320,21 +352,21 @@ function LoadBalancingSection({
 							>
 								&#x2715;
 							</button>
-						</div>
-					))}
-					<button
-						type="button"
-						className="btn btn-primary lb-add-upstream"
-						onClick={() => {
-							nextId.current += 1;
-							syncEntries([...entries, { id: nextId.current, value: "" }]);
-						}}
-						disabled={disabled}
-					>
-						+ Add Upstream
-					</button>
-				</div>
-			)}
+						)}
+					</div>
+				))}
+				<button
+					type="button"
+					className="btn btn-primary lb-add-upstream"
+					onClick={() => {
+						nextId.current += 1;
+						syncEntries([...entries, { id: nextId.current, value: "" }]);
+					}}
+					disabled={disabled}
+				>
+					+ Add Upstream
+				</button>
+			</div>
 		</div>
 	);
 }
@@ -1279,13 +1311,15 @@ export function handlerSummary(type: RuleHandlerType, config: HandlerConfigValue
 			return "";
 		case "reverse_proxy": {
 			const rp = config as ReverseProxyConfig;
-			const parts: string[] = [rp.upstream];
+			const parts: string[] = [];
+			if (rp.load_balancing.enabled) {
+				const total = 1 + rp.load_balancing.upstreams.length;
+				parts.push(`LB: ${rp.load_balancing.strategy.replace(/_/g, " ")} (${total})`);
+			} else {
+				parts.push(rp.upstream);
+			}
 			if (rp.tls_skip_verify) parts.push("TLS skip");
 			if (rp.websocket_passthrough) parts.push("WS");
-			if (rp.load_balancing.enabled) {
-				const extra = rp.load_balancing.upstreams.length;
-				parts.push(`LB: ${rp.load_balancing.strategy}${extra > 0 ? ` (+${extra})` : ""}`);
-			}
 			return parts.join(" / ");
 		}
 		case "static_response": {

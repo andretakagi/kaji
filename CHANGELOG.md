@@ -4,6 +4,9 @@ All notable changes to Kaji are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Reverse proxy upstream configuration now starts with a mode selector: Single Upstream or Load Balancer. Single mode shows one upstream field. Load Balancer mode shows a strategy dropdown and a unified upstream list instead of a separate primary upstream with additional upstreams buried under a toggle.
+
 ### Added
 - Error handler type for domain routes, returning a configurable status code that triggers handle_errors processing.
 - Custom error pages per domain and subdomain. Map status codes (individual, ranges like 4xx/5xx, or comma-separated) to custom response bodies with configurable content types.

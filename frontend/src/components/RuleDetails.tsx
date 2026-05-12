@@ -69,9 +69,15 @@ function DetailList({ details }: { details: { label: string; value: string }[] }
 }
 
 function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) {
-	const details: { label: string; value: string }[] = [
-		{ label: "Upstream", value: config.upstream || "..." },
-	];
+	const details: { label: string; value: string }[] = [];
+	if (config.load_balancing.enabled) {
+		const allUpstreams = [config.upstream, ...config.load_balancing.upstreams].filter(Boolean);
+		const strategyLabel = config.load_balancing.strategy.replace(/_/g, " ");
+		details.push({ label: "Strategy", value: strategyLabel });
+		details.push({ label: "Upstreams", value: allUpstreams.join(", ") || "..." });
+	} else {
+		details.push({ label: "Upstream", value: config.upstream || "..." });
+	}
 	if (config.tls_skip_verify) details.push({ label: "TLS", value: "Skip verify" });
 	if (config.websocket_passthrough) details.push({ label: "WebSocket", value: "Enabled" });
 	if (config.strip_path_prefix) {
@@ -79,14 +85,6 @@ function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) {
 	}
 	if (config.prepend_path_prefix) {
 		details.push({ label: "Prepend prefix", value: config.prepend_path_prefix });
-	}
-	if (config.load_balancing.enabled) {
-		const extra = config.load_balancing.upstreams.length;
-		const strategyLabel = config.load_balancing.strategy.replace(/_/g, " ");
-		details.push({
-			label: "Load balancing",
-			value: `${strategyLabel}${extra > 0 ? ` (+${extra} upstreams)` : ""}`,
-		});
 	}
 	if (config.header_up.enabled) details.push({ label: "Header up", value: "Enabled" });
 	if (config.header_down.enabled) details.push({ label: "Header down", value: "Enabled" });

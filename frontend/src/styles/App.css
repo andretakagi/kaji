@@ -1915,31 +1915,8 @@ input:disabled + .toggle-slider {
 }
 
 .lb-add-upstream {
-	font-size: 0.8125rem;
-	color: var(--accent);
-	padding: 0.3rem 0;
 	margin-top: 0.25rem;
 	align-self: flex-start;
-	border: none;
-	background: transparent;
-}
-
-.lb-add-upstream:hover {
-	color: var(--text);
-	border: none;
-	background: transparent;
-}
-
-.lb-failover-info {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.4rem 0.6rem;
-	background: rgba(var(--green-rgb), 0.08);
-	border: 1px solid rgba(var(--green-rgb), 0.2);
-	border-radius: var(--radius-sm);
-	font-size: 0.75rem;
-	color: var(--text-secondary);
 }
 
 .lb-primary-badge {
@@ -1952,12 +1929,8 @@ input:disabled + .toggle-slider {
 	padding: 0.15rem 0.4rem;
 	border-radius: 3px;
 	flex-shrink: 0;
-}
-
-.lb-pool-hint {
-	font-size: 0.75rem;
-	color: var(--text-secondary);
-	opacity: 0.7;
+	min-width: 3rem;
+	text-align: center;
 }
 
 .lb-upstream-fallback {
@@ -3396,7 +3369,13 @@ input:disabled + .toggle-slider {
 	gap: 0.5rem;
 }
 
-.handler-lb-section {
+.lb-config {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.lb-upstreams {
 	display: flex;
 	flex-direction: column;
 }
