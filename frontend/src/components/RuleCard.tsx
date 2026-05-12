@@ -64,6 +64,12 @@ export function normalizeRule(r: Rule): Rule {
 					header_down: { ...base.header_down, ...(c.header_down ?? {}) },
 					strip_path_prefix: c.strip_path_prefix ?? base.strip_path_prefix,
 					prepend_path_prefix: c.prepend_path_prefix ?? base.prepend_path_prefix,
+					health_checks: {
+						...base.health_checks,
+						...(c.health_checks ?? {}),
+						active: { ...base.health_checks.active, ...(c.health_checks?.active ?? {}) },
+						passive: { ...base.health_checks.passive, ...(c.health_checks?.passive ?? {}) },
+					},
 				},
 			};
 		}

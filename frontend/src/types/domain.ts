@@ -1,4 +1,4 @@
-import type { HeaderDownConfig, HeadersConfig, HeaderUpConfig } from "./api";
+import type { HeaderDownConfig, HeadersConfig, HeaderUpConfig, HealthCheckConfig } from "./api";
 
 export interface DomainToggles {
 	force_https: boolean;
@@ -38,6 +38,7 @@ export interface ReverseProxyConfig {
 	header_down: HeaderDownConfig;
 	strip_path_prefix: string;
 	prepend_path_prefix: string;
+	health_checks: HealthCheckConfig;
 }
 
 export interface StaticResponseConfig {
@@ -215,6 +216,26 @@ export const defaultReverseProxyConfig: ReverseProxyConfig = {
 	},
 	strip_path_prefix: "",
 	prepend_path_prefix: "",
+	health_checks: {
+		enabled: false,
+		active: {
+			enabled: false,
+			uri: "",
+			interval: "",
+			timeout: "",
+			port: 0,
+			expect_status: 0,
+			expect_body: "",
+		},
+		passive: {
+			enabled: false,
+			fail_duration: "",
+			max_fails: 0,
+			unhealthy_status: [],
+			unhealthy_latency: "",
+			unhealthy_request_count: 0,
+		},
+	},
 };
 
 export const defaultStaticResponseConfig: StaticResponseConfig = {

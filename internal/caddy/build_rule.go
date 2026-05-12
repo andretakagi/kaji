@@ -228,13 +228,53 @@ func buildReverseProxyHandler(handlerConfig json.RawMessage, advancedHeaders boo
 				"policy": strategy,
 			},
 		}
-		if strategy == "first" {
-			rp["health_checks"] = map[string]any{
-				"passive": map[string]any{
-					"fail_duration": "30s",
-					"max_fails":     3,
-				},
+	}
+
+	if rpCfg.HealthChecks.Enabled {
+		hc := make(map[string]any)
+		if rpCfg.HealthChecks.Active.Enabled {
+			active := make(map[string]any)
+			if rpCfg.HealthChecks.Active.URI != "" {
+				active["uri"] = rpCfg.HealthChecks.Active.URI
 			}
+			if rpCfg.HealthChecks.Active.Interval != "" {
+				active["interval"] = rpCfg.HealthChecks.Active.Interval
+			}
+			if rpCfg.HealthChecks.Active.Timeout != "" {
+				active["timeout"] = rpCfg.HealthChecks.Active.Timeout
+			}
+			if rpCfg.HealthChecks.Active.Port != 0 {
+				active["port"] = rpCfg.HealthChecks.Active.Port
+			}
+			if rpCfg.HealthChecks.Active.ExpectStatus != 0 {
+				active["expect_status"] = rpCfg.HealthChecks.Active.ExpectStatus
+			}
+			if rpCfg.HealthChecks.Active.ExpectBody != "" {
+				active["expect_body"] = rpCfg.HealthChecks.Active.ExpectBody
+			}
+			hc["active"] = active
+		}
+		if rpCfg.HealthChecks.Passive.Enabled {
+			passive := make(map[string]any)
+			if rpCfg.HealthChecks.Passive.FailDuration != "" {
+				passive["fail_duration"] = rpCfg.HealthChecks.Passive.FailDuration
+			}
+			if rpCfg.HealthChecks.Passive.MaxFails != 0 {
+				passive["max_fails"] = rpCfg.HealthChecks.Passive.MaxFails
+			}
+			if len(rpCfg.HealthChecks.Passive.UnhealthyStatus) > 0 {
+				passive["unhealthy_status"] = rpCfg.HealthChecks.Passive.UnhealthyStatus
+			}
+			if rpCfg.HealthChecks.Passive.UnhealthyLatency != "" {
+				passive["unhealthy_latency"] = rpCfg.HealthChecks.Passive.UnhealthyLatency
+			}
+			if rpCfg.HealthChecks.Passive.UnhealthyRequestCount != 0 {
+				passive["unhealthy_request_count"] = rpCfg.HealthChecks.Passive.UnhealthyRequestCount
+			}
+			hc["passive"] = passive
+		}
+		if len(hc) > 0 {
+			rp["health_checks"] = hc
 		}
 	}
 

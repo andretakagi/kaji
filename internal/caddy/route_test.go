@@ -485,12 +485,7 @@ func TestBuildDomainLoadBalancingFirst(t *testing.T) {
 				Policy string `json:"policy"`
 			} `json:"selection_policy"`
 		} `json:"load_balancing"`
-		HealthChecks struct {
-			Passive struct {
-				FailDuration string `json:"fail_duration"`
-				MaxFails     int    `json:"max_fails"`
-			} `json:"passive"`
-		} `json:"health_checks"`
+		HealthChecks *json.RawMessage `json:"health_checks"`
 	}
 	if err := json.Unmarshal(h, &rp); err != nil {
 		t.Fatalf("failed to parse reverse_proxy: %v", err)
@@ -498,11 +493,8 @@ func TestBuildDomainLoadBalancingFirst(t *testing.T) {
 	if rp.LoadBalancing.SelectionPolicy.Policy != "first" {
 		t.Errorf("policy = %q, want first", rp.LoadBalancing.SelectionPolicy.Policy)
 	}
-	if rp.HealthChecks.Passive.FailDuration != "30s" {
-		t.Errorf("fail_duration = %q, want 30s", rp.HealthChecks.Passive.FailDuration)
-	}
-	if rp.HealthChecks.Passive.MaxFails != 3 {
-		t.Errorf("max_fails = %d, want 3", rp.HealthChecks.Passive.MaxFails)
+	if rp.HealthChecks != nil {
+		t.Error("first strategy should not auto-inject health_checks; health checks are now config-driven")
 	}
 }
 

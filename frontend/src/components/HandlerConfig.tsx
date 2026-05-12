@@ -1,6 +1,12 @@
 import { useId, useRef, useState } from "react";
 import { cn } from "../cn";
-import type { HeaderDownConfig, HeaderUpConfig } from "../types/api";
+import type {
+	ActiveHealthCheckConfig,
+	HeaderDownConfig,
+	HeaderUpConfig,
+	HealthCheckConfig,
+	PassiveHealthCheckConfig,
+} from "../types/api";
 import type {
 	ErrorConfig,
 	FileServerConfig,
@@ -77,6 +83,11 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 						description="Enable WebSocket passthrough to upstream"
 						checked={rpConfig.websocket_passthrough}
 						onChange={(v) => update({ websocket_passthrough: v })}
+						disabled={disabled}
+					/>
+					<HealthCheckSection
+						config={rpConfig.health_checks}
+						onChange={(hc) => update({ health_checks: hc })}
 						disabled={disabled}
 					/>
 					<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
@@ -859,6 +870,271 @@ function FileServerSection({
 					+ Add Hidden Pattern
 				</button>
 			</div>
+		</div>
+	);
+}
+
+function hasAdvancedActiveFields(config: ActiveHealthCheckConfig): boolean {
+	return config.port !== 0 || config.expect_status !== 0 || config.expect_body !== "";
+}
+
+function hasAdvancedPassiveFields(config: PassiveHealthCheckConfig): boolean {
+	return (
+		config.unhealthy_status.length > 0 ||
+		config.unhealthy_latency !== "" ||
+		config.unhealthy_request_count !== 0
+	);
+}
+
+function HealthCheckSection({
+	config,
+	onChange,
+	disabled,
+}: {
+	config: HealthCheckConfig;
+	onChange: (config: HealthCheckConfig) => void;
+	disabled?: boolean;
+}) {
+	const idPrefix = useId();
+	const [activeAdvanced, setActiveAdvanced] = useState(false);
+	const [passiveAdvanced, setPassiveAdvanced] = useState(false);
+
+	function update(patch: Partial<HealthCheckConfig>) {
+		onChange({ ...config, ...patch });
+	}
+
+	function updateActive(patch: Partial<ActiveHealthCheckConfig>) {
+		update({ active: { ...config.active, ...patch } });
+	}
+
+	function updatePassive(patch: Partial<PassiveHealthCheckConfig>) {
+		update({ passive: { ...config.passive, ...patch } });
+	}
+
+	return (
+		<div className={cn("toggle-group", config.enabled && "toggle-group-open")}>
+			<ToggleItem
+				label="Health Checks"
+				description="Monitor upstream availability"
+				checked={config.enabled}
+				onChange={(v) => update({ enabled: v })}
+				disabled={disabled}
+			/>
+			{config.enabled && (
+				<div className={cn("toggle-detail", disabled && "toggle-detail-disabled")}>
+					{/* Active Health Checks */}
+					<div className={cn("toggle-group", config.active.enabled && "toggle-group-open")}>
+						<ToggleItem
+							label="Active"
+							description="Periodically probe upstreams"
+							checked={config.active.enabled}
+							onChange={(v) => updateActive({ enabled: v })}
+							disabled={disabled}
+						/>
+						{config.active.enabled && (
+							<div className={cn("toggle-detail", disabled && "toggle-detail-disabled")}>
+								<div className="headers-mode-switch">
+									<Toggle
+										options={["basic", "advanced"] as const}
+										value={activeAdvanced ? "advanced" : "basic"}
+										onChange={(v: "basic" | "advanced") => setActiveAdvanced(v === "advanced")}
+										disabled={disabled}
+									/>
+								</div>
+								{!activeAdvanced && hasAdvancedActiveFields(config.active) && (
+									<span className="headers-advanced-warning">
+										Advanced fields have values. Switch to advanced mode to view them.
+									</span>
+								)}
+								<div className="form-field">
+									<label htmlFor={`${idPrefix}-hc-uri`}>Path</label>
+									<input
+										id={`${idPrefix}-hc-uri`}
+										type="text"
+										placeholder="/health"
+										value={config.active.uri}
+										onChange={(e) => updateActive({ uri: e.target.value })}
+										maxLength={260}
+										disabled={disabled}
+									/>
+								</div>
+								<div className="form-field">
+									<label htmlFor={`${idPrefix}-hc-interval`}>Interval</label>
+									<input
+										id={`${idPrefix}-hc-interval`}
+										type="text"
+										placeholder="10s"
+										value={config.active.interval}
+										onChange={(e) => updateActive({ interval: e.target.value })}
+										maxLength={20}
+										disabled={disabled}
+									/>
+								</div>
+								<div className="form-field">
+									<label htmlFor={`${idPrefix}-hc-timeout`}>Timeout</label>
+									<input
+										id={`${idPrefix}-hc-timeout`}
+										type="text"
+										placeholder="5s"
+										value={config.active.timeout}
+										onChange={(e) => updateActive({ timeout: e.target.value })}
+										maxLength={20}
+										disabled={disabled}
+									/>
+								</div>
+								{activeAdvanced && (
+									<>
+										<div className="form-field">
+											<label htmlFor={`${idPrefix}-hc-port`}>Port</label>
+											<input
+												id={`${idPrefix}-hc-port`}
+												type="number"
+												placeholder="0 (same as upstream)"
+												value={config.active.port || ""}
+												onChange={(e) => updateActive({ port: Number(e.target.value) || 0 })}
+												min={0}
+												max={65535}
+												disabled={disabled}
+											/>
+										</div>
+										<div className="form-field">
+											<label htmlFor={`${idPrefix}-hc-expect-status`}>Expected Status</label>
+											<input
+												id={`${idPrefix}-hc-expect-status`}
+												type="number"
+												placeholder="0 (any 2xx)"
+												value={config.active.expect_status || ""}
+												onChange={(e) =>
+													updateActive({ expect_status: Number(e.target.value) || 0 })
+												}
+												min={0}
+												max={599}
+												disabled={disabled}
+											/>
+										</div>
+										<div className="form-field">
+											<label htmlFor={`${idPrefix}-hc-expect-body`}>Expected Body</label>
+											<input
+												id={`${idPrefix}-hc-expect-body`}
+												type="text"
+												placeholder="regex or substring"
+												value={config.active.expect_body}
+												onChange={(e) => updateActive({ expect_body: e.target.value })}
+												maxLength={1024}
+												disabled={disabled}
+											/>
+										</div>
+									</>
+								)}
+							</div>
+						)}
+					</div>
+
+					{/* Passive Health Checks */}
+					<div className={cn("toggle-group", config.passive.enabled && "toggle-group-open")}>
+						<ToggleItem
+							label="Passive"
+							description="Monitor real traffic for failures"
+							checked={config.passive.enabled}
+							onChange={(v) => updatePassive({ enabled: v })}
+							disabled={disabled}
+						/>
+						{config.passive.enabled && (
+							<div className={cn("toggle-detail", disabled && "toggle-detail-disabled")}>
+								<div className="headers-mode-switch">
+									<Toggle
+										options={["basic", "advanced"] as const}
+										value={passiveAdvanced ? "advanced" : "basic"}
+										onChange={(v: "basic" | "advanced") => setPassiveAdvanced(v === "advanced")}
+										disabled={disabled}
+									/>
+								</div>
+								{!passiveAdvanced && hasAdvancedPassiveFields(config.passive) && (
+									<span className="headers-advanced-warning">
+										Advanced fields have values. Switch to advanced mode to view them.
+									</span>
+								)}
+								<div className="form-field">
+									<label htmlFor={`${idPrefix}-hc-fail-duration`}>Fail Duration</label>
+									<input
+										id={`${idPrefix}-hc-fail-duration`}
+										type="text"
+										placeholder="30s"
+										value={config.passive.fail_duration}
+										onChange={(e) => updatePassive({ fail_duration: e.target.value })}
+										maxLength={20}
+										disabled={disabled}
+									/>
+								</div>
+								<div className="form-field">
+									<label htmlFor={`${idPrefix}-hc-max-fails`}>Max Fails</label>
+									<input
+										id={`${idPrefix}-hc-max-fails`}
+										type="number"
+										placeholder="3"
+										value={config.passive.max_fails || ""}
+										onChange={(e) => updatePassive({ max_fails: Number(e.target.value) || 0 })}
+										min={0}
+										disabled={disabled}
+									/>
+								</div>
+								{passiveAdvanced && (
+									<>
+										<div className="form-field">
+											<label htmlFor={`${idPrefix}-hc-unhealthy-status`}>
+												Unhealthy Status Codes
+											</label>
+											<input
+												id={`${idPrefix}-hc-unhealthy-status`}
+												type="text"
+												placeholder="502, 503"
+												value={config.passive.unhealthy_status.join(", ")}
+												onChange={(e) => {
+													const codes = e.target.value
+														.split(",")
+														.map((s) => Number(s.trim()))
+														.filter((n) => !Number.isNaN(n) && n > 0);
+													updatePassive({ unhealthy_status: codes });
+												}}
+												maxLength={100}
+												disabled={disabled}
+											/>
+										</div>
+										<div className="form-field">
+											<label htmlFor={`${idPrefix}-hc-unhealthy-latency`}>Unhealthy Latency</label>
+											<input
+												id={`${idPrefix}-hc-unhealthy-latency`}
+												type="text"
+												placeholder="500ms"
+												value={config.passive.unhealthy_latency}
+												onChange={(e) => updatePassive({ unhealthy_latency: e.target.value })}
+												maxLength={20}
+												disabled={disabled}
+											/>
+										</div>
+										<div className="form-field">
+											<label htmlFor={`${idPrefix}-hc-unhealthy-count`}>
+												Unhealthy Request Count
+											</label>
+											<input
+												id={`${idPrefix}-hc-unhealthy-count`}
+												type="number"
+												placeholder="0 (disabled)"
+												value={config.passive.unhealthy_request_count || ""}
+												onChange={(e) =>
+													updatePassive({ unhealthy_request_count: Number(e.target.value) || 0 })
+												}
+												min={0}
+												disabled={disabled}
+											/>
+										</div>
+									</>
+								)}
+							</div>
+						)}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

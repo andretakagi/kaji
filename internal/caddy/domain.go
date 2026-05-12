@@ -23,14 +23,40 @@ type ErrorPage struct {
 }
 
 type ReverseProxyConfig struct {
-	Upstream          string           `json:"upstream"`
-	TLSSkipVerify     bool             `json:"tls_skip_verify"`
-	WebSocketPassthru bool             `json:"websocket_passthrough"`
-	LoadBalancing     LoadBalancing    `json:"load_balancing"`
-	HeaderUp          HeaderUpConfig   `json:"header_up"`
-	HeaderDown        HeaderDownConfig `json:"header_down"`
-	StripPathPrefix   string           `json:"strip_path_prefix"`
-	PrependPathPrefix string           `json:"prepend_path_prefix"`
+	Upstream          string            `json:"upstream"`
+	TLSSkipVerify     bool              `json:"tls_skip_verify"`
+	WebSocketPassthru bool              `json:"websocket_passthrough"`
+	LoadBalancing     LoadBalancing     `json:"load_balancing"`
+	HealthChecks      HealthCheckConfig `json:"health_checks"`
+	HeaderUp          HeaderUpConfig    `json:"header_up"`
+	HeaderDown        HeaderDownConfig  `json:"header_down"`
+	StripPathPrefix   string            `json:"strip_path_prefix"`
+	PrependPathPrefix string            `json:"prepend_path_prefix"`
+}
+
+type HealthCheckConfig struct {
+	Enabled bool                     `json:"enabled"`
+	Active  ActiveHealthCheckConfig  `json:"active"`
+	Passive PassiveHealthCheckConfig `json:"passive"`
+}
+
+type ActiveHealthCheckConfig struct {
+	Enabled      bool   `json:"enabled"`
+	URI          string `json:"uri"`
+	Interval     string `json:"interval"`
+	Timeout      string `json:"timeout"`
+	Port         int    `json:"port"`
+	ExpectStatus int    `json:"expect_status"`
+	ExpectBody   string `json:"expect_body"`
+}
+
+type PassiveHealthCheckConfig struct {
+	Enabled               bool   `json:"enabled"`
+	FailDuration          string `json:"fail_duration"`
+	MaxFails              int    `json:"max_fails"`
+	UnhealthyStatus       []int  `json:"unhealthy_status,omitempty"`
+	UnhealthyLatency      string `json:"unhealthy_latency"`
+	UnhealthyRequestCount int    `json:"unhealthy_request_count"`
 }
 
 type StaticResponseConfig struct {
