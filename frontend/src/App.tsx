@@ -21,6 +21,7 @@ import Settings from "./components/Settings";
 import Setup from "./components/Setup";
 import Snapshots from "./components/Snapshots";
 import { CaddyProvider } from "./contexts/CaddyContext";
+import { UpstreamStatusProvider } from "./contexts/UpstreamStatusContext";
 import { getErrorMessage } from "./utils/getErrorMessage";
 import "./styles/App.css";
 
@@ -292,14 +293,16 @@ function App() {
 				/>
 
 				<CaddyProvider running={running}>
-					<main id="main-content" className="app-content">
-						{view === "domains" && <DomainList />}
-						{view === "ip-lists" && <IPLists />}
-						{view === "certificates" && <Certificates />}
-						{view === "logs" && <Logs />}
-						{view === "snapshots" && <Snapshots />}
-						{view === "settings" && <Settings onAuthChange={setAuthEnabled} />}
-					</main>
+					<UpstreamStatusProvider>
+						<main id="main-content" className="app-content">
+							{view === "domains" && <DomainList />}
+							{view === "ip-lists" && <IPLists />}
+							{view === "certificates" && <Certificates />}
+							{view === "logs" && <Logs />}
+							{view === "snapshots" && <Snapshots />}
+							{view === "settings" && <Settings onAuthChange={setAuthEnabled} />}
+						</main>
+					</UpstreamStatusProvider>
 				</CaddyProvider>
 
 				<nav className="app-nav app-nav-mobile" aria-label="Main navigation, mobile">
