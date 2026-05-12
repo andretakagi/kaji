@@ -13,7 +13,7 @@ func TestBuildRuleDomain_StaticResponseClose(t *testing.T) {
 		HandlerConfig: srCfg,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestBuildRuleDomain_StaticResponseFull(t *testing.T) {
 		HandlerConfig: srCfg,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestBuildRuleDomain_StaticResponseMinimal(t *testing.T) {
 		HandlerConfig: srCfg,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestBuildRuleDomain_StaticResponseWithToggles(t *testing.T) {
 		Compression: true,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, toggles, nil, "", false)
+	result, err := BuildRuleDomain("example.com", rule, toggles, nil, "", "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestBuildRuleDomain_StaticResponseInvalidJSON(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{invalid`),
 	}
 
-	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
 	if err == nil {
 		t.Fatal("expected error for invalid handler config JSON")
 	}

@@ -899,6 +899,153 @@ func TestParseDomainParamsIPFilteringWhitelist(t *testing.T) {
 	}
 }
 
+func TestBuildDomainIPFilteringClientIPBlacklist(t *testing.T) {
+	p := DomainParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.1", "192.168.1.0/24"},
+		IPListType: "blacklist",
+		Toggles: RouteToggles{
+			IPFiltering: IPFilteringOpts{
+				Matcher: "client_ip",
+			},
+		},
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+
+	var sub struct {
+		Handler string `json:"handler"`
+		Routes  []struct {
+			Match []struct {
+				ClientIP struct {
+					Ranges []string `json:"ranges"`
+				} `json:"client_ip"`
+				RemoteIP struct {
+					Ranges []string `json:"ranges"`
+				} `json:"remote_ip"`
+			} `json:"match"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(handlers[0], &sub); err != nil {
+		t.Fatalf("failed to parse IP filtering handler: %v", err)
+	}
+	if sub.Handler != "subroute" {
+		t.Fatalf("first handler = %q, want subroute", sub.Handler)
+	}
+	if len(sub.Routes) != 1 {
+		t.Fatalf("routes count = %d, want 1", len(sub.Routes))
+	}
+	if len(sub.Routes[0].Match) != 1 {
+		t.Fatalf("match count = %d, want 1", len(sub.Routes[0].Match))
+	}
+	ranges := sub.Routes[0].Match[0].ClientIP.Ranges
+	if len(ranges) != 2 || ranges[0] != "10.0.0.1" || ranges[1] != "192.168.1.0/24" {
+		t.Errorf("client_ip ranges = %v, want [10.0.0.1 192.168.1.0/24]", ranges)
+	}
+	if len(sub.Routes[0].Match[0].RemoteIP.Ranges) != 0 {
+		t.Error("remote_ip should not be set when matcher is client_ip")
+	}
+}
+
+func TestBuildDomainIPFilteringClientIPWhitelist(t *testing.T) {
+	p := DomainParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.0/8"},
+		IPListType: "whitelist",
+		Toggles: RouteToggles{
+			IPFiltering: IPFilteringOpts{
+				Matcher: "client_ip",
+			},
+		},
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+
+	var sub struct {
+		Handler string `json:"handler"`
+		Routes  []struct {
+			Match []map[string]json.RawMessage `json:"match"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(handlers[0], &sub); err != nil {
+		t.Fatalf("failed to parse IP filtering handler: %v", err)
+	}
+	if sub.Handler != "subroute" {
+		t.Fatalf("first handler = %q, want subroute", sub.Handler)
+	}
+	match := sub.Routes[0].Match[0]
+	notRaw, ok := match["not"]
+	if !ok {
+		t.Fatal("whitelist match should contain a 'not' key")
+	}
+	var nots []struct {
+		ClientIP struct {
+			Ranges []string `json:"ranges"`
+		} `json:"client_ip"`
+	}
+	if err := json.Unmarshal(notRaw, &nots); err != nil {
+		t.Fatalf("failed to parse not block: %v", err)
+	}
+	if len(nots) != 1 || len(nots[0].ClientIP.Ranges) != 1 || nots[0].ClientIP.Ranges[0] != "10.0.0.0/8" {
+		t.Errorf("not client_ip ranges = %v, want [[10.0.0.0/8]]", nots)
+	}
+}
+
+func TestBuildDomainIPFilteringDefaultMatcher(t *testing.T) {
+	p := DomainParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.1"},
+		IPListType: "blacklist",
+	}
+	handlers := buildAndUnmarshalHandlers(t, p)
+
+	var sub struct {
+		Handler string `json:"handler"`
+		Routes  []struct {
+			Match []map[string]json.RawMessage `json:"match"`
+		} `json:"routes"`
+	}
+	if err := json.Unmarshal(handlers[0], &sub); err != nil {
+		t.Fatalf("failed to parse IP filtering handler: %v", err)
+	}
+	match := sub.Routes[0].Match[0]
+	if _, ok := match["remote_ip"]; !ok {
+		t.Error("empty Matcher should default to remote_ip in output")
+	}
+	if _, ok := match["client_ip"]; ok {
+		t.Error("client_ip should not appear when Matcher is empty")
+	}
+}
+
+func TestParseIPFilteringClientIP(t *testing.T) {
+	p := DomainParams{
+		Domain:     "example.com",
+		Upstream:   "localhost:8080",
+		IPListIPs:  []string{"10.0.0.1"},
+		IPListType: "blacklist",
+		Toggles: RouteToggles{
+			IPFiltering: IPFilteringOpts{
+				Matcher: "client_ip",
+			},
+		},
+	}
+	raw, err := BuildDomain(p)
+	if err != nil {
+		t.Fatalf("BuildDomain failed: %v", err)
+	}
+	got, err := ParseDomainParams(raw)
+	if err != nil {
+		t.Fatalf("ParseDomainParams failed: %v", err)
+	}
+	if !got.Toggles.IPFiltering.Enabled {
+		t.Error("IPFiltering.Enabled should be true")
+	}
+	if got.Toggles.IPFiltering.Matcher != "client_ip" {
+		t.Errorf("IPFiltering.Matcher = %q, want client_ip", got.Toggles.IPFiltering.Matcher)
+	}
+}
+
 // --- Caddyfile-adapted route structure ---
 
 func TestParseDomainParamsCaddyfileWrappedSubroute(t *testing.T) {
@@ -1218,7 +1365,7 @@ func TestParseDomainParamsSecurityPlusCORSCombined(t *testing.T) {
 
 func buildRuleAndParse(t *testing.T, domainName string, rule RuleBuildParams, toggles DomainToggles) DomainParams {
 	t.Helper()
-	raw, err := BuildRuleDomain(domainName, rule, toggles, nil, "", false)
+	raw, err := BuildRuleDomain(domainName, rule, toggles, nil, "", "", false)
 	if err != nil {
 		t.Fatalf("BuildRuleDomain failed: %v", err)
 	}

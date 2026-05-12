@@ -17,7 +17,7 @@ type RuleBuildParams struct {
 	AdvancedHeaders bool
 }
 
-func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string, logSkip bool) (json.RawMessage, error) {
+func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string, ipMatcherType string, logSkip bool) (json.RawMessage, error) {
 	if domainName == "" {
 		return nil, fmt.Errorf("domain name is required")
 	}
@@ -53,8 +53,9 @@ func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainTogg
 
 	// IP filtering subroute
 	if len(ipListIPs) > 0 && ipListType != "" {
+		matcherKey := ipMatcherKey(ipMatcherType)
 		ipMatcher := map[string]any{
-			"remote_ip": map[string]any{"ranges": ipListIPs},
+			matcherKey: map[string]any{"ranges": ipListIPs},
 		}
 
 		var matchList []map[string]any

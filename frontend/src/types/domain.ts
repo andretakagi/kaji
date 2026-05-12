@@ -15,6 +15,7 @@ export interface DomainToggles {
 		enabled: boolean;
 		list_id: string;
 		type: "whitelist" | "blacklist" | "";
+		matcher: "remote_ip" | "client_ip";
 	};
 	error_pages: ErrorPage[];
 }
@@ -188,7 +189,7 @@ export const defaultDomainToggles: DomainToggles = {
 	},
 	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
 	access_log: "",
-	ip_filtering: { enabled: false, list_id: "", type: "" },
+	ip_filtering: { enabled: false, list_id: "", type: "", matcher: "remote_ip" },
 	error_pages: [],
 };
 

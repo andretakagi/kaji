@@ -240,6 +240,11 @@ function AccessLogGroup({
 	);
 }
 
+const matcherOptions = [
+	{ value: "remote_ip", label: "Remote IP" },
+	{ value: "client_ip", label: "Client IP" },
+] as const;
+
 function IPFilteringGroup({
 	toggles,
 	onUpdate,
@@ -256,8 +261,8 @@ function IPFilteringGroup({
 					onUpdate(
 						"ip_filtering",
 						v
-							? { enabled: true, list_id: "", type: "blacklist" }
-							: { enabled: false, list_id: "", type: "" },
+							? { enabled: true, list_id: "", type: "blacklist", matcher: "remote_ip" }
+							: { enabled: false, list_id: "", type: "", matcher: "remote_ip" },
 					)
 				}
 				disabled={disabled}
@@ -265,10 +270,25 @@ function IPFilteringGroup({
 			{toggles.ip_filtering.enabled && (
 				<div className="toggle-detail">
 					<Toggle
+						options={matcherOptions}
+						value={toggles.ip_filtering.matcher ?? "remote_ip"}
+						onChange={(v: "remote_ip" | "client_ip") =>
+							onUpdate("ip_filtering", { ...toggles.ip_filtering, matcher: v })
+						}
+						aria-label="Match By"
+						disabled={disabled}
+					/>
+					{toggles.ip_filtering.matcher === "client_ip" && (
+						<span className="form-hint">
+							Matches the real client IP after trusted proxy resolution. Requires trusted proxies to
+							be configured in Settings.
+						</span>
+					)}
+					<Toggle
 						options={["blacklist", "whitelist"] as const}
 						value={toggles.ip_filtering.type as "blacklist" | "whitelist"}
 						onChange={(v: "blacklist" | "whitelist") =>
-							onUpdate("ip_filtering", { enabled: true, list_id: "", type: v })
+							onUpdate("ip_filtering", { ...toggles.ip_filtering, list_id: "", type: v })
 						}
 						disabled={disabled}
 					/>

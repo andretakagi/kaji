@@ -16,6 +16,7 @@ All notable changes to Kaji are documented in this file.
 - Deferred header application toggle in advanced mode for response headers and header down contexts.
 - Per-rule upstream path rewriting. Strip a path prefix, prepend a path prefix, or both (strip then prepend) before forwarding to the upstream. Configured per reverse proxy rule.
 - Trusted proxies setting. Declare IP ranges trusted to set client identity headers (X-Forwarded-For, X-Forwarded-Proto). Required when behind Cloudflare, a load balancer, or another reverse proxy. Includes presets for Cloudflare and private networks.
+- Client IP matcher for IP filtering. When behind a reverse proxy with trusted proxies configured, IP filtering can match against the real client IP instead of the proxy's IP.
 
 ### Fixed
 - Log viewer connection indicator stayed stuck on "Reconnecting..." after a transient disconnect on an idle proxy. The stream was actually reconnecting, but the status only cleared when a new log line arrived.
