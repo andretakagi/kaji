@@ -5095,6 +5095,51 @@ input:disabled + .toggle-slider {
 	border-left: 2px solid var(--border);
 }
 
+/* Upstream status indicators */
+
+.upstream-status-list {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	margin: 0;
+}
+
+.upstream-status-items {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	margin: 0;
+}
+
+.upstream-status-item {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.upstream-dot {
+	display: block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.upstream-dot-healthy {
+	background: var(--green);
+	box-shadow: 0 0 4px rgba(var(--green-rgb), 0.4);
+}
+
+.upstream-dot-unhealthy {
+	background: var(--red);
+	box-shadow: 0 0 4px rgba(var(--red-rgb), 0.4);
+}
+
+.upstream-dot-unknown {
+	background: var(--text-secondary);
+	opacity: 0.5;
+}
+
 .rule-card-section-heading-row {
 	display: flex;
 	align-items: center;

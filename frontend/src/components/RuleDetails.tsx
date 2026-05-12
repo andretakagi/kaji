@@ -1,3 +1,4 @@
+import { useUpstreamStatus } from "../contexts/UpstreamStatusContext";
 import type {
 	ErrorConfig,
 	FileServerConfig,
@@ -69,15 +70,14 @@ function DetailList({ details }: { details: { label: string; value: string }[] }
 }
 
 function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) {
+	const { getUpstreamState } = useUpstreamStatus();
 	const details: { label: string; value: string }[] = [];
+
 	if (config.load_balancing.enabled) {
-		const allUpstreams = [config.upstream, ...config.load_balancing.upstreams].filter(Boolean);
 		const strategyLabel = config.load_balancing.strategy.replace(/_/g, " ");
 		details.push({ label: "Strategy", value: strategyLabel });
-		details.push({ label: "Upstreams", value: allUpstreams.join(", ") || "..." });
-	} else {
-		details.push({ label: "Upstream", value: config.upstream || "..." });
 	}
+
 	if (config.tls_skip_verify) details.push({ label: "TLS", value: "Skip verify" });
 	if (config.websocket_passthrough) details.push({ label: "WebSocket", value: "Enabled" });
 	if (config.strip_path_prefix) {
@@ -88,7 +88,36 @@ function ReverseProxyDetails({ config }: { config: ReverseProxyConfig }) {
 	}
 	if (config.header_up.enabled) details.push({ label: "Header up", value: "Enabled" });
 	if (config.header_down.enabled) details.push({ label: "Header down", value: "Enabled" });
-	return <DetailList details={details} />;
+
+	const allUpstreams = config.load_balancing.enabled
+		? [config.upstream, ...config.load_balancing.upstreams].filter(Boolean)
+		: [config.upstream].filter(Boolean);
+
+	return (
+		<>
+			<div className="upstream-status-list">
+				<dt className="rule-card-detail-label">
+					{allUpstreams.length === 1 ? "Upstream" : "Upstreams"}
+				</dt>
+				<dd className="upstream-status-items">
+					{allUpstreams.length === 0 ? (
+						<span className="rule-card-detail-value">...</span>
+					) : (
+						allUpstreams.map((addr) => (
+							<div key={addr} className="upstream-status-item">
+								<span
+									className={`upstream-dot upstream-dot-${getUpstreamState(addr)}`}
+									aria-hidden="true"
+								/>
+								<span className="rule-card-detail-value">{addr}</span>
+							</div>
+						))
+					)}
+				</dd>
+			</div>
+			<DetailList details={details} />
+		</>
+	);
 }
 
 function StaticResponseDetails({ config }: { config: StaticResponseConfig }) {
