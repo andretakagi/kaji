@@ -27,6 +27,14 @@ type IPFilteringOpts struct {
 	Enabled bool   `json:"enabled"`
 	ListID  string `json:"list_id"`
 	Type    string `json:"type"`
+	Matcher string `json:"matcher"`
+}
+
+func ipMatcherKey(matcher string) string {
+	if matcher == "client_ip" {
+		return "client_ip"
+	}
+	return "remote_ip"
 }
 
 type RouteToggles struct {
@@ -153,8 +161,9 @@ func BuildDomain(p DomainParams) (json.RawMessage, error) {
 	}
 
 	if len(p.IPListIPs) > 0 && p.IPListType != "" {
+		matcherKey := ipMatcherKey(p.Toggles.IPFiltering.Matcher)
 		ipMatcher := map[string]any{
-			"remote_ip": map[string]any{"ranges": p.IPListIPs},
+			matcherKey: map[string]any{"ranges": p.IPListIPs},
 		}
 
 		var matchBlock []map[string]any

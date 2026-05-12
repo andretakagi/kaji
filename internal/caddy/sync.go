@@ -139,7 +139,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 			}
 
 			caddyID := CaddyDomainID(dom.ID)
-			routeJSON, err := BuildRuleDomain(dom.Name, params, dom.Toggles, ips, ipType, logSkipIDs[caddyID])
+			routeJSON, err := BuildRuleDomain(dom.Name, params, dom.Toggles, ips, ipType, dom.Toggles.IPFiltering.Matcher, logSkipIDs[caddyID])
 			if err != nil {
 				return nil, fmt.Errorf("building route for domain %s: %w", dom.ID, err)
 			}
@@ -182,7 +182,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 				}
 
 				caddyID := CaddyDomainID(sub.ID)
-				routeJSON, err := BuildRuleDomain(subHost, params, sub.Toggles, ips, ipType, logSkipIDs[caddyID])
+				routeJSON, err := BuildRuleDomain(subHost, params, sub.Toggles, ips, ipType, sub.Toggles.IPFiltering.Matcher, logSkipIDs[caddyID])
 				if err != nil {
 					return nil, fmt.Errorf("building route for subdomain %s: %w", sub.ID, err)
 				}
@@ -246,7 +246,7 @@ func emitPathRoutes(
 		}
 
 		caddyID := CaddyDomainID(p.ID)
-		routeJSON, err := BuildRuleDomain(host, params, toggles, ips, ipType, logSkipIDs[caddyID])
+		routeJSON, err := BuildRuleDomain(host, params, toggles, ips, ipType, toggles.IPFiltering.Matcher, logSkipIDs[caddyID])
 		if err != nil {
 			return fmt.Errorf("building route for path %s: %w", p.ID, err)
 		}

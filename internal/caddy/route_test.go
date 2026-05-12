@@ -1218,7 +1218,7 @@ func TestParseDomainParamsSecurityPlusCORSCombined(t *testing.T) {
 
 func buildRuleAndParse(t *testing.T, domainName string, rule RuleBuildParams, toggles DomainToggles) DomainParams {
 	t.Helper()
-	raw, err := BuildRuleDomain(domainName, rule, toggles, nil, "", false)
+	raw, err := BuildRuleDomain(domainName, rule, toggles, nil, "", "", false)
 	if err != nil {
 		t.Fatalf("BuildRuleDomain failed: %v", err)
 	}
