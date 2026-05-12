@@ -85,6 +85,8 @@ func BuildLogSkipRoute(domainID, hostname string, rule LogSkipRule) (json.RawMes
 				m["header"] = map[string]any{c.Key: []string{c.Value}}
 			case "remote_ip":
 				m["remote_ip"] = map[string]any{"ranges": []string{c.Value}}
+			case "client_ip":
+				m["client_ip"] = map[string]any{"ranges": []string{c.Value}}
 			default:
 				continue
 			}

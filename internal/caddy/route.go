@@ -529,11 +529,17 @@ func isIPFilteringSubroute(routes []struct {
 		if _, ok := match["remote_ip"]; ok {
 			return true
 		}
+		if _, ok := match["client_ip"]; ok {
+			return true
+		}
 		if notRaw, ok := match["not"]; ok {
 			var nots []map[string]json.RawMessage
 			if json.Unmarshal(notRaw, &nots) == nil {
 				for _, n := range nots {
 					if _, ok := n["remote_ip"]; ok {
+						return true
+					}
+					if _, ok := n["client_ip"]; ok {
 						return true
 					}
 				}
@@ -558,10 +564,26 @@ func parseIPFilteringSubroute(routes []struct {
 		}
 		if _, ok := match["remote_ip"]; ok {
 			toggles.IPFiltering.Type = "blacklist"
+			toggles.IPFiltering.Matcher = "remote_ip"
 			return
 		}
-		if _, ok := match["not"]; ok {
+		if _, ok := match["client_ip"]; ok {
+			toggles.IPFiltering.Type = "blacklist"
+			toggles.IPFiltering.Matcher = "client_ip"
+			return
+		}
+		if notRaw, ok := match["not"]; ok {
 			toggles.IPFiltering.Type = "whitelist"
+			var nots []map[string]json.RawMessage
+			if json.Unmarshal(notRaw, &nots) == nil {
+				for _, n := range nots {
+					if _, ok := n["client_ip"]; ok {
+						toggles.IPFiltering.Matcher = "client_ip"
+						return
+					}
+				}
+			}
+			toggles.IPFiltering.Matcher = "remote_ip"
 			return
 		}
 	}
