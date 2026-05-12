@@ -85,6 +85,11 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 						onChange={(v) => update({ websocket_passthrough: v })}
 						disabled={disabled}
 					/>
+					<HealthCheckSection
+						config={rpConfig.health_checks}
+						onChange={(hc) => update({ health_checks: hc })}
+						disabled={disabled}
+					/>
 					<LoadBalancingSection config={rpConfig} onChange={update} disabled={disabled} />
 					<PathPrefixToggle
 						label="Strip Path Prefix"
@@ -100,11 +105,6 @@ export default function HandlerConfig({ type, config, onChange, disabled, domain
 						placeholder="/v2"
 						value={rpConfig.prepend_path_prefix}
 						onChange={(v) => update({ prepend_path_prefix: v })}
-						disabled={disabled}
-					/>
-					<HealthCheckSection
-						config={rpConfig.health_checks}
-						onChange={(hc) => update({ health_checks: hc })}
 						disabled={disabled}
 					/>
 					<HeaderUpSection
