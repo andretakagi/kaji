@@ -3933,6 +3933,15 @@ input:disabled + .toggle-slider {
 		width: auto;
 	}
 
+	.upstream-status-list {
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.upstream-status-list .rule-card-detail-label {
+		width: auto;
+	}
+
 	/* Routes */
 	.form-row:not(.form-row-spread) {
 		flex-direction: column;
