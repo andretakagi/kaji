@@ -2447,12 +2447,6 @@ input:disabled + .toggle-slider {
 	gap: 0.75rem;
 	padding: 0.375rem 0.5rem;
 	border-radius: 6px;
-	cursor: pointer;
-	transition: background 0.15s;
-}
-
-.log-category-item:hover {
-	background: rgba(var(--text-secondary-rgb), 0.08);
 }
 
 .log-category-text {
@@ -2472,8 +2466,7 @@ input:disabled + .toggle-slider {
 	color: var(--text-secondary);
 }
 
-.log-category-item input[type="checkbox"] {
-	accent-color: var(--accent);
+.log-category-item .toggle-switch {
 	flex-shrink: 0;
 }
 

@@ -301,7 +301,8 @@ function LogCategoryToggles({
 	sink: CaddyLogSink;
 	onChange: (sink: CaddyLogSink) => void;
 }) {
-	const excludes = sink.exclude ?? [];
+	const allNamespaces = LOG_CATEGORIES.map((c) => c.namespace);
+	const excludes = sink.exclude ?? allNamespaces;
 
 	function toggleCategory(namespace: string, enabled: boolean) {
 		let next: string[];
@@ -321,17 +322,17 @@ function LogCategoryToggles({
 			<h4 className="log-category-heading">Log Categories</h4>
 			<div className="log-category-grid">
 				{LOG_CATEGORIES.map((cat) => (
-					<label key={cat.namespace} className="log-category-item">
+					<div key={cat.namespace} className="log-category-item">
 						<div className="log-category-text">
 							<span className="log-category-label">{cat.label}</span>
 							<span className="log-category-desc">{cat.description}</span>
 						</div>
-						<input
-							type="checkbox"
-							checked={!excludes.includes(cat.namespace)}
-							onChange={(e) => toggleCategory(cat.namespace, e.target.checked)}
+						<Toggle
+							value={!excludes.includes(cat.namespace)}
+							onChange={(v) => toggleCategory(cat.namespace, v)}
+							small
 						/>
-					</label>
+					</div>
 				))}
 			</div>
 		</div>
@@ -484,9 +485,7 @@ const LogConfigCard = memo(function LogConfigCard({
 				lokiSinks={lokiSinks}
 				onLokiToggle={onLokiToggle}
 			/>
-			{isDefault && !isDiscard && (
-				<LogCategoryToggles sink={sink} onChange={(s) => onChange(name, s)} />
-			)}
+			{isDefault && <LogCategoryToggles sink={sink} onChange={(s) => onChange(name, s)} />}
 			{showSkipRules && skipRulesError && <div className="feedback error">{skipRulesError}</div>}
 			{showSkipRules && skipRules && (
 				<LogSkipRulesEditor sinkName={name} initialRules={skipRules} />
