@@ -90,6 +90,7 @@ export function validateStatusResponse(data: unknown): { status: string } {
 function isUpstreamStatus(d: unknown): boolean {
 	return hasFields(d, {
 		address: is.string,
+		num_requests: is.number,
 	});
 }
 

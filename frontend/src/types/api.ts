@@ -11,6 +11,7 @@ export interface CaddyfileResponse {
 
 export interface UpstreamStatus {
 	address: string;
+	num_requests: number;
 }
 
 export interface SetupStatus {

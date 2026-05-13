@@ -1124,6 +1124,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 														: undefined
 												}
 												isCreate
+												isPath
 											/>
 										</div>
 									)}
@@ -1356,6 +1357,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 																			: undefined
 																	}
 																	isCreate
+																	isPath
 																/>
 															</div>
 														)}
@@ -1529,6 +1531,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 														: undefined
 												}
 												isCreate
+												isPath
 											/>
 										</div>
 									)}

@@ -2418,6 +2418,58 @@ input:disabled + .toggle-slider {
 	cursor: not-allowed;
 }
 
+/* Log category toggles */
+
+.log-category-toggles {
+	padding: 0.75rem 0 0;
+	border-top: 1px solid var(--border);
+}
+
+.log-category-heading {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	margin: 0 0 0.5rem;
+}
+
+.log-category-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+}
+
+.log-category-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.375rem 0.5rem;
+	border-radius: 6px;
+}
+
+.log-category-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+	min-width: 0;
+}
+
+.log-category-label {
+	font-size: 0.8125rem;
+	color: var(--text);
+}
+
+.log-category-desc {
+	font-size: 0.6875rem;
+	color: var(--text-secondary);
+}
+
+.log-category-item .toggle-switch {
+	flex-shrink: 0;
+}
+
 .log-config-loki-toggle-group {
 	display: flex;
 	align-items: baseline;
@@ -3933,6 +3985,15 @@ input:disabled + .toggle-slider {
 		width: auto;
 	}
 
+	.upstream-status-list {
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.upstream-status-list .rule-card-detail-label {
+		width: auto;
+	}
+
 	/* Routes */
 	.form-row:not(.form-row-spread) {
 		flex-direction: column;
@@ -5093,6 +5154,51 @@ input:disabled + .toggle-slider {
 	flex-direction: column;
 	gap: 0.375rem;
 	border-left: 2px solid var(--border);
+}
+
+/* Upstream status indicators */
+
+.upstream-status-list {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	margin: 0;
+}
+
+.upstream-status-items {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	margin: 0;
+}
+
+.upstream-status-item {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.upstream-dot {
+	display: block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.upstream-dot-healthy {
+	background: var(--green);
+	box-shadow: 0 0 4px rgba(var(--green-rgb), 0.4);
+}
+
+.upstream-dot-unhealthy {
+	background: var(--red);
+	box-shadow: 0 0 4px rgba(var(--red-rgb), 0.4);
+}
+
+.upstream-dot-unknown {
+	background: var(--text-secondary);
+	opacity: 0.5;
 }
 
 .rule-card-section-heading-row {
