@@ -21,6 +21,26 @@ import { Toggle } from "./Toggle";
 
 const NS_PER_DAY = 24 * 3600 * 1e9;
 
+const LOG_CATEGORIES: { label: string; namespace: string; description: string }[] = [
+	{
+		label: "TLS / Certificates",
+		namespace: "tls.*",
+		description: "Cert provisioning, renewals, OCSP",
+	},
+	{
+		label: "Reverse Proxy",
+		namespace: "http.reverse_proxy",
+		description: "Upstream errors, retries, health checks",
+	},
+	{
+		label: "Request Errors",
+		namespace: "http.log.error",
+		description: "Request handling failures",
+	},
+	{ label: "Admin API", namespace: "admin.*", description: "Admin endpoint activity" },
+	{ label: "Listeners", namespace: "caddy.listeners", description: "Listener start/stop" },
+];
+
 function LogSinkEditor({
 	name,
 	sink,
@@ -274,6 +294,50 @@ function LogSinkEditor({
 	);
 }
 
+function LogCategoryToggles({
+	sink,
+	onChange,
+}: {
+	sink: CaddyLogSink;
+	onChange: (sink: CaddyLogSink) => void;
+}) {
+	const excludes = sink.exclude ?? [];
+
+	function toggleCategory(namespace: string, enabled: boolean) {
+		let next: string[];
+		if (enabled) {
+			next = excludes.filter((ns) => ns !== namespace);
+		} else {
+			next = [...excludes, namespace];
+		}
+		onChange({
+			...sink,
+			exclude: next.length > 0 ? next : undefined,
+		});
+	}
+
+	return (
+		<div className="log-category-toggles">
+			<h4 className="log-category-heading">Log Categories</h4>
+			<div className="log-category-grid">
+				{LOG_CATEGORIES.map((cat) => (
+					<label key={cat.namespace} className="log-category-item">
+						<div className="log-category-text">
+							<span className="log-category-label">{cat.label}</span>
+							<span className="log-category-desc">{cat.description}</span>
+						</div>
+						<input
+							type="checkbox"
+							checked={!excludes.includes(cat.namespace)}
+							onChange={(e) => toggleCategory(cat.namespace, e.target.checked)}
+						/>
+					</label>
+				))}
+			</div>
+		</div>
+	);
+}
+
 const LogConfigCard = memo(function LogConfigCard({
 	name,
 	sink,
@@ -420,6 +484,9 @@ const LogConfigCard = memo(function LogConfigCard({
 				lokiSinks={lokiSinks}
 				onLokiToggle={onLokiToggle}
 			/>
+			{isDefault && !isDiscard && (
+				<LogCategoryToggles sink={sink} onChange={(s) => onChange(name, s)} />
+			)}
 			{showSkipRules && skipRulesError && <div className="feedback error">{skipRulesError}</div>}
 			{showSkipRules && skipRules && (
 				<LogSkipRulesEditor sinkName={name} initialRules={skipRules} />
