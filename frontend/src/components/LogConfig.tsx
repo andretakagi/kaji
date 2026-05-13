@@ -359,7 +359,7 @@ const LogConfigCard = memo(function LogConfigCard({
 		);
 
 	const title = isDefault ? (
-		"Caddy System Log"
+		"Default Log"
 	) : isAccessLog ? (
 		<>
 			{name} <span className="access-log-badge">Access Log</span>
