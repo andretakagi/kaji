@@ -397,6 +397,7 @@ export default function RuleCard({
 									idPrefix={togglesIdPrefix}
 									domain={domainName ?? hostLabel}
 									errorMessage={errorMessageForRule(editedRule)}
+									isPath={isPath}
 								/>
 							)}
 						</div>
@@ -445,6 +446,7 @@ export default function RuleCard({
 									domain={domainName ?? hostLabel}
 									disabled
 									errorMessage={errorMessageForRule(rule)}
+									isPath={isPath}
 								/>
 							)}
 						</div>

@@ -16,6 +16,7 @@ interface Props {
 	disabled?: boolean;
 	errorMessage?: string;
 	isCreate?: boolean;
+	isPath?: boolean;
 }
 
 export function DomainToggleGrid({
@@ -27,6 +28,7 @@ export function DomainToggleGrid({
 	disabled,
 	errorMessage,
 	isCreate,
+	isPath,
 }: Props) {
 	const [ipLists, setIpLists] = useState<IPList[]>([]);
 	const [autoHttps, setAutoHttps] = useState<GlobalToggles["auto_https"] | null>(null);
@@ -100,6 +102,7 @@ export function DomainToggleGrid({
 				idPrefix={idPrefix}
 				domain={domain}
 				disabled={disabled}
+				isPath={isPath}
 			/>
 			<IPFilteringGroup
 				toggles={toggles}
@@ -185,17 +188,22 @@ function AccessLogGroup({
 	idPrefix,
 	domain,
 	disabled,
-}: GroupProps & { domain?: string }) {
+	isPath,
+}: GroupProps & { domain?: string; isPath?: boolean }) {
 	return (
 		<div className={cn("toggle-group", toggles.access_log && "toggle-group-open")}>
 			<ToggleItem
 				label="Access Log"
-				description="Log requests to this domain and its subdomains"
+				description={
+					isPath
+						? "Log requests matching this path"
+						: "Log requests to this domain and its subdomains"
+				}
 				checked={toggles.access_log !== ""}
 				onChange={(v) => onUpdate("access_log", v ? "kaji_access" : "")}
 				disabled={disabled}
 			/>
-			{toggles.access_log !== "" && (
+			{toggles.access_log !== "" && !isPath && (
 				<div className="toggle-detail">
 					<label className="toggle-radio-option">
 						<input
