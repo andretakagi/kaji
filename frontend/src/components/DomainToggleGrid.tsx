@@ -135,16 +135,22 @@ function BasicAuthGroup({
 	disabled,
 	isCreate,
 }: GroupProps & { isCreate?: boolean }) {
+	const isBasic = toggles.auth.mode === "basic";
 	return (
-		<div className={cn("toggle-group", toggles.basic_auth.enabled && "toggle-group-open")}>
+		<div className={cn("toggle-group", isBasic && "toggle-group-open")}>
 			<ToggleItem
 				label="Basic Auth"
 				description="Basic authentication"
-				checked={toggles.basic_auth.enabled}
-				onChange={(v) => onUpdate("basic_auth", { ...toggles.basic_auth, enabled: v })}
+				checked={isBasic}
+				onChange={(v) =>
+					onUpdate("auth", {
+						...toggles.auth,
+						mode: v ? "basic" : "off",
+					})
+				}
 				disabled={disabled}
 			/>
-			{toggles.basic_auth.enabled && (
+			{isBasic && (
 				<div className="toggle-detail">
 					<label htmlFor={`auth-user-${idPrefix}`}>Username</label>
 					<input
@@ -152,11 +158,14 @@ function BasicAuthGroup({
 						type="text"
 						placeholder="admin"
 						maxLength={255}
-						value={toggles.basic_auth.username}
+						value={toggles.auth.basic_auth.username}
 						onChange={(e) =>
-							onUpdate("basic_auth", {
-								...toggles.basic_auth,
-								username: e.target.value,
+							onUpdate("auth", {
+								...toggles.auth,
+								basic_auth: {
+									...toggles.auth.basic_auth,
+									username: e.target.value,
+								},
 							})
 						}
 						disabled={disabled}
@@ -167,11 +176,14 @@ function BasicAuthGroup({
 						type="password"
 						placeholder={isCreate ? "password" : "(unchanged)"}
 						maxLength={512}
-						value={toggles.basic_auth.password}
+						value={toggles.auth.basic_auth.password}
 						onChange={(e) =>
-							onUpdate("basic_auth", {
-								...toggles.basic_auth,
-								password: e.target.value,
+							onUpdate("auth", {
+								...toggles.auth,
+								basic_auth: {
+									...toggles.auth.basic_auth,
+									password: e.target.value,
+								},
 							})
 						}
 						disabled={disabled}

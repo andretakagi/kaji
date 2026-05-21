@@ -477,9 +477,9 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 		}
 	}
 
-	if p.Toggles.BasicAuth.Enabled && p.Toggles.BasicAuth.Username != "" {
+	if p.Toggles.Auth.Mode == "basic" && p.Toggles.Auth.BasicAuth.Username != "" {
 		b.WriteString("\tbasic_auth {\n")
-		b.WriteString("\t\t" + p.Toggles.BasicAuth.Username + " " + p.Toggles.BasicAuth.PasswordHash + "\n")
+		b.WriteString("\t\t" + p.Toggles.Auth.BasicAuth.Username + " " + p.Toggles.Auth.BasicAuth.PasswordHash + "\n")
 		b.WriteString("\t}\n")
 	}
 

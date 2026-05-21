@@ -350,10 +350,12 @@ func TestBuildDomainBasicAuth(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			BasicAuth: BasicAuth{
-				Enabled:      true,
-				Username:     "admin",
-				PasswordHash: "$2a$14$hashedpassword",
+			Auth: AuthToggle{
+				Mode: "basic",
+				BasicAuth: BasicAuth{
+					Username:     "admin",
+					PasswordHash: "$2a$14$hashedpassword",
+				},
 			},
 		},
 	}
@@ -643,22 +645,24 @@ func TestParseDomainParamsBasicAuth(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			BasicAuth: BasicAuth{
-				Enabled:      true,
-				Username:     "admin",
-				PasswordHash: "$2a$14$hashedpassword",
+			Auth: AuthToggle{
+				Mode: "basic",
+				BasicAuth: BasicAuth{
+					Username:     "admin",
+					PasswordHash: "$2a$14$hashedpassword",
+				},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.BasicAuth.Enabled {
-		t.Error("BasicAuth.Enabled should round-trip to true")
+	if got.Toggles.Auth.Mode != "basic" {
+		t.Errorf("Auth.Mode = %q, want basic", got.Toggles.Auth.Mode)
 	}
-	if got.Toggles.BasicAuth.Username != "admin" {
-		t.Errorf("Username = %q, want admin", got.Toggles.BasicAuth.Username)
+	if got.Toggles.Auth.BasicAuth.Username != "admin" {
+		t.Errorf("Username = %q, want admin", got.Toggles.Auth.BasicAuth.Username)
 	}
-	if got.Toggles.BasicAuth.PasswordHash != "$2a$14$hashedpassword" {
-		t.Errorf("PasswordHash = %q, want $2a$14$hashedpassword", got.Toggles.BasicAuth.PasswordHash)
+	if got.Toggles.Auth.BasicAuth.PasswordHash != "$2a$14$hashedpassword" {
+		t.Errorf("PasswordHash = %q, want $2a$14$hashedpassword", got.Toggles.Auth.BasicAuth.PasswordHash)
 	}
 }
 

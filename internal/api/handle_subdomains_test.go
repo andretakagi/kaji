@@ -243,17 +243,17 @@ func TestHandleCreateSubdomainBasicAuthHashed(t *testing.T) {
 
 	body := `{
 		"name":"api",
-		"toggles":{"basic_auth":{"enabled":true,"username":"admin","password":"secret"}},
+		"toggles":{"auth":{"mode":"basic","basic_auth":{"username":"admin","password":"secret"}}},
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}}
 	}`
 	mustCreateSubdomain(t, th, domID, body)
 
 	cfg := th.store.Get()
 	sub := cfg.Domains[0].Subdomains[0]
-	if sub.Toggles.BasicAuth.PasswordHash == "" {
+	if sub.Toggles.Auth.BasicAuth.PasswordHash == "" {
 		t.Error("expected hashed password on subdomain")
 	}
-	if sub.Toggles.BasicAuth.Password != "" {
+	if sub.Toggles.Auth.BasicAuth.Password != "" {
 		t.Error("plaintext password should not be stored")
 	}
 }
@@ -265,7 +265,7 @@ func TestHandleCreateSubdomainBasicAuthMissingUsername(t *testing.T) {
 
 	body := `{
 		"name":"api",
-		"toggles":{"basic_auth":{"enabled":true,"password":"secret"}},
+		"toggles":{"auth":{"mode":"basic","basic_auth":{"password":"secret"}}},
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}}
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/api/domains/"+domID+"/subdomains", strings.NewReader(body))
@@ -343,18 +343,18 @@ func TestHandleUpdateSubdomainPreservesBasicAuthHash(t *testing.T) {
 
 	sub := mustCreateSubdomain(t, th, domID, `{
 		"name":"api",
-		"toggles":{"basic_auth":{"enabled":true,"username":"admin","password":"secret"}},
+		"toggles":{"auth":{"mode":"basic","basic_auth":{"username":"admin","password":"secret"}}},
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}}
 	}`)
 	subID := sub["subdomains"].([]any)[0].(map[string]any)["id"].(string)
 
-	originalHash := findStoreSubdomain(t, th, domID, subID).Toggles.BasicAuth.PasswordHash
+	originalHash := findStoreSubdomain(t, th, domID, subID).Toggles.Auth.BasicAuth.PasswordHash
 	if originalHash == "" {
 		t.Fatal("expected password hash to be set after create")
 	}
 
 	// Update without resending the password
-	updateBody := `{"name":"api","toggles":{"basic_auth":{"enabled":true,"username":"admin"}}}`
+	updateBody := `{"name":"api","toggles":{"auth":{"mode":"basic","basic_auth":{"username":"admin"}}}}`
 	req := httptest.NewRequest(http.MethodPut, "/api/domains/"+domID+"/subdomains/"+subID, strings.NewReader(updateBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -364,7 +364,7 @@ func TestHandleUpdateSubdomainPreservesBasicAuthHash(t *testing.T) {
 		t.Fatalf("got %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
-	updatedHash := findStoreSubdomain(t, th, domID, subID).Toggles.BasicAuth.PasswordHash
+	updatedHash := findStoreSubdomain(t, th, domID, subID).Toggles.Auth.BasicAuth.PasswordHash
 	if updatedHash != originalHash {
 		t.Errorf("hash changed: %q -> %q", originalHash, updatedHash)
 	}

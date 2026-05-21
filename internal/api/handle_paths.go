@@ -39,7 +39,7 @@ func validatePathRequest(w http.ResponseWriter, p *pathRequest, fallbackHash, er
 		return false
 	}
 	if p.ToggleOverrides != nil {
-		if !validateAndHashBasicAuth(w, &p.ToggleOverrides.BasicAuth, fallbackHash, errPrefix, "validatePathRequest") {
+		if !validateAndHashAuth(w, &p.ToggleOverrides.Auth, fallbackHash, errPrefix, "validatePathRequest") {
 			return false
 		}
 	}
@@ -56,7 +56,7 @@ func existingPathHash(paths []config.Path, pathID string) string {
 	if paths[idx].ToggleOverrides == nil {
 		return ""
 	}
-	return paths[idx].ToggleOverrides.BasicAuth.PasswordHash
+	return paths[idx].ToggleOverrides.Auth.BasicAuth.PasswordHash
 }
 
 func pathFromRequest(p pathRequest) config.Path {

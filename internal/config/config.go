@@ -124,6 +124,7 @@ type AppConfig struct {
 	KajiVersion     string                   `json:"kaji_version,omitempty"`
 	IPLists         []IPList                 `json:"ip_lists"`
 	DomainIPLists   map[string]string        `json:"domain_ip_lists"`
+	ForwardAuth     caddy.ForwardAuthConfig  `json:"forward_auth"`
 	LogSkipRules    map[string]LogSkipConfig `json:"log_skip_rules"`
 }
 

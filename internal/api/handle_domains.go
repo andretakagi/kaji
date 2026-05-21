@@ -199,7 +199,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			}
 		}
 
-		if !validateAndHashBasicAuth(w, &req.Toggles.BasicAuth, "", "", "handleCreateDomainFull") {
+		if !validateAndHashAuth(w, &req.Toggles.Auth, "", "", "handleCreateDomainFull") {
 			return
 		}
 
@@ -238,7 +238,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			if s.Toggles != nil {
 				subToggles = *s.Toggles
 			}
-			if !validateAndHashBasicAuth(w, &subToggles.BasicAuth, "", fmt.Sprintf("subdomain %d: ", i+1), "handleCreateDomainFull") {
+			if !validateAndHashAuth(w, &subToggles.Auth, "", fmt.Sprintf("subdomain %d: ", i+1), "handleCreateDomainFull") {
 				return
 			}
 
@@ -312,9 +312,9 @@ func handleUpdateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 
 		var fallbackHash string
 		if dom := findDomain(store.Get(), id); dom != nil {
-			fallbackHash = dom.Toggles.BasicAuth.PasswordHash
+			fallbackHash = dom.Toggles.Auth.BasicAuth.PasswordHash
 		}
-		if !validateAndHashBasicAuth(w, &req.Toggles.BasicAuth, fallbackHash, "", "handleUpdateDomain") {
+		if !validateAndHashAuth(w, &req.Toggles.Auth, fallbackHash, "", "handleUpdateDomain") {
 			return
 		}
 

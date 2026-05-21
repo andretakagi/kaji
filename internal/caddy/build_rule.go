@@ -100,15 +100,15 @@ func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainTogg
 	handlers = append(handlers, buildResponseHeaders(toggles.Headers, rule.AdvancedHeaders)...)
 
 	// Basic auth
-	if toggles.BasicAuth.Enabled && toggles.BasicAuth.Username != "" {
+	if toggles.Auth.Mode == "basic" && toggles.Auth.BasicAuth.Username != "" {
 		handlers = append(handlers, map[string]any{
 			"handler": "authentication",
 			"providers": map[string]any{
 				"http_basic": map[string]any{
 					"accounts": []map[string]string{
 						{
-							"username": toggles.BasicAuth.Username,
-							"password": toggles.BasicAuth.PasswordHash,
+							"username": toggles.Auth.BasicAuth.Username,
+							"password": toggles.Auth.BasicAuth.PasswordHash,
 						},
 					},
 					"hash": map[string]any{

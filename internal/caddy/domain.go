@@ -10,7 +10,7 @@ type DomainToggles struct {
 	ForceHTTPS  bool            `json:"force_https"`
 	Compression bool            `json:"compression"`
 	Headers     HeadersConfig   `json:"headers"`
-	BasicAuth   BasicAuth       `json:"basic_auth"`
+	Auth        AuthToggle      `json:"auth"`
 	AccessLog   string          `json:"access_log"`
 	IPFiltering IPFilteringOpts `json:"ip_filtering"`
 	ErrorPages  []ErrorPage     `json:"error_pages"`

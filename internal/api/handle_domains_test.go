@@ -251,7 +251,7 @@ func TestHandleCreateDomainFullHashesBasicAuthPassword(t *testing.T) {
 
 	body := `{
 		"name":"example.com",
-		"toggles":{"basic_auth":{"enabled":true,"username":"admin","password":"secret"}},
+		"toggles":{"auth":{"mode":"basic","basic_auth":{"username":"admin","password":"secret"}}},
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}}
 	}`
 	rec := createDomain(t, th, body)
@@ -263,7 +263,7 @@ func TestHandleCreateDomainFullHashesBasicAuthPassword(t *testing.T) {
 	if len(cfg.Domains) != 1 {
 		t.Fatalf("expected 1 domain in store")
 	}
-	hash := cfg.Domains[0].Toggles.BasicAuth.PasswordHash
+	hash := cfg.Domains[0].Toggles.Auth.BasicAuth.PasswordHash
 	if hash == "" {
 		t.Error("expected basic auth password to be hashed, got empty hash")
 	}
@@ -283,7 +283,7 @@ func TestHandleCreateDomainFullHashesBasicAuthInPathToggleOverrides(t *testing.T
 			"path_match":"prefix",
 			"match_value":"/api",
 			"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}},
-			"toggle_overrides":{"basic_auth":{"enabled":true,"username":"user","password":"pass"}}
+			"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"username":"user","password":"pass"}}}
 		}]
 	}`
 	rec := createDomain(t, th, body)
@@ -299,7 +299,7 @@ func TestHandleCreateDomainFullHashesBasicAuthInPathToggleOverrides(t *testing.T
 	if overrides == nil {
 		t.Fatal("expected toggle_overrides on path")
 	}
-	hash := overrides.BasicAuth.PasswordHash
+	hash := overrides.Auth.BasicAuth.PasswordHash
 	if hash == "" {
 		t.Error("expected path basic auth password to be hashed, got empty hash")
 	}
@@ -313,7 +313,7 @@ func TestHandleCreateDomainFullBasicAuthWithoutUsername(t *testing.T) {
 
 	body := `{
 		"name":"example.com",
-		"toggles":{"basic_auth":{"enabled":true,"password":"secret"}},
+		"toggles":{"auth":{"mode":"basic","basic_auth":{"password":"secret"}}},
 		"rule":{"handler_type":"none","handler_config":{}}
 	}`
 	rec := createDomain(t, th, body)
@@ -333,7 +333,7 @@ func TestHandleCreateDomainFullPathBasicAuthWithoutUsername(t *testing.T) {
 			"path_match":"prefix",
 			"match_value":"/api",
 			"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:8080"}},
-			"toggle_overrides":{"basic_auth":{"enabled":true,"password":"pass"}}
+			"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"password":"pass"}}}
 		}]
 	}`
 	rec := createDomain(t, th, body)

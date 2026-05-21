@@ -43,7 +43,7 @@ type RouteToggles struct {
 	Compression       bool            `json:"compression"`
 	Headers           HeadersConfig   `json:"headers"`
 	TLSSkipVerify     bool            `json:"tls_skip_verify"`
-	BasicAuth         BasicAuth       `json:"basic_auth"`
+	Auth              AuthToggle      `json:"auth"`
 	AccessLog         string          `json:"access_log"`
 	WebSocketPassthru bool            `json:"websocket_passthrough"`
 	LoadBalancing     LoadBalancing   `json:"load_balancing"`
@@ -112,10 +112,20 @@ type HeaderEntry struct {
 }
 
 type BasicAuth struct {
-	Enabled      bool   `json:"enabled"`
 	Username     string `json:"username"`
 	PasswordHash string `json:"password_hash"`
 	Password     string `json:"password,omitempty"`
+}
+
+type AuthToggle struct {
+	Mode      string    `json:"mode"`
+	BasicAuth BasicAuth `json:"basic_auth"`
+}
+
+type ForwardAuthConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Provider string `json:"provider"`
+	URL      string `json:"url"`
 }
 
 var idSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
@@ -226,15 +236,15 @@ func BuildDomain(p DomainParams) (json.RawMessage, error) {
 	handlers = append(handlers, respHandlers...)
 
 	// Basic auth
-	if p.Toggles.BasicAuth.Enabled && p.Toggles.BasicAuth.Username != "" {
+	if p.Toggles.Auth.Mode == "basic" && p.Toggles.Auth.BasicAuth.Username != "" {
 		handlers = append(handlers, map[string]any{
 			"handler": "authentication",
 			"providers": map[string]any{
 				"http_basic": map[string]any{
 					"accounts": []map[string]string{
 						{
-							"username": p.Toggles.BasicAuth.Username,
-							"password": p.Toggles.BasicAuth.PasswordHash,
+							"username": p.Toggles.Auth.BasicAuth.Username,
+							"password": p.Toggles.Auth.BasicAuth.PasswordHash,
 						},
 					},
 					"hash": map[string]any{
@@ -770,7 +780,7 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 			}
 
 		case "authentication":
-			p.Toggles.BasicAuth.Enabled = true
+			p.Toggles.Auth.Mode = "basic"
 			if handler.Providers != nil {
 				var providers struct {
 					HTTPBasic struct {
@@ -781,8 +791,8 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 					} `json:"http_basic"`
 				}
 				if json.Unmarshal(handler.Providers, &providers) == nil && len(providers.HTTPBasic.Accounts) > 0 {
-					p.Toggles.BasicAuth.Username = providers.HTTPBasic.Accounts[0].Username
-					p.Toggles.BasicAuth.PasswordHash = providers.HTTPBasic.Accounts[0].Password
+					p.Toggles.Auth.BasicAuth.Username = providers.HTTPBasic.Accounts[0].Username
+					p.Toggles.Auth.BasicAuth.PasswordHash = providers.HTTPBasic.Accounts[0].Password
 				}
 			}
 

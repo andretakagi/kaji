@@ -332,10 +332,12 @@ func TestGenerateCaddyfileBasicAuth(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			BasicAuth: BasicAuth{
-				Enabled:      true,
-				Username:     "admin",
-				PasswordHash: "$2a$14$somehash",
+			Auth: AuthToggle{
+				Mode: "basic",
+				BasicAuth: BasicAuth{
+					Username:     "admin",
+					PasswordHash: "$2a$14$somehash",
+				},
 			},
 		},
 	})
