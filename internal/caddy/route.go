@@ -617,13 +617,13 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 			Upstreams     []struct {
 				Dial string `json:"dial"`
 			} `json:"upstreams,omitempty"`
-			Response        json.RawMessage  `json:"response,omitempty"`
-			Encodings       json.RawMessage  `json:"encodings,omitempty"`
-			Providers       json.RawMessage  `json:"providers,omitempty"`
-			LB              json.RawMessage  `json:"load_balancing,omitempty"`
-			HandleResponse  json.RawMessage  `json:"handle_response,omitempty"`
-			StripPathPrefix string           `json:"strip_path_prefix,omitempty"`
-			URI             string           `json:"uri,omitempty"`
+			Response        json.RawMessage `json:"response,omitempty"`
+			Encodings       json.RawMessage `json:"encodings,omitempty"`
+			Providers       json.RawMessage `json:"providers,omitempty"`
+			LB              json.RawMessage `json:"load_balancing,omitempty"`
+			HandleResponse  json.RawMessage `json:"handle_response,omitempty"`
+			StripPathPrefix string          `json:"strip_path_prefix,omitempty"`
+			URI             string          `json:"uri,omitempty"`
 		}
 		if err := json.Unmarshal(h, &handler); err != nil {
 			continue

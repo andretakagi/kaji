@@ -17,6 +17,7 @@ All notable changes to Kaji are documented in this file.
 - Per-rule upstream path rewriting. Strip a path prefix, prepend a path prefix, or both (strip then prepend) before forwarding to the upstream. Configured per reverse proxy rule.
 - Trusted proxies setting. Declare IP ranges trusted to set client identity headers (X-Forwarded-For, X-Forwarded-Proto). Required when behind Cloudflare, a load balancer, or another reverse proxy. Includes presets for Cloudflare and private networks.
 - Client IP matcher for IP filtering. When behind a reverse proxy with trusted proxies configured, IP filtering can match against the real client IP instead of the proxy's IP.
+- Forward auth support. Delegate authentication to an external service (Authelia, Authentik, or custom) before proxying requests. Configure the provider and URL globally in Settings, then enable per domain, subdomain, or path with a three-way auth selector (Off / Basic Auth / Forward Auth). Identity headers from the auth service are forwarded to upstreams automatically based on the selected provider preset.
 
 ### Fixed
 - Log viewer connection indicator stayed stuck on "Reconnecting..." after a transient disconnect on an idle proxy. The stream was actually reconnecting, but the status only cleared when a new log line arrived.
