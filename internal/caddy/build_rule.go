@@ -17,7 +17,7 @@ type RuleBuildParams struct {
 	AdvancedHeaders bool
 }
 
-func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string, ipMatcherType string, logSkip bool) (json.RawMessage, error) {
+func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainToggles, ipListIPs []string, ipListType string, ipMatcherType string, logSkip bool, forwardAuthCfg *ForwardAuthConfig) (json.RawMessage, error) {
 	if domainName == "" {
 		return nil, fmt.Errorf("domain name is required")
 	}
@@ -98,6 +98,15 @@ func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainTogg
 
 	// Response headers
 	handlers = append(handlers, buildResponseHeaders(toggles.Headers, rule.AdvancedHeaders)...)
+
+	// Forward auth
+	if toggles.Auth.Mode == "forward" && forwardAuthCfg != nil && forwardAuthCfg.Enabled {
+		faHandler, err := buildForwardAuthHandler(*forwardAuthCfg)
+		if err != nil {
+			return nil, fmt.Errorf("building forward auth handler: %w", err)
+		}
+		handlers = append(handlers, faHandler)
+	}
 
 	// Basic auth
 	if toggles.Auth.Mode == "basic" && toggles.Auth.BasicAuth.Username != "" {

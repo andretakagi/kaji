@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchGlobalToggles, fetchIPLists } from "../api";
+import { fetchForwardAuth, fetchGlobalToggles, fetchIPLists } from "../api";
 import { cn } from "../cn";
-import type { GlobalToggles, IPList } from "../types/api";
+import type { ForwardAuthConfig, GlobalToggles, IPList } from "../types/api";
 import type { DomainToggles, ErrorPage } from "../types/domain";
 import { RequestHeadersGroup, ResponseHeadersGroup } from "./HeadersGroup";
 import { Toggle } from "./Toggle";
@@ -89,7 +89,7 @@ export function DomainToggleGrid({
 					disabled={disabled}
 				/>
 			)}
-			<BasicAuthGroup
+			<AuthGroup
 				toggles={toggles}
 				onUpdate={onUpdate}
 				idPrefix={idPrefix}
@@ -128,20 +128,29 @@ interface GroupProps {
 	disabled?: boolean;
 }
 
-function BasicAuthGroup({
+function AuthGroup({
 	toggles,
 	onUpdate,
 	idPrefix,
 	disabled,
 	isCreate,
 }: GroupProps & { isCreate?: boolean }) {
-	const isBasic = toggles.auth.mode === "basic";
+	const [forwardAuthConfig, setForwardAuthConfig] = useState<ForwardAuthConfig | null>(null);
+
+	useEffect(() => {
+		fetchForwardAuth()
+			.then(setForwardAuthConfig)
+			.catch(() => {});
+	}, []);
+
+	const isActive = toggles.auth.mode !== "off";
+
 	return (
-		<div className={cn("toggle-group", isBasic && "toggle-group-open")}>
+		<div className={cn("toggle-group", isActive && "toggle-group-open")}>
 			<ToggleItem
-				label="Basic Auth"
-				description="Basic authentication"
-				checked={isBasic}
+				label="Authentication"
+				description="Control access to this route"
+				checked={isActive}
 				onChange={(v) =>
 					onUpdate("auth", {
 						...toggles.auth,
@@ -150,44 +159,77 @@ function BasicAuthGroup({
 				}
 				disabled={disabled}
 			/>
-			{isBasic && (
+			{isActive && (
 				<div className="toggle-detail">
-					<label htmlFor={`auth-user-${idPrefix}`}>Username</label>
-					<input
-						id={`auth-user-${idPrefix}`}
-						type="text"
-						placeholder="admin"
-						maxLength={255}
-						value={toggles.auth.basic_auth.username}
-						onChange={(e) =>
-							onUpdate("auth", {
-								...toggles.auth,
-								basic_auth: {
-									...toggles.auth.basic_auth,
-									username: e.target.value,
-								},
-							})
-						}
-						disabled={disabled}
-					/>
-					<label htmlFor={`auth-pass-${idPrefix}`}>Password</label>
-					<input
-						id={`auth-pass-${idPrefix}`}
-						type="password"
-						placeholder={isCreate ? "password" : "(unchanged)"}
-						maxLength={512}
-						value={toggles.auth.basic_auth.password}
-						onChange={(e) =>
-							onUpdate("auth", {
-								...toggles.auth,
-								basic_auth: {
-									...toggles.auth.basic_auth,
-									password: e.target.value,
-								},
-							})
-						}
-						disabled={disabled}
-					/>
+					<label className="toggle-radio-option">
+						<input
+							type="radio"
+							name={`${idPrefix}-auth-mode`}
+							checked={toggles.auth.mode === "basic"}
+							onChange={() => onUpdate("auth", { ...toggles.auth, mode: "basic" })}
+							disabled={disabled}
+						/>
+						<span>Basic Auth</span>
+					</label>
+					<label className="toggle-radio-option">
+						<input
+							type="radio"
+							name={`${idPrefix}-auth-mode`}
+							checked={toggles.auth.mode === "forward"}
+							onChange={() => onUpdate("auth", { ...toggles.auth, mode: "forward" })}
+							disabled={disabled}
+						/>
+						<span>Forward Auth</span>
+					</label>
+
+					{toggles.auth.mode === "basic" && (
+						<>
+							<label htmlFor={`auth-user-${idPrefix}`}>Username</label>
+							<input
+								id={`auth-user-${idPrefix}`}
+								type="text"
+								placeholder="admin"
+								maxLength={255}
+								value={toggles.auth.basic_auth.username}
+								onChange={(e) =>
+									onUpdate("auth", {
+										...toggles.auth,
+										basic_auth: {
+											...toggles.auth.basic_auth,
+											username: e.target.value,
+										},
+									})
+								}
+								disabled={disabled}
+							/>
+							<label htmlFor={`auth-pass-${idPrefix}`}>Password</label>
+							<input
+								id={`auth-pass-${idPrefix}`}
+								type="password"
+								placeholder={isCreate ? "password" : "(unchanged)"}
+								maxLength={512}
+								value={toggles.auth.basic_auth.password}
+								onChange={(e) =>
+									onUpdate("auth", {
+										...toggles.auth,
+										basic_auth: {
+											...toggles.auth.basic_auth,
+											password: e.target.value,
+										},
+									})
+								}
+								disabled={disabled}
+							/>
+						</>
+					)}
+
+					{toggles.auth.mode === "forward" && (
+						<span className="form-hint">
+							{forwardAuthConfig?.enabled
+								? `Using ${forwardAuthConfig.provider || "custom provider"} at ${forwardAuthConfig.url}`
+								: "Forward auth not configured. Set it up in Settings."}
+						</span>
+					)}
 				</div>
 			)}
 		</div>

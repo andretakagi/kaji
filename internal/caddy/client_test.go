@@ -808,7 +808,7 @@ func buildCaddyConfig(t *testing.T, servers map[string][]DomainParams) json.RawM
 	for name, params := range servers {
 		routes := make([]json.RawMessage, 0, len(params))
 		for _, p := range params {
-			r, err := BuildDomain(p)
+			r, err := BuildDomain(p, nil)
 			if err != nil {
 				t.Fatalf("BuildDomain(%+v): %v", p, err)
 			}

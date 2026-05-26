@@ -117,7 +117,7 @@ func BuildLogSkipRoute(domainID, hostname string, rule LogSkipRule) (json.RawMes
 // MergeToggles. IP lists are resolved through the provided callback.
 // logSkipRules maps sink names to their skip rules; when a domain's AccessLog
 // sink has rules, a kaji_logskip_<id> route is also emitted.
-func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips []string, listType string, err error), logSkipRules map[string]LogSkipRule) (map[string]json.RawMessage, error) {
+func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips []string, listType string, err error), logSkipRules map[string]LogSkipRule, forwardAuthCfg *ForwardAuthConfig) (map[string]json.RawMessage, error) {
 	desired := make(map[string]json.RawMessage)
 
 	_, logSkipIDs := CollectAccessLogState(domains)
@@ -141,7 +141,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 			}
 
 			caddyID := CaddyDomainID(dom.ID)
-			routeJSON, err := BuildRuleDomain(dom.Name, params, dom.Toggles, ips, ipType, dom.Toggles.IPFiltering.Matcher, logSkipIDs[caddyID])
+			routeJSON, err := BuildRuleDomain(dom.Name, params, dom.Toggles, ips, ipType, dom.Toggles.IPFiltering.Matcher, logSkipIDs[caddyID], forwardAuthCfg)
 			if err != nil {
 				return nil, fmt.Errorf("building route for domain %s: %w", dom.ID, err)
 			}
@@ -160,7 +160,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 			}
 		}
 
-		if err := emitPathRoutes(dom.Name, dom.Paths, dom.Toggles, resolveIPs, logSkipIDs, desired); err != nil {
+		if err := emitPathRoutes(dom.Name, dom.Paths, dom.Toggles, resolveIPs, logSkipIDs, desired, forwardAuthCfg); err != nil {
 			return nil, err
 		}
 
@@ -184,7 +184,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 				}
 
 				caddyID := CaddyDomainID(sub.ID)
-				routeJSON, err := BuildRuleDomain(subHost, params, sub.Toggles, ips, ipType, sub.Toggles.IPFiltering.Matcher, logSkipIDs[caddyID])
+				routeJSON, err := BuildRuleDomain(subHost, params, sub.Toggles, ips, ipType, sub.Toggles.IPFiltering.Matcher, logSkipIDs[caddyID], forwardAuthCfg)
 				if err != nil {
 					return nil, fmt.Errorf("building route for subdomain %s: %w", sub.ID, err)
 				}
@@ -203,7 +203,7 @@ func BuildDesiredState(domains []SyncDomain, resolveIPs func(listID string) (ips
 				}
 			}
 
-			if err := emitPathRoutes(subHost, sub.Paths, sub.Toggles, resolveIPs, logSkipIDs, desired); err != nil {
+			if err := emitPathRoutes(subHost, sub.Paths, sub.Toggles, resolveIPs, logSkipIDs, desired, forwardAuthCfg); err != nil {
 				return nil, err
 			}
 		}
@@ -222,6 +222,7 @@ func emitPathRoutes(
 	resolveIPs func(string) ([]string, string, error),
 	logSkipIDs map[string]bool,
 	desired map[string]json.RawMessage,
+	forwardAuthCfg *ForwardAuthConfig,
 ) error {
 	for _, p := range sortPaths(paths) {
 		if !p.Enabled {
@@ -248,7 +249,7 @@ func emitPathRoutes(
 		}
 
 		caddyID := CaddyDomainID(p.ID)
-		routeJSON, err := BuildRuleDomain(host, params, toggles, ips, ipType, toggles.IPFiltering.Matcher, logSkipIDs[caddyID])
+		routeJSON, err := BuildRuleDomain(host, params, toggles, ips, ipType, toggles.IPFiltering.Matcher, logSkipIDs[caddyID], forwardAuthCfg)
 		if err != nil {
 			return fmt.Errorf("building route for path %s: %w", p.ID, err)
 		}
@@ -436,8 +437,8 @@ func ReadCurrentKajiDomains(cc *Client) (map[string]json.RawMessage, string, err
 
 // SyncDomains orchestrates a full sync: builds desired state from domains,
 // reads current kaji domains from Caddy, diffs, and applies changes.
-func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]string, string, error), logSkipRules map[string]LogSkipRule) (*SyncResult, error) {
-	desired, err := BuildDesiredState(domains, resolveIPs, logSkipRules)
+func SyncDomains(cc *Client, domains []SyncDomain, resolveIPs func(string) ([]string, string, error), logSkipRules map[string]LogSkipRule, forwardAuthCfg *ForwardAuthConfig) (*SyncResult, error) {
+	desired, err := BuildDesiredState(domains, resolveIPs, logSkipRules, forwardAuthCfg)
 	if err != nil {
 		return nil, fmt.Errorf("building desired state: %w", err)
 	}

@@ -135,7 +135,7 @@ func GenerateRouteID(domain string) string {
 	return "kaji_" + safe
 }
 
-func BuildDomain(p DomainParams) (json.RawMessage, error) {
+func BuildDomain(p DomainParams, forwardAuthCfg *ForwardAuthConfig) (json.RawMessage, error) {
 	if p.Domain == "" {
 		return nil, fmt.Errorf("domain is required")
 	}
@@ -234,6 +234,15 @@ func BuildDomain(p DomainParams) (json.RawMessage, error) {
 		}
 	}
 	handlers = append(handlers, respHandlers...)
+
+	// Forward auth
+	if p.Toggles.Auth.Mode == "forward" && forwardAuthCfg != nil && forwardAuthCfg.Enabled {
+		faHandler, err := buildForwardAuthHandler(*forwardAuthCfg)
+		if err != nil {
+			return nil, fmt.Errorf("building forward auth handler: %w", err)
+		}
+		handlers = append(handlers, faHandler)
+	}
 
 	// Basic auth
 	if p.Toggles.Auth.Mode == "basic" && p.Toggles.Auth.BasicAuth.Username != "" {
@@ -608,12 +617,13 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 			Upstreams     []struct {
 				Dial string `json:"dial"`
 			} `json:"upstreams,omitempty"`
-			Response        json.RawMessage `json:"response,omitempty"`
-			Encodings       json.RawMessage `json:"encodings,omitempty"`
-			Providers       json.RawMessage `json:"providers,omitempty"`
-			LB              json.RawMessage `json:"load_balancing,omitempty"`
-			StripPathPrefix string          `json:"strip_path_prefix,omitempty"`
-			URI             string          `json:"uri,omitempty"`
+			Response        json.RawMessage  `json:"response,omitempty"`
+			Encodings       json.RawMessage  `json:"encodings,omitempty"`
+			Providers       json.RawMessage  `json:"providers,omitempty"`
+			LB              json.RawMessage  `json:"load_balancing,omitempty"`
+			HandleResponse  json.RawMessage  `json:"handle_response,omitempty"`
+			StripPathPrefix string           `json:"strip_path_prefix,omitempty"`
+			URI             string           `json:"uri,omitempty"`
 		}
 		if err := json.Unmarshal(h, &handler); err != nil {
 			continue
@@ -621,6 +631,10 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 
 		switch handler.Handler {
 		case "reverse_proxy":
+			if handler.HandleResponse != nil {
+				p.Toggles.Auth.Mode = "forward"
+				continue
+			}
 			p.HandlerType = "reverse_proxy"
 			if len(handler.Upstreams) > 0 {
 				p.Upstream = handler.Upstreams[0].Dial
