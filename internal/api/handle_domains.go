@@ -199,6 +199,9 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			}
 		}
 
+		if !validateAuthMode(w, store, &req.Toggles.Auth, "") {
+			return
+		}
 		if !validateAndHashAuth(w, &req.Toggles.Auth, "", "", "handleCreateDomainFull") {
 			return
 		}
@@ -209,7 +212,7 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 
 		paths := make([]config.Path, len(req.Paths))
 		for i, p := range req.Paths {
-			if !validatePathRequest(w, &p, "", fmt.Sprintf("path %d: ", i+1)) {
+			if !validatePathRequest(w, store, &p, "", fmt.Sprintf("path %d: ", i+1)) {
 				return
 			}
 			paths[i] = pathFromRequest(p)
@@ -238,13 +241,16 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			if s.Toggles != nil {
 				subToggles = *s.Toggles
 			}
+			if !validateAuthMode(w, store, &subToggles.Auth, fmt.Sprintf("subdomain %d: ", i+1)) {
+				return
+			}
 			if !validateAndHashAuth(w, &subToggles.Auth, "", fmt.Sprintf("subdomain %d: ", i+1), "handleCreateDomainFull") {
 				return
 			}
 
 			subPaths := make([]config.Path, len(s.Paths))
 			for j, p := range s.Paths {
-				if !validatePathRequest(w, &p, "", fmt.Sprintf("subdomain %d path %d: ", i+1, j+1)) {
+				if !validatePathRequest(w, store, &p, "", fmt.Sprintf("subdomain %d path %d: ", i+1, j+1)) {
 					return
 				}
 				subPaths[j] = pathFromRequest(p)
@@ -313,6 +319,9 @@ func handleUpdateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		var fallbackHash string
 		if dom := findDomain(store.Get(), id); dom != nil {
 			fallbackHash = dom.Toggles.Auth.BasicAuth.PasswordHash
+		}
+		if !validateAuthMode(w, store, &req.Toggles.Auth, "") {
+			return
 		}
 		if !validateAndHashAuth(w, &req.Toggles.Auth, fallbackHash, "", "handleUpdateDomain") {
 			return

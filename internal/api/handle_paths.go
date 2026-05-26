@@ -26,7 +26,7 @@ type pathRequest struct {
 // can preserve the existing hash when the client sends the request without
 // retyping the password. errPrefix is prepended to messages so callers can
 // disambiguate which path in a list is invalid.
-func validatePathRequest(w http.ResponseWriter, p *pathRequest, fallbackHash, errPrefix string) bool {
+func validatePathRequest(w http.ResponseWriter, store *config.ConfigStore, p *pathRequest, fallbackHash, errPrefix string) bool {
 	if msg := validatePathMatch(p.PathMatch); msg != "" {
 		writeError(w, errPrefix+msg, http.StatusBadRequest)
 		return false
@@ -39,6 +39,9 @@ func validatePathRequest(w http.ResponseWriter, p *pathRequest, fallbackHash, er
 		return false
 	}
 	if p.ToggleOverrides != nil {
+		if !validateAuthMode(w, store, &p.ToggleOverrides.Auth, errPrefix) {
+			return false
+		}
 		if !validateAndHashAuth(w, &p.ToggleOverrides.Auth, fallbackHash, errPrefix, "validatePathRequest") {
 			return false
 		}
@@ -184,7 +187,7 @@ func createPath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store,
 		if !decodeBody(w, r, &req) {
 			return
 		}
-		if !validatePathRequest(w, &req, "", "") {
+		if !validatePathRequest(w, store, &req, "", "") {
 			return
 		}
 
@@ -234,7 +237,7 @@ func updatePath(store *config.ConfigStore, cc *caddy.Client, ss *snapshot.Store,
 		if paths != nil {
 			fallbackHash = existingPathHash(*paths, pathID)
 		}
-		if !validatePathRequest(w, &req, fallbackHash, "") {
+		if !validatePathRequest(w, store, &req, fallbackHash, "") {
 			return
 		}
 

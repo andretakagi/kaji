@@ -106,6 +106,8 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("PUT /api/settings/ports", handlePortsUpdate(store, cc, ss, version))
 	mux.HandleFunc("GET /api/settings/trusted-proxies", handleTrustedProxiesGet(cc))
 	mux.HandleFunc("PUT /api/settings/trusted-proxies", handleTrustedProxiesUpdate(store, cc, ss, version))
+	mux.HandleFunc("GET /api/settings/forward-auth", handleForwardAuthGet(store))
+	mux.HandleFunc("PUT /api/settings/forward-auth", handleForwardAuthUpdate(store, cc, ss, version))
 
 	mux.HandleFunc("GET /api/ip-lists", handleListIPLists(store))
 	mux.HandleFunc("POST /api/ip-lists", handleCreateIPList(store))
