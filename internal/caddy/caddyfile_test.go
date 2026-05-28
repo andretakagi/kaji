@@ -175,7 +175,7 @@ func TestParseCaddyfileAdminAddr(t *testing.T) {
 // minimal site block with only a reverse_proxy directive.
 func TestGenerateCaddyfileMinimal(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestGenerateCaddyfileMinimal(t *testing.T) {
 // produced correctly when ACME email, auto_https off, and metrics are set.
 func TestGenerateCaddyfileGlobalOptions(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "admin@example.com", "off", true, true)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestGenerateCaddyfileGlobalOptions(t *testing.T) {
 // block is still written when auto_https is off but no ACME email is set.
 func TestGenerateCaddyfileGlobalOptionsNoEmail(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestGenerateCaddyfileGlobalOptionsNoEmail(t *testing.T) {
 // appears without a nested block when per_host is false.
 func TestGenerateCaddyfileMetricsNoPerHost(t *testing.T) {
 	cfg := buildFullConfig(t, []json.RawMessage{minimalRoute(t)}, "", "off", true, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestGenerateCaddyfileCompression(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestGenerateCaddyfileSecurityHeaders(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestGenerateCaddyfileCORSWildcard(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestGenerateCaddyfileCORSSingleOrigin(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestGenerateCaddyfileBasicAuth(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -368,7 +368,7 @@ func TestGenerateCaddyfileTLSSkipVerify(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestGenerateCaddyfileWebSocket(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -419,7 +419,7 @@ func TestGenerateCaddyfileLoadBalancing(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestGenerateCaddyfileLoadBalancingFirst(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestGenerateCaddyfileForceHTTPS(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -675,7 +675,7 @@ func TestGenerateCaddyfileLogFileWriter(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -704,7 +704,7 @@ func TestGenerateCaddyfileLogStdout(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -730,7 +730,7 @@ func TestGenerateCaddyfileLogIncludeExclude(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -755,7 +755,7 @@ func TestGenerateCaddyfileLogDefaultWithExtras(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -779,7 +779,7 @@ func TestGenerateCaddyfileLogFileNoRollSettings(t *testing.T) {
 		},
 	})
 
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -806,7 +806,7 @@ func TestGenerateCaddyfileCORSMultiOrigin(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -848,7 +848,7 @@ func TestGenerateCaddyfileMultipleServers(t *testing.T) {
 		"srv0": route1,
 	})
 
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -910,7 +910,7 @@ func TestGenerateCaddyfileAccessLog(t *testing.T) {
 		t.Fatalf("failed to marshal config: %v", err)
 	}
 
-	out, err := GenerateCaddyfile(json.RawMessage(data), "", nil)
+	out, err := GenerateCaddyfile(json.RawMessage(data), "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -942,7 +942,7 @@ func TestGenerateCaddyfileCacheControl(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -965,7 +965,7 @@ func TestGenerateCaddyfileXRobotsTag(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1000,7 +1000,7 @@ func TestGenerateCaddyfileHostHeaderUp(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1027,7 +1027,7 @@ func TestGenerateCaddyfileAuthorizationHeaderUp(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1056,7 +1056,7 @@ func TestGenerateCaddyfileRequestHeadersForcesBlock(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1077,7 +1077,7 @@ func TestGenerateCaddyfileNoHeadersNoDirectives(t *testing.T) {
 	}
 
 	cfg := buildFullConfig(t, []json.RawMessage{route}, "", "", false, false)
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1145,7 +1145,7 @@ func TestGenerateCaddyfileSkipLogBasicMode(t *testing.T) {
 		},
 	}
 
-	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	out, err := GenerateCaddyfile(cfg, "", skipRules, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1168,7 +1168,7 @@ func TestGenerateCaddyfileSkipLogAdvancedMode(t *testing.T) {
 		},
 	}
 
-	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	out, err := GenerateCaddyfile(cfg, "", skipRules, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1182,7 +1182,7 @@ func TestGenerateCaddyfileSkipLogAdvancedMode(t *testing.T) {
 func TestGenerateCaddyfileSkipLogNilRules(t *testing.T) {
 	cfg := buildAccessLogConfig(t, "example.com")
 
-	out, err := GenerateCaddyfile(cfg, "", nil)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1200,7 +1200,7 @@ func TestGenerateCaddyfileSkipLogEmptyConditions(t *testing.T) {
 		},
 	}
 
-	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	out, err := GenerateCaddyfile(cfg, "", skipRules, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1220,7 +1220,7 @@ func TestGenerateCaddyfileSkipLogNoMatchingSink(t *testing.T) {
 		},
 	}
 
-	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	out, err := GenerateCaddyfile(cfg, "", skipRules, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1239,7 +1239,7 @@ func TestGenerateCaddyfileSkipLogBeforeLogBlock(t *testing.T) {
 		},
 	}
 
-	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	out, err := GenerateCaddyfile(cfg, "", skipRules, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}
@@ -1267,7 +1267,7 @@ func TestGenerateCaddyfileSkipLogUnsupportedMatcher(t *testing.T) {
 		},
 	}
 
-	out, err := GenerateCaddyfile(cfg, "", skipRules)
+	out, err := GenerateCaddyfile(cfg, "", skipRules, nil)
 	if err != nil {
 		t.Fatalf("GenerateCaddyfile failed: %v", err)
 	}

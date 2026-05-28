@@ -4,6 +4,7 @@ package caddy
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 )
@@ -230,7 +231,7 @@ func parseCaddyfileConfig(raw json.RawMessage, fallbackLogFile string) (*caddyfi
 	return cfg, nil
 }
 
-func GenerateCaddyfile(raw json.RawMessage, logFile string, logSkipRules map[string]LogSkipRule) (string, error) {
+func GenerateCaddyfile(raw json.RawMessage, logFile string, logSkipRules map[string]LogSkipRule, forwardAuth *ForwardAuthConfig) (string, error) {
 	cfg, err := parseCaddyfileConfig(raw, logFile)
 	if err != nil {
 		return "", fmt.Errorf("parsing config for caddyfile generation: %w", err)
@@ -262,7 +263,7 @@ func GenerateCaddyfile(raw json.RawMessage, logFile string, logSkipRules map[str
 					skipRule = &r
 				}
 			}
-			writeSiteBlock(&b, route, logWriter, skipRule)
+			writeSiteBlock(&b, route, logWriter, skipRule, forwardAuth)
 		}
 	}
 
@@ -422,7 +423,7 @@ func writeLogWriter(b *strings.Builder, w *caddyfileLogWriter) {
 	}
 }
 
-func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogWriter, skipRules *LogSkipRule) {
+func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogWriter, skipRules *LogSkipRule, forwardAuth *ForwardAuthConfig) {
 	if p.Toggles.ForceHTTPS {
 		b.WriteString("http://" + p.Domain + " {\n")
 		b.WriteString("\tredir https://{host}{uri} 301\n")
@@ -481,6 +482,10 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 		b.WriteString("\tbasic_auth {\n")
 		b.WriteString("\t\t" + p.Toggles.Auth.BasicAuth.Username + " " + p.Toggles.Auth.BasicAuth.PasswordHash + "\n")
 		b.WriteString("\t}\n")
+	}
+
+	if p.Toggles.Auth.Mode == "forward" && forwardAuth != nil && forwardAuth.Enabled {
+		writeForwardAuthBlock(b, forwardAuth)
 	}
 
 	lbStrategy := p.Toggles.LoadBalancing.Strategy
@@ -608,6 +613,41 @@ func writeSkipLogBlock(b *strings.Builder, rules LogSkipRule) {
 
 	b.WriteString("\t}\n")
 	b.WriteString("\tskip_log @logskip\n")
+}
+
+func writeForwardAuthBlock(b *strings.Builder, cfg *ForwardAuthConfig) {
+	parsed, err := url.Parse(cfg.URL)
+	if err != nil {
+		return
+	}
+
+	host := parsed.Hostname()
+	port := parsed.Port()
+	if port == "" {
+		switch parsed.Scheme {
+		case "https":
+			port = "443"
+		default:
+			port = "80"
+		}
+	}
+	upstream := host + ":" + port
+
+	b.WriteString("\tforward_auth " + upstream + " {\n")
+	b.WriteString("\t\turi " + parsed.RequestURI() + "\n")
+
+	if parsed.Scheme == "https" {
+		b.WriteString("\t\ttransport http {\n")
+		b.WriteString("\t\t\ttls\n")
+		b.WriteString("\t\t}\n")
+	}
+
+	headers := ForwardAuthPresetHeaders(cfg.Provider)
+	if len(headers) > 0 {
+		b.WriteString("\t\tcopy_headers " + strings.Join(headers, " ") + "\n")
+	}
+
+	b.WriteString("\t}\n")
 }
 
 func writeAdvancedMatcherLines(b *strings.Builder, set map[string]json.RawMessage) {

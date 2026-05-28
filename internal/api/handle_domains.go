@@ -199,6 +199,9 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			}
 		}
 
+		if req.Toggles.Auth.Mode == "" {
+			req.Toggles.Auth.Mode = "off"
+		}
 		if !validateAuthMode(w, store, &req.Toggles.Auth, "") {
 			return
 		}
@@ -240,6 +243,9 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			subToggles := req.Toggles
 			if s.Toggles != nil {
 				subToggles = *s.Toggles
+			}
+			if subToggles.Auth.Mode == "" {
+				subToggles.Auth.Mode = "off"
 			}
 			if !validateAuthMode(w, store, &subToggles.Auth, fmt.Sprintf("subdomain %d: ", i+1)) {
 				return
@@ -319,6 +325,9 @@ func handleUpdateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		var fallbackHash string
 		if dom := findDomain(store.Get(), id); dom != nil {
 			fallbackHash = dom.Toggles.Auth.BasicAuth.PasswordHash
+		}
+		if req.Toggles.Auth.Mode == "" {
+			req.Toggles.Auth.Mode = "off"
 		}
 		if !validateAuthMode(w, store, &req.Toggles.Auth, "") {
 			return

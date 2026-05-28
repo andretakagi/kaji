@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/andretakagi/kaji/internal/caddy"
 	"github.com/andretakagi/kaji/internal/config"
@@ -43,7 +44,7 @@ func handleForwardAuthUpdate(store *config.ConfigStore, cc *caddy.Client, ss *sn
 
 		if !req.Enabled {
 			if using := domainsUsingForwardAuth(store); len(using) > 0 {
-				writeError(w, fmt.Sprintf("cannot disable forward auth while domains use it: %v", using), http.StatusConflict)
+				writeError(w, fmt.Sprintf("cannot disable forward auth while domains use it: %s", strings.Join(using, ", ")), http.StatusConflict)
 				return
 			}
 		}
@@ -69,36 +70,37 @@ func domainsUsingForwardAuth(store *config.ConfigStore) []string {
 	for _, dom := range cfg.Domains {
 		if dom.Toggles.Auth.Mode == "forward" {
 			using = append(using, dom.Name)
-			continue
 		}
 		for _, sub := range dom.Subdomains {
+			subHost := sub.Name + "." + dom.Name
 			if sub.Toggles.Auth.Mode == "forward" {
-				using = append(using, sub.Name+"."+dom.Name)
-				break
+				using = append(using, subHost)
 			}
 			for _, p := range sub.Paths {
 				if p.ToggleOverrides != nil && p.ToggleOverrides.Auth.Mode == "forward" {
-					using = append(using, sub.Name+"."+dom.Name+" (path)")
-					break
+					using = append(using, pathLabel(subHost, p.MatchValue))
 				}
 			}
 		}
 		for _, p := range dom.Paths {
 			if p.ToggleOverrides != nil && p.ToggleOverrides.Auth.Mode == "forward" {
-				using = append(using, dom.Name+" (path)")
-				break
+				using = append(using, pathLabel(dom.Name, p.MatchValue))
 			}
 		}
 	}
 	return using
 }
 
-func validateAuthMode(w http.ResponseWriter, store *config.ConfigStore, auth *caddy.AuthToggle, errPrefix string) bool {
-	if auth.Mode == "" {
-		auth.Mode = "off"
+func pathLabel(host, matchValue string) string {
+	if matchValue != "" {
+		return host + matchValue
 	}
+	return host + " (path)"
+}
+
+func validateAuthMode(w http.ResponseWriter, store *config.ConfigStore, auth *caddy.AuthToggle, errPrefix string) bool {
 	switch auth.Mode {
-	case "off", "basic", "forward":
+	case "", "off", "basic", "forward":
 	default:
 		writeError(w, fmt.Sprintf("%sauth mode must be off, basic, or forward", errPrefix), http.StatusBadRequest)
 		return false

@@ -631,7 +631,7 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 
 		switch handler.Handler {
 		case "reverse_proxy":
-			if handler.HandleResponse != nil {
+			if handler.HandleResponse != nil && hasForwardAuthHeaders(h) {
 				p.Toggles.Auth.Mode = "forward"
 				continue
 			}
@@ -1149,4 +1149,20 @@ func parseErrorHandler(raw json.RawMessage, p *DomainParams) {
 	}
 	p.HandlerType = "error"
 	p.HandlerConfig = data
+}
+
+func hasForwardAuthHeaders(raw json.RawMessage) bool {
+	var h struct {
+		Headers struct {
+			Request struct {
+				Set map[string]json.RawMessage `json:"set"`
+			} `json:"request"`
+		} `json:"headers"`
+	}
+	if json.Unmarshal(raw, &h) != nil {
+		return false
+	}
+	_, hasMethod := h.Headers.Request.Set["X-Forwarded-Method"]
+	_, hasURI := h.Headers.Request.Set["X-Forwarded-URI"]
+	return hasMethod && hasURI
 }

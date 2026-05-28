@@ -74,6 +74,9 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			toggles = *req.Toggles
 		}
 
+		if toggles.Auth.Mode == "" {
+			toggles.Auth.Mode = "off"
+		}
 		if !validateAuthMode(w, store, &toggles.Auth, "") {
 			return
 		}
@@ -152,6 +155,9 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			if s := findSubdomain(d, subID); s != nil {
 				fallbackHash = s.Toggles.Auth.BasicAuth.PasswordHash
 			}
+		}
+		if req.Toggles.Auth.Mode == "" {
+			req.Toggles.Auth.Mode = "off"
 		}
 		if !validateAuthMode(w, store, &req.Toggles.Auth, "") {
 			return

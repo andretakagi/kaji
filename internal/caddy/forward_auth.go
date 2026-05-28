@@ -67,7 +67,7 @@ func buildForwardAuthHandler(cfg ForwardAuthConfig) (map[string]any, error) {
 		},
 		"rewrite": map[string]any{
 			"method": "{http.request.method}",
-			"uri":    parsed.Path,
+			"uri":    parsed.RequestURI(),
 		},
 	}
 

@@ -389,6 +389,16 @@ function ForwardAuthSection() {
 							placeholder="https://auth.example.com/api/authz/forward-auth"
 							disabled={saving}
 						/>
+						{values.provider === "authelia" && (
+							<p className="settings-hint">
+								Typically https://auth.example.com/api/verify?rd=https://auth.example.com
+							</p>
+						)}
+						{values.provider === "authentik" && (
+							<p className="settings-hint">
+								Typically https://auth.example.com/outpost.goauthentik.io/auth/nginx
+							</p>
+						)}
 					</div>
 				</>
 			)}

@@ -39,6 +39,9 @@ func validatePathRequest(w http.ResponseWriter, store *config.ConfigStore, p *pa
 		return false
 	}
 	if p.ToggleOverrides != nil {
+		if p.ToggleOverrides.Auth.Mode == "" {
+			p.ToggleOverrides.Auth.Mode = "off"
+		}
 		if !validateAuthMode(w, store, &p.ToggleOverrides.Auth, errPrefix) {
 			return false
 		}
