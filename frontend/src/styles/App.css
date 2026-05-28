@@ -3245,6 +3245,18 @@ input:disabled + .toggle-slider {
 	color: var(--text-secondary);
 }
 
+.domain-card-auth-badge {
+	font-size: 0.625rem;
+	font-weight: 500;
+	padding: 0.1rem 0.4rem;
+	margin-left: 0.5rem;
+	border-radius: var(--radius-sm);
+	background: rgba(var(--accent-rgb), 0.15);
+	color: var(--text-secondary);
+	white-space: nowrap;
+	vertical-align: middle;
+}
+
 /* Domain detail */
 
 .domain-detail {

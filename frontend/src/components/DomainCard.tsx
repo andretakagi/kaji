@@ -25,7 +25,7 @@ const newPathRule: Rule = {
 };
 
 interface Props {
-	domain: { id: string; name: string; enabled: boolean };
+	domain: { id: string; name: string; enabled: boolean; auth_mode?: string };
 	onToggleEnabled: (id: string, enabled: boolean) => void;
 	onDelete: (id: string) => void;
 	saving: boolean;
@@ -61,7 +61,19 @@ export default function DomainCard({
 
 	const [addingSubdomain, setAddingSubdomain] = useState(false);
 
-	const title = <span className="domain-card-name">{domainSummary.name}</span>;
+	const authLabel =
+		domainSummary.auth_mode === "basic"
+			? "Basic Auth"
+			: domainSummary.auth_mode === "forward"
+				? "Forward Auth"
+				: null;
+
+	const title = (
+		<span className="domain-card-name">
+			{domainSummary.name}
+			{authLabel && <span className="domain-card-auth-badge">{authLabel}</span>}
+		</span>
+	);
 
 	const actions = (
 		<>

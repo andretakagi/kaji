@@ -179,17 +179,17 @@ func TestHandleCreateDomainPathHashesBasicAuthOverride(t *testing.T) {
 		"path_match":"prefix",
 		"match_value":"/api",
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}},
-		"toggle_overrides":{"basic_auth":{"enabled":true,"username":"user","password":"pass"}}
+		"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"username":"user","password":"pass"}}}
 	}`
 	pathID := mustCreateDomainPath(t, th, domID, body)
 	stored := storeDomainPath(t, th, domID, pathID)
 	if stored.ToggleOverrides == nil {
 		t.Fatal("expected toggle_overrides to be set")
 	}
-	if stored.ToggleOverrides.BasicAuth.PasswordHash == "" {
+	if stored.ToggleOverrides.Auth.BasicAuth.PasswordHash == "" {
 		t.Error("expected hashed password on path override")
 	}
-	if stored.ToggleOverrides.BasicAuth.Password != "" {
+	if stored.ToggleOverrides.Auth.BasicAuth.Password != "" {
 		t.Error("plaintext password should not be stored")
 	}
 }
@@ -203,7 +203,7 @@ func TestHandleCreateDomainPathBasicAuthOverrideMissingUsername(t *testing.T) {
 		"path_match":"prefix",
 		"match_value":"/api",
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}},
-		"toggle_overrides":{"basic_auth":{"enabled":true,"password":"pass"}}
+		"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"password":"pass"}}}
 	}`
 	rec := postPath(t, th, "/api/domains/"+domID+"/paths", body)
 	if rec.Code != http.StatusBadRequest {
@@ -250,10 +250,10 @@ func TestHandleUpdateDomainPathPreservesBasicAuthHash(t *testing.T) {
 		"path_match":"prefix",
 		"match_value":"/api",
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}},
-		"toggle_overrides":{"basic_auth":{"enabled":true,"username":"user","password":"original"}}
+		"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"username":"user","password":"original"}}}
 	}`
 	pathID := mustCreateDomainPath(t, th, domID, createBody)
-	originalHash := storeDomainPath(t, th, domID, pathID).ToggleOverrides.BasicAuth.PasswordHash
+	originalHash := storeDomainPath(t, th, domID, pathID).ToggleOverrides.Auth.BasicAuth.PasswordHash
 	if originalHash == "" {
 		t.Fatal("expected hash after create")
 	}
@@ -262,7 +262,7 @@ func TestHandleUpdateDomainPathPreservesBasicAuthHash(t *testing.T) {
 		"path_match":"prefix",
 		"match_value":"/api",
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}},
-		"toggle_overrides":{"basic_auth":{"enabled":true,"username":"user"}}
+		"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"username":"user"}}}
 	}`
 	req := httptest.NewRequest(http.MethodPut, "/api/domains/"+domID+"/paths/"+pathID, strings.NewReader(updateBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -272,7 +272,7 @@ func TestHandleUpdateDomainPathPreservesBasicAuthHash(t *testing.T) {
 		t.Fatalf("got %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
-	updatedHash := storeDomainPath(t, th, domID, pathID).ToggleOverrides.BasicAuth.PasswordHash
+	updatedHash := storeDomainPath(t, th, domID, pathID).ToggleOverrides.Auth.BasicAuth.PasswordHash
 	if updatedHash != originalHash {
 		t.Errorf("hash changed: %q -> %q (should be preserved)", originalHash, updatedHash)
 	}
@@ -456,10 +456,10 @@ func TestHandleUpdateSubdomainPathPreservesBasicAuthHash(t *testing.T) {
 		"path_match":"prefix",
 		"match_value":"/api",
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}},
-		"toggle_overrides":{"basic_auth":{"enabled":true,"username":"user","password":"original"}}
+		"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"username":"user","password":"original"}}}
 	}`
 	pathID := mustCreateSubdomainPath(t, th, domID, subID, createBody)
-	originalHash := storeSubdomainPath(t, th, domID, subID, pathID).ToggleOverrides.BasicAuth.PasswordHash
+	originalHash := storeSubdomainPath(t, th, domID, subID, pathID).ToggleOverrides.Auth.BasicAuth.PasswordHash
 	if originalHash == "" {
 		t.Fatal("expected hash after create")
 	}
@@ -468,7 +468,7 @@ func TestHandleUpdateSubdomainPathPreservesBasicAuthHash(t *testing.T) {
 		"path_match":"prefix",
 		"match_value":"/api",
 		"rule":{"handler_type":"reverse_proxy","handler_config":{"upstream":"127.0.0.1:9000"}},
-		"toggle_overrides":{"basic_auth":{"enabled":true,"username":"user"}}
+		"toggle_overrides":{"auth":{"mode":"basic","basic_auth":{"username":"user"}}}
 	}`
 	req := httptest.NewRequest(http.MethodPut, "/api/domains/"+domID+"/subdomains/"+subID+"/paths/"+pathID, strings.NewReader(updateBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -478,7 +478,7 @@ func TestHandleUpdateSubdomainPathPreservesBasicAuthHash(t *testing.T) {
 		t.Fatalf("got %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
-	updatedHash := storeSubdomainPath(t, th, domID, subID, pathID).ToggleOverrides.BasicAuth.PasswordHash
+	updatedHash := storeSubdomainPath(t, th, domID, subID, pathID).ToggleOverrides.Auth.BasicAuth.PasswordHash
 	if updatedHash != originalHash {
 		t.Errorf("hash changed: %q -> %q", originalHash, updatedHash)
 	}

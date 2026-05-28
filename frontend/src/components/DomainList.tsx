@@ -73,7 +73,12 @@ export default function DomainList() {
 					{domains.map((domain) => (
 						<DomainCard
 							key={domain.id}
-							domain={domain}
+							domain={{
+								id: domain.id,
+								name: domain.name,
+								enabled: domain.enabled,
+								auth_mode: domain.toggles.auth.mode,
+							}}
 							onToggleEnabled={handleToggleEnabled}
 							onDelete={handleDelete}
 							saving={saving}

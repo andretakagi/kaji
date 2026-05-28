@@ -1,15 +1,23 @@
 import type { HeaderDownConfig, HeadersConfig, HeaderUpConfig, HealthCheckConfig } from "./api";
 
+export interface BasicAuth {
+	username: string;
+	password_hash: string;
+	password: string;
+}
+
+export type AuthMode = "off" | "basic" | "forward";
+
+export interface AuthToggle {
+	mode: AuthMode;
+	basic_auth: BasicAuth;
+}
+
 export interface DomainToggles {
 	force_https: boolean;
 	compression: boolean;
 	headers: HeadersConfig;
-	basic_auth: {
-		enabled: boolean;
-		username: string;
-		password_hash: string;
-		password: string;
-	};
+	auth: AuthToggle;
 	access_log: string;
 	ip_filtering: {
 		enabled: boolean;
@@ -187,7 +195,7 @@ export const defaultDomainToggles: DomainToggles = {
 			custom: [],
 		},
 	},
-	basic_auth: { enabled: false, username: "", password_hash: "", password: "" },
+	auth: { mode: "off", basic_auth: { username: "", password_hash: "", password: "" } },
 	access_log: "",
 	ip_filtering: { enabled: false, list_id: "", type: "", matcher: "remote_ip" },
 	error_pages: [],

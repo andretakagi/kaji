@@ -5,6 +5,7 @@ import type {
 	CaddyStatus,
 	ChangePasswordRequest,
 	DNSProviderSettings,
+	ForwardAuthConfig,
 	GlobalToggles,
 	ImportResponse,
 	IPList,
@@ -59,6 +60,7 @@ import {
 	validateDomainArray,
 	validateDomainIPListBindings,
 	validateExportCaddyfile,
+	validateForwardAuth,
 	validateGenerateAPIKey,
 	validateGlobalToggles,
 	validateImportResponse,
@@ -214,6 +216,18 @@ export function updateGlobalToggles(toggles: GlobalToggles): Promise<{ status: s
 	return request(
 		"/api/settings/global-toggles",
 		{ method: "PUT", ...jsonBody(toggles) },
+		validateStatusResponse,
+	);
+}
+
+export function fetchForwardAuth(): Promise<ForwardAuthConfig> {
+	return request("/api/settings/forward-auth", undefined, validateForwardAuth);
+}
+
+export function updateForwardAuth(config: ForwardAuthConfig): Promise<{ status: string }> {
+	return request(
+		"/api/settings/forward-auth",
+		{ method: "PUT", ...jsonBody(config) },
 		validateStatusResponse,
 	);
 }

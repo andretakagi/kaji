@@ -179,7 +179,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	};
 
 	const validateToggles = (toggles: DomainToggles): string | null => {
-		if (toggles.basic_auth.enabled && !toggles.basic_auth.username.trim()) {
+		if (toggles.auth.mode === "basic" && !toggles.auth.basic_auth.username.trim()) {
 			return "Username is required for basic auth";
 		}
 		for (let i = 0; i < toggles.error_pages.length; i++) {

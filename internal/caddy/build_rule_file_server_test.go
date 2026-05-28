@@ -15,7 +15,7 @@ func TestBuildRuleDomain_FileServerBasic(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestBuildRuleDomain_FileServerBrowse(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestBuildRuleDomain_FileServerCustomIndexNames(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestBuildRuleDomain_FileServerCustomHide(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
+	result, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestBuildRuleDomain_FileServerAllOptions(t *testing.T) {
 		Compression: true,
 	}
 
-	result, err := BuildRuleDomain("example.com", rule, toggles, nil, "", "", false)
+	result, err := BuildRuleDomain("example.com", rule, toggles, nil, "", "", false, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestBuildRuleDomain_FileServerMissingRoot(t *testing.T) {
 		HandlerConfig: cfg,
 	}
 
-	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false, nil)
 	if err == nil {
 		t.Fatal("expected error for empty root")
 	}
@@ -220,7 +220,7 @@ func TestBuildRuleDomain_FileServerInvalidJSON(t *testing.T) {
 		HandlerConfig: json.RawMessage(`{invalid`),
 	}
 
-	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false)
+	_, err := BuildRuleDomain("example.com", rule, DomainToggles{}, nil, "", "", false, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid handler config JSON")
 	}

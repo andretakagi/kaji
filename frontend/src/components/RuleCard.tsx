@@ -38,7 +38,10 @@ export function normalizeToggles(t: DomainToggles | null | undefined): DomainTog
 		force_https: t.force_https ?? base.force_https,
 		compression: t.compression ?? base.compression,
 		access_log: t.access_log ?? base.access_log,
-		basic_auth: { ...base.basic_auth, ...(t.basic_auth ?? {}) },
+		auth: {
+			mode: t.auth?.mode ?? base.auth.mode,
+			basic_auth: { ...base.auth.basic_auth, ...(t.auth?.basic_auth ?? {}) },
+		},
 		ip_filtering: { ...base.ip_filtering, ...(t.ip_filtering ?? {}) },
 		error_pages: t.error_pages ?? base.error_pages,
 		headers: {

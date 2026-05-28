@@ -38,6 +38,7 @@ import type {
 	CaddyfileResponse,
 	CaddyStatus,
 	DNSProviderSettings,
+	ForwardAuthConfig,
 	GlobalToggles,
 	ImportResponse,
 	IPList,
@@ -108,6 +109,16 @@ export function validateGlobalToggles(data: unknown): GlobalToggles {
 			auto_https: is.string,
 			prometheus_metrics: is.boolean,
 			per_host_metrics: is.boolean,
+		}),
+	);
+}
+
+export function validateForwardAuth(data: unknown): ForwardAuthConfig {
+	return assertValid("ForwardAuthConfig", data, (d) =>
+		hasFields(d, {
+			enabled: is.boolean,
+			provider: is.string,
+			url: is.string,
 		}),
 	);
 }

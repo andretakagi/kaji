@@ -32,7 +32,7 @@ func TestBuildDomainMinimal(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 	}
-	raw, err := BuildDomain(p)
+	raw, err := BuildDomain(p, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -79,12 +79,12 @@ func TestBuildDomainMinimal(t *testing.T) {
 }
 
 func TestBuildDomainErrorsOnEmptyFields(t *testing.T) {
-	_, err := BuildDomain(DomainParams{Domain: "", Upstream: "localhost:8080"})
+	_, err := BuildDomain(DomainParams{Domain: "", Upstream: "localhost:8080"}, nil)
 	if err == nil {
 		t.Error("expected error for empty domain")
 	}
 
-	_, err = BuildDomain(DomainParams{Domain: "example.com", Upstream: ""})
+	_, err = BuildDomain(DomainParams{Domain: "example.com", Upstream: ""}, nil)
 	if err == nil {
 		t.Error("expected error for empty upstream")
 	}
@@ -92,7 +92,7 @@ func TestBuildDomainErrorsOnEmptyFields(t *testing.T) {
 
 func buildAndUnmarshalHandlers(t *testing.T, p DomainParams) []json.RawMessage {
 	t.Helper()
-	raw, err := BuildDomain(p)
+	raw, err := BuildDomain(p, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -350,10 +350,12 @@ func TestBuildDomainBasicAuth(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			BasicAuth: BasicAuth{
-				Enabled:      true,
-				Username:     "admin",
-				PasswordHash: "$2a$14$hashedpassword",
+			Auth: AuthToggle{
+				Mode: "basic",
+				BasicAuth: BasicAuth{
+					Username:     "admin",
+					PasswordHash: "$2a$14$hashedpassword",
+				},
 			},
 		},
 	}
@@ -502,7 +504,7 @@ func TestBuildDomainLoadBalancingFirst(t *testing.T) {
 
 func buildAndParse(t *testing.T, p DomainParams) DomainParams {
 	t.Helper()
-	raw, err := BuildDomain(p)
+	raw, err := BuildDomain(p, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -643,22 +645,24 @@ func TestParseDomainParamsBasicAuth(t *testing.T) {
 		Domain:   "example.com",
 		Upstream: "localhost:8080",
 		Toggles: RouteToggles{
-			BasicAuth: BasicAuth{
-				Enabled:      true,
-				Username:     "admin",
-				PasswordHash: "$2a$14$hashedpassword",
+			Auth: AuthToggle{
+				Mode: "basic",
+				BasicAuth: BasicAuth{
+					Username:     "admin",
+					PasswordHash: "$2a$14$hashedpassword",
+				},
 			},
 		},
 	}
 	got := buildAndParse(t, p)
-	if !got.Toggles.BasicAuth.Enabled {
-		t.Error("BasicAuth.Enabled should round-trip to true")
+	if got.Toggles.Auth.Mode != "basic" {
+		t.Errorf("Auth.Mode = %q, want basic", got.Toggles.Auth.Mode)
 	}
-	if got.Toggles.BasicAuth.Username != "admin" {
-		t.Errorf("Username = %q, want admin", got.Toggles.BasicAuth.Username)
+	if got.Toggles.Auth.BasicAuth.Username != "admin" {
+		t.Errorf("Username = %q, want admin", got.Toggles.Auth.BasicAuth.Username)
 	}
-	if got.Toggles.BasicAuth.PasswordHash != "$2a$14$hashedpassword" {
-		t.Errorf("PasswordHash = %q, want $2a$14$hashedpassword", got.Toggles.BasicAuth.PasswordHash)
+	if got.Toggles.Auth.BasicAuth.PasswordHash != "$2a$14$hashedpassword" {
+		t.Errorf("PasswordHash = %q, want $2a$14$hashedpassword", got.Toggles.Auth.BasicAuth.PasswordHash)
 	}
 }
 
@@ -860,7 +864,7 @@ func TestParseDomainParamsIPFilteringBlacklist(t *testing.T) {
 		IPListIPs:  []string{"10.0.0.1"},
 		IPListType: "blacklist",
 	}
-	raw, err := BuildDomain(p)
+	raw, err := BuildDomain(p, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -883,7 +887,7 @@ func TestParseDomainParamsIPFilteringWhitelist(t *testing.T) {
 		IPListIPs:  []string{"10.0.0.0/8"},
 		IPListType: "whitelist",
 	}
-	raw, err := BuildDomain(p)
+	raw, err := BuildDomain(p, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -1030,7 +1034,7 @@ func TestParseIPFilteringClientIP(t *testing.T) {
 			},
 		},
 	}
-	raw, err := BuildDomain(p)
+	raw, err := BuildDomain(p, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -1176,7 +1180,7 @@ func TestParseDomainParamsNoHeadersEmptyBuiltinCustom(t *testing.T) {
 	route, err := BuildDomain(DomainParams{
 		Domain:   "example.com",
 		Upstream: "localhost:3000",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -1219,7 +1223,7 @@ func TestParseDomainParamsCustomResponseHeaders(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -1271,7 +1275,7 @@ func TestParseDomainParamsCustomHeaderUp(t *testing.T) {
 		HandlerType:     "reverse_proxy",
 		HandlerConfig:   rpCfg,
 		AdvancedHeaders: true,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -1320,7 +1324,7 @@ func TestParseDomainParamsSecurityPlusCORSCombined(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildDomain failed: %v", err)
 	}
@@ -1365,7 +1369,7 @@ func TestParseDomainParamsSecurityPlusCORSCombined(t *testing.T) {
 
 func buildRuleAndParse(t *testing.T, domainName string, rule RuleBuildParams, toggles DomainToggles) DomainParams {
 	t.Helper()
-	raw, err := BuildRuleDomain(domainName, rule, toggles, nil, "", "", false)
+	raw, err := BuildRuleDomain(domainName, rule, toggles, nil, "", "", false, nil)
 	if err != nil {
 		t.Fatalf("BuildRuleDomain failed: %v", err)
 	}

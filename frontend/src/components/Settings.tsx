@@ -6,6 +6,7 @@ import {
 	fetchAPIKeyStatus,
 	fetchAuthStatus,
 	fetchCaddyDataDir,
+	fetchForwardAuth,
 	fetchPorts,
 	generateAPIKey,
 	importCaddyfile,
@@ -13,10 +14,13 @@ import {
 	revokeAPIKey,
 	updateAdvancedSettings,
 	updateCaddyDataDir,
+	updateForwardAuth,
 	updatePorts,
 } from "../api";
 import { useCaddyStatus } from "../contexts/CaddyContext";
 import { useAsyncAction } from "../hooks/useAsyncAction";
+import { useSettingsSection } from "../hooks/useSettingsSection";
+import type { ForwardAuthConfig } from "../types/api";
 import { validateCaddyAdminUrl } from "../utils/validate";
 import AuthSection from "./AuthSection";
 import Feedback from "./Feedback";
@@ -317,6 +321,102 @@ function ExportImportSection({ onImport }: { onImport: () => void }) {
 	);
 }
 
+const defaultForwardAuth: ForwardAuthConfig = {
+	enabled: false,
+	provider: "",
+	url: "",
+};
+
+function ForwardAuthSection() {
+	const { values, setValues, dirty, loaded, load, markLoaded, save, saving, feedback } =
+		useSettingsSection(defaultForwardAuth);
+
+	useEffect(() => {
+		fetchForwardAuth()
+			.then((cfg) => load(cfg))
+			.catch(markLoaded);
+	}, [load, markLoaded]);
+
+	const handleSave = () =>
+		save(async (v) => {
+			await updateForwardAuth(v);
+			return "Saved";
+		});
+
+	if (!loaded) return null;
+
+	return (
+		<section className="settings-section">
+			<h3>Forward Auth</h3>
+			<div className="settings-toggle-row">
+				<span>Enable forward auth</span>
+				<Toggle
+					inline
+					small
+					id="forward-auth-enabled"
+					value={values.enabled}
+					onChange={(checked) => setValues((v) => ({ ...v, enabled: checked }))}
+					disabled={saving}
+				/>
+			</div>
+			{values.enabled && (
+				<>
+					<p className="settings-description">
+						Delegates authentication to an external provider. All requests are verified before
+						reaching your upstream.
+					</p>
+					<div className="settings-field">
+						<label htmlFor="forward-auth-provider">Provider</label>
+						<select
+							id="forward-auth-provider"
+							value={values.provider}
+							onChange={(e) => setValues((v) => ({ ...v, provider: e.target.value }))}
+							disabled={saving}
+						>
+							<option value="">Select a provider</option>
+							<option value="authelia">Authelia</option>
+							<option value="authentik">Authentik</option>
+							<option value="custom">Custom</option>
+						</select>
+					</div>
+					<div className="settings-field">
+						<label htmlFor="forward-auth-url">Auth URL</label>
+						<input
+							id="forward-auth-url"
+							type="text"
+							value={values.url}
+							onChange={(e) => setValues((v) => ({ ...v, url: e.target.value }))}
+							placeholder="https://auth.example.com/api/authz/forward-auth"
+							disabled={saving}
+						/>
+						{values.provider === "authelia" && (
+							<p className="settings-hint">
+								Typically https://auth.example.com/api/verify?rd=https://auth.example.com
+							</p>
+						)}
+						{values.provider === "authentik" && (
+							<p className="settings-hint">
+								Typically https://auth.example.com/outpost.goauthentik.io/auth/nginx
+							</p>
+						)}
+					</div>
+				</>
+			)}
+			{dirty && (
+				<button
+					type="button"
+					className="btn btn-primary settings-save-btn"
+					disabled={saving}
+					onClick={handleSave}
+				>
+					{saving ? "Saving..." : "Save"}
+				</button>
+			)}
+			<Feedback msg={feedback.msg} type={feedback.type} />
+		</section>
+	);
+}
+
 function AdvancedSection({
 	initial,
 	caddyRunning,
@@ -611,6 +711,8 @@ export default function Settings({ onAuthChange }: { onAuthChange: (enabled: boo
 			{!caddyRunning ? <CaddyOffSection title="Metrics" /> : <MetricsSettings />}
 
 			{!caddyRunning ? <CaddyOffSection title="Loki Integration" /> : <LokiSettings />}
+
+			{!caddyRunning ? <CaddyOffSection title="Forward Auth" /> : <ForwardAuthSection />}
 
 			<SnapshotSettings />
 

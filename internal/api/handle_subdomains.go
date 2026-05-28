@@ -74,13 +74,19 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			toggles = *req.Toggles
 		}
 
-		if !validateAndHashBasicAuth(w, &toggles.BasicAuth, "", "", "handleCreateSubdomain") {
+		if toggles.Auth.Mode == "" {
+			toggles.Auth.Mode = "off"
+		}
+		if !validateAuthMode(w, store, &toggles.Auth, "") {
+			return
+		}
+		if !validateAndHashAuth(w, &toggles.Auth, "", "", "handleCreateSubdomain") {
 			return
 		}
 
 		paths := make([]config.Path, len(req.Paths))
 		for i, p := range req.Paths {
-			if !validatePathRequest(w, &p, "", fmt.Sprintf("path %d: ", i+1)) {
+			if !validatePathRequest(w, store, &p, "", fmt.Sprintf("path %d: ", i+1)) {
 				return
 			}
 			paths[i] = pathFromRequest(p)
@@ -147,10 +153,16 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 		var fallbackHash string
 		if d := findDomain(store.Get(), domainID); d != nil {
 			if s := findSubdomain(d, subID); s != nil {
-				fallbackHash = s.Toggles.BasicAuth.PasswordHash
+				fallbackHash = s.Toggles.Auth.BasicAuth.PasswordHash
 			}
 		}
-		if !validateAndHashBasicAuth(w, &req.Toggles.BasicAuth, fallbackHash, "", "handleUpdateSubdomain") {
+		if req.Toggles.Auth.Mode == "" {
+			req.Toggles.Auth.Mode = "off"
+		}
+		if !validateAuthMode(w, store, &req.Toggles.Auth, "") {
+			return
+		}
+		if !validateAndHashAuth(w, &req.Toggles.Auth, fallbackHash, "", "handleUpdateSubdomain") {
 			return
 		}
 

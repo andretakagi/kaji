@@ -20,7 +20,8 @@ function activeToggles(toggles: DomainToggles): string[] {
 	if (toggles.force_https) active.push("Force HTTPS");
 	if (toggles.compression) active.push("Compression");
 	if (toggles.headers.response.enabled) active.push("Response Headers");
-	if (toggles.basic_auth.enabled) active.push("Basic Auth");
+	if (toggles.auth.mode === "basic") active.push("Basic Auth");
+	if (toggles.auth.mode === "forward") active.push("Forward Auth");
 	if (toggles.access_log) active.push("Access Log");
 	if (toggles.ip_filtering.enabled) active.push("IP Filtering");
 	if (toggles.error_pages.length > 0)

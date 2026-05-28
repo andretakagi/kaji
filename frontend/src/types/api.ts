@@ -246,3 +246,9 @@ export interface Ports {
 	http_port: number;
 	https_port: number;
 }
+
+export interface ForwardAuthConfig {
+	enabled: boolean;
+	provider: string;
+	url: string;
+}

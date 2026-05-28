@@ -50,7 +50,7 @@ func TestBuildDesiredState_EnabledDomains(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil, nil)
+	desired, err := BuildDesiredState(domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestBuildDesiredState_DisabledDomain(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil, nil)
+	desired, err := BuildDesiredState(domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestBuildDesiredState_DisabledRule(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil, nil)
+	desired, err := BuildDesiredState(domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestBuildDesiredState_ToggleOverride(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil, nil)
+	desired, err := BuildDesiredState(domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestBuildDesiredState_WithIPList(t *testing.T) {
 		return nil, "", nil
 	}
 
-	desired, err := BuildDesiredState(domains, resolveIPs, nil)
+	desired, err := BuildDesiredState(domains, resolveIPs, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestBuildDesiredState_WithIPList(t *testing.T) {
 }
 
 func TestBuildDesiredState_EmptyDomains(t *testing.T) {
-	desired, err := BuildDesiredState(nil, nil, nil)
+	desired, err := BuildDesiredState(nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestBuildDesiredState_HandlerNoneSkipsRoute(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil, nil)
+	desired, err := BuildDesiredState(domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -939,7 +939,7 @@ func TestSyncDomains_AddsNewRoute(t *testing.T) {
 
 	domains := []SyncDomain{syncDomain("rule_new1", "localhost:4000")}
 
-	result, err := SyncDomains(cc, domains, nil, nil)
+	result, err := SyncDomains(cc, domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -967,7 +967,7 @@ func TestSyncDomains_DeletesOrphanRoute(t *testing.T) {
 	mock := newMockCaddyServer([]json.RawMessage{orphan})
 	cc := newMockCaddyClient(t, mock)
 
-	result, err := SyncDomains(cc, nil, nil, nil)
+	result, err := SyncDomains(cc, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -992,7 +992,7 @@ func TestSyncDomains_UpdatesChangedRoute(t *testing.T) {
 	// Same rule ID, different upstream - should produce an update
 	domains := []SyncDomain{syncDomain("rule_upd", "localhost:2222")}
 
-	result, err := SyncDomains(cc, domains, nil, nil)
+	result, err := SyncDomains(cc, domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1020,7 +1020,7 @@ func TestSyncDomains_MixedAddUpdateDelete(t *testing.T) {
 		syncDomain("rule_new2", "localhost:9002"),
 	}
 
-	result, err := SyncDomains(cc, domains, nil, nil)
+	result, err := SyncDomains(cc, domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1086,7 +1086,7 @@ func TestSyncDomains_SkipsDisabledDomainAndRule(t *testing.T) {
 		},
 	}
 
-	result, err := SyncDomains(cc, domains, nil, nil)
+	result, err := SyncDomains(cc, domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1134,7 +1134,7 @@ func TestSyncDomains_ErrorOnIPListResolutionFailure(t *testing.T) {
 		return nil, "", fmt.Errorf("list %q not found", listID)
 	}
 
-	_, err := SyncDomains(cc, domains, resolveIPs, nil)
+	_, err := SyncDomains(cc, domains, resolveIPs, nil, nil)
 	if err == nil {
 		t.Fatal("expected error when IP list resolution fails")
 	}
@@ -1166,7 +1166,7 @@ func TestBuildDesiredState_DomainRuleDisabledOmitsDomainRouteOnly(t *testing.T) 
 		}},
 	}}
 
-	desired, err := BuildDesiredState(domains, nil, nil)
+	desired, err := BuildDesiredState(domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1207,7 +1207,7 @@ func TestBuildDesiredState_SubdomainRuleDisabledOmitsSubdomainRouteOnly(t *testi
 		}},
 	}}
 
-	desired, err := BuildDesiredState(domains, nil, nil)
+	desired, err := BuildDesiredState(domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1475,7 +1475,7 @@ func TestBuildDesiredState_WithSkipRules(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil, skipRules)
+	desired, err := BuildDesiredState(domains, nil, skipRules, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1559,7 +1559,7 @@ func TestBuildDesiredState_WithSkipRules_Subdomain(t *testing.T) {
 		},
 	}
 
-	desired, err := BuildDesiredState(domains, nil, skipRules)
+	desired, err := BuildDesiredState(domains, nil, skipRules, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1627,7 +1627,7 @@ func TestSyncDomains_HandleErrors(t *testing.T) {
 		},
 	}
 
-	_, err := SyncDomains(cc, domains, nil, nil)
+	_, err := SyncDomains(cc, domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("sync error: %v", err)
 	}
@@ -1685,7 +1685,7 @@ func TestSyncDomains_HandleErrors_NoErrorPages(t *testing.T) {
 		},
 	}
 
-	_, err := SyncDomains(cc, domains, nil, nil)
+	_, err := SyncDomains(cc, domains, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("sync error: %v", err)
 	}

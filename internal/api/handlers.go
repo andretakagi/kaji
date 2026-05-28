@@ -106,6 +106,8 @@ func RegisterRoutes(mux *http.ServeMux, store *config.ConfigStore, mgr system.Ca
 	mux.HandleFunc("PUT /api/settings/ports", handlePortsUpdate(store, cc, ss, version))
 	mux.HandleFunc("GET /api/settings/trusted-proxies", handleTrustedProxiesGet(cc))
 	mux.HandleFunc("PUT /api/settings/trusted-proxies", handleTrustedProxiesUpdate(store, cc, ss, version))
+	mux.HandleFunc("GET /api/settings/forward-auth", handleForwardAuthGet(store))
+	mux.HandleFunc("PUT /api/settings/forward-auth", handleForwardAuthUpdate(store, cc, ss, version))
 
 	mux.HandleFunc("GET /api/ip-lists", handleListIPLists(store))
 	mux.HandleFunc("POST /api/ip-lists", handleCreateIPList(store))
@@ -223,22 +225,21 @@ func hashBasicAuthPassword(ba *caddy.BasicAuth, fallbackHash string) error {
 	return nil
 }
 
-// validateAndHashBasicAuth performs the standard basic-auth gate used by every
-// domain/subdomain/path handler: if BasicAuth is enabled, require a username,
-// then hash the new password (falling back to fallbackHash when the client
-// omits one so existing hashes survive updates). errPrefix is prepended to the
-// missing-username message so list contexts can disambiguate. logPrefix names
-// the calling handler in the 500 log line. Returns false (and writes the HTTP
-// response) on any failure.
-func validateAndHashBasicAuth(w http.ResponseWriter, ba *caddy.BasicAuth, fallbackHash, errPrefix, logPrefix string) bool {
-	if !ba.Enabled {
+// validateAndHashAuth validates the auth toggle on a domain/subdomain/path.
+// When mode is "basic", requires a username and hashes the password (falling
+// back to fallbackHash so existing hashes survive updates). errPrefix is
+// prepended to validation messages so list contexts can disambiguate. logPrefix
+// names the calling handler in the 500 log line. Returns false (and writes the
+// HTTP response) on any failure.
+func validateAndHashAuth(w http.ResponseWriter, auth *caddy.AuthToggle, fallbackHash, errPrefix, logPrefix string) bool {
+	if auth.Mode != "basic" {
 		return true
 	}
-	if ba.Username == "" {
+	if auth.BasicAuth.Username == "" {
 		writeError(w, errPrefix+"username is required for basic auth", http.StatusBadRequest)
 		return false
 	}
-	if err := hashBasicAuthPassword(ba, fallbackHash); err != nil {
+	if err := hashBasicAuthPassword(&auth.BasicAuth, fallbackHash); err != nil {
 		log.Printf("%s: hash password: %v", logPrefix, err)
 		writeError(w, "failed to hash password", http.StatusInternalServerError)
 		return false
