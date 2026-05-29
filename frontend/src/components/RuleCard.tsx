@@ -44,6 +44,7 @@ export function normalizeToggles(t: DomainToggles | null | undefined): DomainTog
 		},
 		ip_filtering: { ...base.ip_filtering, ...(t.ip_filtering ?? {}) },
 		error_pages: t.error_pages ?? base.error_pages,
+		request_body_max_size: t.request_body_max_size ?? base.request_body_max_size,
 		headers: {
 			request: { ...base.headers.request, ...(t.headers?.request ?? {}) },
 			response: { ...base.headers.response, ...(t.headers?.response ?? {}) },
