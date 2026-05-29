@@ -444,6 +444,12 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 		b.WriteString("\tencode gzip zstd\n")
 	}
 
+	if p.Toggles.RequestBodyMaxSize != "" {
+		b.WriteString("\trequest_body {\n")
+		b.WriteString("\t\tmax_size " + p.Toggles.RequestBodyMaxSize + "\n")
+		b.WriteString("\t}\n")
+	}
+
 	if p.Toggles.Headers.Response.Enabled && p.Toggles.Headers.Response.Security {
 		b.WriteString("\theader {\n")
 		b.WriteString("\t\tStrict-Transport-Security \"max-age=31536000; includeSubDomains; preload\"\n")
@@ -506,6 +512,10 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 
 	if p.Toggles.IPFiltering.Enabled && len(p.IPListIPs) > 0 {
 		writeIPFilteringBlock(b, p)
+	}
+
+	if len(p.MethodMatch) > 0 {
+		b.WriteString("\t@methods method " + strings.Join(p.MethodMatch, " ") + "\n")
 	}
 
 	switch p.HandlerType {

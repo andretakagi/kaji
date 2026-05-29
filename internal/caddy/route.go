@@ -21,6 +21,7 @@ type DomainParams struct {
 	PrependPathPrefix string          `json:"-"`
 	IPListIPs         []string        `json:"-"`
 	IPListType        string          `json:"-"`
+	MethodMatch       []string        `json:"-"`
 }
 
 type IPFilteringOpts struct {
@@ -38,17 +39,18 @@ func ipMatcherKey(matcher string) string {
 }
 
 type RouteToggles struct {
-	Enabled           bool            `json:"enabled"`
-	ForceHTTPS        bool            `json:"force_https"`
-	Compression       bool            `json:"compression"`
-	Headers           HeadersConfig   `json:"headers"`
-	TLSSkipVerify     bool            `json:"tls_skip_verify"`
-	Auth              AuthToggle      `json:"auth"`
-	AccessLog         string          `json:"access_log"`
-	WebSocketPassthru bool            `json:"websocket_passthrough"`
-	LoadBalancing     LoadBalancing   `json:"load_balancing"`
-	IPFiltering       IPFilteringOpts `json:"ip_filtering"`
-	ErrorPages        []ErrorPage     `json:"error_pages,omitempty"`
+	Enabled            bool            `json:"enabled"`
+	ForceHTTPS         bool            `json:"force_https"`
+	Compression        bool            `json:"compression"`
+	Headers            HeadersConfig   `json:"headers"`
+	TLSSkipVerify      bool            `json:"tls_skip_verify"`
+	Auth               AuthToggle      `json:"auth"`
+	AccessLog          string          `json:"access_log"`
+	WebSocketPassthru  bool            `json:"websocket_passthrough"`
+	LoadBalancing      LoadBalancing   `json:"load_balancing"`
+	IPFiltering        IPFilteringOpts `json:"ip_filtering"`
+	ErrorPages         []ErrorPage     `json:"error_pages,omitempty"`
+	RequestBodyMaxSize string          `json:"request_body_max_size,omitempty"`
 }
 
 type LoadBalancing struct {
@@ -398,7 +400,8 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 	var route struct {
 		ID    string `json:"@id"`
 		Match []struct {
-			Host []string `json:"host"`
+			Host   []string `json:"host"`
+			Method []string `json:"method"`
 		} `json:"match"`
 		Handle []json.RawMessage `json:"handle"`
 	}
@@ -410,6 +413,9 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 	p.Toggles.Enabled = true
 	if len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
 		p.Domain = route.Match[0].Host[0]
+	}
+	if len(route.Match) > 0 && len(route.Match[0].Method) > 0 {
+		p.MethodMatch = route.Match[0].Method
 	}
 
 	handlers := flattenHandlers(route.Handle, &p)
@@ -750,6 +756,16 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 
 		case "encode":
 			p.Toggles.Compression = true
+
+		case "request_body":
+			var rb struct {
+				MaxSize json.Number `json:"max_size"`
+			}
+			if json.Unmarshal(h, &rb) == nil {
+				if bytes, err := rb.MaxSize.Int64(); err == nil && bytes > 0 {
+					p.Toggles.RequestBodyMaxSize = formatByteSize(bytes)
+				}
+			}
 
 		case "headers":
 			var full struct {
@@ -1172,6 +1188,19 @@ func parseErrorHandler(raw json.RawMessage, p *DomainParams) {
 	}
 	p.HandlerType = "error"
 	p.HandlerConfig = data
+}
+
+func formatByteSize(bytes int64) string {
+	switch {
+	case bytes >= 1<<30 && bytes%(1<<30) == 0:
+		return fmt.Sprintf("%dGB", bytes/(1<<30))
+	case bytes >= 1<<20 && bytes%(1<<20) == 0:
+		return fmt.Sprintf("%dMB", bytes/(1<<20))
+	case bytes >= 1<<10 && bytes%(1<<10) == 0:
+		return fmt.Sprintf("%dKB", bytes/(1<<10))
+	default:
+		return fmt.Sprintf("%d", bytes)
+	}
 }
 
 func hasForwardAuthHeaders(raw json.RawMessage) bool {
