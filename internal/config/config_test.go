@@ -304,12 +304,14 @@ func TestConfigStoreConcurrent(t *testing.T) {
 
 	const goroutines = 20
 	var wg sync.WaitGroup
+	start := make(chan struct{})
 
 	// Concurrent readers.
 	for i := 0; i < goroutines; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			<-start
 			cfg := store.Get()
 			if cfg == nil {
 				t.Errorf("Get returned nil")
@@ -321,14 +323,18 @@ func TestConfigStoreConcurrent(t *testing.T) {
 		}()
 	}
 
-	// Concurrent writers.
+	// Concurrent writers, each writing a unique value.
+	written := make([]string, goroutines)
 	for i := 0; i < goroutines; i++ {
+		val := fmt.Sprintf("/tmp/caddy-%d.log", i)
+		written[i] = val
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			<-start
 			err := store.Update(func(current AppConfig) (*AppConfig, error) {
 				next := current
-				next.LogFile = "/tmp/caddy.log"
+				next.LogFile = val
 				return &next, nil
 			})
 			if err != nil {
@@ -337,14 +343,23 @@ func TestConfigStoreConcurrent(t *testing.T) {
 		}()
 	}
 
+	close(start)
 	wg.Wait()
 
 	cfg := store.Get()
 	if cfg == nil {
 		t.Fatal("store.Get() returned nil after concurrent access")
 	}
-	if cfg.LogFile != "/tmp/caddy.log" {
-		t.Errorf("LogFile = %q after concurrent writes, want /tmp/caddy.log", cfg.LogFile)
+
+	valid := false
+	for _, w := range written {
+		if cfg.LogFile == w {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		t.Errorf("LogFile = %q, want one of the %d written values", cfg.LogFile, goroutines)
 	}
 }
 
