@@ -199,6 +199,10 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			}
 		}
 
+		if msg := validateByteSize(req.Toggles.RequestBodyMaxSize); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
+		}
 		if req.Toggles.Auth.Mode == "" {
 			req.Toggles.Auth.Mode = "off"
 		}
@@ -243,6 +247,10 @@ func handleCreateDomainFull(store *config.ConfigStore, cc *caddy.Client, ss *sna
 			subToggles := req.Toggles
 			if s.Toggles != nil {
 				subToggles = *s.Toggles
+			}
+			if msg := validateByteSize(subToggles.RequestBodyMaxSize); msg != "" {
+				writeError(w, fmt.Sprintf("subdomain %d: %s", i+1, msg), http.StatusBadRequest)
+				return
 			}
 			if subToggles.Auth.Mode == "" {
 				subToggles.Auth.Mode = "off"
@@ -325,6 +333,10 @@ func handleUpdateDomain(store *config.ConfigStore, cc *caddy.Client, ss *snapsho
 		var fallbackHash string
 		if dom := findDomain(store.Get(), id); dom != nil {
 			fallbackHash = dom.Toggles.Auth.BasicAuth.PasswordHash
+		}
+		if msg := validateByteSize(req.Toggles.RequestBodyMaxSize); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
 		}
 		if req.Toggles.Auth.Mode == "" {
 			req.Toggles.Auth.Mode = "off"

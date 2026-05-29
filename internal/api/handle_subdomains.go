@@ -74,6 +74,10 @@ func handleCreateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			toggles = *req.Toggles
 		}
 
+		if msg := validateByteSize(toggles.RequestBodyMaxSize); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
+		}
 		if toggles.Auth.Mode == "" {
 			toggles.Auth.Mode = "off"
 		}
@@ -155,6 +159,10 @@ func handleUpdateSubdomain(store *config.ConfigStore, cc *caddy.Client, ss *snap
 			if s := findSubdomain(d, subID); s != nil {
 				fallbackHash = s.Toggles.Auth.BasicAuth.PasswordHash
 			}
+		}
+		if msg := validateByteSize(req.Toggles.RequestBodyMaxSize); msg != "" {
+			writeError(w, msg, http.StatusBadRequest)
+			return
 		}
 		if req.Toggles.Auth.Mode == "" {
 			req.Toggles.Auth.Mode = "off"

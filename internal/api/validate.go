@@ -423,6 +423,31 @@ func validateSubdomainName(name string) string {
 	return ""
 }
 
+var validHTTPMethods = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true,
+	"DELETE": true, "HEAD": true, "OPTIONS": true,
+}
+
+func validateMethodMatch(methods []string) string {
+	for _, m := range methods {
+		upper := strings.ToUpper(strings.TrimSpace(m))
+		if !validHTTPMethods[upper] {
+			return fmt.Sprintf("invalid HTTP method: %s", m)
+		}
+	}
+	return ""
+}
+
+func validateByteSize(size string) string {
+	if size == "" {
+		return ""
+	}
+	if _, err := caddy.ParseByteSize(size); err != nil {
+		return fmt.Sprintf("invalid size: %s", err)
+	}
+	return ""
+}
+
 func validateLoadBalancing(w http.ResponseWriter, lb caddy.LoadBalancing) bool {
 	if !lb.Enabled {
 		return true
