@@ -4,6 +4,7 @@ import type {
 	DomainToggles,
 	ErrorConfig,
 	FileServerConfig,
+	HttpMethod,
 	PathMatch,
 	RedirectConfig,
 	ReverseProxyConfig,
@@ -19,6 +20,7 @@ import {
 	defaultReverseProxyConfig,
 	defaultStaticResponseConfig,
 	handlerLabels,
+	httpMethodOptions,
 	pathMatchLabels,
 	pathMatchOptions,
 } from "../types/domain";
@@ -105,6 +107,7 @@ export interface RuleCardSavePayload {
 	toggles: DomainToggles;
 	pathMatch?: PathMatch;
 	matchValue?: string;
+	methodMatch?: HttpMethod[];
 	hasOverrides?: boolean;
 }
 
@@ -116,6 +119,7 @@ interface RuleCardProps {
 	parentToggles?: DomainToggles;
 	pathMatch?: PathMatch;
 	matchValue?: string;
+	methodMatch?: HttpMethod[];
 	hasOverrides?: boolean;
 	enabled?: boolean;
 	parentEnabled?: boolean;
@@ -145,6 +149,7 @@ export default function RuleCard({
 	parentToggles,
 	pathMatch,
 	matchValue,
+	methodMatch,
 	hasOverrides,
 	enabled,
 	parentEnabled,
@@ -185,6 +190,7 @@ export default function RuleCard({
 	const [editedToggles, setEditedToggles] = useState<DomainToggles>(normalizeToggles(toggles));
 	const [editedPathMatch, setEditedPathMatch] = useState<PathMatch>(pathMatch ?? "prefix");
 	const [editedMatchValue, setEditedMatchValue] = useState<string>(matchValue ?? "");
+	const [editedMethodMatch, setEditedMethodMatch] = useState<HttpMethod[]>(methodMatch ?? []);
 	const [editedHasOverrides, setEditedHasOverrides] = useState<boolean>(!!hasOverrides);
 	const [savingEdit, setSavingEdit] = useState(false);
 	const [formError, setFormError] = useState<string | null>(null);
@@ -194,6 +200,7 @@ export default function RuleCard({
 		setEditedToggles(normalizeToggles(toggles));
 		setEditedPathMatch(pathMatch ?? "prefix");
 		setEditedMatchValue(matchValue ?? "");
+		setEditedMethodMatch(methodMatch ?? []);
 		setEditedHasOverrides(!!hasOverrides);
 		setFormError(null);
 	};
@@ -236,6 +243,7 @@ export default function RuleCard({
 					? {
 							pathMatch: editedPathMatch,
 							matchValue: editedMatchValue.trim(),
+							methodMatch: editedMethodMatch,
 							hasOverrides: editedHasOverrides,
 						}
 					: {}),
@@ -255,6 +263,9 @@ export default function RuleCard({
 				<span className={cn("path-match-badge", `path-match-${pathMatch}`)}>
 					{pathMatchLabels[pathMatch]}
 				</span>
+			)}
+			{isPath && methodMatch && methodMatch.length > 0 && (
+				<span className="method-match-badge">{methodMatch.join(", ")}</span>
 			)}
 			<span className={cn("rule-card-handler-badge", `handler-${rule.handler_type}`)}>
 				{handlerLabels[rule.handler_type]}
@@ -353,6 +364,20 @@ export default function RuleCard({
 											<span className="field-warning">
 												{pathMatchWarning(editedPathMatch, editedMatchValue)}
 											</span>
+										)}
+									</div>
+								</div>
+								<div className="form-row">
+									<div className="form-field">
+										<span className="form-label">Methods</span>
+										<Toggle
+											options={httpMethodOptions}
+											value={editedMethodMatch}
+											onChange={setEditedMethodMatch}
+											aria-label="HTTP methods"
+										/>
+										{editedMethodMatch.length === 0 && (
+											<span className="field-hint">All methods</span>
 										)}
 									</div>
 								</div>

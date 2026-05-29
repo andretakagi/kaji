@@ -9,6 +9,7 @@ import type {
 	FileServerConfig,
 	HandlerConfigValue,
 	HandlerType,
+	HttpMethod,
 	PathMatch,
 	RedirectConfig,
 	ReverseProxyConfig,
@@ -24,6 +25,7 @@ import {
 	defaultStaticResponseConfig,
 	handlerOptions,
 	handlerOptionsWithNone,
+	httpMethodOptions,
 	pathMatchLabels,
 	pathMatchOptions,
 } from "../types/domain";
@@ -45,6 +47,7 @@ export interface WizardPath {
 	key: number;
 	pathMatch: PathMatch;
 	matchValue: string;
+	methodMatch: HttpMethod[];
 	handlerType: HandlerType;
 	handlerConfig: HandlerConfigValue;
 	toggleOverrides: DomainToggles | null;
@@ -126,6 +129,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 	const [pathTarget, setPathTarget] = useState("");
 	const [pathMatch, setPathMatch] = useState<PathMatch>("prefix");
 	const [pathMatchValue, setPathMatchValue] = useState("");
+	const [methodMatch, setMethodMatch] = useState<HttpMethod[]>([]);
 	const [pathHandlerType, setPathHandlerType] = useState<HandlerType>("reverse_proxy");
 	const [pathHandlerConfig, setPathHandlerConfig] = useState<HandlerConfigValue>({
 		...defaultReverseProxyConfig,
@@ -157,6 +161,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		setPathTarget("");
 		setPathMatch("prefix");
 		setPathMatchValue("");
+		setMethodMatch([]);
 		setPathHandlerType("reverse_proxy");
 		setPathHandlerConfig({ ...defaultReverseProxyConfig });
 		setPathOverridesOpen(false);
@@ -409,6 +414,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			key: pathKeyRef.current,
 			pathMatch,
 			matchValue: pathMatchValue.trim(),
+			methodMatch,
 			handlerType: pathHandlerType,
 			handlerConfig: pathHandlerConfig,
 			toggleOverrides: pathOverridesOpen ? pathToggleOverrides : null,
@@ -578,6 +584,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 		setPathTarget(target);
 		setPathMatch(path.pathMatch);
 		setPathMatchValue(path.matchValue);
+		setMethodMatch(path.methodMatch ?? []);
 		setPathHandlerType(path.handlerType);
 		setPathHandlerConfig(path.handlerConfig);
 		setPathOverridesOpen(path.toggleOverrides !== null);
@@ -612,6 +619,7 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 			key: 0,
 			pathMatch,
 			matchValue: pathMatchValue.trim(),
+			methodMatch,
 			handlerType: pathHandlerType,
 			handlerConfig: pathHandlerConfig,
 			toggleOverrides: pathOverridesOpen ? pathToggleOverrides : null,
@@ -1279,6 +1287,21 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 
 													<div className="form-row">
 														<div className="form-field">
+															<span className="form-label">Methods</span>
+															<Toggle
+																options={httpMethodOptions}
+																value={methodMatch}
+																onChange={setMethodMatch}
+																aria-label="HTTP methods"
+															/>
+															{methodMatch.length === 0 && (
+																<span className="field-hint">All methods</span>
+															)}
+														</div>
+													</div>
+
+													<div className="form-row">
+														<div className="form-field">
 															<span className="form-label">Handler Type</span>
 															<Toggle
 																options={handlerOptions}
@@ -1448,6 +1471,19 @@ export default function DomainWizard({ onCreate, onCancel, existingDomains }: Pr
 												{pathMatchWarning(pathMatch, pathMatchValue)}
 											</span>
 										)}
+									</div>
+								</div>
+
+								<div className="form-row">
+									<div className="form-field">
+										<span className="form-label">Methods</span>
+										<Toggle
+											options={httpMethodOptions}
+											value={methodMatch}
+											onChange={setMethodMatch}
+											aria-label="HTTP methods"
+										/>
+										{methodMatch.length === 0 && <span className="field-hint">All methods</span>}
 									</div>
 								</div>
 
@@ -1689,6 +1725,7 @@ function buildPath(p: WizardPath): CreatePathRequest {
 	return {
 		path_match: p.pathMatch,
 		match_value: p.matchValue,
+		method_match: p.methodMatch.length > 0 ? p.methodMatch : undefined,
 		rule: { handler_type: p.handlerType, handler_config: p.handlerConfig, advanced_headers: false },
 		toggle_overrides: p.toggleOverrides,
 	};

@@ -352,6 +352,7 @@ function PathGroup({
 							parentToggles={e.parentToggles}
 							pathMatch={e.path.path_match}
 							matchValue={e.path.match_value}
+							methodMatch={e.path.method_match}
 							hasOverrides={!!e.path.toggle_overrides}
 							enabled={e.path.enabled}
 							parentEnabled={e.parentEnabled}
@@ -359,10 +360,18 @@ function PathGroup({
 							ariaLabel={`${formatPathLabel(e.path, e.host)} path`}
 							idPrefix={`path-${e.path.id}`}
 							domainName={e.host}
-							onSave={async ({ rule, toggles, pathMatch, matchValue, hasOverrides }) => {
+							onSave={async ({
+								rule,
+								toggles,
+								pathMatch,
+								matchValue,
+								methodMatch,
+								hasOverrides,
+							}) => {
 								const ok = await e.onUpdate({
 									path_match: pathMatch ?? e.path.path_match,
 									match_value: matchValue ?? e.path.match_value,
+									method_match: methodMatch && methodMatch.length > 0 ? methodMatch : undefined,
 									rule,
 									toggle_overrides: hasOverrides ? toggles : null,
 								});
@@ -413,10 +422,11 @@ function PathGroup({
 						ariaLabel={`New path for ${activeTarget.label}`}
 						idPrefix={`path-new-${addTarget || "root"}`}
 						domainName={activeTarget.label}
-						onSave={async ({ rule, toggles, pathMatch, matchValue, hasOverrides }) => {
+						onSave={async ({ rule, toggles, pathMatch, matchValue, methodMatch, hasOverrides }) => {
 							await handleSubmitAdd({
 								path_match: pathMatch ?? "prefix",
 								match_value: matchValue ?? "",
+								method_match: methodMatch && methodMatch.length > 0 ? methodMatch : undefined,
 								rule,
 								toggle_overrides: hasOverrides ? toggles : null,
 							});
