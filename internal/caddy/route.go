@@ -48,6 +48,7 @@ type RouteToggles struct {
 	WebSocketPassthru bool            `json:"websocket_passthrough"`
 	LoadBalancing     LoadBalancing   `json:"load_balancing"`
 	IPFiltering       IPFilteringOpts `json:"ip_filtering"`
+	ErrorPages        []ErrorPage     `json:"error_pages,omitempty"`
 }
 
 type LoadBalancing struct {
@@ -411,7 +412,7 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 		p.Domain = route.Match[0].Host[0]
 	}
 
-	handlers := flattenHandlers(route.Handle, &p.Toggles)
+	handlers := flattenHandlers(route.Handle, &p)
 	parseHandlers(handlers, &p)
 
 	if p.HandlerType == "reverse_proxy" && (p.StripPathPrefix != "" || p.PrependPathPrefix != "") {
@@ -432,7 +433,8 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 // Caddyfile-adapted routes wrap everything in a top-level subroute - this
 // unwraps that layer. Kaji's ForceHTTPS subroute (identifiable by a nested
 // "protocol":"http" match) is detected separately and not unwrapped.
-func flattenHandlers(topLevel []json.RawMessage, toggles *RouteToggles) []json.RawMessage {
+func flattenHandlers(topLevel []json.RawMessage, p *DomainParams) []json.RawMessage {
+	toggles := &p.Toggles
 	var result []json.RawMessage
 
 	for _, h := range topLevel {
@@ -472,7 +474,7 @@ func flattenHandlers(topLevel []json.RawMessage, toggles *RouteToggles) []json.R
 		}
 
 		if isIPFilteringSubroute(peek.Routes) {
-			parseIPFilteringSubroute(peek.Routes, toggles)
+			parseIPFilteringSubroute(peek.Routes, p)
 			continue
 		}
 
@@ -571,41 +573,62 @@ func isIPFilteringSubroute(routes []struct {
 func parseIPFilteringSubroute(routes []struct {
 	Match  []json.RawMessage `json:"match"`
 	Handle []json.RawMessage `json:"handle"`
-}, toggles *RouteToggles) {
+}, p *DomainParams) {
 	if len(routes) == 0 {
 		return
 	}
-	toggles.IPFiltering.Enabled = true
+	p.Toggles.IPFiltering.Enabled = true
 	for _, m := range routes[0].Match {
 		var match map[string]json.RawMessage
 		if json.Unmarshal(m, &match) != nil {
 			continue
 		}
-		if _, ok := match["remote_ip"]; ok {
-			toggles.IPFiltering.Type = "blacklist"
-			toggles.IPFiltering.Matcher = "remote_ip"
+		if ipRaw, ok := match["remote_ip"]; ok {
+			p.Toggles.IPFiltering.Type = "blacklist"
+			p.Toggles.IPFiltering.Matcher = "remote_ip"
+			p.IPListIPs = extractIPRanges(ipRaw)
+			p.IPListType = "blacklist"
 			return
 		}
-		if _, ok := match["client_ip"]; ok {
-			toggles.IPFiltering.Type = "blacklist"
-			toggles.IPFiltering.Matcher = "client_ip"
+		if ipRaw, ok := match["client_ip"]; ok {
+			p.Toggles.IPFiltering.Type = "blacklist"
+			p.Toggles.IPFiltering.Matcher = "client_ip"
+			p.IPListIPs = extractIPRanges(ipRaw)
+			p.IPListType = "blacklist"
 			return
 		}
 		if notRaw, ok := match["not"]; ok {
-			toggles.IPFiltering.Type = "whitelist"
+			p.Toggles.IPFiltering.Type = "whitelist"
+			p.IPListType = "whitelist"
 			var nots []map[string]json.RawMessage
 			if json.Unmarshal(notRaw, &nots) == nil {
 				for _, n := range nots {
-					if _, ok := n["client_ip"]; ok {
-						toggles.IPFiltering.Matcher = "client_ip"
+					if ipRaw, ok := n["client_ip"]; ok {
+						p.Toggles.IPFiltering.Matcher = "client_ip"
+						p.IPListIPs = extractIPRanges(ipRaw)
+						return
+					}
+					if ipRaw, ok := n["remote_ip"]; ok {
+						p.Toggles.IPFiltering.Matcher = "remote_ip"
+						p.IPListIPs = extractIPRanges(ipRaw)
 						return
 					}
 				}
 			}
-			toggles.IPFiltering.Matcher = "remote_ip"
+			p.Toggles.IPFiltering.Matcher = "remote_ip"
 			return
 		}
 	}
+}
+
+func extractIPRanges(raw json.RawMessage) []string {
+	var ip struct {
+		Ranges []string `json:"ranges"`
+	}
+	if json.Unmarshal(raw, &ip) == nil {
+		return ip.Ranges
+	}
+	return nil
 }
 
 func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
