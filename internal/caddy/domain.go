@@ -7,13 +7,14 @@ import (
 )
 
 type DomainToggles struct {
-	ForceHTTPS  bool            `json:"force_https"`
-	Compression bool            `json:"compression"`
-	Headers     HeadersConfig   `json:"headers"`
-	Auth        AuthToggle      `json:"auth"`
-	AccessLog   string          `json:"access_log"`
-	IPFiltering IPFilteringOpts `json:"ip_filtering"`
-	ErrorPages  []ErrorPage     `json:"error_pages"`
+	ForceHTTPS         bool            `json:"force_https"`
+	Compression        bool            `json:"compression"`
+	Headers            HeadersConfig   `json:"headers"`
+	Auth               AuthToggle      `json:"auth"`
+	AccessLog          string          `json:"access_log"`
+	IPFiltering        IPFilteringOpts `json:"ip_filtering"`
+	ErrorPages         []ErrorPage     `json:"error_pages"`
+	RequestBodyMaxSize string          `json:"request_body_max_size"`
 }
 
 type ErrorPage struct {

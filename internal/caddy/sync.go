@@ -19,6 +19,7 @@ type SyncPath struct {
 	Enabled         bool
 	PathMatch       string
 	MatchValue      string
+	MethodMatch     []string
 	Rule            SyncRule
 	ToggleOverrides *DomainToggles
 }

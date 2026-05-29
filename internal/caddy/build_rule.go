@@ -12,6 +12,7 @@ type RuleBuildParams struct {
 	MatchType       string // "", "path"
 	PathMatch       string // "exact", "prefix", "regex"
 	MatchValue      string
+	MethodMatch     []string
 	HandlerType     string
 	HandlerConfig   json.RawMessage
 	AdvancedHeaders bool
