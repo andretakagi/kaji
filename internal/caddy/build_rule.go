@@ -85,6 +85,17 @@ func BuildRuleDomain(domainName string, rule RuleBuildParams, toggles DomainTogg
 		})
 	}
 
+	if toggles.RequestBodyMaxSize != "" {
+		maxBytes, err := ParseByteSize(toggles.RequestBodyMaxSize)
+		if err != nil {
+			return nil, fmt.Errorf("parsing request body max size: %w", err)
+		}
+		handlers = append(handlers, map[string]any{
+			"handler":  "request_body",
+			"max_size": maxBytes,
+		})
+	}
+
 	// Compression
 	if toggles.Compression {
 		handlers = append(handlers, map[string]any{
@@ -430,6 +441,10 @@ func buildMatchBlock(domainName string, rule RuleBuildParams) []map[string]any {
 		case "regex":
 			match["path_regexp"] = map[string]string{"pattern": rule.MatchValue}
 		}
+	}
+
+	if len(rule.MethodMatch) > 0 {
+		match["method"] = rule.MethodMatch
 	}
 
 	return []map[string]any{match}
