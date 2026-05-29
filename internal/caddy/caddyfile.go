@@ -514,21 +514,23 @@ func writeSiteBlock(b *strings.Builder, p DomainParams, logWriter *caddyfileLogW
 		writeIPFilteringBlock(b, p)
 	}
 
+	matcher := ""
 	if len(p.MethodMatch) > 0 {
 		b.WriteString("\t@methods method " + strings.Join(p.MethodMatch, " ") + "\n")
+		matcher = "@methods "
 	}
 
 	switch p.HandlerType {
 	case "file_server":
-		writeFileServerDirective(b, p.HandlerConfig)
+		writeFileServerDirective(b, p.HandlerConfig, matcher)
 	case "redirect":
-		writeRedirectDirective(b, p.HandlerConfig)
+		writeRedirectDirective(b, p.HandlerConfig, matcher)
 	case "static_response":
-		writeStaticResponseDirective(b, p.HandlerConfig)
+		writeStaticResponseDirective(b, p.HandlerConfig, matcher)
 	case "error":
-		writeErrorDirective(b, p.HandlerConfig)
+		writeErrorDirective(b, p.HandlerConfig, matcher)
 	default:
-		writeReverseProxyDirective(b, p)
+		writeReverseProxyDirective(b, p, matcher)
 	}
 
 	if len(p.Toggles.ErrorPages) > 0 {
@@ -692,7 +694,7 @@ func writeIPFilteringBlock(b *strings.Builder, p DomainParams) {
 	b.WriteString("\trespond @blocked 403\n")
 }
 
-func writeReverseProxyDirective(b *strings.Builder, p DomainParams) {
+func writeReverseProxyDirective(b *strings.Builder, p DomainParams, matcher string) {
 	lbStrategy := p.Toggles.LoadBalancing.Strategy
 	if p.Toggles.LoadBalancing.Enabled && lbStrategy == "" {
 		lbStrategy = "round_robin"
@@ -727,7 +729,7 @@ func writeReverseProxyDirective(b *strings.Builder, p DomainParams) {
 				allUpstreams += " " + u
 			}
 		}
-		b.WriteString("\treverse_proxy " + allUpstreams + " {\n")
+		b.WriteString("\treverse_proxy " + matcher + allUpstreams + " {\n")
 		if p.Toggles.TLSSkipVerify {
 			b.WriteString("\t\ttransport http {\n")
 			b.WriteString("\t\t\ttls_insecure_skip_verify\n")
@@ -764,22 +766,26 @@ func writeReverseProxyDirective(b *strings.Builder, p DomainParams) {
 		}
 		b.WriteString("\t}\n")
 	} else {
-		b.WriteString("\treverse_proxy " + p.Upstream + "\n")
+		b.WriteString("\treverse_proxy " + matcher + p.Upstream + "\n")
 	}
 }
 
-func writeFileServerDirective(b *strings.Builder, handlerConfig json.RawMessage) {
+func writeFileServerDirective(b *strings.Builder, handlerConfig json.RawMessage, matcher string) {
 	var cfg FileServerConfig
 	if len(handlerConfig) > 0 {
 		json.Unmarshal(handlerConfig, &cfg)
 	}
 
 	if cfg.Root != "" {
-		b.WriteString("\troot * " + cfg.Root + "\n")
+		rootMatcher := "* "
+		if matcher != "" {
+			rootMatcher = matcher
+		}
+		b.WriteString("\troot " + rootMatcher + cfg.Root + "\n")
 	}
 
 	if cfg.Browse || len(cfg.Hide) > 0 || len(cfg.IndexNames) > 0 {
-		b.WriteString("\tfile_server {\n")
+		b.WriteString("\tfile_server " + matcher + "{\n")
 		if cfg.Browse {
 			b.WriteString("\t\tbrowse\n")
 		}
@@ -790,12 +796,14 @@ func writeFileServerDirective(b *strings.Builder, handlerConfig json.RawMessage)
 			b.WriteString("\t\thide " + h + "\n")
 		}
 		b.WriteString("\t}\n")
+	} else if matcher != "" {
+		b.WriteString("\tfile_server " + strings.TrimSpace(matcher) + "\n")
 	} else {
 		b.WriteString("\tfile_server\n")
 	}
 }
 
-func writeRedirectDirective(b *strings.Builder, handlerConfig json.RawMessage) {
+func writeRedirectDirective(b *strings.Builder, handlerConfig json.RawMessage, matcher string) {
 	var cfg RedirectConfig
 	if len(handlerConfig) > 0 {
 		json.Unmarshal(handlerConfig, &cfg)
@@ -811,17 +819,21 @@ func writeRedirectDirective(b *strings.Builder, handlerConfig json.RawMessage) {
 		target = strings.TrimRight(target, "/") + "{uri}"
 	}
 
-	b.WriteString("\tredir " + target + " " + statusCode + "\n")
+	b.WriteString("\tredir " + matcher + target + " " + statusCode + "\n")
 }
 
-func writeStaticResponseDirective(b *strings.Builder, handlerConfig json.RawMessage) {
+func writeStaticResponseDirective(b *strings.Builder, handlerConfig json.RawMessage, matcher string) {
 	var cfg StaticResponseConfig
 	if len(handlerConfig) > 0 {
 		json.Unmarshal(handlerConfig, &cfg)
 	}
 
 	if cfg.Close {
-		b.WriteString("\tabort\n")
+		if matcher != "" {
+			b.WriteString("\tabort " + strings.TrimSpace(matcher) + "\n")
+		} else {
+			b.WriteString("\tabort\n")
+		}
 		return
 	}
 
@@ -831,13 +843,13 @@ func writeStaticResponseDirective(b *strings.Builder, handlerConfig json.RawMess
 	}
 
 	if cfg.Body != "" {
-		b.WriteString("\trespond \"" + cfg.Body + "\" " + statusCode + "\n")
+		b.WriteString("\trespond " + matcher + "\"" + cfg.Body + "\" " + statusCode + "\n")
 	} else {
-		b.WriteString("\trespond " + statusCode + "\n")
+		b.WriteString("\trespond " + matcher + statusCode + "\n")
 	}
 }
 
-func writeErrorDirective(b *strings.Builder, handlerConfig json.RawMessage) {
+func writeErrorDirective(b *strings.Builder, handlerConfig json.RawMessage, matcher string) {
 	var cfg ErrorConfig
 	if len(handlerConfig) > 0 {
 		json.Unmarshal(handlerConfig, &cfg)
@@ -849,9 +861,9 @@ func writeErrorDirective(b *strings.Builder, handlerConfig json.RawMessage) {
 	}
 
 	if cfg.Message != "" {
-		b.WriteString("\terror \"" + cfg.Message + "\" " + statusCode + "\n")
+		b.WriteString("\terror " + matcher + "\"" + cfg.Message + "\" " + statusCode + "\n")
 	} else {
-		b.WriteString("\terror " + statusCode + "\n")
+		b.WriteString("\terror " + matcher + statusCode + "\n")
 	}
 }
 

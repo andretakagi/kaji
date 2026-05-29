@@ -429,11 +429,12 @@ var validHTTPMethods = map[string]bool{
 }
 
 func validateMethodMatch(methods []string) string {
-	for _, m := range methods {
+	for i, m := range methods {
 		upper := strings.ToUpper(strings.TrimSpace(m))
 		if !validHTTPMethods[upper] {
 			return fmt.Sprintf("invalid HTTP method: %s", m)
 		}
+		methods[i] = upper
 	}
 	return ""
 }
