@@ -399,6 +399,7 @@ func toSyncPaths(paths []config.Path) []caddy.SyncPath {
 			Enabled:         p.Enabled,
 			PathMatch:       p.PathMatch,
 			MatchValue:      p.MatchValue,
+			MethodMatch:     p.MethodMatch,
 			Rule:            toSyncRule(p.Rule),
 			ToggleOverrides: p.ToggleOverrides,
 		}
