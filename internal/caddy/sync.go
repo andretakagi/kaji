@@ -19,6 +19,7 @@ type SyncPath struct {
 	Enabled         bool
 	PathMatch       string
 	MatchValue      string
+	MethodMatch     []string
 	Rule            SyncRule
 	ToggleOverrides *DomainToggles
 }
@@ -238,6 +239,7 @@ func emitPathRoutes(
 			MatchType:       "path",
 			PathMatch:       p.PathMatch,
 			MatchValue:      p.MatchValue,
+			MethodMatch:     p.MethodMatch,
 			HandlerType:     p.Rule.HandlerType,
 			HandlerConfig:   p.Rule.HandlerConfig,
 			AdvancedHeaders: p.Rule.AdvancedHeaders,

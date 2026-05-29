@@ -1734,6 +1734,16 @@ input:disabled + .toggle-slider {
 	line-height: 1.3;
 }
 
+.toggle-input-sm {
+	width: 7rem;
+	padding: 0.25rem 0.5rem;
+	font-size: 0.85rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	background: var(--surface);
+	color: var(--text);
+}
+
 .toggle-group {
 	display: flex;
 	flex-direction: column;

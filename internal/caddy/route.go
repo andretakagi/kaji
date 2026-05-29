@@ -21,6 +21,7 @@ type DomainParams struct {
 	PrependPathPrefix string          `json:"-"`
 	IPListIPs         []string        `json:"-"`
 	IPListType        string          `json:"-"`
+	MethodMatch       []string        `json:"-"`
 }
 
 type IPFilteringOpts struct {
@@ -38,16 +39,18 @@ func ipMatcherKey(matcher string) string {
 }
 
 type RouteToggles struct {
-	Enabled           bool            `json:"enabled"`
-	ForceHTTPS        bool            `json:"force_https"`
-	Compression       bool            `json:"compression"`
-	Headers           HeadersConfig   `json:"headers"`
-	TLSSkipVerify     bool            `json:"tls_skip_verify"`
-	Auth              AuthToggle      `json:"auth"`
-	AccessLog         string          `json:"access_log"`
-	WebSocketPassthru bool            `json:"websocket_passthrough"`
-	LoadBalancing     LoadBalancing   `json:"load_balancing"`
-	IPFiltering       IPFilteringOpts `json:"ip_filtering"`
+	Enabled            bool            `json:"enabled"`
+	ForceHTTPS         bool            `json:"force_https"`
+	Compression        bool            `json:"compression"`
+	Headers            HeadersConfig   `json:"headers"`
+	TLSSkipVerify      bool            `json:"tls_skip_verify"`
+	Auth               AuthToggle      `json:"auth"`
+	AccessLog          string          `json:"access_log"`
+	WebSocketPassthru  bool            `json:"websocket_passthrough"`
+	LoadBalancing      LoadBalancing   `json:"load_balancing"`
+	IPFiltering        IPFilteringOpts `json:"ip_filtering"`
+	ErrorPages         []ErrorPage     `json:"error_pages,omitempty"`
+	RequestBodyMaxSize string          `json:"request_body_max_size,omitempty"`
 }
 
 type LoadBalancing struct {
@@ -397,7 +400,8 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 	var route struct {
 		ID    string `json:"@id"`
 		Match []struct {
-			Host []string `json:"host"`
+			Host   []string `json:"host"`
+			Method []string `json:"method"`
 		} `json:"match"`
 		Handle []json.RawMessage `json:"handle"`
 	}
@@ -410,8 +414,11 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 	if len(route.Match) > 0 && len(route.Match[0].Host) > 0 {
 		p.Domain = route.Match[0].Host[0]
 	}
+	if len(route.Match) > 0 && len(route.Match[0].Method) > 0 {
+		p.MethodMatch = route.Match[0].Method
+	}
 
-	handlers := flattenHandlers(route.Handle, &p.Toggles)
+	handlers := flattenHandlers(route.Handle, &p)
 	parseHandlers(handlers, &p)
 
 	if p.HandlerType == "reverse_proxy" && (p.StripPathPrefix != "" || p.PrependPathPrefix != "") {
@@ -432,7 +439,8 @@ func ParseDomainParams(raw json.RawMessage) (DomainParams, error) {
 // Caddyfile-adapted routes wrap everything in a top-level subroute - this
 // unwraps that layer. Kaji's ForceHTTPS subroute (identifiable by a nested
 // "protocol":"http" match) is detected separately and not unwrapped.
-func flattenHandlers(topLevel []json.RawMessage, toggles *RouteToggles) []json.RawMessage {
+func flattenHandlers(topLevel []json.RawMessage, p *DomainParams) []json.RawMessage {
+	toggles := &p.Toggles
 	var result []json.RawMessage
 
 	for _, h := range topLevel {
@@ -472,7 +480,7 @@ func flattenHandlers(topLevel []json.RawMessage, toggles *RouteToggles) []json.R
 		}
 
 		if isIPFilteringSubroute(peek.Routes) {
-			parseIPFilteringSubroute(peek.Routes, toggles)
+			parseIPFilteringSubroute(peek.Routes, p)
 			continue
 		}
 
@@ -571,41 +579,62 @@ func isIPFilteringSubroute(routes []struct {
 func parseIPFilteringSubroute(routes []struct {
 	Match  []json.RawMessage `json:"match"`
 	Handle []json.RawMessage `json:"handle"`
-}, toggles *RouteToggles) {
+}, p *DomainParams) {
 	if len(routes) == 0 {
 		return
 	}
-	toggles.IPFiltering.Enabled = true
+	p.Toggles.IPFiltering.Enabled = true
 	for _, m := range routes[0].Match {
 		var match map[string]json.RawMessage
 		if json.Unmarshal(m, &match) != nil {
 			continue
 		}
-		if _, ok := match["remote_ip"]; ok {
-			toggles.IPFiltering.Type = "blacklist"
-			toggles.IPFiltering.Matcher = "remote_ip"
+		if ipRaw, ok := match["remote_ip"]; ok {
+			p.Toggles.IPFiltering.Type = "blacklist"
+			p.Toggles.IPFiltering.Matcher = "remote_ip"
+			p.IPListIPs = extractIPRanges(ipRaw)
+			p.IPListType = "blacklist"
 			return
 		}
-		if _, ok := match["client_ip"]; ok {
-			toggles.IPFiltering.Type = "blacklist"
-			toggles.IPFiltering.Matcher = "client_ip"
+		if ipRaw, ok := match["client_ip"]; ok {
+			p.Toggles.IPFiltering.Type = "blacklist"
+			p.Toggles.IPFiltering.Matcher = "client_ip"
+			p.IPListIPs = extractIPRanges(ipRaw)
+			p.IPListType = "blacklist"
 			return
 		}
 		if notRaw, ok := match["not"]; ok {
-			toggles.IPFiltering.Type = "whitelist"
+			p.Toggles.IPFiltering.Type = "whitelist"
+			p.IPListType = "whitelist"
 			var nots []map[string]json.RawMessage
 			if json.Unmarshal(notRaw, &nots) == nil {
 				for _, n := range nots {
-					if _, ok := n["client_ip"]; ok {
-						toggles.IPFiltering.Matcher = "client_ip"
+					if ipRaw, ok := n["client_ip"]; ok {
+						p.Toggles.IPFiltering.Matcher = "client_ip"
+						p.IPListIPs = extractIPRanges(ipRaw)
+						return
+					}
+					if ipRaw, ok := n["remote_ip"]; ok {
+						p.Toggles.IPFiltering.Matcher = "remote_ip"
+						p.IPListIPs = extractIPRanges(ipRaw)
 						return
 					}
 				}
 			}
-			toggles.IPFiltering.Matcher = "remote_ip"
+			p.Toggles.IPFiltering.Matcher = "remote_ip"
 			return
 		}
 	}
+}
+
+func extractIPRanges(raw json.RawMessage) []string {
+	var ip struct {
+		Ranges []string `json:"ranges"`
+	}
+	if json.Unmarshal(raw, &ip) == nil {
+		return ip.Ranges
+	}
+	return nil
 }
 
 func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
@@ -727,6 +756,16 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 
 		case "encode":
 			p.Toggles.Compression = true
+
+		case "request_body":
+			var rb struct {
+				MaxSize json.Number `json:"max_size"`
+			}
+			if json.Unmarshal(h, &rb) == nil {
+				if bytes, err := rb.MaxSize.Int64(); err == nil && bytes > 0 {
+					p.Toggles.RequestBodyMaxSize = formatByteSize(bytes)
+				}
+			}
 
 		case "headers":
 			var full struct {
@@ -1149,6 +1188,19 @@ func parseErrorHandler(raw json.RawMessage, p *DomainParams) {
 	}
 	p.HandlerType = "error"
 	p.HandlerConfig = data
+}
+
+func formatByteSize(bytes int64) string {
+	switch {
+	case bytes >= 1<<30 && bytes%(1<<30) == 0:
+		return fmt.Sprintf("%dGB", bytes/(1<<30))
+	case bytes >= 1<<20 && bytes%(1<<20) == 0:
+		return fmt.Sprintf("%dMB", bytes/(1<<20))
+	case bytes >= 1<<10 && bytes%(1<<10) == 0:
+		return fmt.Sprintf("%dKB", bytes/(1<<10))
+	default:
+		return fmt.Sprintf("%d", bytes)
+	}
 }
 
 func hasForwardAuthHeaders(raw json.RawMessage) bool {

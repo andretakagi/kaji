@@ -26,6 +26,7 @@ export interface DomainToggles {
 		matcher: "remote_ip" | "client_ip";
 	};
 	error_pages: ErrorPage[];
+	request_body_max_size: string;
 }
 
 export interface ErrorPage {
@@ -105,6 +106,7 @@ export interface Path {
 	enabled: boolean;
 	path_match: PathMatch;
 	match_value: string;
+	method_match?: HttpMethod[];
 	rule: Rule;
 	toggle_overrides?: DomainToggles | null;
 }
@@ -138,6 +140,7 @@ export interface CreatePathRequest {
 	label?: string;
 	path_match: PathMatch;
 	match_value: string;
+	method_match?: HttpMethod[];
 	rule: UpdateRuleRequest;
 	toggle_overrides?: DomainToggles | null;
 }
@@ -199,6 +202,7 @@ export const defaultDomainToggles: DomainToggles = {
 	access_log: "",
 	ip_filtering: { enabled: false, list_id: "", type: "", matcher: "remote_ip" },
 	error_pages: [],
+	request_body_max_size: "",
 };
 
 export const defaultReverseProxyConfig: ReverseProxyConfig = {
@@ -283,6 +287,18 @@ export const pathMatchLabels: Record<PathMatch, string> = {
 	exact: "Exact",
 	regex: "Regex",
 };
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+
+export const httpMethodOptions: { value: HttpMethod; label: string }[] = [
+	{ value: "GET", label: "GET" },
+	{ value: "POST", label: "POST" },
+	{ value: "PUT", label: "PUT" },
+	{ value: "PATCH", label: "PATCH" },
+	{ value: "DELETE", label: "DELETE" },
+	{ value: "HEAD", label: "HEAD" },
+	{ value: "OPTIONS", label: "OPT" },
+];
 
 export const handlerLabels: Record<RuleHandlerType, string> = {
 	reverse_proxy: "Reverse Proxy",

@@ -25,7 +25,26 @@ interface SegmentedToggleProps<T extends string> {
 	"aria-label"?: string;
 }
 
-export type ToggleProps<T extends string = string> = BooleanToggleProps | SegmentedToggleProps<T>;
+interface MultiSegmentedToggleProps<T extends string> {
+	options: readonly OptionDef<T>[];
+	value: T[];
+	onChange: (value: T[]) => void;
+	disabled?: boolean;
+	small?: boolean;
+	id?: string;
+	"aria-label"?: string;
+}
+
+export type ToggleProps<T extends string = string> =
+	| BooleanToggleProps
+	| SegmentedToggleProps<T>
+	| MultiSegmentedToggleProps<T>;
+
+function isMultiSegmented<T extends string>(
+	props: ToggleProps<T>,
+): props is MultiSegmentedToggleProps<T> {
+	return "options" in props && props.options !== undefined && Array.isArray(props.value);
+}
 
 function isBooleanToggle(props: ToggleProps<string>): props is BooleanToggleProps {
 	return !("options" in props) || props.options === undefined;
@@ -40,6 +59,9 @@ function optionLabel<T extends string>(opt: OptionDef<T>): string {
 }
 
 export function Toggle<T extends string = string>(props: ToggleProps<T>) {
+	if (isMultiSegmented(props)) {
+		return <MultiSegmentedControl {...props} />;
+	}
 	if (isBooleanToggle(props as ToggleProps<string>)) {
 		return <BooleanSwitch {...(props as BooleanToggleProps)} />;
 	}
@@ -120,6 +142,48 @@ function SegmentedControl<T extends string>({
 						aria-pressed={active}
 						className={cn("toggle-segment", active && "active")}
 						onClick={() => onChange(v)}
+					>
+						{optionLabel(opt)}
+					</button>
+				);
+			})}
+		</fieldset>
+	);
+}
+
+function MultiSegmentedControl<T extends string>({
+	options,
+	value,
+	onChange,
+	disabled,
+	id,
+	"aria-label": ariaLabel,
+}: MultiSegmentedToggleProps<T>) {
+	const toggle = (v: T) => {
+		if (value.includes(v)) {
+			onChange(value.filter((x) => x !== v));
+		} else {
+			onChange([...value, v]);
+		}
+	};
+
+	return (
+		<fieldset
+			className={cn("toggle-segmented", disabled && "toggle-segmented-disabled")}
+			id={id}
+			aria-label={ariaLabel}
+			disabled={disabled}
+		>
+			{options.map((opt) => {
+				const v = optionValue(opt);
+				const active = value.includes(v);
+				return (
+					<button
+						key={v}
+						type="button"
+						aria-pressed={active}
+						className={cn("toggle-segment", active && "active")}
+						onClick={() => toggle(v)}
 					>
 						{optionLabel(opt)}
 					</button>

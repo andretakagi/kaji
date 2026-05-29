@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -308,7 +307,7 @@ func TestAccessLogSkipsNonAPIPath(t *testing.T) {
 	if !called {
 		t.Error("next handler was not called for non-API path")
 	}
-	if !strings.HasPrefix("/index.html", "/api/") && rec.Code != http.StatusOK {
+	if rec.Code != http.StatusOK {
 		t.Errorf("got %d, want 200", rec.Code)
 	}
 }

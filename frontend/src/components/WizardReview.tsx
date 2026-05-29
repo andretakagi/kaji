@@ -269,6 +269,9 @@ export default function WizardReview({ data, onEditStep }: Props) {
 								</div>
 								<div className="wizard-review-details">
 									<HandlerDetails type={entry.path.handlerType} config={entry.path.handlerConfig} />
+									{entry.path.methodMatch.length > 0 && (
+										<DetailRow label="Methods" value={entry.path.methodMatch.join(", ")} />
+									)}
 									{entry.path.toggleOverrides && <DetailRow label="Overrides" value="Yes" />}
 								</div>
 							</div>

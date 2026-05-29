@@ -142,28 +142,24 @@ func TestStripGoStructs(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
-		check func(string) bool
-		desc  string
+		want  string
 	}{
 		{
 			name:  "with_struct",
 			input: `open file: &logging.FileWriter{Filename:"/tmp/log"}: permission denied`,
-			check: func(s string) bool { return !strings.Contains(s, "&logging") },
-			desc:  "should not contain &logging",
+			want:  "open file: permission denied",
 		},
 		{
 			name:  "no_structs",
 			input: "simple error message",
-			check: func(s string) bool { return s == "simple error message" },
-			desc:  "should be unchanged",
+			want:  "simple error message",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := stripGoStructs(tt.input)
-			if !tt.check(got) {
-				t.Errorf("stripGoStructs(%q) = %q, %s", tt.input, got, tt.desc)
+			if got := stripGoStructs(tt.input); got != tt.want {
+				t.Errorf("stripGoStructs(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -171,35 +167,31 @@ func TestStripGoStructs(t *testing.T) {
 
 func TestValidateLogFilePaths(t *testing.T) {
 	tests := []struct {
-		name    string
-		body    string
-		wantErr bool
+		name string
+		body string
+		want string
 	}{
 		{
-			name:    "valid_path",
-			body:    `{"logs":{"mylog":{"writer":{"output":"file","filename":"/var/log/caddy/access.log"}}}}`,
-			wantErr: false,
+			name: "valid_path",
+			body: `{"logs":{"mylog":{"writer":{"output":"file","filename":"/var/log/caddy/access.log"}}}}`,
+			want: "",
 		},
 		{
-			name:    "invalid_path",
-			body:    `{"logs":{"mylog":{"writer":{"output":"file","filename":"/tmp/evil.log"}}}}`,
-			wantErr: true,
+			name: "invalid_path",
+			body: `{"logs":{"mylog":{"writer":{"output":"file","filename":"/tmp/evil.log"}}}}`,
+			want: "log 'mylog': file path must be under /var/log/caddy/",
 		},
 		{
-			name:    "non_file_output",
-			body:    `{"logs":{"mylog":{"writer":{"output":"stdout"}}}}`,
-			wantErr: false,
+			name: "non_file_output",
+			body: `{"logs":{"mylog":{"writer":{"output":"stdout"}}}}`,
+			want: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := validateLogFilePaths([]byte(tt.body), "/var/log/caddy/")
-			if tt.wantErr && got == "" {
-				t.Error("expected non-empty error string, got empty")
-			}
-			if !tt.wantErr && got != "" {
-				t.Errorf("expected empty error string, got %q", got)
+			if got := validateLogFilePaths([]byte(tt.body), "/var/log/caddy/"); got != tt.want {
+				t.Errorf("validateLogFilePaths() = %q, want %q", got, tt.want)
 			}
 		})
 	}

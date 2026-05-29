@@ -15,6 +15,7 @@ type pathRequest struct {
 	Label           string               `json:"label,omitempty"`
 	PathMatch       string               `json:"path_match"`
 	MatchValue      string               `json:"match_value"`
+	MethodMatch     []string             `json:"method_match,omitempty"`
 	Rule            updateRuleRequest    `json:"rule"`
 	ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides,omitempty"`
 }
@@ -35,10 +36,18 @@ func validatePathRequest(w http.ResponseWriter, store *config.ConfigStore, p *pa
 		writeError(w, errPrefix+"match_value is required", http.StatusBadRequest)
 		return false
 	}
+	if msg := validateMethodMatch(p.MethodMatch); msg != "" {
+		writeError(w, errPrefix+msg, http.StatusBadRequest)
+		return false
+	}
 	if !validateRule(w, p.Rule, false) {
 		return false
 	}
 	if p.ToggleOverrides != nil {
+		if msg := validateByteSize(p.ToggleOverrides.RequestBodyMaxSize); msg != "" {
+			writeError(w, errPrefix+msg, http.StatusBadRequest)
+			return false
+		}
 		if p.ToggleOverrides.Auth.Mode == "" {
 			p.ToggleOverrides.Auth.Mode = "off"
 		}
@@ -67,11 +76,12 @@ func existingPathHash(paths []config.Path, pathID string) string {
 
 func pathFromRequest(p pathRequest) config.Path {
 	return config.Path{
-		ID:         caddy.GeneratePathID(),
-		Label:      p.Label,
-		Enabled:    true,
-		PathMatch:  p.PathMatch,
-		MatchValue: p.MatchValue,
+		ID:          caddy.GeneratePathID(),
+		Label:       p.Label,
+		Enabled:     true,
+		PathMatch:   p.PathMatch,
+		MatchValue:  p.MatchValue,
+		MethodMatch: p.MethodMatch,
 		Rule: config.Rule{
 			HandlerType:     p.Rule.HandlerType,
 			HandlerConfig:   p.Rule.HandlerConfig,
@@ -98,6 +108,7 @@ func applyPathUpdate(existing *config.Path, req pathRequest) {
 	existing.Label = req.Label
 	existing.PathMatch = req.PathMatch
 	existing.MatchValue = req.MatchValue
+	existing.MethodMatch = req.MethodMatch
 	existing.Rule.HandlerType = req.Rule.HandlerType
 	existing.Rule.HandlerConfig = req.Rule.HandlerConfig
 	existing.Rule.AdvancedHeaders = req.Rule.AdvancedHeaders

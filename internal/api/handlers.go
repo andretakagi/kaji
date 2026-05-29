@@ -360,7 +360,7 @@ var goStructRe = regexp.MustCompile(`\s*(?:using\s+)?&\w+(?:\.\w+)*\{[^}]*\}`)
 
 func stripGoStructs(msg string) string {
 	cleaned := goStructRe.ReplaceAllString(msg, "")
-	cleaned = strings.ReplaceAll(cleaned, ": : ", ": ")
+	cleaned = strings.ReplaceAll(cleaned, ":: ", ": ")
 	return strings.TrimSpace(cleaned)
 }
 

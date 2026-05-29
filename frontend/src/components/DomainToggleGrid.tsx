@@ -73,6 +73,23 @@ export function DomainToggleGrid({
 				onChange={(v) => onUpdate("compression", v)}
 				disabled={disabled}
 			/>
+			<div className={cn("toggle-item", disabled && "toggle-item-disabled")}>
+				<div className="toggle-item-text">
+					<label htmlFor={`${idPrefix}-max-body`} className="toggle-item-label">
+						Max Request Body
+					</label>
+					<span className="toggle-item-desc">Limit upload size per request</span>
+				</div>
+				<input
+					id={`${idPrefix}-max-body`}
+					type="text"
+					className="toggle-input-sm"
+					placeholder="e.g. 10MB"
+					value={toggles.request_body_max_size}
+					onChange={(e) => onUpdate("request_body_max_size", e.target.value)}
+					disabled={disabled}
+				/>
+			</div>
 			{!hideHeaders && (
 				<RequestHeadersGroup
 					toggles={toggles}

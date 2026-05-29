@@ -72,6 +72,7 @@ type Path struct {
 	Enabled         bool                 `json:"enabled"`
 	PathMatch       string               `json:"path_match"`
 	MatchValue      string               `json:"match_value"`
+	MethodMatch     []string             `json:"method_match,omitempty"`
 	Rule            Rule                 `json:"rule"`
 	ToggleOverrides *caddy.DomainToggles `json:"toggle_overrides,omitempty"`
 }
