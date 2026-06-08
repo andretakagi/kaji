@@ -131,16 +131,22 @@ func validateAutoHTTPS(value string) string {
 }
 
 var validLBStrategies = map[string]bool{
-	"round_robin": true,
-	"first":       true,
-	"least_conn":  true,
-	"random":      true,
-	"ip_hash":     true,
+	"round_robin":          true,
+	"weighted_round_robin": true,
+	"first":                true,
+	"least_conn":           true,
+	"random":               true,
+	"ip_hash":              true,
+	"client_ip_hash":       true,
+	"uri_hash":             true,
+	"query":                true,
+	"header":               true,
+	"cookie":               true,
 }
 
 func validateLBStrategy(strategy string) string {
 	if !validLBStrategies[strategy] {
-		return "load balancing strategy must be one of: round_robin, first, least_conn, random, ip_hash"
+		return "load balancing strategy must be one of: round_robin, weighted_round_robin, first, least_conn, random, ip_hash, client_ip_hash, uri_hash, query, header, cookie"
 	}
 	return ""
 }
@@ -464,6 +470,48 @@ func validateLoadBalancing(w http.ResponseWriter, lb caddy.LoadBalancing) bool {
 	for _, u := range lb.Upstreams {
 		if msg := validateUpstream(u); msg != "" {
 			writeError(w, "additional upstream: "+msg, http.StatusBadRequest)
+			return false
+		}
+	}
+	switch lb.Strategy {
+	case "weighted_round_robin":
+		if len(lb.Weights) > 0 {
+			if len(lb.Weights) != 1+len(lb.Upstreams) {
+				writeError(w, "weighted round robin requires one weight per upstream", http.StatusBadRequest)
+				return false
+			}
+			for _, weight := range lb.Weights {
+				if weight < 1 {
+					writeError(w, "upstream weights must be 1 or greater", http.StatusBadRequest)
+					return false
+				}
+			}
+		}
+	case "query":
+		if lb.Key == "" {
+			writeError(w, "query load balancing requires a query parameter name", http.StatusBadRequest)
+			return false
+		}
+		if len(lb.Key) > 256 {
+			writeError(w, "query parameter name is too long", http.StatusBadRequest)
+			return false
+		}
+	case "header":
+		if lb.Key == "" {
+			writeError(w, "header load balancing requires a header field name", http.StatusBadRequest)
+			return false
+		}
+		if len(lb.Key) > 256 {
+			writeError(w, "header field name is too long", http.StatusBadRequest)
+			return false
+		}
+	case "cookie":
+		if len(lb.Key) > 256 {
+			writeError(w, "cookie name is too long", http.StatusBadRequest)
+			return false
+		}
+		if len(lb.Secret) > 256 {
+			writeError(w, "cookie secret is too long", http.StatusBadRequest)
 			return false
 		}
 	}

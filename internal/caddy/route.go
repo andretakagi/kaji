@@ -57,6 +57,49 @@ type LoadBalancing struct {
 	Enabled   bool     `json:"enabled"`
 	Strategy  string   `json:"strategy"`
 	Upstreams []string `json:"upstreams,omitempty"`
+	// Weights parallels the full upstream list (primary at index 0). weighted_round_robin only.
+	Weights []int `json:"weights,omitempty"`
+	// Key is the query parameter, header field, or cookie name for query/header/cookie policies.
+	Key string `json:"key,omitempty"`
+	// Secret is the optional HMAC key for the cookie policy.
+	Secret string `json:"secret,omitempty"`
+}
+
+// buildSelectionPolicy returns the Caddy load_balancing.selection_policy map for a
+// LoadBalancing config. upstreamCount is the total number of upstreams (primary plus
+// additional), used to size the weighted_round_robin weights array.
+func buildSelectionPolicy(lb LoadBalancing, upstreamCount int) map[string]any {
+	strategy := lb.Strategy
+	if strategy == "" {
+		strategy = "round_robin"
+	}
+	policy := map[string]any{"policy": strategy}
+	switch strategy {
+	case "weighted_round_robin":
+		weights := make([]int, upstreamCount)
+		for i := range weights {
+			if i < len(lb.Weights) && lb.Weights[i] > 0 {
+				weights[i] = lb.Weights[i]
+			} else {
+				weights[i] = 1
+			}
+		}
+		policy["weights"] = weights
+	case "query":
+		policy["key"] = lb.Key
+	case "header":
+		policy["field"] = lb.Key
+	case "cookie":
+		name := lb.Key
+		if name == "" {
+			name = "lb"
+		}
+		policy["name"] = name
+		if lb.Secret != "" {
+			policy["secret"] = lb.Secret
+		}
+	}
+	return map[string]any{"selection_policy": policy}
 }
 
 type HeadersConfig struct {
@@ -292,15 +335,7 @@ func BuildDomain(p DomainParams, forwardAuthCfg *ForwardAuthConfig) (json.RawMes
 	}
 
 	if p.Toggles.LoadBalancing.Enabled {
-		strategy := p.Toggles.LoadBalancing.Strategy
-		if strategy == "" {
-			strategy = "round_robin"
-		}
-		rp["load_balancing"] = map[string]any{
-			"selection_policy": map[string]any{
-				"policy": strategy,
-			},
-		}
+		rp["load_balancing"] = buildSelectionPolicy(p.Toggles.LoadBalancing, len(upstreams))
 	}
 
 	if p.HandlerType == "reverse_proxy" && len(p.HandlerConfig) > 0 {
@@ -689,12 +724,28 @@ func parseHandlers(handlers []json.RawMessage, p *DomainParams) {
 			if handler.LB != nil {
 				var lb struct {
 					SelectionPolicy struct {
-						Policy string `json:"policy"`
+						Policy  string `json:"policy"`
+						Weights []int  `json:"weights"`
+						Key     string `json:"key"`
+						Field   string `json:"field"`
+						Name    string `json:"name"`
+						Secret  string `json:"secret"`
 					} `json:"selection_policy"`
 				}
 				if json.Unmarshal(handler.LB, &lb) == nil && lb.SelectionPolicy.Policy != "" {
+					sp := lb.SelectionPolicy
 					p.Toggles.LoadBalancing.Enabled = true
-					p.Toggles.LoadBalancing.Strategy = lb.SelectionPolicy.Policy
+					p.Toggles.LoadBalancing.Strategy = sp.Policy
+					p.Toggles.LoadBalancing.Weights = sp.Weights
+					p.Toggles.LoadBalancing.Secret = sp.Secret
+					switch sp.Policy {
+					case "query":
+						p.Toggles.LoadBalancing.Key = sp.Key
+					case "header":
+						p.Toggles.LoadBalancing.Key = sp.Field
+					case "cookie":
+						p.Toggles.LoadBalancing.Key = sp.Name
+					}
 				}
 			}
 			var hcRaw struct {

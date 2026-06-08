@@ -175,20 +175,27 @@ func TestValidateAutoHTTPS(t *testing.T) {
 }
 
 func TestValidateLBStrategy(t *testing.T) {
+	const wantErr = "load balancing strategy must be one of: round_robin, weighted_round_robin, first, least_conn, random, ip_hash, client_ip_hash, uri_hash, query, header, cookie"
 	cases := []struct {
 		name  string
 		input string
 		want  string
 	}{
 		{"round_robin", "round_robin", ""},
+		{"weighted_round_robin", "weighted_round_robin", ""},
 		{"first", "first", ""},
 		{"least_conn", "least_conn", ""},
 		{"random", "random", ""},
 		{"ip_hash", "ip_hash", ""},
-		{"empty", "", "load balancing strategy must be one of: round_robin, first, least_conn, random, ip_hash"},
-		{"uppercase", "ROUND_ROBIN", "load balancing strategy must be one of: round_robin, first, least_conn, random, ip_hash"},
-		{"invalid", "weighted", "load balancing strategy must be one of: round_robin, first, least_conn, random, ip_hash"},
-		{"partial match", "round", "load balancing strategy must be one of: round_robin, first, least_conn, random, ip_hash"},
+		{"client_ip_hash", "client_ip_hash", ""},
+		{"uri_hash", "uri_hash", ""},
+		{"query", "query", ""},
+		{"header", "header", ""},
+		{"cookie", "cookie", ""},
+		{"empty", "", wantErr},
+		{"uppercase", "ROUND_ROBIN", wantErr},
+		{"invalid", "weighted", wantErr},
+		{"partial match", "round", wantErr},
 	}
 
 	for _, tc := range cases {

@@ -41,8 +41,22 @@ export interface ReverseProxyConfig {
 	websocket_passthrough: boolean;
 	load_balancing: {
 		enabled: boolean;
-		strategy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
+		strategy:
+			| "round_robin"
+			| "weighted_round_robin"
+			| "first"
+			| "least_conn"
+			| "random"
+			| "ip_hash"
+			| "client_ip_hash"
+			| "uri_hash"
+			| "query"
+			| "header"
+			| "cookie";
 		upstreams: string[];
+		weights?: number[];
+		key?: string;
+		secret?: string;
 	};
 	header_up: HeaderUpConfig;
 	header_down: HeaderDownConfig;

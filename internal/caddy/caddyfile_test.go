@@ -459,6 +459,110 @@ func TestGenerateCaddyfileLoadBalancingFirst(t *testing.T) {
 	assertContains(t, out, "max_fails 3", "max_fails")
 }
 
+func TestGenerateCaddyfileLoadBalancingWeighted(t *testing.T) {
+	raw, err := BuildDomain(DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "weighted_round_robin",
+				Upstreams: []string{"localhost:8081", "localhost:8082"},
+				Weights:   []int{3, 2, 1},
+			},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BuildDomain failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "lb_policy weighted_round_robin 3 2 1", "lb_policy weighted")
+}
+
+func TestGenerateCaddyfileLoadBalancingWeightedDefaults(t *testing.T) {
+	raw, err := BuildDomain(DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "weighted_round_robin",
+				Upstreams: []string{"localhost:8081"},
+			},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BuildDomain failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "lb_policy weighted_round_robin 1 1", "lb_policy weighted defaults")
+}
+
+func TestGenerateCaddyfileLoadBalancingQuery(t *testing.T) {
+	raw, err := BuildDomain(DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "query",
+				Upstreams: []string{"localhost:8081"},
+				Key:       "session",
+			},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BuildDomain failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "lb_policy query session", "lb_policy query")
+}
+
+func TestGenerateCaddyfileLoadBalancingCookie(t *testing.T) {
+	raw, err := BuildDomain(DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "cookie",
+				Upstreams: []string{"localhost:8081"},
+				Key:       "sticky",
+				Secret:    "s3cr3t",
+			},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("BuildDomain failed: %v", err)
+	}
+
+	cfg := buildFullConfig(t, []json.RawMessage{raw}, "", "off", false, false)
+	out, err := GenerateCaddyfile(cfg, "", nil, nil)
+	if err != nil {
+		t.Fatalf("GenerateCaddyfile failed: %v", err)
+	}
+
+	assertContains(t, out, "lb_policy cookie sticky s3cr3t", "lb_policy cookie")
+}
+
 // TestGenerateCaddyfileForceHTTPS verifies that ForceHTTPS produces a
 // separate http:// redirect block before the main site block.
 func TestGenerateCaddyfileForceHTTPS(t *testing.T) {

@@ -1907,6 +1907,12 @@ input:disabled + .toggle-slider {
 	flex: 1;
 }
 
+.lb-upstream-row input.lb-upstream-weight {
+	flex: 0 0 4rem;
+	width: 4rem;
+	text-align: center;
+}
+
 .lb-upstream-remove {
 	display: flex;
 	align-items: center;
