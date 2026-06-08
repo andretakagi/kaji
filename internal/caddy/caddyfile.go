@@ -694,6 +694,40 @@ func writeIPFilteringBlock(b *strings.Builder, p DomainParams) {
 	b.WriteString("\trespond @blocked 403\n")
 }
 
+// caddyfileLBPolicy renders the lb_policy directive arguments for a load balancing
+// config, appending the per-policy parameters Caddy expects on the same line.
+func caddyfileLBPolicy(lb LoadBalancing, strategy string, upstreamCount int) string {
+	switch strategy {
+	case "weighted_round_robin":
+		parts := []string{strategy}
+		for i := 0; i < upstreamCount; i++ {
+			w := 1
+			if i < len(lb.Weights) && lb.Weights[i] > 0 {
+				w = lb.Weights[i]
+			}
+			parts = append(parts, strconv.Itoa(w))
+		}
+		return strings.Join(parts, " ")
+	case "query", "header":
+		if lb.Key != "" {
+			return strategy + " " + lb.Key
+		}
+		return strategy
+	case "cookie":
+		name := lb.Key
+		if name == "" {
+			name = "lb"
+		}
+		out := strategy + " " + name
+		if lb.Secret != "" {
+			out += " " + lb.Secret
+		}
+		return out
+	default:
+		return strategy
+	}
+}
+
 func writeReverseProxyDirective(b *strings.Builder, p DomainParams, matcher string) {
 	lbStrategy := p.Toggles.LoadBalancing.Strategy
 	if p.Toggles.LoadBalancing.Enabled && lbStrategy == "" {
@@ -739,7 +773,8 @@ func writeReverseProxyDirective(b *strings.Builder, p DomainParams, matcher stri
 			b.WriteString("\t\tflush_interval -1\n")
 		}
 		if p.Toggles.LoadBalancing.Enabled {
-			b.WriteString("\t\tlb_policy " + lbStrategy + "\n")
+			upstreamCount := 1 + len(p.Toggles.LoadBalancing.Upstreams)
+			b.WriteString("\t\tlb_policy " + caddyfileLBPolicy(p.Toggles.LoadBalancing, lbStrategy, upstreamCount) + "\n")
 			if lbStrategy == "first" && !rpCfg.HealthChecks.Passive.Enabled {
 				b.WriteString("\t\tfail_duration 30s\n")
 				b.WriteString("\t\tmax_fails 3\n")

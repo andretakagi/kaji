@@ -8,6 +8,7 @@ All notable changes to Kaji are documented in this file.
 - Reverse proxy upstream configuration now starts with a mode selector: Single Upstream or Load Balancer. Single mode shows one upstream field. Load Balancer mode shows a strategy dropdown and a unified upstream list instead of a separate primary upstream with additional upstreams buried under a toggle.
 
 ### Added
+- Six more load balancing policies: Weighted Round Robin (set a per-upstream weight), Client IP Hash, URI Hash, Query Parameter, Header Field, and Cookie (sticky sessions with an optional signing secret). Query, Header, and Cookie policies take a key naming the parameter, header, or cookie to route on.
 - HTTP method matching on paths. Select which methods (GET, POST, PUT, etc.) a path should match using toggle chips in the path editor. Defaults to all methods when none are selected.
 - Max request body size setting. Configurable per domain, subdomain, or path through the toggles panel. Accepts human-readable sizes like 10MB or 500KB. Prevents oversized uploads from exhausting server resources.
 - Error handler type for domain routes, returning a configurable status code that triggers handle_errors processing.

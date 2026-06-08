@@ -5,7 +5,7 @@ import "fmt"
 func init() {
 	migrations = append(migrations, Migration{
 		Before:  "1.8.0",
-		Summary: "Add log_skip_rules, error_pages, and request_body_max_size defaults",
+		Summary: "Add log_skip_rules, error_pages, request_body_max_size, and load balancing policy defaults",
 		Fn:      migrateV180,
 	})
 }
@@ -17,6 +17,82 @@ func migrateV180(m map[string]any) []string {
 	}
 	changes = append(changes, migrateErrorPages(m)...)
 	changes = append(changes, migrateRequestBodyMaxSize(m)...)
+	changes = append(changes, migrateLoadBalancingParams(m)...)
+	return changes
+}
+
+// migrateLoadBalancingParams seeds the weights/key/secret fields added to the
+// reverse proxy load_balancing config in 1.8.0 for the weighted_round_robin,
+// query, header, and cookie policies. Existing handler configs predate these fields.
+func migrateLoadBalancingParams(m map[string]any) []string {
+	var changes []string
+	domains, ok := m["domains"].([]any)
+	if !ok {
+		return changes
+	}
+	for _, domRaw := range domains {
+		dom, ok := domRaw.(map[string]any)
+		if !ok {
+			continue
+		}
+		changes = append(changes, migrateLoadBalancingRule(dom)...)
+		if subs, ok := dom["subdomains"].([]any); ok {
+			for _, subRaw := range subs {
+				sub, ok := subRaw.(map[string]any)
+				if !ok {
+					continue
+				}
+				changes = append(changes, migrateLoadBalancingRule(sub)...)
+				changes = append(changes, migrateLoadBalancingPaths(sub)...)
+			}
+		}
+		changes = append(changes, migrateLoadBalancingPaths(dom)...)
+	}
+	return changes
+}
+
+func migrateLoadBalancingPaths(parent map[string]any) []string {
+	var changes []string
+	paths, ok := parent["paths"].([]any)
+	if !ok {
+		return changes
+	}
+	for _, pathRaw := range paths {
+		path, ok := pathRaw.(map[string]any)
+		if !ok {
+			continue
+		}
+		changes = append(changes, migrateLoadBalancingRule(path)...)
+	}
+	return changes
+}
+
+func migrateLoadBalancingRule(entity map[string]any) []string {
+	rule, ok := entity["rule"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	if ht, _ := rule["handler_type"].(string); ht != "reverse_proxy" {
+		return nil
+	}
+	hc, ok := rule["handler_config"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	lb, ok := hc["load_balancing"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var changes []string
+	if c := setDefault(lb, "weights", []any{}); c != "" {
+		changes = append(changes, c)
+	}
+	if c := setDefault(lb, "key", ""); c != "" {
+		changes = append(changes, c)
+	}
+	if c := setDefault(lb, "secret", ""); c != "" {
+		changes = append(changes, c)
+	}
 	return changes
 }
 

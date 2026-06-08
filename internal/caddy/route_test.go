@@ -500,6 +500,248 @@ func TestBuildDomainLoadBalancingFirst(t *testing.T) {
 	}
 }
 
+func TestBuildSelectionPolicy(t *testing.T) {
+	intSlice := func(t *testing.T, v any) []int {
+		t.Helper()
+		w, ok := v.([]int)
+		if !ok {
+			t.Fatalf("weights not []int: %T", v)
+		}
+		return w
+	}
+	eqInts := func(t *testing.T, got, want []int) {
+		t.Helper()
+		if len(got) != len(want) {
+			t.Fatalf("weights = %v, want %v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("weights[%d] = %d, want %d", i, got[i], want[i])
+			}
+		}
+	}
+
+	tests := []struct {
+		name          string
+		lb            LoadBalancing
+		upstreamCount int
+		wantPolicy    string
+		check         func(t *testing.T, policy map[string]any)
+	}{
+		{
+			name:          "empty strategy defaults to round_robin",
+			lb:            LoadBalancing{Strategy: ""},
+			upstreamCount: 2,
+			wantPolicy:    "round_robin",
+			check: func(t *testing.T, policy map[string]any) {
+				if len(policy) != 1 {
+					t.Errorf("round_robin should only have the policy key, got %v", policy)
+				}
+			},
+		},
+		{
+			name:          "weighted fills missing weights with 1",
+			lb:            LoadBalancing{Strategy: "weighted_round_robin", Weights: []int{3}},
+			upstreamCount: 3,
+			wantPolicy:    "weighted_round_robin",
+			check: func(t *testing.T, policy map[string]any) {
+				eqInts(t, intSlice(t, policy["weights"]), []int{3, 1, 1})
+			},
+		},
+		{
+			name:          "weighted clamps zero and negative to 1",
+			lb:            LoadBalancing{Strategy: "weighted_round_robin", Weights: []int{0, -5, 4}},
+			upstreamCount: 3,
+			wantPolicy:    "weighted_round_robin",
+			check: func(t *testing.T, policy map[string]any) {
+				eqInts(t, intSlice(t, policy["weights"]), []int{1, 1, 4})
+			},
+		},
+		{
+			name:          "weighted truncates extra weights to upstream count",
+			lb:            LoadBalancing{Strategy: "weighted_round_robin", Weights: []int{2, 3, 4, 5}},
+			upstreamCount: 2,
+			wantPolicy:    "weighted_round_robin",
+			check: func(t *testing.T, policy map[string]any) {
+				eqInts(t, intSlice(t, policy["weights"]), []int{2, 3})
+			},
+		},
+		{
+			name:          "query maps key",
+			lb:            LoadBalancing{Strategy: "query", Key: "session"},
+			upstreamCount: 2,
+			wantPolicy:    "query",
+			check: func(t *testing.T, policy map[string]any) {
+				if policy["key"] != "session" {
+					t.Errorf("key = %v, want session", policy["key"])
+				}
+			},
+		},
+		{
+			name:          "header maps key to field",
+			lb:            LoadBalancing{Strategy: "header", Key: "X-User-ID"},
+			upstreamCount: 2,
+			wantPolicy:    "header",
+			check: func(t *testing.T, policy map[string]any) {
+				if policy["field"] != "X-User-ID" {
+					t.Errorf("field = %v, want X-User-ID", policy["field"])
+				}
+			},
+		},
+		{
+			name:          "cookie maps name and secret",
+			lb:            LoadBalancing{Strategy: "cookie", Key: "sticky", Secret: "s3cr3t"},
+			upstreamCount: 2,
+			wantPolicy:    "cookie",
+			check: func(t *testing.T, policy map[string]any) {
+				if policy["name"] != "sticky" {
+					t.Errorf("name = %v, want sticky", policy["name"])
+				}
+				if policy["secret"] != "s3cr3t" {
+					t.Errorf("secret = %v, want s3cr3t", policy["secret"])
+				}
+			},
+		},
+		{
+			name:          "cookie defaults name to lb and omits empty secret",
+			lb:            LoadBalancing{Strategy: "cookie"},
+			upstreamCount: 2,
+			wantPolicy:    "cookie",
+			check: func(t *testing.T, policy map[string]any) {
+				if policy["name"] != "lb" {
+					t.Errorf("name = %v, want lb", policy["name"])
+				}
+				if _, ok := policy["secret"]; ok {
+					t.Errorf("empty secret should be omitted, got %v", policy["secret"])
+				}
+			},
+		},
+		{
+			name:          "client_ip_hash takes no params",
+			lb:            LoadBalancing{Strategy: "client_ip_hash"},
+			upstreamCount: 2,
+			wantPolicy:    "client_ip_hash",
+			check: func(t *testing.T, policy map[string]any) {
+				if len(policy) != 1 {
+					t.Errorf("client_ip_hash should only have the policy key, got %v", policy)
+				}
+			},
+		},
+		{
+			name:          "uri_hash takes no params",
+			lb:            LoadBalancing{Strategy: "uri_hash"},
+			upstreamCount: 2,
+			wantPolicy:    "uri_hash",
+			check: func(t *testing.T, policy map[string]any) {
+				if len(policy) != 1 {
+					t.Errorf("uri_hash should only have the policy key, got %v", policy)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := buildSelectionPolicy(tt.lb, tt.upstreamCount)
+			sp, ok := out["selection_policy"].(map[string]any)
+			if !ok {
+				t.Fatalf("selection_policy missing or wrong type: %T", out["selection_policy"])
+			}
+			if sp["policy"] != tt.wantPolicy {
+				t.Errorf("policy = %v, want %v", sp["policy"], tt.wantPolicy)
+			}
+			if tt.check != nil {
+				tt.check(t, sp)
+			}
+		})
+	}
+}
+
+func TestParseDomainParamsLoadBalancingWeighted(t *testing.T) {
+	p := DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "weighted_round_robin",
+				Upstreams: []string{"localhost:8081", "localhost:8082"},
+				Weights:   []int{5, 3, 2},
+			},
+		},
+	}
+	got := buildAndParse(t, p)
+	lb := got.Toggles.LoadBalancing
+	if !lb.Enabled || lb.Strategy != "weighted_round_robin" {
+		t.Fatalf("strategy round-trip = %+v", lb)
+	}
+	if len(lb.Weights) != 3 || lb.Weights[0] != 5 || lb.Weights[1] != 3 || lb.Weights[2] != 2 {
+		t.Errorf("weights = %v, want [5 3 2]", lb.Weights)
+	}
+}
+
+func TestParseDomainParamsLoadBalancingQuery(t *testing.T) {
+	p := DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "query",
+				Upstreams: []string{"localhost:8081"},
+				Key:       "session",
+			},
+		},
+	}
+	got := buildAndParse(t, p)
+	if got.Toggles.LoadBalancing.Key != "session" {
+		t.Errorf("query key round-trip = %q, want session", got.Toggles.LoadBalancing.Key)
+	}
+}
+
+func TestParseDomainParamsLoadBalancingHeader(t *testing.T) {
+	p := DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "header",
+				Upstreams: []string{"localhost:8081"},
+				Key:       "X-User-ID",
+			},
+		},
+	}
+	got := buildAndParse(t, p)
+	if got.Toggles.LoadBalancing.Key != "X-User-ID" {
+		t.Errorf("header field round-trip = %q, want X-User-ID", got.Toggles.LoadBalancing.Key)
+	}
+}
+
+func TestParseDomainParamsLoadBalancingCookie(t *testing.T) {
+	p := DomainParams{
+		Domain:   "example.com",
+		Upstream: "localhost:8080",
+		Toggles: RouteToggles{
+			LoadBalancing: LoadBalancing{
+				Enabled:   true,
+				Strategy:  "cookie",
+				Upstreams: []string{"localhost:8081"},
+				Key:       "sticky",
+				Secret:    "s3cr3t",
+			},
+		},
+	}
+	got := buildAndParse(t, p)
+	lb := got.Toggles.LoadBalancing
+	if lb.Key != "sticky" {
+		t.Errorf("cookie name round-trip = %q, want sticky", lb.Key)
+	}
+	if lb.Secret != "s3cr3t" {
+		t.Errorf("cookie secret round-trip = %q, want s3cr3t", lb.Secret)
+	}
+}
+
 // round-trip helpers
 
 func buildAndParse(t *testing.T, p DomainParams) DomainParams {

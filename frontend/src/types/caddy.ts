@@ -15,7 +15,18 @@ export interface ReverseProxyHandler {
 	upstreams?: CaddyUpstream[];
 	load_balancing?: {
 		selection_policy: {
-			policy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
+			policy:
+				| "round_robin"
+				| "weighted_round_robin"
+				| "first"
+				| "least_conn"
+				| "random"
+				| "ip_hash"
+				| "client_ip_hash"
+				| "uri_hash"
+				| "query"
+				| "header"
+				| "cookie";
 		};
 	};
 	health_checks?: {
@@ -103,7 +114,18 @@ export interface CaddyHandler {
 	upstreams?: CaddyUpstream[];
 	load_balancing?: {
 		selection_policy: {
-			policy: "round_robin" | "first" | "least_conn" | "random" | "ip_hash";
+			policy:
+				| "round_robin"
+				| "weighted_round_robin"
+				| "first"
+				| "least_conn"
+				| "random"
+				| "ip_hash"
+				| "client_ip_hash"
+				| "uri_hash"
+				| "query"
+				| "header"
+				| "cookie";
 		};
 	};
 	health_checks?: {

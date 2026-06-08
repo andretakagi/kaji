@@ -241,15 +241,7 @@ func buildReverseProxyHandler(handlerConfig json.RawMessage, advancedHeaders boo
 	}
 
 	if rpCfg.LoadBalancing.Enabled {
-		strategy := rpCfg.LoadBalancing.Strategy
-		if strategy == "" {
-			strategy = "round_robin"
-		}
-		rp["load_balancing"] = map[string]any{
-			"selection_policy": map[string]any{
-				"policy": strategy,
-			},
-		}
+		rp["load_balancing"] = buildSelectionPolicy(rpCfg.LoadBalancing, len(upstreams))
 	}
 
 	if rpCfg.HealthChecks.Enabled {

@@ -41,10 +41,16 @@ interface Props {
 
 const strategyLabels: Record<ReverseProxyConfig["load_balancing"]["strategy"], string> = {
 	round_robin: "Round Robin",
+	weighted_round_robin: "Weighted Round Robin",
 	first: "Failover (Primary/Backup)",
 	least_conn: "Least Connections",
 	random: "Random",
 	ip_hash: "IP Hash",
+	client_ip_hash: "Client IP Hash",
+	uri_hash: "URI Hash",
+	query: "Query Parameter",
+	header: "Header Field",
+	cookie: "Cookie",
 };
 
 export default function HandlerConfig({ type, config, onChange, disabled, domain }: Props) {
@@ -280,7 +286,15 @@ function LoadBalancerSection({
 		prevAll.current = allUpstreams;
 	}
 
-	function syncEntries(next: LBEntry[]) {
+	const isFailover = lb.strategy === "first";
+	const isWeighted = lb.strategy === "weighted_round_robin";
+
+	const weights = entries.map((_, i) => {
+		const w = lb.weights?.[i];
+		return w && w > 0 ? w : 1;
+	});
+
+	function commit(next: LBEntry[], nextWeights?: number[]) {
 		setEntries(next);
 		const values = next.map((e) => e.value);
 		onChange({
@@ -288,11 +302,12 @@ function LoadBalancerSection({
 			load_balancing: {
 				...lb,
 				upstreams: values.slice(1),
+				...(nextWeights ? { weights: nextWeights } : {}),
 			},
 		});
 	}
 
-	const isFailover = lb.strategy === "first";
+	const keyField = lbKeyFields[lb.strategy];
 
 	return (
 		<div className="lb-config">
@@ -318,6 +333,35 @@ function LoadBalancerSection({
 					))}
 				</select>
 			</div>
+			{keyField && (
+				<div className="form-field">
+					<label htmlFor={`lb-key-${idPrefix}`}>{keyField.label}</label>
+					<input
+						id={`lb-key-${idPrefix}`}
+						type="text"
+						placeholder={keyField.placeholder}
+						maxLength={256}
+						value={lb.key ?? ""}
+						disabled={disabled}
+						onChange={(e) => onChange({ load_balancing: { ...lb, key: e.target.value } })}
+					/>
+					{keyField.hint && <span className="form-hint">{keyField.hint}</span>}
+				</div>
+			)}
+			{lb.strategy === "cookie" && (
+				<div className="form-field">
+					<label htmlFor={`lb-secret-${idPrefix}`}>Secret (optional)</label>
+					<input
+						id={`lb-secret-${idPrefix}`}
+						type="text"
+						placeholder="HMAC key to sign the cookie"
+						maxLength={256}
+						value={lb.secret ?? ""}
+						disabled={disabled}
+						onChange={(e) => onChange({ load_balancing: { ...lb, secret: e.target.value } })}
+					/>
+				</div>
+			)}
 			<div className="lb-upstreams">
 				<span className="toggle-detail-heading">Upstreams</span>
 				{entries.map((entry, i) => (
@@ -330,6 +374,23 @@ function LoadBalancerSection({
 								{i === 0 ? "Primary" : `#${i}`}
 							</span>
 						)}
+						{isWeighted && (
+							<input
+								type="number"
+								className="lb-upstream-weight"
+								min={1}
+								max={9999}
+								value={weights[i]}
+								disabled={disabled}
+								aria-label={`Weight for upstream ${i + 1}`}
+								onChange={(e) => {
+									const parsed = Number.parseInt(e.target.value, 10);
+									const next = [...weights];
+									next[i] = Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
+									commit(entries, next);
+								}}
+							/>
+						)}
 						<input
 							type="text"
 							placeholder="localhost:3000"
@@ -339,14 +400,19 @@ function LoadBalancerSection({
 							onChange={(e) => {
 								const next = [...entries];
 								next[i] = { ...entry, value: e.target.value };
-								syncEntries(next);
+								commit(next, isWeighted ? weights : undefined);
 							}}
 						/>
 						{entries.length > 1 && (
 							<button
 								type="button"
 								className="btn btn-ghost lb-upstream-remove"
-								onClick={() => syncEntries(entries.filter((_, j) => j !== i))}
+								onClick={() =>
+									commit(
+										entries.filter((_, j) => j !== i),
+										isWeighted ? weights.filter((_, j) => j !== i) : undefined,
+									)
+								}
 								aria-label="Remove upstream"
 								disabled={disabled}
 							>
@@ -360,7 +426,10 @@ function LoadBalancerSection({
 					className="btn btn-primary lb-add-upstream"
 					onClick={() => {
 						nextId.current += 1;
-						syncEntries([...entries, { id: nextId.current, value: "" }]);
+						commit(
+							[...entries, { id: nextId.current, value: "" }],
+							isWeighted ? [...weights, 1] : undefined,
+						);
 					}}
 					disabled={disabled}
 				>
@@ -370,6 +439,29 @@ function LoadBalancerSection({
 		</div>
 	);
 }
+
+const lbKeyFields: Partial<
+	Record<
+		ReverseProxyConfig["load_balancing"]["strategy"],
+		{ label: string; placeholder: string; hint?: string }
+	>
+> = {
+	query: {
+		label: "Query Parameter",
+		placeholder: "session",
+		hint: "Requests with the same value for this query parameter go to the same upstream.",
+	},
+	header: {
+		label: "Header Field",
+		placeholder: "X-User-ID",
+		hint: "Requests with the same value for this header go to the same upstream.",
+	},
+	cookie: {
+		label: "Cookie Name",
+		placeholder: "lb",
+		hint: "Sticky sessions keyed on this cookie. Caddy sets it if absent.",
+	},
+};
 
 interface HeaderEntry {
 	id: number;
