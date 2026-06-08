@@ -22,8 +22,7 @@ jobs:
           v6=$(curl -fsSL https://www.cloudflare.com/ips-v6)
           printf '%s\n%s\n' "$v4" "$v6" \
             | grep -v '^$' \
-            | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n \
-            | jq -Rn '[inputs | select(length > 0)]' \
+            | jq -Rn --tab '[inputs | select(length > 0)]' \
             > frontend/src/data/cloudflare-ips.json
 
       - name: Create pull request
