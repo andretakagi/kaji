@@ -31,7 +31,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "-X main.version=${VERSION}" -o kaji .
 
 # Stage 4: Final image
-FROM alpine:3.23
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates libcap
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY --from=builder /build/kaji /usr/local/bin/kaji
