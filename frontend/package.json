@@ -11,15 +11,15 @@
 		"format": "bunx @biomejs/biome format --write ."
 	},
 	"dependencies": {
-		"react": "^19.2.7",
-		"react-dom": "^19.2.7"
+		"react": "^19.3.0",
+		"react-dom": "^19.3.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.16",
-		"@types/react": "^19.2.17",
-		"@types/react-dom": "^19.2.3",
-		"@vitejs/plugin-react": "^6.0.2",
+		"@biomejs/biome": "^2.5.13",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"@vitejs/plugin-react": "^6.1.1",
 		"typescript": "^6.0.3",
-		"vite": "^8.0.16"
+		"vite": "^8.3.0"
 	}
 }
