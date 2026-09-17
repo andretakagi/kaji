@@ -1,5 +1,5 @@
 # Stage 1: Build Caddy with xcaddy (includes cloudflare DNS module)
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS caddy
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS caddy
 ARG TARGETARCH
 COPY .caddy-version /tmp/.caddy-version
 COPY .cloudflare-dns-version /tmp/.cloudflare-dns-version
@@ -12,7 +12,7 @@ RUN CADDY_VERSION=$(cat /tmp/.caddy-version) \
     && rm -rf /go/pkg/mod /root/.cache/go-build
 
 # Stage 2: Build frontend
-FROM --platform=$BUILDPLATFORM oven/bun:1.3.14 AS frontend
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.2 AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/bun.lock ./
 RUN bun install --frozen-lockfile
@@ -20,7 +20,7 @@ COPY frontend/ .
 RUN bun run build
 
 # Stage 3: Build Go binary
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS builder
 ARG TARGETARCH
 WORKDIR /build
 COPY go.mod go.sum ./
@@ -31,7 +31,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "-X main.version=${VERSION}" -o kaji .
 
 # Stage 4: Final image
-FROM alpine:3.23
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates libcap
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY --from=builder /build/kaji /usr/local/bin/kaji
