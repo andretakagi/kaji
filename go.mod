@@ -1,5 +1,5 @@
 module github.com/andretakagi/kaji
 
-go 1.26.4
+go 1.27.2
 
-require golang.org/x/crypto v0.53.0
+require golang.org/x/crypto v0.58.0
